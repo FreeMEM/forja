@@ -59,13 +59,20 @@ ficheros del otro.
 
 ## Depurador
 
-Ahora el depurador de Dash solo funciona en el emulador (`--debug`, `debug_break`, por uaelib). En un Amiga de
-verdad hace falta otro:
-- El IDE lanza el programa como proceso propio y recoge sus excepciones con `tc_TrapCode`, como ya hace el runtime
-  de Dash.
-- Los puntos de parada ponen una instrucción `TRAP` en la dirección de la línea.
-- El paso a paso usa el bit de traza del 68k.
-- dashc tiene que dar una tabla de líneas y direcciones y la posición de cada variable.
+En un Amiga de verdad, no solo en el emulador. Las piezas ya están en Dash 2.0 (rama `ide-piezas`, sin fusionar):
+- Se compila el programa con `./dash --debug`. Eso pone un NOP en cada línea y una tabla de líneas y
+  variables (HUNK_DEBUG).
+- Forja lo controla con los builtins `dbg_*`:
+  - Arrancar en pausa, poner y quitar puntos de parada.
+  - Seguir, paso, entrar, salir y pausa.
+  - La pila, las variables locales y globales, y el valor de una expresión como `p.hijos[0].x`.
+  - Registros, memoria y la salida del programa.
+- Los puntos de parada son un `TRAP` en el NOP de la línea, sin el bit de traza, así que funciona también
+  en Emu68 (PiStorm).
+- La espera entra en el bucle de MUI con `dbg_signal()`, así que la ventana no se congela.
+- Límites de ahora:
+  - Una tarea de `task_start` que pase por una línea con `TRAP` se cae.
+  - Un programa parado en `mui_wait_event` no acaba con `dbg_end` hasta que vuelve a su código.
 
 ## ARexx
 
@@ -76,12 +83,14 @@ Puerto propio, para Inferencia y para quien quiera:
 - `COMPILAR`: devuelve los errores.
 - `EJECUTAR`
 
-## Piezas que faltan en Dash
+## Piezas de Dash
 
-- Información de depuración en dashc y una librería de depuración: lanzar un proceso hijo, puntos de parada,
-  paso a paso, leer memoria y registros.
-- Construir una ventana MUI desde un `.dashui` en tiempo de ejecución.
-- ARexx como servidor en MUI (la misma pieza que necesita Inferencia).
+Hechas en la rama `ide-piezas` de Dash, todavía sin fusionar:
+- El depurador (`dbg_*`, `./dash --debug`).
+- La ventana de un `.dashui` construida en tiempo de ejecución: `lib/dashui.dash`, con `dashui_window` y
+  `dashui_object`.
+- Órdenes ARexx propias en una aplicación MUI: `mui_app_rexx`.
+- Ejecutar dashc y recoger sus errores: `run_capture` o `run_start`, sin bloquear la ventana.
 
 ## Fases
 
