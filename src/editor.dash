@@ -1,0 +1,125 @@
+# El editor: los ficheros abiertos (pestañas) y cómo se dibujan. Escribir llega en F2.
+#
+#   ed_abrir_texto("main.dash", texto)
+#   ed_dibujar(x, y, ancho, alto)      # desde la función de dibujo del canvas
+
+import "tema.dash"
+
+const ALTO_PESTANAS = 18
+const MARGEN_TEXTO = 6
+
+struct Documento
+    nombre: String
+    ruta: String          # "" si aún no se ha guardado
+    lineas: [String]
+    primera: Int          # la primera línea que se ve
+    cursor_linea: Int
+    cursor_col: Int
+    cambiado: Bool
+    utf8: Bool            # el fichero estaba en UTF-8 (de un PC): se guarda igual
+end
+
+var documentos: [Documento] = []
+var activo: Int = -1
+var ed_visibles: Int = 1
+
+# ¿Es UTF-8? Si tiene letras de fuera de ASCII y pasar a Latin-1 y volver lo deja igual, o si tiene la
+# puntuación de UTF-8 más corriente (comillas, guiones y puntos suspensivos empiezan por E2 80)
+func es_utf8(t: String) -> Bool
+    if str_contains(t, str_char(0xE2) + str_char(0x80))
+        return true
+    end
+    alto = false
+    for c in [0xC2, 0xC3]
+        if str_contains(t, str_char(c))
+            alto = true
+        end
+    end
+    return alto and latin1_to_utf8(utf8_to_latin1(t)) == t
+end
+
+func ed_abrir_texto(nombre: String, ruta: String, texto: String)
+    utf8 = es_utf8(texto)
+    if utf8
+        texto = utf8_to_latin1(texto)
+    end
+    lineas = str_split(str_replace(texto, "\t", "    "), "\n")
+    documentos.push(Documento(nombre, ruta, lineas, 0, 0, 0, false, utf8))
+    activo = documentos.length - 1
+end
+
+func ed_actual() -> Documento
+    if activo < 0
+        return nil
+    end
+    return documentos[activo]
+end
+
+func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + ALTO_PESTANAS - 1)
+    usar_panel(0)
+    tx = x + 4
+    i = 0
+    for d in documentos
+        nombre = d.nombre
+        if d.cambiado
+            nombre = nombre + " *"
+        end
+        w = font_text_width(nombre) + 20
+        if i == activo
+            gfx_pen(tema.fondo)
+            gfx_rect(tx, y + 2, tx + w - 1, y + ALTO_PESTANAS - 1)
+            gfx_pen(tema.acento)
+            gfx_rect(tx, y + 2, tx + w - 1, y + 3)
+            gfx_pen(tema.texto)
+        else
+            gfx_pen(tema.tenue)
+        end
+        gfx_text_at(tx + 10, y + (ALTO_PESTANAS - font_height()) / 2 + 2 + font_baseline(), nombre)
+        tx = tx + w + 2
+        i = i + 1
+    end
+end
+
+func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    gfx_mode(0)
+    _dibujar_pestanas(x, y, ancho)
+    ty = y + ALTO_PESTANAS
+    gfx_pen(tema.fondo)
+    gfx_rect(x, ty, x + ancho - 1, y + alto - 1)
+    d = ed_actual()
+    if d == nil
+        return
+    end
+    usar_codigo()
+    alto_fila = alto_letra + 2
+    ed_visibles = (alto - ALTO_PESTANAS - 4) / alto_fila
+    # el margen de los números, del ancho del número más largo
+    cifras = "#{d.lineas.length}".length
+    if cifras < 3
+        cifras = 3
+    end
+    margen = (cifras + 1) * ancho_letra + MARGEN_TEXTO
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, ty, x + margen - 4, y + alto - 1)
+    fy = ty + 2
+    n = d.primera
+    while n < d.lineas.length and fy + alto_fila <= y + alto
+        if n == d.cursor_linea
+            gfx_pen(tema.fondo_linea)
+            gfx_rect(x + margen - 3, fy, x + ancho - 1, fy + alto_fila - 1)
+        end
+        num = "#{n + 1}"
+        gfx_pen(tema.tenue)
+        if n == d.cursor_linea
+            gfx_pen(tema.texto)
+        end
+        gfx_text_at(x + margen - 4 - MARGEN_TEXTO - num.length * ancho_letra, fy + 1 + base_letra, num)
+        gfx_pen(tema.texto)
+        gfx_text_at(x + margen + 2, fy + 1 + base_letra, d.lineas[n])
+        fy = fy + alto_fila
+        n = n + 1
+    end
+end

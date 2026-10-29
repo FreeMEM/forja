@@ -1,0 +1,5 @@
+# La red del juego
+
+func conectar() -> Bool
+    return true
+end

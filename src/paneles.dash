@@ -1,0 +1,96 @@
+# El panel del proyecto (los ficheros del cajón) y el de la salida (lo que dice dashc).
+
+import "tema.dash"
+
+const TITULO_ALTO = 18
+
+var proyecto_cajon: String = ""
+var proyecto_ficheros: [String] = []
+var salida_lineas: [String] = []
+var salida_tipos: [Int] = []      # 0 normal, 1 error, 2 bien
+
+func proyecto_leer(cajon: String)
+    proyecto_cajon = cajon
+    proyecto_ficheros = []
+    n = dir_read(cajon)
+    i = 0
+    while i < n
+        nombre = dir_entry_name(i)
+        if dir_entry_is_dir(i)
+            proyecto_ficheros.push(nombre + "/")
+        elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui")
+            proyecto_ficheros.push(nombre)
+        end
+        i = i + 1
+    end
+end
+
+func salida_anadir(texto: String, tipo: Int)
+    for l in str_split(texto, "\n")
+        salida_lineas.push(l)
+        salida_tipos.push(tipo)
+    end
+end
+
+func _titulo(x: Int, y: Int, ancho: Int, texto: String)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + TITULO_ALTO - 1)
+    usar_panel(2)
+    gfx_pen(tema.tenue)
+    gfx_text_at(x + 8, y + (TITULO_ALTO - font_height()) / 2 + font_baseline(), texto)
+    font_style(0)
+end
+
+func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    gfx_mode(0)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    nombre = proyecto_cajon
+    if nombre == ""
+        nombre = "Proyecto"
+    end
+    _titulo(x, y, ancho, str_upper(nombre))
+    usar_panel(0)
+    fila = font_height() + 3
+    fy = y + TITULO_ALTO + 4
+    for f in proyecto_ficheros
+        if fy + fila > y + alto
+            break
+        end
+        gfx_pen(tema.texto)
+        if str_ends(f, "/")
+            gfx_pen(tema.acento)
+        end
+        gfx_text_at(x + 12, fy + font_baseline(), f)
+        fy = fy + fila
+    end
+end
+
+func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    gfx_mode(0)
+    gfx_pen(tema.fondo_salida)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    _titulo(x, y, ancho, "SALIDA")
+    usar_codigo()
+    fila = alto_letra + 2
+    cabe = (alto - TITULO_ALTO - 4) / fila
+    desde = salida_lineas.length - cabe
+    if desde < 0
+        desde = 0
+    end
+    fy = y + TITULO_ALTO + 3
+    i = desde
+    while i < salida_lineas.length
+        gfx_pen(tema.texto)
+        if salida_tipos[i] == 1
+            gfx_pen(tema.error)
+        elif salida_tipos[i] == 2
+            gfx_pen(tema.bien)
+        end
+        gfx_text_at(x + 8, fy + base_letra, salida_lineas[i])
+        fy = fy + fila
+        i = i + 1
+    end
+end

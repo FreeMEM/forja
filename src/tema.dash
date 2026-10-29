@@ -1,0 +1,58 @@
+# Los colores y las fuentes de Forja: fondo negro, texto claro.
+#
+#   tema_preparar()      # en la primera función de dibujo (color_pen necesita la pantalla)
+#   gfx_pen(tema.fondo)
+#
+# Con los 4 colores del Workbench, color_pen da el más parecido: los fondos salen negros y el texto blanco.
+
+struct Tema
+    fondo: Int          # el editor
+    fondo_panel: Int    # proyecto y pestañas
+    fondo_salida: Int
+    fondo_linea: Int    # la línea del cursor
+    texto: Int
+    tenue: Int          # números de línea, títulos de los paneles
+    acento: Int         # la pestaña activa, lo elegido
+    error: Int
+    bien: Int
+    borde: Int
+end
+
+var tema: Tema = nil
+var fuente_codigo: Int = 0      # Topaz 8: todas las letras igual de anchas
+var fuente_panel: Int = 0
+var ancho_letra: Int = 8
+var alto_letra: Int = 8
+var base_letra: Int = 6
+
+func tema_preparar()
+    if tema != nil
+        return
+    end
+    tema = Tema(color_pen(14, 14, 18), color_pen(26, 26, 32), color_pen(8, 8, 10), color_pen(30, 30, 38),
+                color_pen(220, 220, 210), color_pen(110, 110, 124), color_pen(90, 150, 230), color_pen(230, 80, 70),
+                color_pen(110, 200, 120), color_pen(50, 50, 60))
+    fuente_codigo = font_open("topaz.font", 8)
+    fuente_panel = font_open("helvetica.font", 11)
+    if fuente_panel == 0
+        fuente_panel = fuente_codigo
+    end
+    usar_codigo()
+    ancho_letra = font_text_width("M")
+    alto_letra = font_height()
+    base_letra = font_baseline()
+end
+
+func usar_codigo()
+    if fuente_codigo != 0
+        font_use(fuente_codigo)
+    end
+    font_style(0)
+end
+
+func usar_panel(estilo: Int)
+    if fuente_panel != 0
+        font_use(fuente_panel)
+    end
+    font_style(estilo)
+end

@@ -1,0 +1,24 @@
+# Un juego pequeño para probar Forja
+import "red.dash"
+
+const MAX = 10
+
+struct Nave
+    x: Int
+    y: Int
+end
+
+func mover(n: Nave, dx: Int)
+    n.x = n.x + dx
+end
+
+Main
+    lista = [Nave(1, 2), Nave(3, 4)]
+    total = lista.length
+    j = 0
+    while j < total
+        mover(lista[j], 5)
+        j = j + 1
+    end
+    Print "Naves: #{total}"
+end

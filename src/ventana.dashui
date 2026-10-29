@@ -1,0 +1,52 @@
+{
+  "dashui": 1,
+  "windows": [
+    {
+      "name": "Principal",
+      "title": "Forja",
+      "id": 1,
+      "size": [90, 90],
+      "menus": [
+        {
+          "title": "Proyecto",
+          "items": [
+            { "label": "Nuevo", "key": "N", "event": 30 },
+            { "label": "Abrir...", "key": "O", "event": 31 },
+            { "label": "Guardar", "key": "S", "event": 32 },
+            { "label": "Guardar como...", "event": 33 },
+            { "label": "Cerrar pestaña", "key": "W", "event": 34 },
+            { "separator": true },
+            { "label": "Salir", "key": "Q", "event": 99 }
+          ]
+        }
+      ],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "compilar", "label": "_Compilar", "event": 10 },
+              { "type": "button", "name": "ejecutar", "label": "_Ejecutar", "event": 11 },
+              { "type": "button", "name": "depurar", "label": "_Depurar", "event": 12 },
+              { "type": "space" },
+              { "type": "button", "name": "inferencia", "label": "_Inferencia", "event": 19 }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "weight": 300,
+            "children": [
+              { "type": "canvas", "name": "proyecto", "min_width": 100, "min_height": 80, "weight": 25 },
+              { "type": "balance" },
+              { "type": "canvas", "name": "editor", "min_width": 240, "min_height": 80, "weight": 100 },
+              { "type": "scrollbar", "name": "barra", "vertical": true, "change": 3 }
+            ]
+          },
+          { "type": "balance" },
+          { "type": "canvas", "name": "salida", "min_width": 240, "min_height": 44, "weight": 60 }
+        ]
+      }
+    }
+  ]
+}

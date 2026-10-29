@@ -1,0 +1,107 @@
+# Forja: el entorno de desarrollo de Dash en el Amiga.
+#
+# La ventana (ventana.dashui): botones arriba; el proyecto a la izquierda; el editor con sus pestañas; la salida
+# abajo. Los paneles se dibujan en lienzos con el tema oscuro (tema.dash).
+#
+#   Forja [fichero]      # sin fichero, uno nuevo
+#
+# Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar.
+
+import "tema.dash"
+import "editor.dash"
+import "paneles.dash"
+import "ventana.dashui"
+
+const VERSION = "0.1"
+
+const EV_COMPILAR = 10
+const EV_EJECUTAR = 11
+const EV_INFERENCIA = 19
+const EV_BARRA = 3
+const EV_SALIR = 99
+
+const NUEVO = "# Un programa de Dash\n\nMain\n    Print \"Hola, Amiga\"\nend\n"
+
+var v: Principal = nil
+
+func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
+    proyecto_dibujar(x, y, ancho, alto)
+end
+
+func dibujar_editor(x: Int, y: Int, ancho: Int, alto: Int)
+    ed_dibujar(x, y, ancho, alto)
+end
+
+func dibujar_salida(x: Int, y: Int, ancho: Int, alto: Int)
+    salida_dibujar(x, y, ancho, alto)
+end
+
+func abrir(ruta: String) -> Bool
+    texto = file_read_text(ruta)
+    if texto == nil
+        salida_anadir("No se puede leer " + ruta, 1)
+        return false
+    end
+    nombre = ruta
+    for sep in [":", "/"]
+        p = str_find(nombre, sep)
+        while p >= 0
+            nombre = nombre[p + 1:]
+            p = str_find(nombre, sep)
+        end
+    end
+    ed_abrir_texto(nombre, ruta, texto)
+    return true
+end
+
+# El cajón de una ruta ("Work:juego/main.dash" -> "Work:juego")
+func cajon_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/"
+            return ruta[0:i]
+        end
+        if c == ":"
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
+
+Main
+    if mui_app_begin("Forja", "FORJA") == 0
+        Print "Forja necesita MUI y un 68020 o mejor."
+    else
+        v = Principal_create()
+        mui_canvas_on_draw(v.proyecto, dibujar_proyecto)
+        mui_canvas_on_draw(v.editor, dibujar_editor)
+        mui_canvas_on_draw(v.salida, dibujar_salida)
+        mui_canvas_buffered(v.editor, true)
+        # lo que aún no hace nada, apagado
+        for b in [v.compilar, v.ejecutar, v.depurar, v.inferencia]
+            mui_set_enabled(b, false)
+        end
+
+        ruta = env_get("FORJA_PRUEBA")
+        if ruta == "" and arg_count() > 0
+            ruta = arg(0)
+        end
+        if ruta == "" or not abrir(ruta)
+            ed_abrir_texto("sin nombre.dash", "", NUEVO)
+        end
+        proyecto_leer(cajon_de(ruta))
+        salida_anadir("Forja " + VERSION + ", con Dash 2.0.", 0)
+        salida_anadir("Listo.", 2)
+
+        mui_window_open(v.window)
+        while true
+            ev = mui_wait_event()
+            if ev == -1 or ev == EV_SALIR
+                break
+            end
+        end
+        mui_app_end()
+    end
+end

@@ -17,7 +17,7 @@ Escrito en Dash 2.0 (dashc), sin `@native` y con licencia MIT.
 +--------------------------------------------------------------------------------+
 | Forja: Work:juego                                                        [][]  |
 +--------------------------------------------------------------------------------+
-| [Compilar] [Ejecutar] [Depurar] [Paso] [Entrar] [Salir] [Seguir] [Inferencia]  |
+| [Compilar] [Ejecutar] [Depurar]                                   [Inferencia]  |
 +--------------+-----------------------------------------------------------------+
 | Proyecto     | main.dash | ventana.dashui | red.dash                            |
 |  main.dash   |  45   total = lista.count                                       |
@@ -40,6 +40,8 @@ Escrito en Dash 2.0 (dashc), sin `@native` y con licencia MIT.
   - Colores según la sintaxis de Dash, números de línea y puntos de parada.
   - Buscar y reemplazar, deshacer y pestañas.
   - Es la pieza más grande.
+- **Botones**: los del depurador (Paso, Entrar, Salir, Seguir) solo salen al depurar; todos a la vez no caben en
+  una pantalla de 640 píxeles.
 - **Proyecto**: los ficheros. Al depurar, también las variables y la pila de llamadas.
 - **Salida**: los errores de dashc. Con un clic se salta a la línea.
 - **Botón Inferencia**: manda a Inferencia el fichero y la selección. Si no está abierta, la arranca.
