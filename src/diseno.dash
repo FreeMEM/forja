@@ -1,0 +1,514 @@
+# El editor de ventanas .dashui: el árbol de objetos a la izquierda y las propiedades del elegido a la derecha,
+# en el lienzo del editor. La vista previa es la ventana MUI de verdad, hecha con lib/dashui.dash.
+#
+#   dv_cargar(texto)               # lee el .dashui; "" si bien, o por qué no
+#   dv_dibujar(x, y, ancho, alto)  # desde la función de dibujo del editor (debajo de las pestañas)
+#   dv_tecla(codigo, teclas, letra) / dv_clic(x, y)   # true si cambió el fichero: dv_texto() es el nuevo
+#   dv_vista_previa(evento_cerrar, volver)  # la ventana de verdad (sin los eventos del fichero, para que no lleguen a Forja)
+#
+# El formato es el de la extensión de VS Code (docs/MUI_EDITOR.md de Dash) y se escribe igual que ella
+# (json_pretty, dos espacios, como JSON.stringify(doc, null, 2)). Los textos del fichero van en UTF-8; aquí se ven
+# y se escriben en Latin-1.
+
+import "lib/dashui.dash"
+import "tema.dash"
+
+const DV_MARGEN = 8
+const DV_SANGRIA = 14
+
+struct Fila
+    nodo: Json
+    nivel: Int
+end
+
+var dv_raiz: Json = nil
+var dv_ventana: Json = nil
+var dv_filas: [Fila] = []
+var dv_sel: Int = 0              # la fila elegida del árbol
+var dv_prop: Int = -1            # la propiedad elegida (-1: se mueve por el árbol)
+var dv_props: [String] = []      # las propiedades del elegido, en orden
+var dv_editando: Bool = false
+var dv_valor: String = ""        # lo que se escribe en la propiedad
+var dv_cursor: Int = 0
+var dv_mensaje: String = ""      # un error de la última propiedad
+var dv_vista: Int = 0            # la ventana de la vista previa (0: ninguna)
+# La geometría del último dibujo (desde la esquina de la zona)
+var dv_y0: Int = 0
+var dv_fila_alto: Int = 12
+var dv_corte: Int = 200          # la x donde empiezan las propiedades
+var dv_columna_valor: Int = 100
+var dv_de: String = ""           # qué documento está cargado ("" ninguno)
+var dv_error_carga: String = ""
+
+var _dv_tipos: {String: String} = {}
+
+func _dv_preparar()
+    if _dv_tipos.length > 0
+        return
+    end
+    # las propiedades propias de cada tipo, delante de las comunes (docs/MUI_EDITOR.md)
+    _dv_tipos["vgroup"] = ""
+    _dv_tipos["hgroup"] = ""
+    _dv_tipos["frame"] = "title|horizontal"
+    _dv_tipos["columns"] = "columns"
+    _dv_tipos["tabs"] = "titles|change"
+    _dv_tipos["scroll"] = ""
+    _dv_tipos["text"] = "text|color"
+    _dv_tipos["label"] = "text|color"
+    _dv_tipos["button"] = "label|event|color"
+    _dv_tipos["string"] = "text|max|ack|change"
+    _dv_tipos["checkbox"] = "checked|change"
+    _dv_tipos["cycle"] = "options|change"
+    _dv_tipos["slider"] = "min|max|value|change"
+    _dv_tipos["gauge"] = "max"
+    _dv_tipos["list"] = "change|double"
+    _dv_tipos["canvas"] = "min_width|min_height|take_tab"
+    _dv_tipos["scrollbar"] = "vertical|change"
+    _dv_tipos["image"] = "file"
+    _dv_tipos["image_button"] = "file|event"
+    _dv_tipos["image_toggle"] = "file|group|checked|change"
+    _dv_tipos["combo"] = "text|options|ack|change"
+    _dv_tipos["space"] = ""
+    _dv_tipos["balance"] = ""
+end
+
+func _dv_numerica(p: String) -> Bool
+    for n in ["event", "change", "ack", "double", "weight", "id", "close", "max", "min", "value", "min_width", "min_height", "columns", "group"]
+        if p == n
+            return true
+        end
+    end
+    return false
+end
+
+func _dv_logica(p: String) -> Bool
+    for n in ["checked", "horizontal", "vertical", "disabled", "hidden", "take_tab"]
+        if p == n
+            return true
+        end
+    end
+    return false
+end
+
+func _dv_lista(p: String) -> Bool
+    return p == "size" or p == "background" or p == "color"
+end
+
+func _dv_anadir_filas(n: Json, nivel: Int)
+    dv_filas.push(Fila(n, nivel))
+    hijos = json_get(n, "children")
+    if hijos != nil
+        i = 0
+        while i < json_length(hijos)
+            _dv_anadir_filas(json_at(hijos, i), nivel + 1)
+            i = i + 1
+        end
+    end
+end
+
+# Lee el .dashui (la primera ventana); "" si bien, o por qué no
+func dv_cargar(texto: String) -> String
+    _dv_preparar()
+    j = json_parse(texto)
+    if j == nil
+        return "No es JSON: " + json_error()
+    end
+    if json_get_int(j, "dashui") != 1
+        return "No es un .dashui de la versión 1"
+    end
+    ventanas = json_get(j, "windows")
+    if ventanas == nil or json_length(ventanas) == 0
+        return "No tiene ninguna ventana"
+    end
+    dv_raiz = j
+    dv_ventana = json_at(ventanas, 0)
+    dv_filas.clear()
+    dv_filas.push(Fila(dv_ventana, 0))
+    raiz = json_get(dv_ventana, "root")
+    if raiz != nil
+        _dv_anadir_filas(raiz, 1)
+    end
+    if dv_sel >= dv_filas.length
+        dv_sel = dv_filas.length - 1
+    end
+    dv_editando = false
+    _dv_listar_props()
+    return ""
+end
+
+# El fichero como texto, escrito como la extensión de VS Code
+func dv_texto() -> String
+    return json_pretty(dv_raiz) + "\n"
+end
+
+func _dv_listar_props()
+    dv_props.clear()
+    n = dv_filas[dv_sel].nodo
+    if dv_sel == 0
+        for p in ["name", "title", "id", "size", "close", "background"]
+            dv_props.push(p)
+        end
+    else
+        tipo = json_get_str(n, "type")
+        propias = _dv_tipos.get(tipo, "")
+        if propias != ""
+            for p in str_split(propias, "|")
+                dv_props.push(p)
+            end
+        end
+        for p in ["name", "weight", "disabled", "hidden", "help", "background"]
+            dv_props.push(p)
+        end
+    end
+    if dv_prop >= dv_props.length
+        dv_prop = dv_props.length - 1
+    end
+end
+
+# El valor de una propiedad como se enseña ("" si no está)
+func _dv_valor(n: Json, p: String) -> String
+    v = json_get(n, p)
+    if v == nil
+        return ""
+    end
+    if v.kind == JSON_STRING
+        return utf8_to_latin1(v.text)
+    end
+    return utf8_to_latin1(json_write(v))
+end
+
+func _dv_titulo(f: Fila, i: Int) -> String
+    n = f.nodo
+    if i == 0
+        return "ventana " + utf8_to_latin1(json_get_str(n, "name"))
+    end
+    t = json_get_str(n, "type")
+    nombre = json_get_str(n, "name")
+    if nombre != ""
+        return t + "  " + utf8_to_latin1(nombre)
+    end
+    for p in ["label", "text", "title"]
+        if json_has(n, p)
+            return t + "  \"" + utf8_to_latin1(json_get_str(n, p)) + "\""
+        end
+    end
+    return t
+end
+
+func _dv_nombre_valido(s: String) -> Bool
+    if s == ""
+        return false
+    end
+    i = 0
+    while i < s.length
+        c = str_code(s, i)
+        letra = (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95
+        cifra = c >= 48 and c <= 57
+        if not letra and not (cifra and i > 0)
+            return false
+        end
+        i = i + 1
+    end
+    return true
+end
+
+# Pone la propiedad con lo escrito; false (y dv_mensaje) si no vale
+func _dv_poner(n: Json, p: String, v: String) -> Bool
+    dv_mensaje = ""
+    if v == ""
+        if p == "type"
+            dv_mensaje = "El tipo no se puede quitar"
+            return false
+        end
+        json_remove(n, p)
+        return true
+    end
+    if p == "name" and not _dv_nombre_valido(v)
+        dv_mensaje = "Un nombre lleva letras sin acentos, cifras y _, y no empieza por cifra"
+        return false
+    end
+    if str_contains(v, "#{")
+        dv_mensaje = "Los textos no pueden llevar #{"
+        return false
+    end
+    if _dv_numerica(p)
+        x = json_parse(v)
+        if x == nil or x.kind != JSON_NUMBER
+            dv_mensaje = p + " es un número"
+            return false
+        end
+        json_set(n, p, x)
+    elif _dv_logica(p)
+        b = str_lower(v)
+        if b == "true" or b == "sí" or b == "si"
+            json_set_bool(n, p, true)
+        elif b == "false" or b == "no"
+            json_set_bool(n, p, false)
+        else
+            dv_mensaje = p + " es true o false"
+            return false
+        end
+    elif _dv_lista(p)
+        x = json_parse(v)
+        if x == nil or x.kind != JSON_ARRAY
+            dv_mensaje = p + " es una lista, como [20, 20, 24]"
+            return false
+        end
+        json_set(n, p, x)
+    else
+        json_set_str(n, p, latin1_to_utf8(v))
+    end
+    return true
+end
+
+# --- Teclado y ratón ---
+
+# true si cambió el fichero
+func dv_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
+    if dv_editando
+        if codigo == 0x44 or codigo == 0x43
+            dv_editando = false
+            n = dv_filas[dv_sel].nodo
+            antes = _dv_valor(n, dv_props[dv_prop])
+            if dv_valor == antes
+                return false
+            end
+            if _dv_poner(n, dv_props[dv_prop], dv_valor)
+                return true
+            end
+            dv_editando = true
+        elif codigo == 0x45
+            dv_editando = false
+            dv_mensaje = ""
+        elif codigo == 0x41
+            if dv_cursor > 0
+                dv_valor = dv_valor[0:dv_cursor - 1] + dv_valor[dv_cursor:]
+                dv_cursor = dv_cursor - 1
+            end
+        elif codigo == 0x46
+            if dv_cursor < dv_valor.length
+                dv_valor = dv_valor[0:dv_cursor] + dv_valor[dv_cursor + 1:]
+            end
+        elif codigo == 0x4F
+            if (teclas & 4) != 0
+                dv_cursor = 0
+            elif dv_cursor > 0
+                dv_cursor = dv_cursor - 1
+            end
+        elif codigo == 0x4E
+            if (teclas & 4) != 0
+                dv_cursor = dv_valor.length
+            elif dv_cursor < dv_valor.length
+                dv_cursor = dv_cursor + 1
+            end
+        elif letra != "" and str_code(letra, 0) >= 32 and str_code(letra, 0) != 127
+            dv_valor = dv_valor[0:dv_cursor] + letra + dv_valor[dv_cursor:]
+            dv_cursor = dv_cursor + 1
+        end
+        return false
+    end
+    if codigo == 0x4C
+        if dv_prop >= 0
+            if dv_prop > 0
+                dv_prop = dv_prop - 1
+            end
+        elif dv_sel > 0
+            dv_sel = dv_sel - 1
+            _dv_listar_props()
+        end
+    elif codigo == 0x4D
+        if dv_prop >= 0
+            if dv_prop < dv_props.length - 1
+                dv_prop = dv_prop + 1
+            end
+        elif dv_sel < dv_filas.length - 1
+            dv_sel = dv_sel + 1
+            _dv_listar_props()
+        end
+    elif codigo == 0x4E or ((codigo == 0x44 or codigo == 0x43) and dv_prop < 0)
+        if dv_prop < 0 and dv_props.length > 0
+            dv_prop = 0
+        end
+    elif codigo == 0x4F or (codigo == 0x45 and dv_prop >= 0)
+        dv_prop = -1
+    elif codigo == 0x44 or codigo == 0x43
+        _dv_empezar_edicion()
+    end
+    dv_mensaje = ""
+    return false
+end
+
+func _dv_empezar_edicion()
+    if dv_prop < 0
+        return
+    end
+    dv_valor = _dv_valor(dv_filas[dv_sel].nodo, dv_props[dv_prop])
+    dv_cursor = dv_valor.length
+    dv_editando = true
+end
+
+# Un clic en la zona: elige una fila del árbol, o una propiedad (y empieza a editarla)
+func dv_clic(x: Int, y: Int)
+    if y < dv_y0
+        return
+    end
+    i = (y - dv_y0) / dv_fila_alto
+    dv_editando = false
+    dv_mensaje = ""
+    if x < dv_corte
+        if i < dv_filas.length
+            dv_sel = i
+            dv_prop = -1
+            _dv_listar_props()
+        end
+    elif i < dv_props.length
+        dv_prop = i
+        _dv_empezar_edicion()
+    end
+end
+
+# --- Vista previa ---
+
+# Una copia sin eventos ni atajos (no deben llegar a Forja), y cerrar da evento_cerrar
+func _dv_sin_eventos(n: Json)
+    if n == nil
+        return
+    end
+    if n.kind == JSON_OBJECT
+        for p in ["event", "change", "ack", "double", "key", "close"]
+            json_remove(n, p)
+        end
+        i = 0
+        while i < json_length(n)
+            _dv_sin_eventos(json_value_at(n, i))
+            i = i + 1
+        end
+    elif n.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(n)
+            _dv_sin_eventos(json_at(n, i))
+            i = i + 1
+        end
+    end
+end
+
+# Abre (o rehace) la ventana de verdad; "" si bien, o por qué no. volver: el teclado se queda en Forja
+func dv_vista_previa(evento_cerrar: Int, volver: Bool) -> String
+    copia = json_parse(json_write(dv_ventana))
+    _dv_sin_eventos(copia)
+    # sin el número de ventana: MUI recordaría su sitio, y puede ser el mismo que el de Forja
+    json_remove(copia, "id")
+    json_set_int(copia, "close", evento_cerrar)
+    doc = json_object()
+    json_set_int(doc, "dashui", 1)
+    lista = json_array()
+    json_push(lista, copia)
+    json_set(doc, "windows", lista)
+    ui = dashui_window(json_write(doc), "")
+    if ui.error != ""
+        return ui.error
+    end
+    if dv_vista != 0
+        mui_window_dispose(dv_vista)
+    end
+    dv_vista = ui.window
+    mui_window_open(dv_vista)
+    if volver
+        # el teclado vuelve a Forja: se sigue editando aquí (un rodeo: buscarla por su título; pieza 16 de dashc)
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+        end
+    end
+    return ""
+end
+
+func dv_cerrar_vista()
+    mui_window_dispose(dv_vista)
+    dv_vista = 0
+end
+
+# --- Dibujar ---
+
+# arriba: lo que hay entre la esquina de la zona e y (las pestañas), para los clics
+func dv_dibujar(x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
+    gfx_pen(tema.fondo)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_panel(0)
+    dv_fila_alto = font_height() + 3
+    dv_y0 = arriba + 4
+    if dv_error_carga != ""
+        gfx_pen(tema.error)
+        gfx_text_at(x + DV_MARGEN, y + 4 + font_baseline(), dv_error_carga)
+        gfx_pen(tema.tenue)
+        gfx_text_at(x + DV_MARGEN, y + 4 + dv_fila_alto + font_baseline(), "Amiga-D enseña el fichero como texto.")
+        return
+    end
+    dv_corte = ancho * 45 / 100
+    # el árbol
+    fy = y + 4
+    i = 0
+    for f in dv_filas
+        if fy + dv_fila_alto > y + alto
+            break
+        end
+        if i == dv_sel
+            gfx_pen(tema.fondo_linea)
+            if dv_prop < 0
+                gfx_pen(tema.seleccion)
+            end
+            gfx_rect(x, fy, x + dv_corte - 4, fy + dv_fila_alto - 1)
+        end
+        gfx_pen(tema.texto)
+        if i == 0
+            gfx_pen(tema.acento)
+        end
+        gfx_text_at(x + DV_MARGEN + f.nivel * DV_SANGRIA, fy + 1 + font_baseline(), _dv_titulo(f, i))
+        fy = fy + dv_fila_alto
+        i = i + 1
+    end
+    # las propiedades
+    px = x + dv_corte
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(px, y, x + ancho - 1, y + alto - 1)
+    n = dv_filas[dv_sel].nodo
+    dv_columna_valor = 0
+    for p in dv_props
+        w = font_text_width(p)
+        if w > dv_columna_valor
+            dv_columna_valor = w
+        end
+    end
+    dv_columna_valor = px + DV_MARGEN + dv_columna_valor + 12
+    fy = y + 4
+    i = 0
+    for p in dv_props
+        if fy + dv_fila_alto > y + alto - dv_fila_alto
+            break
+        end
+        if i == dv_prop
+            gfx_pen(tema.seleccion)
+            gfx_rect(px, fy, x + ancho - 1, fy + dv_fila_alto - 1)
+        end
+        base = fy + 1 + font_baseline()
+        gfx_pen(tema.tenue)
+        gfx_text_at(px + DV_MARGEN, base, p)
+        valor = _dv_valor(n, p)
+        if i == dv_prop and dv_editando
+            valor = dv_valor
+        end
+        gfx_pen(tema.texto)
+        gfx_text_at(dv_columna_valor, base, valor)
+        if i == dv_prop and dv_editando
+            cx = dv_columna_valor + font_text_width(dv_valor[0:dv_cursor])
+            gfx_pen(tema.cursor)
+            gfx_rect(cx, fy, cx + 1, fy + dv_fila_alto - 1)
+        end
+        fy = fy + dv_fila_alto
+        i = i + 1
+    end
+    if dv_mensaje != ""
+        gfx_pen(tema.error)
+        gfx_text_at(px + DV_MARGEN, y + alto - 4 - font_height() + font_baseline(), dv_mensaje)
+    end
+end

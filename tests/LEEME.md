@@ -26,3 +26,7 @@ programa (Amiga-E: compila con dashc y lo ejecuta; su salida debe tener "Naves: 
 `tests/rexx.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/rexx.dash` maneja Forja por su puerto ARexx
 (ABRIR, ABIERTO, SELECCION, CAMBIAR, TEXTO, GUARDAR, COMPILAR, ERRORES, EJECUTAR). La prueba con Inferencia a la vez
 está en el repo de Inferencia: `FORJA=~/Projects/forja PERMISO=Si tests/usuario.sh <worktree> tests/juntos.dash`.
+
+`tests/diseno.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/diseno.dash` usa el editor de ventanas con
+`ventana.dashui`: elige un botón en el árbol, cambia su texto, prueba un número mal escrito, abre la vista previa,
+deshace (en un paso), rehace y guarda.

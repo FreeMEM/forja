@@ -63,6 +63,9 @@ const EV_PEGAR = 42
 const EV_DESHACER = 43
 const EV_REHACER = 44
 const EV_TODO = 45
+const EV_DISENO = 46
+const EV_VISTA = 47
+const EV_VISTA_CERRADA = 60
 const EV_SALIR = 99
 
 const TITULO_CAMBIOS = "Cambios sin guardar"
@@ -491,15 +494,47 @@ func edicion(ev: Int)
         ed_rehacer(d)
     elif ev == EV_TODO
         ed_seleccionar_todo(d)
+    elif ev == EV_DISENO
+        if str_ends(str_lower(d.nombre), ".dashui")
+            d.diseno = not d.diseno
+            if d.diseno
+                ed_cargar_diseno(d, true)
+            end
+        else
+            avisar("El editor de ventanas es para ficheros .dashui.", 1)
+        end
+    elif ev == EV_VISTA
+        if not d.diseno
+            avisar("La vista previa es del editor de ventanas (Amiga-D en un .dashui).", 1)
+        elif dv_error_carga == ""
+            e = dv_vista_previa(EV_VISTA_CERRADA, false)
+            if e != ""
+                avisar("Vista previa: " + e, 1)
+            end
+        end
+    end
+    if d.diseno and (ev == EV_DESHACER or ev == EV_REHACER or ev == EV_PEGAR or ev == EV_CORTAR)
+        ed_cargar_diseno(d, true)
+        rehacer_vista()
     end
     ed_seguir_cursor(d)
     redibujar()
 end
 
+# Si la vista previa está abierta, se rehace con lo cambiado
+func rehacer_vista()
+    if dv_vista != 0 and dv_error_carga == ""
+        e = dv_vista_previa(EV_VISTA_CERRADA, true)
+        if e != ""
+            avisar("Vista previa: " + e, 1)
+        end
+    end
+end
+
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -532,6 +567,9 @@ func en_editor() -> Int
     elif mui_canvas_button(v.editor) == 1 and ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor)) >= 0
         activo = ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
+    elif mui_canvas_button(v.editor) == 1 and d.diseno
+        dv_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
+        redibujar()
     elif mui_canvas_button(v.editor) == 1
         ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), (teclas & Q_MAYUS) != 0)
         redibujar()
@@ -543,6 +581,14 @@ func en_editor() -> Int
         letra = mui_canvas_char(v.editor)
         if (teclas & Q_AMIGA) != 0
             return atajo(letra)
+        end
+        if d.diseno
+            if dv_tecla(codigo, teclas, letra)
+                ed_aplicar_diseno(d)
+                rehacer_vista()
+            end
+            redibujar()
+            return 0
         end
         # escribir dentro de una línea solo redibuja esa línea
         antes_lineas = d.lineas.length
@@ -857,7 +903,9 @@ Main
                 compilar(true)
             elif ev == EV_TIC
                 tic()
-            elif ev >= EV_CORTAR and ev <= EV_TODO
+            elif ev == EV_VISTA_CERRADA
+                dv_cerrar_vista()
+            elif ev >= EV_CORTAR and ev <= EV_VISTA
                 edicion(ev)
             elif ev == EV_ARRASTRE
                 if mui_canvas_drag(v.editor) == 1

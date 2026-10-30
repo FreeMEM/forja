@@ -10,6 +10,7 @@
 
 import "tema.dash"
 import "sintaxis.dash"
+import "diseno.dash"
 
 const ALTO_PESTANAS = 18
 const MARGEN_TEXTO = 6
@@ -42,6 +43,7 @@ struct Cambio
     c: Int
     texto: String
     seguido: Bool     # letras escritas una tras otra: se deshacen juntas
+    junto: Bool       # se deshace con el cambio de antes (escribir sobre una selección: borrarla y meter)
 end
 
 struct Documento
@@ -58,6 +60,7 @@ struct Documento
     utf8: Bool            # el fichero estaba en UTF-8 (de un PC): se guarda igual
     deshacer: [Cambio]
     rehacer: [Cambio]
+    diseno: Bool          # un .dashui que se ve con el editor de ventanas (Amiga-D: como texto)
 end
 
 var documentos: [Documento] = []
@@ -115,7 +118,8 @@ func ed_abrir_texto(nombre: String, ruta: String, texto: String)
     end
     var d1: [Cambio] = []
     var d2: [Cambio] = []
-    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2))
+    diseno = str_ends(str_lower(nombre), ".dashui")
+    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno))
     activo = documentos.length - 1
 end
 
@@ -376,7 +380,7 @@ func _insertar(d: Documento, t: String, seguido: Bool)
     d.cl = _fin_l
     d.cc = _fin_c
     d.cambiado = true
-    _apuntar(d, Cambio(INSERTAR, l, c, t, seguido))
+    _apuntar(d, Cambio(INSERTAR, l, c, t, seguido, false))
 end
 
 func _borrar_rango(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int)
@@ -387,7 +391,7 @@ func _borrar_rango(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int)
     d.cl = l1
     d.cc = c1
     d.cambiado = true
-    _apuntar(d, Cambio(BORRAR, l1, c1, t, false))
+    _apuntar(d, Cambio(BORRAR, l1, c1, t, false, false))
 end
 
 func ed_hay_seleccion(d: Documento) -> Bool
@@ -432,6 +436,9 @@ end
 func ed_escribir(d: Documento, t: String)
     if ed_borrar_seleccion(d)
         _insertar(d, t, false)
+        if t != ""
+            d.deshacer[d.deshacer.length - 1].junto = true
+        end
     else
         _insertar(d, t, t.length == 1)
     end
@@ -485,7 +492,7 @@ func ed_quitar_sangria(d: Documento)
         end
         if n > 0
             t = _quitar(d, l, 0, l, n)
-            _apuntar(d, Cambio(BORRAR, l, 0, t, false))
+            _apuntar(d, Cambio(BORRAR, l, 0, t, false, false))
             d.cambiado = true
             if l == d.cl
                 d.cc = d.cc - n
@@ -557,6 +564,11 @@ func ed_deshacer(d: Documento) -> Bool
     c = d.deshacer.pop()
     _aplicar(d, c, true)
     d.rehacer.push(c)
+    while c.junto and d.deshacer.length > 0
+        c = d.deshacer.pop()
+        _aplicar(d, c, true)
+        d.rehacer.push(c)
+    end
     return true
 end
 
@@ -567,6 +579,11 @@ func ed_rehacer(d: Documento) -> Bool
     c = d.rehacer.pop()
     _aplicar(d, c, false)
     d.deshacer.push(c)
+    while d.rehacer.length > 0 and d.rehacer[d.rehacer.length - 1].junto
+        c = d.rehacer.pop()
+        _aplicar(d, c, false)
+        d.deshacer.push(c)
+    end
     return true
 end
 
@@ -893,6 +910,28 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
     end
 end
 
+# El editor de ventanas lee el documento si no es el que tiene (o si se le pide otra vez)
+func ed_cargar_diseno(d: Documento, otra_vez: Bool)
+    clave = d.ruta + "|" + d.nombre
+    if dv_de == clave and not otra_vez
+        return
+    end
+    if dv_de != clave
+        dv_sel = 0
+        dv_prop = -1
+    end
+    dv_de = clave
+    dv_error_carga = dv_cargar(ed_texto(d))
+end
+
+# Lo cambiado en el editor de ventanas pasa al texto del documento (con deshacer)
+func ed_aplicar_diseno(d: Documento)
+    ed_cambiar_lineas(d, 1, d.lineas.length, dv_texto())
+    d.cl = 0
+    d.cc = 0
+    d.primera = 0
+end
+
 # La y de la fila de la línea n, desde la esquina de la zona (-1 si no se ve)
 func ed_fila_y(d: Documento, n: Int) -> Int
     if n < d.primera or n >= d.primera + ed_visibles
@@ -905,6 +944,18 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
     gfx_mode(0)
     d = ed_actual()
+    if d != nil and d.diseno
+        if not mui_canvas_updating()
+            _dibujar_pestanas(x, y, ancho)
+        end
+        ed_zona_x = x
+        ed_zona_y = y
+        ed_zona_ancho = ancho
+        ed_zona_alto = alto
+        ed_cargar_diseno(d, false)
+        dv_dibujar(x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
+        return
+    end
     if mui_canvas_updating() and ed_solo_linea >= 0 and d != nil
         fy = ed_fila_y(d, ed_solo_linea)
         if fy >= 0

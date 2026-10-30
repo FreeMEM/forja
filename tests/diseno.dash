@@ -1,0 +1,134 @@
+# Hace de usuario del editor de ventanas de Forja: abre ventana.dashui (el de Inferencia), elige el botón enviar
+# en el árbol, cambia su texto, prueba un número mal escrito, abre la vista previa de verdad, deshace, rehace y
+# guarda. Comprueba el JSON con la sonda y el fichero guardado. Sale con Amiga-Q.
+# Lo arranca tests/diseno.sh; anota en DH0:Prueba/diseno.txt.
+
+const AMIGA = 8
+const RETURN = 0x44
+const ABAJO = 0x4D
+const DERECHA = 0x4E
+const RETROCESO = 0x41
+const ESC = 0x45
+const FICHERO = "DH0:Prueba/juego/ventana.dashui"
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/diseno.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+func texto() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text("RAM:forja-sonda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t[str_find(t, "\n") + 1:]
+end
+
+func teclas(codigo: Int, veces: Int)
+    while veces > 0
+        input_key(codigo, 0)
+        veces = veces - 1
+    end
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        al_editor()
+        # filas: ventana, vgroup, hgroup, label, modelo, estado, hgroup, canvas, barra, hgroup, entrada, enviar
+        teclas(ABAJO, 11)
+        input_key(DERECHA, 0)
+        input_key(RETURN, 0)
+        teclas(RETROCESO, 7)
+        input_text("_Mandar")
+        input_key(RETURN, 0)
+        t = texto()
+        ver("cambiar label", str_contains(t, "\"label\": \"_Mandar\"") and str_contains(t, "\"dashui\": 1"), t)
+        # un número mal escrito no se acepta
+        input_key(ABAJO, 0)
+        input_key(RETURN, 0)
+        input_text("x")
+        input_key(RETURN, 0)
+        input_key(ESC, 0)
+        t = texto()
+        ver("event con letras no se acepta", str_contains(t, "\"event\": 1") and not str_contains(t, "1x"), t)
+        # la vista previa de verdad
+        input_key(0x19, AMIGA)
+        time_delay(100)
+        ver("vista previa abierta", window_find("Inferencia") != 0, "")
+        time_delay(150)
+        activar()
+        al_editor()
+        input_key(0x31, AMIGA)
+        # rehacer la vista previa tarda: la sonda se escribe después
+        t = texto()
+        n = 0
+        while n < 25 and not str_contains(t, "\"label\": \"_Enviar\"")
+            time_delay(10)
+            t = texto()
+            n = n + 1
+        end
+        ver("el teclado sigue en Forja", input_active_title() == "Forja", input_active_title())
+        ver("deshacer en un paso", str_contains(t, "\"label\": \"_Enviar\"") and str_contains(t, "\"dashui\": 1"), t)
+        input_key(0x13, AMIGA)
+        time_delay(150)
+        input_key(0x21, AMIGA)
+        time_delay(50)
+        d = file_read_text(FICHERO)
+        ver("rehacer y guardar", d != nil and str_contains(d, "\"label\": \"_Mandar\""), d)
+        # como texto
+        input_key(0x22, AMIGA)
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+end

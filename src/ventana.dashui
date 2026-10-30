@@ -39,7 +39,10 @@
             { "label": "Copiar", "key": "C", "event": 41 },
             { "label": "Pegar", "key": "V", "event": 42 },
             { "separator": true },
-            { "label": "Seleccionar todo", "key": "A", "event": 45 }
+            { "label": "Seleccionar todo", "key": "A", "event": 45 },
+            { "separator": true },
+            { "label": "Diseño o texto (.dashui)", "key": "D", "event": 46 },
+            { "label": "Vista previa (.dashui)", "key": "P", "event": 47 }
           ]
         }
       ],
