@@ -68,9 +68,8 @@ Main
     rexx("CAMBIAR " + MAIN + " 26 26 \"\"")
     rexx("EJECUTAR")
     esperar_libre()
-    # (un RESULT vacío llega como el de la orden anterior: pieza 14 de dashc; por eso no se compara con "")
     e = rexx("ERRORES")
-    ver("EJECUTAR sin errores", not str_contains(e, ": Error: "), e)
+    ver("EJECUTAR sin errores", e == "" and rexx_rc() == 0, e)
     time_delay(100)
     if fallos == 0
         anotar("TODO BIEN")
