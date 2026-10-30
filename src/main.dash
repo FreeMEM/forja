@@ -28,7 +28,8 @@
 # ancho alto" desde la esquina de la ventana), ENV:FORJA_PROYECTO dónde empiezan las filas del proyecto ("x y
 # alto de fila"), ENV:FORJA_SALIDA lo de la salida ("x y alto_de_fila primera_vista total"; el texto en
 # RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
-# tras cada cambio, "línea columna nombre" y el texto.
+# tras cada cambio, "línea columna nombre" y el texto; ENV:FORJA_DISENO, lo del editor de ventanas ("fila propiedad
+# editando mensaje").
 
 import "tema.dash"
 import "editor.dash"
@@ -466,6 +467,7 @@ func escribir_sonda()
         d = ed_actual()
         file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
+        env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
     end
 end
 

@@ -63,6 +63,30 @@ func texto() -> String
     return t[str_find(t, "\n") + 1:]
 end
 
+# El texto en cuanto tenga eso (o el que haya a los 5 s)
+func espera_texto(esto: String) -> String
+    t = texto()
+    n = 0
+    while n < 25 and not str_contains(t, esto)
+        time_delay(10)
+        t = texto()
+        n = n + 1
+    end
+    return t
+end
+
+# El texto en cuanto cambie (o el que haya a los 5 s)
+func espera_cambio(antes: String) -> String
+    t = texto()
+    n = 0
+    while n < 25 and t == antes
+        time_delay(10)
+        t = texto()
+        n = n + 1
+    end
+    return t
+end
+
 func teclas(codigo: Int, veces: Int)
     while veces > 0
         input_key(codigo, 0)
@@ -121,6 +145,43 @@ Main
         time_delay(50)
         d = file_read_text(FICHERO)
         ver("rehacer y guardar", d != nil and str_contains(d, "\"label\": \"_Mandar\""), d)
+        # F7b: el árbol sigue en el botón enviar (fila 11). "+" y el tipo text (el segundo de la lista)
+        input_key(0x45, 0)
+        input_key(0x4F, 0)
+        input_text("+")
+        input_key(ABAJO, 0)
+        input_key(RETURN, 0)
+        t = espera_texto("\"text\": \"Texto\"")
+        p_nuevo = str_find(t, "\"text\": \"Texto\"")
+        p_enviar = str_find(t, "\"_Mandar\"")
+        ver("añadir un text detrás de enviar", p_nuevo > p_enviar and p_enviar > 0, t)
+        # Alt + arriba: delante de enviar
+        # (la vista previa rehecha puede quedarse el teclado: pieza 16 de dashc)
+        activar()
+        al_editor()
+        input_key(0x4C, 4)
+        t = espera_cambio(t)
+        ver("moverlo delante", str_find(t, "\"text\": \"Texto\"") < str_find(t, "\"_Mandar\"") and str_find(t, "\"text\": \"Texto\"") > 0, t)
+        # Supr lo quita
+        # (la vista previa rehecha puede quedarse el teclado: pieza 16 de dashc)
+        activar()
+        al_editor()
+        input_key(0x46, 0)
+        t = espera_cambio(t)
+        ver("quitarlo", not str_contains(t, "\"text\": \"Texto\"") and str_contains(t, "\"_Mandar\""), t)
+        # el menú: filas 13 menú Proyecto, 14 Conversación nueva, 15 separador, 16 Salir
+        # (la vista previa rehecha puede quedarse el teclado: pieza 16 de dashc)
+        activar()
+        al_editor()
+        teclas(ABAJO, 6)
+        input_key(DERECHA, 0)
+        input_key(RETURN, 0)
+        teclas(RETROCESO, 5)
+        input_text("Cerrar")
+        input_key(RETURN, 0)
+        t = espera_texto("\"label\": \"Cerrar\"")
+        ver("cambiar una opción del menú", str_contains(t, "\"label\": \"Cerrar\"") and str_contains(t, "\"key\": \"Q\""), env_get("FORJA_DISENO"))
+        time_delay(100)
         # como texto
         input_key(0x22, AMIGA)
         time_delay(100)
@@ -131,4 +192,14 @@ Main
     activar()
     al_editor()
     input_key(0x10, AMIGA)
+    # quedan cambios sin guardar: Descartar
+    n = 0
+    while n < 40 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    if input_active_title() == "Cambios sin guardar"
+        time_delay(25)
+        input_key(0x22, 0)
+    end
 end
