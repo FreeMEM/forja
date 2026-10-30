@@ -1,0 +1,218 @@
+; Texts of /home/freemem/Projects/forja/src/main.dash (tools/catalogo.py)
+;
+MSG_1 (1//)
+No se puede leer 
+MSG_2 (2//)
+No se puede escribir 
+MSG_3 (3//)
+Guardado: 
+MSG_4 (4//)
+ tiene cambios sin guardar.
+MSG_5 (5//)
+_Guardar|_Descartar|_Cancelar
+MSG_6 (6//)
+_Guardar|_Descartar|_Cancelar
+MSG_7 (7//)
+Parar
+MSG_8 (8//)
+Ejecutar
+MSG_9 (9//)
+Compilando 
+MSG_10 (10//)
+No se puede ejecutar 
+MSG_11 (11//)
+. Pon su ruta en ENV:Forja/dashc.
+MSG_12 (12//)
+Inferencia no aparece.
+MSG_13 (13//)
+No compila: un error (clic en él para ir a su línea).
+MSG_14 (14//)
+Compilado en 
+MSG_15 (15//)
+Ejecutando 
+MSG_16 (16//)
+No se puede ejecutar 
+MSG_17 (17//)
+No se puede depurar: 
+MSG_18 (18//)
+Depurando 
+MSG_19 (19//)
+ (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada).
+MSG_20 (20//)
+El editor de ventanas es para ficheros .dashui.
+MSG_21 (21//)
+La vista previa es del editor de ventanas (Amiga-D en un .dashui).
+MSG_22 (22//)
+Vista previa: 
+MSG_23 (23//)
+Vista previa: 
+MSG_24 (24//)
+No está \"
+MSG_25 (25//)
+No se puede arrancar 
+MSG_26 (26//)
+. Pon su ruta en ENV:Forja/inferencia.
+MSG_27 (27//)
+Arrancando Inferencia...
+MSG_28 (28//)
+Mandado a Inferencia.
+MSG_29 (29//)
+Forja 
+MSG_30 (30//)
+, con Dash 2.0.
+MSG_31 (31//)
+Listo.
+MSG_32 (32//)
+El tipo no se puede quitar
+MSG_33 (33//)
+Un nombre lleva letras sin acentos, cifras y _, y no empieza por cifra
+MSG_34 (34//)
+key es una letra (Amiga + esa tecla)
+MSG_35 (35//)
+ es un número
+MSG_36 (36//)
+ es true o false
+MSG_37 (37//)
+ es una lista, como [20, 20, 24]
+MSG_38 (38//)
+La ventana y su grupo raíz no se quitan
+MSG_60 (60//)
+Proyecto
+MSG_61 (61//)
+/ (arriba)
+MSG_62 (62//)
+SALIDA
+MSG_63 (63//)
+Cambios sin guardar
+MSG_64 (64//)
+PILA
+MSG_65 (65//)
+VARIABLES
+MSG_66 (66//)
+GLOBALES
+MSG_67 (67//)
+No compila: %1 errores (clic en uno para ir a su línea).
+MSG_68 (68//)
+%1 acabó con código %2
+MSG_69 (69//)
+ en 
+MSG_70 (70//)
+La línea %1 no tiene código: el punto no para ahí.
+MSG_71 (71//)
+Cambiado %1 veces.
+MSG_72 (72//)
+Inferencia no lo aceptó (RC %1).
+MSG_73 (73//)
+ventana 
+MSG_74 (74//)
+menú \"%1\"
+MSG_75 (75//)
+Tipo del objeto nuevo (Return):
+MSG_76 (76//)
+Amiga-D enseña el fichero como texto.
+MSG_77 (77//)
+Los textos no pueden llevar #
+MSG_300 (300//)
+Forja
+MSG_301 (301//)
+Proyecto
+MSG_302 (302//)
+Nuevo
+MSG_303 (303//)
+Abrir...
+MSG_304 (304//)
+Guardar
+MSG_305 (305//)
+Guardar como...
+MSG_306 (306//)
+Cerrar pestaña
+MSG_307 (307//)
+Preferencias...
+MSG_308 (308//)
+Salir
+MSG_309 (309//)
+Programa
+MSG_310 (310//)
+Compilar
+MSG_311 (311//)
+Ejecutar
+MSG_312 (312//)
+Depurar
+MSG_313 (313//)
+Preguntar a Inferencia
+MSG_314 (314//)
+Edición
+MSG_315 (315//)
+Deshacer
+MSG_316 (316//)
+Rehacer
+MSG_317 (317//)
+Cortar
+MSG_318 (318//)
+Copiar
+MSG_319 (319//)
+Pegar
+MSG_320 (320//)
+Seleccionar todo
+MSG_321 (321//)
+Buscar y cambiar...
+MSG_322 (322//)
+Ir a la línea...
+MSG_323 (323//)
+Diseño o texto (.dashui)
+MSG_324 (324//)
+Vista previa (.dashui)
+MSG_325 (325//)
+_Compilar
+MSG_326 (326//)
+_Ejecutar
+MSG_327 (327//)
+_Depurar
+MSG_328 (328//)
+Seguir F5
+MSG_329 (329//)
+Paso F10
+MSG_330 (330//)
+Entrar F6
+MSG_331 (331//)
+Salir F7
+MSG_332 (332//)
+Parar
+MSG_333 (333//)
+_Inferencia
+MSG_334 (334//)
+Buscar y cambiar (Forja)
+MSG_335 (335//)
+Buscar:
+MSG_336 (336//)
+Cambiar por:
+MSG_337 (337//)
+Mayúsculas:
+MSG_338 (338//)
+_Siguiente
+MSG_339 (339//)
+_Anterior
+MSG_340 (340//)
+_Cambiar
+MSG_341 (341//)
+_Todo
+MSG_342 (342//)
+Ir a la línea (Forja)
+MSG_343 (343//)
+Línea:
+MSG_344 (344//)
+_Ir
+MSG_345 (345//)
+Preferencias de Forja
+MSG_346 (346//)
+dashc:
+MSG_347 (347//)
+Inferencia:
+MSG_348 (348//)
+Abrir lo de la última vez:
+MSG_349 (349//)
+_Guardar
+MSG_350 (350//)
+_Usar
+MSG_351 (351//)
+_Cancelar

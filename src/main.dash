@@ -35,6 +35,8 @@
 # tras cada cambio, "línea columna nombre" y el texto; ENV:FORJA_DISENO, lo del editor de ventanas ("fila propiedad
 # editando mensaje").
 
+@catalog "Forja.catalog" 1 "español"
+
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
@@ -99,7 +101,6 @@ const EV_PREF_USAR = 58
 const EV_PREF_CANCELAR = 59
 const EV_SALIR = 99
 
-const TITULO_CAMBIOS = "Cambios sin guardar"
 const NUEVO = "# Un programa de Dash\n\nMain\n    Print \"Hola, Amiga\"\nend\n"
 
 var v: Principal = nil
@@ -168,7 +169,7 @@ func abrir(ruta: String) -> Bool
     end
     texto = file_read_text(ruta)
     if texto == nil
-        avisar("No se puede leer " + ruta, 1)
+        avisar(tr(1, "No se puede leer ") + ruta, 1)
         return false
     end
     ed_abrir_texto(nombre_de(ruta), ruta, texto)
@@ -177,13 +178,13 @@ end
 
 func guardar_en(d: Documento, ruta: String) -> Bool
     if not file_write_text(ruta, ed_texto_disco(d))
-        avisar("No se puede escribir " + ruta, 1)
+        avisar(tr(2, "No se puede escribir ") + ruta, 1)
         return false
     end
     d.ruta = ruta
     d.nombre = nombre_de(ruta)
     d.cambiado = false
-    avisar("Guardado: " + ruta, 2)
+    avisar(tr(3, "Guardado: ") + ruta, 2)
     if cajon_de(ruta) == proyecto_cajon
         proyecto_leer(proyecto_cajon)
         mui_canvas_redraw(v.proyecto)
@@ -234,7 +235,7 @@ func proyecto(ev: Int) -> Bool
         guardar_como(d)
     elif ev == EV_CERRAR and d != nil
         if d.cambiado
-            r = mui_request(v.window, TITULO_CAMBIOS, d.nombre + " tiene cambios sin guardar.", "_Guardar|_Descartar|_Cancelar")
+            r = mui_request(v.window, tr(63, "Cambios sin guardar"), d.nombre + tr(4, " tiene cambios sin guardar."), tr(5, "_Guardar|_Descartar|_Cancelar"))
             if r == 0 or (r == 1 and not guardar(d))
                 return false
             end
@@ -250,7 +251,7 @@ func proyecto(ev: Int) -> Bool
             if n == 1
                 texto = "Hay un fichero con cambios sin guardar."
             end
-            r = mui_request(v.window, TITULO_CAMBIOS, texto, "_Guardar|_Descartar|_Cancelar")
+            r = mui_request(v.window, tr(63, "Cambios sin guardar"), texto, tr(6, "_Guardar|_Descartar|_Cancelar"))
             if r == 0
                 return false
             end
@@ -314,9 +315,9 @@ func poner_tarea(t: Int)
         end
     end
     if t == EJECUTANDO
-        mui_set_text(v.ejecutar, "Parar")
+        mui_set_text(v.ejecutar, tr(7, "Parar"))
     else
-        mui_set_text(v.ejecutar, "Ejecutar")
+        mui_set_text(v.ejecutar, tr(8, "Ejecutar"))
     end
     if sonda
         var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
@@ -352,10 +353,10 @@ func compilar(y_ejecutar: Bool)
         opciones = " --debug"
     end
     orden = dashc() + opciones + " \"" + d.ruta + "\" -o \"" + tarea_exe + "\""
-    avisar("Compilando " + d.nombre + "...", 0)
+    avisar(tr(9, "Compilando ") + d.nombre + "...", 0)
     tarea_run = run_start(orden, ESPERA_DASHC)
     if tarea_run == 0
-        avisar("No se puede ejecutar " + dashc() + ". Pon su ruta en ENV:Forja/dashc.", 1)
+        avisar(tr(10, "No se puede ejecutar ") + dashc() + tr(11, ". Pon su ruta en ENV:Forja/dashc."), 1)
         return
     end
     ejecutar_despues = y_ejecutar
@@ -375,7 +376,7 @@ func tic()
         else
             inferencia_espera = inferencia_espera - 1
             if inferencia_espera == 0
-                avisar("Inferencia no aparece.", 1)
+                avisar(tr(12, "Inferencia no aparece."), 1)
             elif tarea == NADA
                 mui_timer(TIC_MS, EV_TIC)
             end
@@ -413,15 +414,15 @@ func tic()
         end
         if rc != 0
             if errores == 1
-                avisar("No compila: un error (clic en él para ir a su línea).", 1)
+                avisar(tr(13, "No compila: un error (clic en él para ir a su línea)."), 1)
             else
-                avisar("No compila: #{errores} errores (clic en uno para ir a su línea).", 1)
+                avisar(hueco(tr(67, "No compila: %1 errores (clic en uno para ir a su línea)."), "#{errores}"), 1)
             end
             poner_tarea(NADA)
             depurar_despues = false
             return
         end
-        avisar("Compilado en " + segundos(ms) + ": " + tarea_exe, 2)
+        avisar(tr(14, "Compilado en ") + segundos(ms) + ": " + tarea_exe, 2)
         if depurar_despues
             depurar_despues = false
             empezar_depuracion()
@@ -431,10 +432,10 @@ func tic()
             poner_tarea(NADA)
             return
         end
-        avisar("Ejecutando " + nombre_de(tarea_exe) + "...", 0)
+        avisar(tr(15, "Ejecutando ") + nombre_de(tarea_exe) + "...", 0)
         tarea_run = run_start("\"" + tarea_exe + "\"", 0)
         if tarea_run == 0
-            avisar("No se puede ejecutar " + tarea_exe, 1)
+            avisar(tr(16, "No se puede ejecutar ") + tarea_exe, 1)
             poner_tarea(NADA)
             return
         end
@@ -451,7 +452,7 @@ func tic()
     if rc != 0
         tipo = 1
     end
-    avisar(nombre_de(tarea_exe) + " acabó con código #{rc} en " + segundos(ms) + ".", tipo)
+    avisar(hueco2(tr(68, "%1 acabó con código %2"), nombre_de(tarea_exe), "#{rc}") + tr(69, " en ") + segundos(ms) + ".", tipo)
     poner_tarea(NADA)
 end
 
@@ -470,7 +471,7 @@ end
 
 func empezar_depuracion()
     if not dbg_start(tarea_exe, "")
-        avisar("No se puede depurar: " + dbg_error(), 1)
+        avisar(tr(17, "No se puede depurar: ") + dbg_error(), 1)
         poner_tarea(NADA)
         return
     end
@@ -480,7 +481,7 @@ func empezar_depuracion()
         end
     end
     salida_vista = 0
-    avisar("Depurando " + nombre_de(tarea_exe) + " (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada).", 0)
+    avisar(tr(18, "Depurando ") + nombre_de(tarea_exe) + tr(19, " (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada)."), 0)
     poner_tarea(DEPURANDO)
     dbg_continue()
     mui_timer(TIC_MS * 3, EV_TIC)
@@ -526,7 +527,7 @@ func al_parar()
     # la pila y las variables, en el panel de la izquierda
     depuracion_lineas.clear()
     depuracion_tipos.clear()
-    depuracion_lineas.push("PILA")
+    depuracion_lineas.push(tr(64, "PILA"))
     depuracion_tipos.push(0)
     i = 0
     while i < dbg_frames()
@@ -538,7 +539,7 @@ func al_parar()
         end
         i = i + 1
     end
-    depuracion_lineas.push("VARIABLES")
+    depuracion_lineas.push(tr(65, "VARIABLES"))
     depuracion_tipos.push(0)
     k = 0
     while k < dbg_vars(0)
@@ -548,7 +549,7 @@ func al_parar()
         k = k + 1
     end
     if dbg_globals() > 0
-        depuracion_lineas.push("GLOBALES")
+        depuracion_lineas.push(tr(66, "GLOBALES"))
         depuracion_tipos.push(0)
         g = 0
         while g < dbg_globals()
@@ -565,7 +566,7 @@ end
 
 func al_acabar()
     salida_programa()
-    avisar(nombre_de(tarea_exe) + " acabó con código #{dbg_rc()}.", 2)
+    avisar(hueco2(tr(68, "%1 acabó con código %2"), nombre_de(tarea_exe), "#{dbg_rc()}") + ".", 2)
     ed_dbg_ruta = ""
     ed_dbg_linea = 0
     depuracion_lineas.clear()
@@ -743,15 +744,15 @@ func edicion(ev: Int)
                 ed_cargar_diseno(d, true)
             end
         else
-            avisar("El editor de ventanas es para ficheros .dashui.", 1)
+            avisar(tr(20, "El editor de ventanas es para ficheros .dashui."), 1)
         end
     elif ev == EV_VISTA
         if not d.diseno
-            avisar("La vista previa es del editor de ventanas (Amiga-D en un .dashui).", 1)
+            avisar(tr(21, "La vista previa es del editor de ventanas (Amiga-D en un .dashui)."), 1)
         elif dv_error_carga == ""
             e = dv_vista_previa(EV_VISTA_CERRADA, false)
             if e != ""
-                avisar("Vista previa: " + e, 1)
+                avisar(tr(22, "Vista previa: ") + e, 1)
             end
         end
     end
@@ -769,7 +770,7 @@ func alternar_punto(d: Documento, n: Int)
     if tarea == DEPURANDO
         if puesto
             if not dbg_break(d.nombre, n)
-                avisar("La línea #{n} no tiene código: el punto no para ahí.", 1)
+                avisar(hueco(tr(70, "La línea %1 no tiene código: el punto no para ahí."), "#{n}"), 1)
             end
         else
             dbg_unbreak(d.nombre, n)
@@ -783,7 +784,7 @@ func rehacer_vista()
     if dv_vista != 0 and dv_error_carga == ""
         e = dv_vista_previa(EV_VISTA_CERRADA, true)
         if e != ""
-            avisar("Vista previa: " + e, 1)
+            avisar(tr(23, "Vista previa: ") + e, 1)
         end
     end
 end
@@ -925,7 +926,7 @@ func buscar(adelante: Bool) -> Bool
         return false
     end
     if not ed_buscar(d, t, mui_get_value(vb.mayus) != 0, adelante)
-        avisar("No está \"" + t + "\".", 1)
+        avisar(tr(24, "No está \"") + t + "\".", 1)
         return false
     end
     redibujar()
@@ -952,7 +953,7 @@ func cambiar_todo(t: String, nuevo: String, mayus: Bool) -> Int
         return 0
     end
     n = ed_cambiar_todo(d, t, nuevo, mayus)
-    avisar("Cambiado #{n} veces.", 2)
+    avisar(hueco(tr(71, "Cambiado %1 veces."), "#{n}"), 2)
     redibujar()
     return n
 end
@@ -1056,10 +1057,10 @@ func boton_inferencia()
             return
         end
         if run_start("Run >NIL: \"" + inferencia_ruta() + "\"", 5000) == 0
-            avisar("No se puede arrancar " + inferencia_ruta() + ". Pon su ruta en ENV:Forja/inferencia.", 1)
+            avisar(tr(25, "No se puede arrancar ") + inferencia_ruta() + tr(26, ". Pon su ruta en ENV:Forja/inferencia."), 1)
             return
         end
-        avisar("Arrancando Inferencia...", 0)
+        avisar(tr(27, "Arrancando Inferencia..."), 0)
         inferencia_espera = 150
         mui_timer(TIC_MS, EV_TIC)
     end
@@ -1072,10 +1073,10 @@ func inferencia_mandar() -> Bool
         return false
     end
     if rexx_rc() != 0
-        avisar("Inferencia no lo aceptó (RC #{rexx_rc()}).", 1)
+        avisar(hueco(tr(72, "Inferencia no lo aceptó (RC %1)."), "#{rexx_rc()}"), 1)
     else
         rexx_send(PUERTO_INFERENCIA, "MOSTRAR")
-        avisar("Mandado a Inferencia.", 2)
+        avisar(tr(28, "Mandado a Inferencia."), 2)
     end
     inferencia_pendiente = ""
     inferencia_espera = 0
@@ -1279,8 +1280,8 @@ Main
             ed_abrir_texto("sin nombre.dash", "", NUEVO)
             proyecto_leer(cajon_de(ruta))
         end
-        salida_anadir("Forja " + VERSION + ", con Dash 2.0.", 0)
-        salida_anadir("Listo.", 2)
+        salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.0."), 0)
+        salida_anadir(tr(31, "Listo."), 2)
 
         mui_window_open(v.window)
         abierta = true

@@ -6,8 +6,8 @@ A development environment for [Dash](https://github.com/FreeMEM/FreeMEMLang) tha
 black background: code editor with colours, build and run, step-by-step debugger and a `.dashui` window editor with
 real MUI. It talks over ARexx with [Inferencia](https://github.com/FreeMEM/inferencia), the AI for the Amiga.
 
-This is a test version: it works in the emulator, but it has not been tried on a real Amiga yet. The program
-itself is in Spanish for now; an English catalog will come.
+This is a test version: it works in the emulator, but it has not been tried on a real Amiga yet. It speaks
+English or Spanish, following the Locale preferences (the English catalog is in `Catalogs/`).
 
 ## Requirements
 

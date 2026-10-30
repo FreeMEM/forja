@@ -130,7 +130,7 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     end
     nombre = proyecto_cajon
     if nombre == ""
-        nombre = "Proyecto"
+        nombre = tr(60, "Proyecto")
     end
     _titulo(x, y, ancho, str_upper(nombre))
     usar_panel(0)
@@ -150,7 +150,7 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         end
         nombre = f
         if f == "/"
-            nombre = "/ (arriba)"
+            nombre = tr(61, "/ (arriba)")
         end
         gfx_text_at(x + 12, fy + font_baseline(), nombre)
         fy = fy + fila
@@ -197,7 +197,7 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_mode(0)
     gfx_pen(tema.fondo_salida)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
-    _titulo(x, y, ancho, "SALIDA")
+    _titulo(x, y, ancho, tr(62, "SALIDA"))
     usar_codigo()
     fila = alto_letra + 2
     cabe = (alto - TITULO_ALTO - 4) / fila

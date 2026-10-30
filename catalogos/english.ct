@@ -1,0 +1,328 @@
+## version $VER: Forja.catalog 1.0 (30.10.2026)
+## language english
+## codeset 0
+;
+MSG_1
+Cannot read 
+; No se puede leer 
+MSG_2
+Cannot write 
+; No se puede escribir 
+MSG_3
+Saved: 
+; Guardado: 
+MSG_4
+ has unsaved changes.
+;  tiene cambios sin guardar.
+MSG_5
+_Save|_Discard|_Cancel
+; _Guardar|_Descartar|_Cancelar
+MSG_6
+_Save|_Discard|_Cancel
+; _Guardar|_Descartar|_Cancelar
+MSG_7
+Stop
+; Parar
+MSG_8
+Run
+; Ejecutar
+MSG_9
+Compiling 
+; Compilando 
+MSG_10
+Cannot run 
+; No se puede ejecutar 
+MSG_11
+. Put its path in ENV:Forja/dashc.
+; . Pon su ruta en ENV:Forja/dashc.
+MSG_12
+Inferencia does not show up.
+; Inferencia no aparece.
+MSG_13
+Does not compile: one error (click it to go to its line).
+; No compila: un error (clic en él para ir a su línea).
+MSG_14
+Compiled in 
+; Compilado en 
+MSG_15
+Running 
+; Ejecutando 
+MSG_16
+Cannot run 
+; No se puede ejecutar 
+MSG_17
+Cannot debug: 
+; No se puede depurar: 
+MSG_18
+Debugging 
+; Depurando 
+MSG_19
+ (F5 continue, F10 step, F6 step into, F7 step out, F9 breakpoint).
+;  (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada).
+MSG_20
+The window editor is for .dashui files.
+; El editor de ventanas es para ficheros .dashui.
+MSG_21
+The preview belongs to the window editor (Amiga-D on a .dashui).
+; La vista previa es del editor de ventanas (Amiga-D en un .dashui).
+MSG_22
+Preview: 
+; Vista previa: 
+MSG_23
+Preview: 
+; Vista previa: 
+MSG_24
+Not found: \"
+; No está \"
+MSG_25
+Cannot start 
+; No se puede arrancar 
+MSG_26
+. Put its path in ENV:Forja/inferencia.
+; . Pon su ruta en ENV:Forja/inferencia.
+MSG_27
+Starting Inferencia...
+; Arrancando Inferencia...
+MSG_28
+Sent to Inferencia.
+; Mandado a Inferencia.
+MSG_29
+Forja 
+; Forja 
+MSG_30
+, with Dash 2.0.
+; , con Dash 2.0.
+MSG_31
+Ready.
+; Listo.
+MSG_32
+The type cannot be removed
+; El tipo no se puede quitar
+MSG_33
+A name has letters without accents, digits and _, and does not start with a digit
+; Un nombre lleva letras sin acentos, cifras y _, y no empieza por cifra
+MSG_34
+key is one letter (Amiga + that key)
+; key es una letra (Amiga + esa tecla)
+MSG_35
+ is a number
+;  es un número
+MSG_36
+ is true or false
+;  es true o false
+MSG_37
+ is a list, like [20, 20, 24]
+;  es una lista, como [20, 20, 24]
+MSG_38
+The window and its root group cannot be removed
+; La ventana y su grupo raíz no se quitan
+MSG_60
+Project
+; Proyecto
+MSG_61
+/ (parent)
+; / (arriba)
+MSG_62
+OUTPUT
+; SALIDA
+MSG_63
+Unsaved changes
+; Cambios sin guardar
+MSG_64
+STACK
+; PILA
+MSG_65
+VARIABLES
+; VARIABLES
+MSG_66
+GLOBALS
+; GLOBALES
+MSG_67
+Does not compile: %1 errors (click one to go to its line).
+; No compila: %1 errores (clic en uno para ir a su línea).
+MSG_68
+%1 ended with code %2
+; %1 acabó con código %2
+MSG_69
+ in 
+;  en 
+MSG_70
+Line %1 has no code: the breakpoint won't stop there.
+; La línea %1 no tiene código: el punto no para ahí.
+MSG_71
+Replaced %1 times.
+; Cambiado %1 veces.
+MSG_72
+Inferencia did not take it (RC %1).
+; Inferencia no lo aceptó (RC %1).
+MSG_73
+window 
+; ventana 
+MSG_74
+menu \"%1\"
+; menú \"%1\"
+MSG_75
+Type of the new object (Return):
+; Tipo del objeto nuevo (Return):
+MSG_76
+Amiga-D shows the file as text.
+; Amiga-D enseña el fichero como texto.
+MSG_77
+Texts cannot contain #
+; Los textos no pueden llevar #
+MSG_300
+Forja
+; Forja
+MSG_301
+Project
+; Proyecto
+MSG_302
+New
+; Nuevo
+MSG_303
+Open...
+; Abrir...
+MSG_304
+Save
+; Guardar
+MSG_305
+Save as...
+; Guardar como...
+MSG_306
+Close tab
+; Cerrar pestaña
+MSG_307
+Preferences...
+; Preferencias...
+MSG_308
+Quit
+; Salir
+MSG_309
+Program
+; Programa
+MSG_310
+Compile
+; Compilar
+MSG_311
+Run
+; Ejecutar
+MSG_312
+Debug
+; Depurar
+MSG_313
+Ask Inferencia
+; Preguntar a Inferencia
+MSG_314
+Edit
+; Edición
+MSG_315
+Undo
+; Deshacer
+MSG_316
+Redo
+; Rehacer
+MSG_317
+Cut
+; Cortar
+MSG_318
+Copy
+; Copiar
+MSG_319
+Paste
+; Pegar
+MSG_320
+Select all
+; Seleccionar todo
+MSG_321
+Find and replace...
+; Buscar y cambiar...
+MSG_322
+Go to line...
+; Ir a la línea...
+MSG_323
+Design or text (.dashui)
+; Diseño o texto (.dashui)
+MSG_324
+Preview (.dashui)
+; Vista previa (.dashui)
+MSG_325
+_Compile
+; _Compilar
+MSG_326
+_Run
+; _Ejecutar
+MSG_327
+_Debug
+; _Depurar
+MSG_328
+Continue F5
+; Seguir F5
+MSG_329
+Step F10
+; Paso F10
+MSG_330
+Into F6
+; Entrar F6
+MSG_331
+Out F7
+; Salir F7
+MSG_332
+Stop
+; Parar
+MSG_333
+_Inferencia
+; _Inferencia
+MSG_334
+Find and replace (Forja)
+; Buscar y cambiar (Forja)
+MSG_335
+Find:
+; Buscar:
+MSG_336
+Replace with:
+; Cambiar por:
+MSG_337
+Match case:
+; Mayúsculas:
+MSG_338
+_Next
+; _Siguiente
+MSG_339
+_Previous
+; _Anterior
+MSG_340
+_Replace
+; _Cambiar
+MSG_341
+_All
+; _Todo
+MSG_342
+Go to line (Forja)
+; Ir a la línea (Forja)
+MSG_343
+Line:
+; Línea:
+MSG_344
+_Go
+; _Ir
+MSG_345
+Forja preferences
+; Preferencias de Forja
+MSG_346
+dashc:
+; dashc:
+MSG_347
+Inferencia:
+; Inferencia:
+MSG_348
+Open what was open last time:
+; Abrir lo de la última vez:
+MSG_349
+_Save
+; _Guardar
+MSG_350
+_Use
+; _Usar
+MSG_351
+_Cancel
+; _Cancelar

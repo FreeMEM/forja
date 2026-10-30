@@ -242,10 +242,10 @@ end
 func _dv_titulo(f: Fila, i: Int) -> String
     n = f.nodo
     if f.clase == F_VENTANA
-        return "ventana " + utf8_to_latin1(json_get_str(n, "name"))
+        return tr(73, "ventana ") + utf8_to_latin1(json_get_str(n, "name"))
     end
     if f.clase == F_MENU
-        return "menú \"" + utf8_to_latin1(json_get_str(n, "title")) + "\""
+        return hueco(tr(74, "menú \"%1\""), utf8_to_latin1(json_get_str(n, "title")))
     end
     if f.clase == F_ELEMENTO
         if json_get_bool(n, "separator")
@@ -292,28 +292,28 @@ func _dv_poner(n: Json, p: String, v: String) -> Bool
     dv_mensaje = ""
     if v == ""
         if p == "type"
-            dv_mensaje = "El tipo no se puede quitar"
+            dv_mensaje = tr(32, "El tipo no se puede quitar")
             return false
         end
         json_remove(n, p)
         return true
     end
     if p == "name" and not _dv_nombre_valido(v)
-        dv_mensaje = "Un nombre lleva letras sin acentos, cifras y _, y no empieza por cifra"
+        dv_mensaje = tr(33, "Un nombre lleva letras sin acentos, cifras y _, y no empieza por cifra")
         return false
     end
     if p == "key" and v.length != 1
-        dv_mensaje = "key es una letra (Amiga + esa tecla)"
+        dv_mensaje = tr(34, "key es una letra (Amiga + esa tecla)")
         return false
     end
     if str_contains(v, "#{")
-        dv_mensaje = "Los textos no pueden llevar #{"
+        dv_mensaje = tr(77, "Los textos no pueden llevar #") + "{"
         return false
     end
     if _dv_numerica(p)
         x = json_parse(v)
         if x == nil or x.kind != JSON_NUMBER
-            dv_mensaje = p + " es un número"
+            dv_mensaje = p + tr(35, " es un número")
             return false
         end
         json_set(n, p, x)
@@ -324,13 +324,13 @@ func _dv_poner(n: Json, p: String, v: String) -> Bool
         elif b == "false" or b == "no"
             json_set_bool(n, p, false)
         else
-            dv_mensaje = p + " es true o false"
+            dv_mensaje = p + tr(36, " es true o false")
             return false
         end
     elif _dv_lista(p)
         x = json_parse(v)
         if x == nil or x.kind != JSON_ARRAY
-            dv_mensaje = p + " es una lista, como [20, 20, 24]"
+            dv_mensaje = p + tr(37, " es una lista, como [20, 20, 24]")
             return false
         end
         json_set(n, p, x)
@@ -453,7 +453,7 @@ end
 func _dv_quitar() -> Bool
     f = dv_filas[dv_sel]
     if f.padre == nil
-        dv_mensaje = "La ventana y su grupo raíz no se quitan"
+        dv_mensaje = tr(38, "La ventana y su grupo raíz no se quitan")
         return false
     end
     i = _dv_posicion(f.padre, f.nodo)
@@ -685,7 +685,7 @@ end
 func _dv_dibujar_tipos(px: Int, y: Int, derecha: Int, alto: Int)
     tipos = str_split(TIPOS, "|")
     gfx_pen(tema.tenue)
-    gfx_text_at(px + DV_MARGEN, y + 4 + font_baseline(), "Tipo del objeto nuevo (Return):")
+    gfx_text_at(px + DV_MARGEN, y + 4 + font_baseline(), tr(75, "Tipo del objeto nuevo (Return):"))
     caben = (alto - 8) / dv_fila_alto - 1
     desde = dv_tipo - caben + 1
     if desde < 0
@@ -716,7 +716,7 @@ func dv_dibujar(x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
         gfx_pen(tema.error)
         gfx_text_at(x + DV_MARGEN, y + 4 + font_baseline(), dv_error_carga)
         gfx_pen(tema.tenue)
-        gfx_text_at(x + DV_MARGEN, y + 4 + dv_fila_alto + font_baseline(), "Amiga-D enseña el fichero como texto.")
+        gfx_text_at(x + DV_MARGEN, y + 4 + dv_fila_alto + font_baseline(), tr(76, "Amiga-D enseña el fichero como texto."))
         return
     end
     dv_corte = ancho * 45 / 100

@@ -6,7 +6,8 @@ Un entorno de desarrollo para [Dash](https://github.com/FreeMEM/FreeMEMLang) que
 fondo negro: editor con colores, compilar y ejecutar, depurador paso a paso y editor de ventanas `.dashui` con MUI
 de verdad. Se entiende por ARexx con [Inferencia](https://github.com/FreeMEM/inferencia), la IA para el Amiga.
 
-Es una versión de prueba: funciona en el emulador, pero aún no se ha probado en un Amiga de verdad.
+Es una versión de prueba: funciona en el emulador, pero aún no se ha probado en un Amiga de verdad. Habla en
+castellano o en inglés, según el idioma de las Preferencias de Locale (el catálogo inglés va en `Catalogs/`).
 
 ## Qué necesita
 
