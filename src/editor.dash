@@ -1,27 +1,84 @@
-# El editor: los ficheros abiertos (pestañas) y cómo se dibujan. Escribir llega en F2.
+# El editor: los ficheros abiertos (pestañas), el cursor, la selección, deshacer y cómo se dibujan.
 #
-#   ed_abrir_texto("main.dash", texto)
-#   ed_dibujar(x, y, ancho, alto)      # desde la función de dibujo del canvas
+#   ed_abrir_texto("main.dash", "Work:juego/main.dash", texto)
+#   ed_dibujar(x, y, ancho, alto)        # desde la función de dibujo del canvas
+#   ed_tecla(codigo, teclas, letra)      # una tecla sobre el editor; true si hay que redibujar
+#   ed_clic(x, y, extender) / ed_arrastrar(x, y)
+#
+# El texto va en Latin-1, una línea por elemento, sin tabuladores (al abrir pasan a 4 espacios). Las posiciones
+# son (línea, columna) desde 0. La selección va del ancla (al, ac) al cursor (cl, cc); al = -1 si no hay.
 
 import "tema.dash"
 
 const ALTO_PESTANAS = 18
 const MARGEN_TEXTO = 6
+const SANGRIA = 4
+const MAX_DESHACER = 300
+
+const INSERTAR = 1
+const BORRAR = 2
+
+# Teclas en bruto
+const T_TAB = 0x42
+const T_RETURN = 0x44
+const T_ENTER = 0x43
+const T_RETROCESO = 0x41
+const T_SUPRIMIR = 0x46
+const T_ESC = 0x45
+const T_ARRIBA = 0x4C
+const T_ABAJO = 0x4D
+const T_DERECHA = 0x4E
+const T_IZQUIERDA = 0x4F
+# Teclas de calificación (mui_canvas_qualifiers)
+const Q_MAYUS = 1
+const Q_CTRL = 2
+const Q_ALT = 4
+const Q_AMIGA = 8
+
+struct Cambio
+    tipo: Int         # INSERTAR o BORRAR
+    l: Int
+    c: Int
+    texto: String
+    seguido: Bool     # letras escritas una tras otra: se deshacen juntas
+end
 
 struct Documento
     nombre: String
     ruta: String          # "" si aún no se ha guardado
     lineas: [String]
     primera: Int          # la primera línea que se ve
-    cursor_linea: Int
-    cursor_col: Int
+    izquierda: Int        # la primera columna que se ve
+    cl: Int               # el cursor
+    cc: Int
+    al: Int               # el ancla de la selección (-1: no hay)
+    ac: Int
     cambiado: Bool
     utf8: Bool            # el fichero estaba en UTF-8 (de un PC): se guarda igual
+    deshacer: [Cambio]
+    rehacer: [Cambio]
 end
 
 var documentos: [Documento] = []
 var activo: Int = -1
+# La geometría del último dibujo (desde la esquina de la zona)
 var ed_visibles: Int = 1
+var ed_columnas: Int = 1
+var ed_margen: Int = 40
+var ed_alto_fila: Int = 10
+var ed_zona_x: Int = 0
+var ed_zona_y: Int = 0
+var ed_zona_ancho: Int = 0
+var ed_zona_alto: Int = 0
+# Lo que devuelven las funciones de posiciones
+var _fin_l: Int = 0
+var _fin_c: Int = 0
+var _l1: Int = 0
+var _c1: Int = 0
+var _l2: Int = 0
+var _c2: Int = 0
+
+# --- Abrir ---
 
 # ¿Es UTF-8? Si tiene letras de fuera de ASCII y pasar a Latin-1 y volver lo deja igual, o si tiene la
 # puntuación de UTF-8 más corriente (comillas, guiones y puntos suspensivos empiezan por E2 80)
@@ -38,13 +95,19 @@ func es_utf8(t: String) -> Bool
     return alto and latin1_to_utf8(utf8_to_latin1(t)) == t
 end
 
+func _lineas_de(texto: String) -> [String]
+    t = str_replace(str_replace(texto, "\r\n", "\n"), "\t", "    ")
+    return str_split(t, "\n")
+end
+
 func ed_abrir_texto(nombre: String, ruta: String, texto: String)
     utf8 = es_utf8(texto)
     if utf8
         texto = utf8_to_latin1(texto)
     end
-    lineas = str_split(str_replace(texto, "\t", "    "), "\n")
-    documentos.push(Documento(nombre, ruta, lineas, 0, 0, 0, false, utf8))
+    var d1: [Cambio] = []
+    var d2: [Cambio] = []
+    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2))
     activo = documentos.length - 1
 end
 
@@ -54,6 +117,540 @@ func ed_actual() -> Documento
     end
     return documentos[activo]
 end
+
+# Todo el texto, con saltos de línea
+func ed_texto(d: Documento) -> String
+    t = ""
+    i = 0
+    for l in d.lineas
+        if i > 0
+            t = t + "\n"
+        end
+        t = t + l
+        i = i + 1
+    end
+    return t
+end
+
+# --- Cambios en el texto (sin deshacer) ---
+
+func _trozo(s: String, desde: Int, hasta: Int) -> String
+    if desde < 0
+        desde = 0
+    end
+    if hasta > s.length
+        hasta = s.length
+    end
+    if desde >= hasta
+        return ""
+    end
+    return s[desde:hasta]
+end
+
+# Mete t en (l, c); el final de lo metido queda en _fin_l, _fin_c
+func _meter(d: Documento, l: Int, c: Int, t: String)
+    linea = d.lineas[l]
+    antes = _trozo(linea, 0, c)
+    despues = _trozo(linea, c, linea.length)
+    partes = str_split(t, "\n")
+    if partes.length == 1
+        d.lineas[l] = antes + t + despues
+        _fin_l = l
+        _fin_c = c + t.length
+        return
+    end
+    d.lineas[l] = antes + partes[0]
+    i = 1
+    while i < partes.length - 1
+        d.lineas.insert(l + i, partes[i])
+        i = i + 1
+    end
+    ultima = partes[partes.length - 1]
+    d.lineas.insert(l + i, ultima + despues)
+    _fin_l = l + i
+    _fin_c = ultima.length
+end
+
+func _texto_entre(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int) -> String
+    if l1 == l2
+        return _trozo(d.lineas[l1], c1, c2)
+    end
+    t = _trozo(d.lineas[l1], c1, d.lineas[l1].length)
+    l = l1 + 1
+    while l < l2
+        t = t + "\n" + d.lineas[l]
+        l = l + 1
+    end
+    return t + "\n" + _trozo(d.lineas[l2], 0, c2)
+end
+
+# Quita de (l1, c1) a (l2, c2) y devuelve lo quitado
+func _quitar(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int) -> String
+    t = _texto_entre(d, l1, c1, l2, c2)
+    resto = _trozo(d.lineas[l2], c2, d.lineas[l2].length)
+    d.lineas[l1] = _trozo(d.lineas[l1], 0, c1) + resto
+    n = l2 - l1
+    while n > 0
+        d.lineas.remove(l1 + 1)
+        n = n - 1
+    end
+    return t
+end
+
+# El final de un texto metido en (l, c)
+func _fin_de(l: Int, c: Int, t: String)
+    partes = str_split(t, "\n")
+    if partes.length == 1
+        _fin_l = l
+        _fin_c = c + t.length
+    else
+        _fin_l = l + partes.length - 1
+        _fin_c = partes[partes.length - 1].length
+    end
+end
+
+# --- Cambios con deshacer ---
+
+func _apuntar(d: Documento, c: Cambio)
+    d.rehacer.clear()
+    if d.deshacer.length > 0 and c.seguido
+        u = d.deshacer[d.deshacer.length - 1]
+        if u.tipo == INSERTAR and u.seguido
+            _fin_de(u.l, u.c, u.texto)
+            if _fin_l == c.l and _fin_c == c.c
+                u.texto = u.texto + c.texto
+                return
+            end
+        end
+    end
+    d.deshacer.push(c)
+    if d.deshacer.length > MAX_DESHACER
+        d.deshacer.remove(0)
+    end
+end
+
+func _insertar(d: Documento, t: String, seguido: Bool)
+    l = d.cl
+    c = d.cc
+    _meter(d, l, c, t)
+    d.cl = _fin_l
+    d.cc = _fin_c
+    d.cambiado = true
+    _apuntar(d, Cambio(INSERTAR, l, c, t, seguido))
+end
+
+func _borrar_rango(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int)
+    if l1 == l2 and c1 == c2
+        return
+    end
+    t = _quitar(d, l1, c1, l2, c2)
+    d.cl = l1
+    d.cc = c1
+    d.cambiado = true
+    _apuntar(d, Cambio(BORRAR, l1, c1, t, false))
+end
+
+func ed_hay_seleccion(d: Documento) -> Bool
+    return d.al >= 0 and (d.al != d.cl or d.ac != d.cc)
+end
+
+# La selección en orden: (_l1, _c1) a (_l2, _c2)
+func _orden(d: Documento)
+    if d.al < d.cl or (d.al == d.cl and d.ac <= d.cc)
+        _l1 = d.al
+        _c1 = d.ac
+        _l2 = d.cl
+        _c2 = d.cc
+    else
+        _l1 = d.cl
+        _c1 = d.cc
+        _l2 = d.al
+        _c2 = d.ac
+    end
+end
+
+func ed_seleccion(d: Documento) -> String
+    if not ed_hay_seleccion(d)
+        return ""
+    end
+    _orden(d)
+    return _texto_entre(d, _l1, _c1, _l2, _c2)
+end
+
+func ed_borrar_seleccion(d: Documento) -> Bool
+    if not ed_hay_seleccion(d)
+        d.al = -1
+        return false
+    end
+    _orden(d)
+    d.al = -1
+    _borrar_rango(d, _l1, _c1, _l2, _c2)
+    return true
+end
+
+# Escribe t donde está el cursor, en lugar de la selección
+func ed_escribir(d: Documento, t: String)
+    if ed_borrar_seleccion(d)
+        _insertar(d, t, false)
+    else
+        _insertar(d, t, t.length == 1)
+    end
+end
+
+func _blancos(n: Int) -> String
+    r = ""
+    while n > 0
+        r = r + " "
+        n = n - 1
+    end
+    return r
+end
+
+func _espacios_delante(s: String) -> Int
+    n = 0
+    while n < s.length and s[n:n + 1] == " "
+        n = n + 1
+    end
+    return n
+end
+
+func ed_nueva_linea(d: Documento)
+    ed_borrar_seleccion(d)
+    sangria = _espacios_delante(d.lineas[d.cl])
+    if sangria > d.cc
+        sangria = d.cc
+    end
+    _insertar(d, "\n" + _blancos(sangria), false)
+end
+
+func ed_tabulador(d: Documento)
+    ed_borrar_seleccion(d)
+    _insertar(d, _blancos(SANGRIA - d.cc % SANGRIA), false)
+end
+
+# Mayúsculas + Tab: quita una sangría a la línea (o a las de la selección)
+func ed_quitar_sangria(d: Documento)
+    desde = d.cl
+    hasta = d.cl
+    if ed_hay_seleccion(d)
+        _orden(d)
+        desde = _l1
+        hasta = _l2
+    end
+    l = desde
+    while l <= hasta
+        n = _espacios_delante(d.lineas[l])
+        if n > SANGRIA
+            n = SANGRIA
+        end
+        if n > 0
+            t = _quitar(d, l, 0, l, n)
+            _apuntar(d, Cambio(BORRAR, l, 0, t, false))
+            d.cambiado = true
+            if l == d.cl
+                d.cc = d.cc - n
+                if d.cc < 0
+                    d.cc = 0
+                end
+            end
+            if l == d.al
+                d.ac = d.ac - n
+                if d.ac < 0
+                    d.ac = 0
+                end
+            end
+        end
+        l = l + 1
+    end
+end
+
+func ed_retroceso(d: Documento)
+    if ed_borrar_seleccion(d)
+        return
+    end
+    if d.cc > 0
+        n = 1
+        # en la sangría, hasta la parada anterior
+        if _espacios_delante(d.lineas[d.cl]) >= d.cc
+            n = (d.cc - 1) % SANGRIA + 1
+        end
+        _borrar_rango(d, d.cl, d.cc - n, d.cl, d.cc)
+    elif d.cl > 0
+        _borrar_rango(d, d.cl - 1, d.lineas[d.cl - 1].length, d.cl, 0)
+    end
+end
+
+func ed_suprimir(d: Documento)
+    if ed_borrar_seleccion(d)
+        return
+    end
+    if d.cc < d.lineas[d.cl].length
+        _borrar_rango(d, d.cl, d.cc, d.cl, d.cc + 1)
+    elif d.cl < d.lineas.length - 1
+        _borrar_rango(d, d.cl, d.cc, d.cl + 1, 0)
+    end
+end
+
+func _aplicar(d: Documento, c: Cambio, al_reves: Bool)
+    meter = c.tipo == INSERTAR
+    if al_reves
+        meter = not meter
+    end
+    if meter
+        _meter(d, c.l, c.c, c.texto)
+        d.cl = _fin_l
+        d.cc = _fin_c
+    else
+        _fin_de(c.l, c.c, c.texto)
+        _quitar(d, c.l, c.c, _fin_l, _fin_c)
+        d.cl = c.l
+        d.cc = c.c
+    end
+    d.al = -1
+    d.cambiado = true
+end
+
+func ed_deshacer(d: Documento) -> Bool
+    if d.deshacer.length == 0
+        return false
+    end
+    c = d.deshacer.pop()
+    _aplicar(d, c, true)
+    d.rehacer.push(c)
+    return true
+end
+
+func ed_rehacer(d: Documento) -> Bool
+    if d.rehacer.length == 0
+        return false
+    end
+    c = d.rehacer.pop()
+    _aplicar(d, c, false)
+    d.deshacer.push(c)
+    return true
+end
+
+func ed_seleccionar_todo(d: Documento)
+    d.al = 0
+    d.ac = 0
+    d.cl = d.lineas.length - 1
+    d.cc = d.lineas[d.cl].length
+end
+
+# --- Moverse ---
+
+func _es_letra(s: String, i: Int) -> Bool
+    if i < 0 or i >= s.length
+        return false
+    end
+    c = str_code(s, i)
+    return (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95 or c >= 192
+end
+
+func _mover(d: Documento, codigo: Int, teclas: Int)
+    linea = d.lineas[d.cl]
+    alt = (teclas & Q_ALT) != 0
+    ctrl = (teclas & Q_CTRL) != 0
+    if codigo == T_IZQUIERDA
+        if alt
+            # al principio del texto de la línea; otra vez, a la columna 0
+            s = _espacios_delante(linea)
+            if d.cc > s or d.cc == 0
+                d.cc = s
+            else
+                d.cc = 0
+            end
+        elif ctrl
+            while d.cc > 0 and not _es_letra(linea, d.cc - 1)
+                d.cc = d.cc - 1
+            end
+            while d.cc > 0 and _es_letra(linea, d.cc - 1)
+                d.cc = d.cc - 1
+            end
+        elif d.cc > 0
+            d.cc = d.cc - 1
+        elif d.cl > 0
+            d.cl = d.cl - 1
+            d.cc = d.lineas[d.cl].length
+        end
+    elif codigo == T_DERECHA
+        if alt
+            d.cc = linea.length
+        elif ctrl
+            while d.cc < linea.length and not _es_letra(linea, d.cc)
+                d.cc = d.cc + 1
+            end
+            while d.cc < linea.length and _es_letra(linea, d.cc)
+                d.cc = d.cc + 1
+            end
+        elif d.cc < linea.length
+            d.cc = d.cc + 1
+        elif d.cl < d.lineas.length - 1
+            d.cl = d.cl + 1
+            d.cc = 0
+        end
+    elif codigo == T_ARRIBA or codigo == T_ABAJO
+        paso = 1
+        if alt
+            paso = ed_visibles - 1
+        end
+        if ctrl
+            paso = d.lineas.length
+        end
+        if codigo == T_ARRIBA
+            d.cl = d.cl - paso
+        else
+            d.cl = d.cl + paso
+        end
+        if d.cl < 0
+            d.cl = 0
+            if ctrl
+                d.cc = 0
+            end
+        end
+        if d.cl > d.lineas.length - 1
+            d.cl = d.lineas.length - 1
+            if ctrl
+                d.cc = d.lineas[d.cl].length
+            end
+        end
+        if d.cc > d.lineas[d.cl].length
+            d.cc = d.lineas[d.cl].length
+        end
+    end
+end
+
+# Que el cursor se vea
+func ed_seguir_cursor(d: Documento)
+    if d.cl < d.primera
+        d.primera = d.cl
+    end
+    if d.cl >= d.primera + ed_visibles
+        d.primera = d.cl - ed_visibles + 1
+    end
+    if d.cc < d.izquierda
+        d.izquierda = d.cc
+    end
+    if d.cc >= d.izquierda + ed_columnas
+        d.izquierda = d.cc - ed_columnas + 4
+    end
+    if d.izquierda < 0
+        d.izquierda = 0
+    end
+end
+
+# Una tecla sobre el editor (sin Amiga: esas son atajos del menú). true si cambió algo.
+func ed_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
+    d = ed_actual()
+    if d == nil
+        return false
+    end
+    mayus = (teclas & Q_MAYUS) != 0
+    if codigo == T_IZQUIERDA or codigo == T_DERECHA or codigo == T_ARRIBA or codigo == T_ABAJO
+        if mayus and d.al < 0
+            d.al = d.cl
+            d.ac = d.cc
+        end
+        if not mayus and ed_hay_seleccion(d) and (teclas & (Q_ALT | Q_CTRL)) == 0 and (codigo == T_IZQUIERDA or codigo == T_DERECHA)
+            # sin Mayúsculas, la flecha va al lado de la selección
+            _orden(d)
+            if codigo == T_IZQUIERDA
+                d.cl = _l1
+                d.cc = _c1
+            else
+                d.cl = _l2
+                d.cc = _c2
+            end
+        else
+            _mover(d, codigo, teclas)
+        end
+        if not mayus
+            d.al = -1
+        end
+    elif codigo == T_RETURN or codigo == T_ENTER
+        ed_nueva_linea(d)
+    elif codigo == T_RETROCESO
+        ed_retroceso(d)
+    elif codigo == T_SUPRIMIR
+        ed_suprimir(d)
+    elif codigo == T_TAB
+        if mayus
+            ed_quitar_sangria(d)
+        else
+            ed_tabulador(d)
+        end
+    elif codigo == T_ESC
+        d.al = -1
+    elif letra != "" and str_code(letra, 0) >= 32 and str_code(letra, 0) != 127
+        ed_escribir(d, letra)
+    else
+        return false
+    end
+    ed_seguir_cursor(d)
+    return true
+end
+
+# --- Ratón ---
+
+# La línea y la columna de un punto de la zona (en _fin_l, _fin_c)
+func _posicion(d: Documento, x: Int, y: Int)
+    l = d.primera + (y - ALTO_PESTANAS - 2) / ed_alto_fila
+    if y < ALTO_PESTANAS + 2
+        l = d.primera - 1
+    end
+    if l < 0
+        l = 0
+    end
+    if l > d.lineas.length - 1
+        l = d.lineas.length - 1
+    end
+    c = d.izquierda + (x - ed_margen - 2 + ancho_letra / 2) / ancho_letra
+    if c < 0
+        c = 0
+    end
+    if c > d.lineas[l].length
+        c = d.lineas[l].length
+    end
+    _fin_l = l
+    _fin_c = c
+end
+
+func ed_clic(x: Int, y: Int, extender: Bool)
+    d = ed_actual()
+    if d == nil or y < ALTO_PESTANAS
+        return
+    end
+    _posicion(d, x, y)
+    if extender
+        if d.al < 0
+            d.al = d.cl
+            d.ac = d.cc
+        end
+    else
+        # el ancla, por si se arrastra
+        d.al = _fin_l
+        d.ac = _fin_c
+    end
+    d.cl = _fin_l
+    d.cc = _fin_c
+end
+
+func ed_arrastrar(x: Int, y: Int)
+    d = ed_actual()
+    if d == nil
+        return
+    end
+    _posicion(d, x, y)
+    if d.al < 0
+        d.al = d.cl
+        d.ac = d.cc
+    end
+    d.cl = _fin_l
+    d.cc = _fin_c
+    ed_seguir_cursor(d)
+end
+
+# --- Dibujar ---
 
 func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
     gfx_pen(tema.fondo_panel)
@@ -84,6 +681,10 @@ end
 
 func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
+    ed_zona_x = x
+    ed_zona_y = y
+    ed_zona_ancho = ancho
+    ed_zona_alto = alto
     gfx_mode(0)
     _dibujar_pestanas(x, y, ancho)
     ty = y + ALTO_PESTANAS
@@ -94,32 +695,74 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         return
     end
     usar_codigo()
-    alto_fila = alto_letra + 2
-    ed_visibles = (alto - ALTO_PESTANAS - 4) / alto_fila
+    ed_alto_fila = alto_letra + 2
+    ed_visibles = (alto - ALTO_PESTANAS - 4) / ed_alto_fila
+    if ed_visibles < 1
+        ed_visibles = 1
+    end
     # el margen de los números, del ancho del número más largo
     cifras = "#{d.lineas.length}".length
     if cifras < 3
         cifras = 3
     end
-    margen = (cifras + 1) * ancho_letra + MARGEN_TEXTO
+    ed_margen = (cifras + 1) * ancho_letra + MARGEN_TEXTO
+    ed_columnas = (ancho - ed_margen - 4) / ancho_letra
+    if ed_columnas < 1
+        ed_columnas = 1
+    end
     gfx_pen(tema.fondo_panel)
-    gfx_rect(x, ty, x + margen - 4, y + alto - 1)
+    gfx_rect(x, ty, x + ed_margen - 4, y + alto - 1)
+    hay_sel = ed_hay_seleccion(d)
+    if hay_sel
+        _orden(d)
+    end
+    tx = x + ed_margen + 2
     fy = ty + 2
     n = d.primera
-    while n < d.lineas.length and fy + alto_fila <= y + alto
-        if n == d.cursor_linea
+    while n < d.lineas.length and fy + ed_alto_fila <= y + alto
+        linea = d.lineas[n]
+        if n == d.cl and not hay_sel
             gfx_pen(tema.fondo_linea)
-            gfx_rect(x + margen - 3, fy, x + ancho - 1, fy + alto_fila - 1)
+            gfx_rect(x + ed_margen - 3, fy, x + ancho - 1, fy + ed_alto_fila - 1)
+        end
+        if hay_sel and n >= _l1 and n <= _l2
+            desde = 0
+            hasta = linea.length + 1     # el salto de línea también
+            if n == _l1
+                desde = _c1
+            end
+            if n == _l2
+                hasta = _c2
+            end
+            desde = desde - d.izquierda
+            hasta = hasta - d.izquierda
+            if desde < 0
+                desde = 0
+            end
+            if hasta > desde
+                gfx_pen(tema.seleccion)
+                gfx_rect(tx + desde * ancho_letra, fy, tx + hasta * ancho_letra - 1, fy + ed_alto_fila - 1)
+            end
         end
         num = "#{n + 1}"
         gfx_pen(tema.tenue)
-        if n == d.cursor_linea
+        if n == d.cl
             gfx_pen(tema.texto)
         end
-        gfx_text_at(x + margen - 4 - MARGEN_TEXTO - num.length * ancho_letra, fy + 1 + base_letra, num)
-        gfx_pen(tema.texto)
-        gfx_text_at(x + margen + 2, fy + 1 + base_letra, d.lineas[n])
-        fy = fy + alto_fila
+        gfx_text_at(x + ed_margen - 4 - MARGEN_TEXTO - num.length * ancho_letra, fy + 1 + base_letra, num)
+        visible = _trozo(linea, d.izquierda, d.izquierda + ed_columnas + 1)
+        if visible != ""
+            gfx_pen(tema.texto)
+            gfx_text_at(tx, fy + 1 + base_letra, visible)
+        end
+        if n == d.cl
+            cx = tx + (d.cc - d.izquierda) * ancho_letra
+            if cx >= tx
+                gfx_pen(tema.cursor)
+                gfx_rect(cx - 1, fy, cx, fy + ed_alto_fila - 1)
+            end
+        end
+        fy = fy + ed_alto_fila
         n = n + 1
     end
 end

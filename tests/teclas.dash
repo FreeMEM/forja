@@ -1,0 +1,126 @@
+# Hace de usuario de Forja en el emulador, por input.device: escribe un programa en el editor (con sangría
+# automática, Tab y Retroceso), selecciona con Mayúsculas, corta, pega, deshace y pone el cursor con un clic.
+# Comprueba el texto tras cada paso con RAM:forja-sonda.txt y sale con Amiga-Q.
+# Lo arranca tests/teclas.sh; anota en DH0:Prueba/teclas.txt.
+
+const ESPERA_DECIMAS = 600
+const AMIGA = 8
+const ALT = 4
+const MAYUS = 1
+const CTRL = 2
+const RETURN = 0x44
+const TAB = 0x42
+const RETROCESO = 0x41
+const IZQUIERDA = 0x4F
+const ARRIBA = 0x4C
+
+var fallos: Int = 0
+var registro: String = ""
+var ex: Int = 0
+var ey: Int = 0
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/teclas.txt", registro)
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+# El texto del editor tras un momento (la sonda lo escribe tras cada cambio; si justo lo está escribiendo, no
+# se puede leer: otra vez)
+func texto() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text("RAM:forja-sonda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return "(sin sonda)"
+    end
+    p = str_find(t, "\n")
+    return t[p + 1:]
+end
+
+func comprobar(paso: String, esperado: String)
+    t = texto()
+    if t == esperado
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + t + "]")
+        fallos = fallos + 1
+    end
+end
+
+func preparar() -> Bool
+    n = 0
+    while n < ESPERA_DECIMAS
+        e = env_get("FORJA_EDITOR")
+        if e != "" and activar()
+            p = str_split(e, " ")
+            ex = Int(p[0])
+            ey = Int(p[1])
+            # el puntero sobre el editor: el teclado va a él
+            input_move(ex + Int(p[2]) / 2, ey + Int(p[3]) / 2)
+            time_delay(10)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    anotar("FALLO: la ventana de Forja no aparece")
+    fallos = fallos + 1
+    return false
+end
+
+Main
+    if preparar()
+        programa = "Main\n    Print \"hola\"\nend"
+        input_text("Main")
+        input_key(RETURN, 0)
+        input_key(TAB, 0)
+        input_text("Print \"hola\"")
+        input_key(RETURN, 0)
+        input_key(RETROCESO, 0)
+        input_text("end")
+        comprobar("escribir con sangría", programa)
+
+        # "end" seleccionado con Mayúsculas + Alt + izquierda, y cortado
+        input_key(IZQUIERDA, MAYUS + ALT)
+        input_key(0x32, AMIGA)
+        comprobar("cortar", "Main\n    Print \"hola\"\n")
+        # al principio del texto y pegar
+        input_key(ARRIBA, CTRL)
+        input_key(0x34, AMIGA)
+        comprobar("pegar", "endMain\n    Print \"hola\"\n")
+        # deshacer dos veces
+        input_key(0x31, AMIGA)
+        input_key(0x31, AMIGA)
+        comprobar("deshacer", programa)
+        # un clic en la línea 2, columna 4, y escribir
+        input_click(ex + 38 + 2 + 4 * 8 + 2, ey + 18 + 2 + 10 + 5, 0)
+        input_text("X")
+        comprobar("clic", "Main\n    XPrint \"hola\"\nend")
+        # para la captura: una selección de dos líneas, a la vista unos segundos
+        input_key(0x4D, MAYUS)
+        input_key(0x4E, MAYUS)
+        anotar("selección a la vista")
+        time_delay(600)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+end

@@ -18,6 +18,19 @@
             { "separator": true },
             { "label": "Salir", "key": "Q", "event": 99 }
           ]
+        },
+        {
+          "title": "Edición",
+          "items": [
+            { "label": "Deshacer", "key": "Z", "event": 43 },
+            { "label": "Rehacer", "key": "R", "event": 44 },
+            { "separator": true },
+            { "label": "Cortar", "key": "X", "event": 40 },
+            { "label": "Copiar", "key": "C", "event": 41 },
+            { "label": "Pegar", "key": "V", "event": 42 },
+            { "separator": true },
+            { "label": "Seleccionar todo", "key": "A", "event": 45 }
+          ]
         }
       ],
       "root": {

@@ -5,7 +5,13 @@
 #
 #   Forja [fichero]      # sin fichero, uno nuevo
 #
-# Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar.
+# El teclado va al editor cuando el puntero está encima. Flechas; con Mayúsculas seleccionan; Alt: principio y
+# final de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Los atajos con
+# Amiga son los del menú, también sobre el editor.
+#
+# Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar. Con ENV:FORJA_SONDA, para un programa que
+# hace de usuario (tests/teclas.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y ancho alto" desde la
+# esquina de la ventana) y RAM:forja-sonda.txt lleva, tras cada cambio, "línea columna" del cursor y el texto.
 
 import "tema.dash"
 import "editor.dash"
@@ -18,11 +24,24 @@ const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
 const EV_INFERENCIA = 19
 const EV_BARRA = 3
+const EV_EDITOR = 4
+const EV_ARRASTRE = 5
+const EV_CORTAR = 40
+const EV_COPIAR = 41
+const EV_PEGAR = 42
+const EV_DESHACER = 43
+const EV_REHACER = 44
+const EV_TODO = 45
 const EV_SALIR = 99
 
 const NUEVO = "# Un programa de Dash\n\nMain\n    Print \"Hola, Amiga\"\nend\n"
 
 var v: Principal = nil
+var sonda: Bool = false
+var sonda_editor: String = ""
+var barra_total: Int = -1
+var barra_visibles: Int = -1
+var barra_valor: Int = -1
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -70,6 +89,123 @@ func cajon_de(ruta: String) -> String
     return ""
 end
 
+# La barra sigue al editor
+func ajustar_barra()
+    d = ed_actual()
+    if d == nil
+        return
+    end
+    if d.lineas.length != barra_total or ed_visibles != barra_visibles
+        barra_total = d.lineas.length
+        barra_visibles = ed_visibles
+        mui_set_range(v.barra, barra_total, barra_visibles)
+        barra_valor = -1
+    end
+    if d.primera != barra_valor
+        barra_valor = d.primera
+        mui_set_value(v.barra, d.primera)
+    end
+end
+
+func redibujar()
+    mui_canvas_redraw(v.editor)
+    ajustar_barra()
+    if sonda
+        d = ed_actual()
+        file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc}\n" + ed_texto(d))
+    end
+end
+
+# Las órdenes del menú Edición (también con Amiga sobre el editor)
+func edicion(ev: Int)
+    d = ed_actual()
+    if d == nil
+        return
+    end
+    if ev == EV_CORTAR or ev == EV_COPIAR
+        s = ed_seleccion(d)
+        if s != ""
+            clip_write_text(latin1_to_utf8(s))
+            if ev == EV_CORTAR
+                ed_borrar_seleccion(d)
+            end
+        end
+    elif ev == EV_PEGAR
+        t = str_replace(utf8_to_latin1(clip_read_text()), "\r\n", "\n")
+        if t != ""
+            ed_escribir(d, str_replace(t, "\t", "    "))
+        end
+    elif ev == EV_DESHACER
+        ed_deshacer(d)
+    elif ev == EV_REHACER
+        ed_rehacer(d)
+    elif ev == EV_TODO
+        ed_seleccionar_todo(d)
+    end
+    ed_seguir_cursor(d)
+    redibujar()
+end
+
+# Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
+func atajo(letra: String) -> Int
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR]
+    l = str_lower(letra)
+    i = 0
+    while i < letras.length
+        if letras[i] == l
+            return eventos[i]
+        end
+        i = i + 1
+    end
+    return 0
+end
+
+# Lo que pasa sobre el editor: un clic, la rueda o una tecla. Devuelve otro evento si es un atajo.
+func en_editor() -> Int
+    d = ed_actual()
+    if d == nil
+        return 0
+    end
+    rueda = mui_canvas_wheel(v.editor)
+    teclas = mui_canvas_qualifiers(v.editor)
+    if rueda != 0
+        d.primera = d.primera - rueda * 3
+        maximo = d.lineas.length - ed_visibles
+        if d.primera > maximo
+            d.primera = maximo
+        end
+        if d.primera < 0
+            d.primera = 0
+        end
+        redibujar()
+    elif mui_canvas_button(v.editor) == 1
+        ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), (teclas & Q_MAYUS) != 0)
+        redibujar()
+    else
+        codigo = mui_canvas_key(v.editor)
+        if codigo < 0
+            return 0
+        end
+        letra = mui_canvas_char(v.editor)
+        if (teclas & Q_AMIGA) != 0
+            return atajo(letra)
+        end
+        if ed_tecla(codigo, teclas, letra)
+            redibujar()
+        end
+    end
+    return 0
+end
+
+func publicar_sonda()
+    e = "#{ed_zona_x} #{ed_zona_y} #{ed_zona_ancho} #{ed_zona_alto}"
+    if e != sonda_editor
+        sonda_editor = e
+        env_set("FORJA_EDITOR", e, false)
+    end
+end
+
 Main
     if mui_app_begin("Forja", "FORJA") == 0
         Print "Forja necesita MUI y un 68020 o mejor."
@@ -79,10 +215,14 @@ Main
         mui_canvas_on_draw(v.editor, dibujar_editor)
         mui_canvas_on_draw(v.salida, dibujar_salida)
         mui_canvas_buffered(v.editor, true)
+        mui_canvas_on_input(v.editor, EV_EDITOR)
+        mui_canvas_on_drag(v.editor, EV_ARRASTRE)
+        mui_canvas_take_tab(v.editor, true)
         # lo que aún no hace nada, apagado
         for b in [v.compilar, v.ejecutar, v.depurar, v.inferencia]
             mui_set_enabled(b, false)
         end
+        sonda = env_get("FORJA_SONDA") != ""
 
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
@@ -96,10 +236,40 @@ Main
         salida_anadir("Listo.", 2)
 
         mui_window_open(v.window)
+        mui_canvas_set_pointer(v.editor, 1)
+        ajustar_barra()
+        if sonda
+            publicar_sonda()
+        end
         while true
             ev = mui_wait_event()
+            if ev == EV_EDITOR
+                otro = en_editor()
+                if otro != 0
+                    ev = otro
+                end
+            end
             if ev == -1 or ev == EV_SALIR
                 break
+            end
+            if ev >= EV_CORTAR and ev <= EV_TODO
+                edicion(ev)
+            elif ev == EV_ARRASTRE
+                if mui_canvas_drag(v.editor) == 1
+                    ed_arrastrar(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
+                    redibujar()
+                end
+            elif ev == EV_BARRA
+                d = ed_actual()
+                if d != nil and mui_get_value(v.barra) != d.primera
+                    d.primera = mui_get_value(v.barra)
+                    barra_valor = d.primera
+                    mui_canvas_redraw(v.editor)
+                end
+            end
+            ajustar_barra()
+            if sonda
+                publicar_sonda()
             end
         end
         mui_app_end()
