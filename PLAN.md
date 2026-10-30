@@ -34,8 +34,8 @@ Escrito en Dash 2.0 (dashc), sin `@native` y con licencia MIT.
 
 - **Fondo negro**:
   - El editor y la salida se dibujan sobre `mui_canvas`, con colores propios.
-  - Para el resto de la ventana se instalan unas preferencias de MUI propias del programa, con tema oscuro.
-    MUI las guarda por aplicación.
+  - El resto de la ventana se pone oscuro con `"background"` y `"color"` del `.dashui` (`mui_set_background`,
+    `mui_set_text_pen`). Unas preferencias de MUI propias no se pueden escribir a mano.
 - **Editor de código**: hecho sobre el canvas, porque Dash no tiene campo de varias líneas.
   - Colores según la sintaxis de Dash, números de línea y puntos de parada.
   - Buscar y reemplazar, deshacer y pestañas.

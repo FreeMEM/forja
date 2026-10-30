@@ -6,6 +6,7 @@
       "title": "Forja",
       "id": 1,
       "size": [90, 90],
+      "background": [20, 20, 24],
       "menus": [
         {
           "title": "Proyecto",
@@ -39,11 +40,11 @@
           {
             "type": "hgroup",
             "children": [
-              { "type": "button", "name": "compilar", "label": "_Compilar", "event": 10 },
-              { "type": "button", "name": "ejecutar", "label": "_Ejecutar", "event": 11 },
-              { "type": "button", "name": "depurar", "label": "_Depurar", "event": 12 },
+              { "type": "button", "name": "compilar", "label": "_Compilar", "event": 10, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "ejecutar", "label": "_Ejecutar", "event": 11, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "depurar", "label": "_Depurar", "event": 12, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "space" },
-              { "type": "button", "name": "inferencia", "label": "_Inferencia", "event": 19 }
+              { "type": "button", "name": "inferencia", "label": "_Inferencia", "event": 19, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           },
           {
