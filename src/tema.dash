@@ -18,6 +18,7 @@ struct Tema
     borde: Int
     seleccion: Int
     cursor: Int
+    sintaxis: [Int]     # un color por tipo de trozo de sintaxis.dash
 end
 
 var tema: Tema = nil
@@ -33,7 +34,10 @@ func tema_preparar()
     end
     tema = Tema(color_pen(14, 14, 18), color_pen(26, 26, 32), color_pen(8, 8, 10), color_pen(30, 30, 38),
                 color_pen(220, 220, 210), color_pen(110, 110, 124), color_pen(90, 150, 230), color_pen(230, 80, 70),
-                color_pen(110, 200, 120), color_pen(50, 50, 60), color_pen(40, 70, 130), color_pen(255, 200, 80))
+                color_pen(110, 200, 120), color_pen(50, 50, 60), color_pen(40, 70, 130), color_pen(255, 200, 80), [])
+    # normal, palabra clave, tipo, texto, número, comentario, llamada, constante
+    tema.sintaxis = [tema.texto, color_pen(200, 130, 230), color_pen(100, 190, 230), color_pen(150, 210, 110),
+                     color_pen(240, 170, 90), color_pen(120, 120, 136), color_pen(240, 220, 140), color_pen(240, 170, 90)]
     fuente_codigo = font_open("topaz.font", 8)
     fuente_panel = font_open("helvetica.font", 11)
     if fuente_panel == 0

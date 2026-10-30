@@ -1,0 +1,108 @@
+# Los colores de la sintaxis de Dash: parte una línea en trozos de un tipo (palabra clave, tipo, texto, número,
+# comentario, llamada, constante).
+#
+#   sx_partir(linea)     # deja los trozos en sx_desde y sx_tipo (el último trozo acaba al final de la línea)
+#
+# Va carácter a carácter con str_code, sin crear textos, para que dibujar sea rápido en un 68020.
+
+const S_NORMAL = 0
+const S_CLAVE = 1
+const S_TIPO = 2
+const S_TEXTO = 3
+const S_NUMERO = 4
+const S_COMENTARIO = 5
+const S_LLAMADA = 6
+const S_CONSTANTE = 7
+
+var sx_desde: [Int] = []
+var sx_tipo: [Int] = []
+var _sx_palabras: {String: Int} = {}
+
+func _sx_preparar()
+    if _sx_palabras.length > 0
+        return
+    end
+    for p in ["if", "elif", "else", "end", "while", "for", "in", "step", "func", "return", "break", "continue", "struct", "enum", "const", "var", "import", "Main", "and", "or", "not", "fn", "self", "Print", "Wait", "Stop", "Window", "EventLoop", "On"]
+        _sx_palabras[p] = S_CLAVE
+    end
+    for p in ["true", "false", "nil"]
+        _sx_palabras[p] = S_NUMERO
+    end
+    for p in ["Int", "String", "Bool", "Float", "Fixed", "Array", "Pointer", "Void", "Func"]
+        _sx_palabras[p] = S_TIPO
+    end
+end
+
+func _sx_letra(c: Int) -> Bool
+    return (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95 or c >= 192
+end
+
+func _sx_cifra(c: Int) -> Bool
+    return c >= 48 and c <= 57
+end
+
+func _sx_trozo(desde: Int, tipo: Int)
+    # dos trozos seguidos del mismo tipo van juntos
+    if sx_tipo.length > 0 and sx_tipo[sx_tipo.length - 1] == tipo
+        return
+    end
+    sx_desde.push(desde)
+    sx_tipo.push(tipo)
+end
+
+func sx_partir(s: String)
+    _sx_preparar()
+    sx_desde.clear()
+    sx_tipo.clear()
+    n = s.length
+    i = 0
+    while i < n
+        c = str_code(s, i)
+        if c == 35 and str_code(s, i + 1) != 123
+            # "#" hasta el final (un "#{" fuera de un texto no es comentario)
+            _sx_trozo(i, S_COMENTARIO)
+            return
+        elif c == 34
+            _sx_trozo(i, S_TEXTO)
+            i = i + 1
+            while i < n and str_code(s, i) != 34
+                if str_code(s, i) == 92
+                    i = i + 1
+                end
+                i = i + 1
+            end
+            i = i + 1
+        elif _sx_cifra(c)
+            _sx_trozo(i, S_NUMERO)
+            while i < n and (_sx_letra(str_code(s, i)) or _sx_cifra(str_code(s, i)) or str_code(s, i) == 46)
+                i = i + 1
+            end
+        elif _sx_letra(c)
+            desde = i
+            mayusculas = true
+            while i < n and (_sx_letra(str_code(s, i)) or _sx_cifra(str_code(s, i)))
+                k = str_code(s, i)
+                if k >= 97 and k <= 122
+                    mayusculas = false
+                end
+                i = i + 1
+            end
+            tipo = S_NORMAL
+            # la palabra clave más larga tiene 9 letras: las más largas no se buscan
+            if i - desde <= 9
+                tipo = _sx_palabras.get(s[desde:i], S_NORMAL)
+            end
+            if tipo == S_NORMAL
+                if str_code(s, i) == 40
+                    tipo = S_LLAMADA
+                elif mayusculas and i - desde > 1
+                    tipo = S_CONSTANTE
+                end
+            end
+            _sx_trozo(desde, tipo)
+        else
+            _sx_trozo(i, S_NORMAL)
+            i = i + 1
+        end
+    end
+end

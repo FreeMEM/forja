@@ -110,9 +110,27 @@ end
 func redibujar()
     mui_canvas_redraw(v.editor)
     ajustar_barra()
+    escribir_sonda()
+end
+
+func redibujar_linea(n: Int)
+    d = ed_actual()
+    fy = ed_fila_y(d, n)
+    if fy < 0
+        redibujar()
+        return
+    end
+    ed_solo_linea = n
+    mui_canvas_update_area(v.editor, 0, fy, ed_zona_ancho, ed_alto_fila)
+    ed_solo_linea = -1
+    escribir_sonda()
+end
+
+func escribir_sonda()
     if sonda
         d = ed_actual()
         file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc}\n" + ed_texto(d))
+        env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
     end
 end
 
@@ -191,8 +209,19 @@ func en_editor() -> Int
         if (teclas & Q_AMIGA) != 0
             return atajo(letra)
         end
+        # escribir dentro de una línea solo redibuja esa línea
+        antes_lineas = d.lineas.length
+        antes_cl = d.cl
+        antes_primera = d.primera
+        antes_izquierda = d.izquierda
+        antes_cambiado = d.cambiado
+        antes_sel = ed_hay_seleccion(d)
         if ed_tecla(codigo, teclas, letra)
-            redibujar()
+            if d.lineas.length == antes_lineas and d.cl == antes_cl and d.primera == antes_primera and d.izquierda == antes_izquierda and antes_cambiado and not antes_sel and not ed_hay_seleccion(d)
+                redibujar_linea(d.cl)
+            else
+                redibujar()
+            end
         end
     end
     return 0

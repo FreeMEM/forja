@@ -112,6 +112,19 @@ Main
         input_click(ex + 38 + 2 + 4 * 8 + 2, ey + 18 + 2 + 10 + 5, 0)
         input_text("X")
         comprobar("clic", "Main\n    XPrint \"hola\"\nend")
+        # la pantalla llena: todo copiado y pegado cinco veces; luego al principio (un dibujo entero)
+        input_key(0x20, AMIGA)
+        input_key(0x33, AMIGA)
+        input_key(ARRIBA, CTRL)
+        n = 0
+        while n < 5
+            input_key(0x34, AMIGA)
+            input_key(RETURN, 0)
+            n = n + 1
+        end
+        input_key(ARRIBA, CTRL)
+        texto()
+        anotar("dibujo entero: " + env_get("FORJA_DIBUJO") + " ms")
         # para la captura: una selección de dos líneas, a la vista unos segundos
         input_key(0x4D, MAYUS)
         input_key(0x4E, MAYUS)

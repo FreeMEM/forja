@@ -9,6 +9,7 @@
 # son (línea, columna) desde 0. La selección va del ancla (al, ac) al cursor (cl, cc); al = -1 si no hay.
 
 import "tema.dash"
+import "sintaxis.dash"
 
 const ALTO_PESTANAS = 18
 const MARGEN_TEXTO = 6
@@ -70,6 +71,8 @@ var ed_zona_x: Int = 0
 var ed_zona_y: Int = 0
 var ed_zona_ancho: Int = 0
 var ed_zona_alto: Int = 0
+var ed_solo_linea: Int = -1    # con mui_canvas_update: dibujar solo esta línea
+var ed_ms_dibujo: Int = 0      # lo que tardó el último dibujo entero
 # Lo que devuelven las funciones de posiciones
 var _fin_l: Int = 0
 var _fin_c: Int = 0
@@ -679,18 +682,105 @@ func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
     end
 end
 
+# Una línea del texto en fy, con su número, la selección, los colores y el cursor
+func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: Bool)
+    linea = d.lineas[n]
+    tx = x + ed_margen + 2
+    gfx_pen(tema.fondo)
+    if n == d.cl and not hay_sel
+        gfx_pen(tema.fondo_linea)
+    end
+    gfx_rect(x + ed_margen - 3, fy, x + ancho - 1, fy + ed_alto_fila - 1)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, fy, x + ed_margen - 4, fy + ed_alto_fila - 1)
+    if hay_sel and n >= _l1 and n <= _l2
+        desde = 0
+        hasta = linea.length + 1     # el salto de línea también
+        if n == _l1
+            desde = _c1
+        end
+        if n == _l2
+            hasta = _c2
+        end
+        desde = desde - d.izquierda
+        hasta = hasta - d.izquierda
+        if desde < 0
+            desde = 0
+        end
+        if hasta > desde
+            gfx_pen(tema.seleccion)
+            gfx_rect(tx + desde * ancho_letra, fy, tx + hasta * ancho_letra - 1, fy + ed_alto_fila - 1)
+        end
+    end
+    num = "#{n + 1}"
+    gfx_pen(tema.tenue)
+    if n == d.cl
+        gfx_pen(tema.texto)
+    end
+    base = fy + 1 + base_letra
+    gfx_text_at(x + ed_margen - 4 - MARGEN_TEXTO - num.length * ancho_letra, base, num)
+    # los trozos de color que caen en las columnas que se ven
+    hasta_col = d.izquierda + ed_columnas + 1
+    if linea != ""
+        sx_partir(linea)
+        k = 0
+        while k < sx_desde.length
+            a = sx_desde[k]
+            b = linea.length
+            if k + 1 < sx_desde.length
+                b = sx_desde[k + 1]
+            end
+            if a < d.izquierda
+                a = d.izquierda
+            end
+            if b > hasta_col
+                b = hasta_col
+            end
+            if b > a
+                gfx_pen(tema.sintaxis[sx_tipo[k]])
+                gfx_text_at(tx + (a - d.izquierda) * ancho_letra, base, linea[a:b])
+            end
+            k = k + 1
+        end
+    end
+    if n == d.cl
+        cx = tx + (d.cc - d.izquierda) * ancho_letra
+        if cx >= tx
+            gfx_pen(tema.cursor)
+            gfx_rect(cx - 1, fy, cx, fy + ed_alto_fila - 1)
+        end
+    end
+end
+
+# La y de la fila de la línea n, desde la esquina de la zona (-1 si no se ve)
+func ed_fila_y(d: Documento, n: Int) -> Int
+    if n < d.primera or n >= d.primera + ed_visibles
+        return -1
+    end
+    return ALTO_PESTANAS + 2 + (n - d.primera) * ed_alto_fila
+end
+
 func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
+    gfx_mode(0)
+    d = ed_actual()
+    if mui_canvas_updating() and ed_solo_linea >= 0 and d != nil
+        fy = ed_fila_y(d, ed_solo_linea)
+        if fy >= 0
+            usar_codigo()
+            _dibujar_fila(d, ed_solo_linea, x, y + fy, ancho, false)
+        end
+        return
+    end
+    t0 = time_ms()
     ed_zona_x = x
     ed_zona_y = y
     ed_zona_ancho = ancho
     ed_zona_alto = alto
-    gfx_mode(0)
     _dibujar_pestanas(x, y, ancho)
     ty = y + ALTO_PESTANAS
     gfx_pen(tema.fondo)
     gfx_rect(x, ty, x + ancho - 1, y + alto - 1)
-    d = ed_actual()
     if d == nil
         return
     end
@@ -716,53 +806,12 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     if hay_sel
         _orden(d)
     end
-    tx = x + ed_margen + 2
     fy = ty + 2
     n = d.primera
     while n < d.lineas.length and fy + ed_alto_fila <= y + alto
-        linea = d.lineas[n]
-        if n == d.cl and not hay_sel
-            gfx_pen(tema.fondo_linea)
-            gfx_rect(x + ed_margen - 3, fy, x + ancho - 1, fy + ed_alto_fila - 1)
-        end
-        if hay_sel and n >= _l1 and n <= _l2
-            desde = 0
-            hasta = linea.length + 1     # el salto de línea también
-            if n == _l1
-                desde = _c1
-            end
-            if n == _l2
-                hasta = _c2
-            end
-            desde = desde - d.izquierda
-            hasta = hasta - d.izquierda
-            if desde < 0
-                desde = 0
-            end
-            if hasta > desde
-                gfx_pen(tema.seleccion)
-                gfx_rect(tx + desde * ancho_letra, fy, tx + hasta * ancho_letra - 1, fy + ed_alto_fila - 1)
-            end
-        end
-        num = "#{n + 1}"
-        gfx_pen(tema.tenue)
-        if n == d.cl
-            gfx_pen(tema.texto)
-        end
-        gfx_text_at(x + ed_margen - 4 - MARGEN_TEXTO - num.length * ancho_letra, fy + 1 + base_letra, num)
-        visible = _trozo(linea, d.izquierda, d.izquierda + ed_columnas + 1)
-        if visible != ""
-            gfx_pen(tema.texto)
-            gfx_text_at(tx, fy + 1 + base_letra, visible)
-        end
-        if n == d.cl
-            cx = tx + (d.cc - d.izquierda) * ancho_letra
-            if cx >= tx
-                gfx_pen(tema.cursor)
-                gfx_rect(cx - 1, fy, cx, fy + ed_alto_fila - 1)
-            end
-        end
+        _dibujar_fila(d, n, x, fy, ancho, hay_sel)
         fy = fy + ed_alto_fila
         n = n + 1
     end
+    ed_ms_dibujo = time_ms() - t0
 end
