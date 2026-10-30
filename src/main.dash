@@ -19,7 +19,11 @@
 # Puerto ARexx FORJA.1: ABRIR fichero [línea]; ABIERTO fichero (1 o 0); TEXTO fichero (lo que hay en el editor,
 # guardado o no); SELECCION (fichero, desde, hasta y el texto, en líneas); CAMBIAR fichero desde hasta texto
 # (con deshacer; hasta = desde - 1 mete líneas); GUARDAR [fichero]; COMPILAR y EJECUTAR (sin esperar);
-# ESTADO (libre, compilando, ejecutando); ERRORES (los de la última compilación).
+# ESTADO (libre, compilando, ejecutando, depurando); ERRORES (los de la última compilación); BUSCAR texto (lo elige
+# y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea.
+#
+# Buscar y cambiar (Amiga-F) e ir a la línea (Amiga-L) en sus ventanas. Preferencias: dashc, Inferencia y si abrir al
+# empezar lo de la última vez (ENVARC:Forja/sesion: el cajón del proyecto y los ficheros, al salir).
 #
 # Cerrar una pestaña o salir con cambios sin guardar pregunta: Guardar, Descartar o Cancelar.
 #
@@ -80,13 +84,30 @@ const EV_TODO = 45
 const EV_DISENO = 46
 const EV_VISTA = 47
 const EV_VISTA_CERRADA = 60
+const EV_PREFERENCIAS = 35
+const EV_BUSCAR = 48
+const EV_IRA = 49
+const EV_SIGUIENTE = 50
+const EV_ANTERIOR = 51
+const EV_CAMBIAR = 52
+const EV_TODO_CAMBIAR = 53
+const EV_BUSCAR_CERRAR = 54
+const EV_IR = 55
+const EV_IRA_CERRAR = 56
+const EV_PREF_GUARDAR = 57
+const EV_PREF_USAR = 58
+const EV_PREF_CANCELAR = 59
 const EV_SALIR = 99
 
 const TITULO_CAMBIOS = "Cambios sin guardar"
 const NUEVO = "# Un programa de Dash\n\nMain\n    Print \"Hola, Amiga\"\nend\n"
 
 var v: Principal = nil
+var vb: Buscar = nil
+var vi: IrA = nil
+var vp: PrefForja = nil
 var app: Int = 0
+var redibujo_pendiente: Bool = false
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
 var inferencia_espera: Int = 0      # tics esperando a que arranque Inferencia
 var inferencia_pendiente: String = ""
@@ -344,6 +365,10 @@ func compilar(y_ejecutar: Bool)
 end
 
 func tic()
+    if redibujo_pendiente
+        redibujo_pendiente = false
+        redibujar()
+    end
     if inferencia_espera > 0
         if inferencia_mandar()
             redibujar()
@@ -765,8 +790,8 @@ end
 
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p", "f", "l", "g"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA, EV_BUSCAR, EV_IRA, EV_DEPURAR]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -890,6 +915,110 @@ func publicar_sonda()
     end
 end
 
+# --- Buscar y cambiar, ir a la línea ---
+
+# Busca lo de la ventana de buscar; false (y un aviso) si no está
+func buscar(adelante: Bool) -> Bool
+    d = ed_actual()
+    t = mui_get_text(vb.texto)
+    if d == nil or t == ""
+        return false
+    end
+    if not ed_buscar(d, t, mui_get_value(vb.mayus) != 0, adelante)
+        avisar("No está \"" + t + "\".", 1)
+        return false
+    end
+    redibujar()
+    return true
+end
+
+# Cambia lo elegido (si es lo buscado) y busca el siguiente
+func cambiar_uno()
+    d = ed_actual()
+    t = mui_get_text(vb.texto)
+    if d == nil or t == ""
+        return
+    end
+    if ed_hay_seleccion(d) and ed_elegido_es(d, t, mui_get_value(vb.mayus) != 0)
+        ed_escribir(d, mui_get_text(vb.cambio))
+    end
+    buscar(true)
+    redibujar()
+end
+
+func cambiar_todo(t: String, nuevo: String, mayus: Bool) -> Int
+    d = ed_actual()
+    if d == nil
+        return 0
+    end
+    n = ed_cambiar_todo(d, t, nuevo, mayus)
+    avisar("Cambiado #{n} veces.", 2)
+    redibujar()
+    return n
+end
+
+func ir_a(n: Int)
+    if n > 0
+        ed_ir_a(n, 1)
+        redibujar()
+    end
+end
+
+# --- Preferencias, y lo que se abre al empezar ---
+
+func preferencias_abrir()
+    mui_set_text(vp.dashc, env_get("Forja/dashc"))
+    mui_set_text(vp.inferencia, env_get("Forja/inferencia"))
+    mui_set_value(vp.recordar, recordar_sesion())
+    mui_window_open(vp.window)
+end
+
+func recordar_sesion() -> Bool
+    return env_get("Forja/recordar") != "no"
+end
+
+func preferencias_aplicar(guardar: Bool)
+    env_set("Forja/dashc", str_trim(mui_get_text(vp.dashc)), guardar)
+    env_set("Forja/inferencia", str_trim(mui_get_text(vp.inferencia)), guardar)
+    if mui_get_value(vp.recordar) != 0
+        env_set("Forja/recordar", "si", guardar)
+    else
+        env_set("Forja/recordar", "no", guardar)
+    end
+    mui_window_close(vp.window)
+end
+
+# Al salir: el cajón del proyecto y los ficheros abiertos, para la próxima vez (ENVARC:Forja/sesion, con "|")
+func sesion_guardar()
+    t = proyecto_cajon
+    for d in documentos
+        if d.ruta != ""
+            t = t + "|" + d.ruta
+        end
+    end
+    env_set("Forja/sesion", t, true)
+end
+
+# Al empezar sin fichero: lo de la última vez; false si no había nada
+func sesion_abrir() -> Bool
+    if not recordar_sesion()
+        return false
+    end
+    partes = str_split(env_get("Forja/sesion"), "|")
+    abiertos = 0
+    i = 1
+    while i < partes.length
+        if abrir(partes[i])
+            abiertos = abiertos + 1
+        end
+        i = i + 1
+    end
+    if partes[0] != ""
+        proyecto_leer(partes[0])
+    end
+    return abiertos > 0
+end
+
 # --- Inferencia ---
 
 const PUERTO_INFERENCIA = "INFERENCIA.1"
@@ -954,6 +1083,13 @@ func inferencia_mandar() -> Bool
 end
 
 # --- El puerto ARexx FORJA.1 ---
+
+# Redibujar dentro de una orden ARexx hacía que el cliente recibiera el RESULT de la orden anterior: se redibuja
+# justo después, con el temporizador
+func redibujar_luego()
+    redibujo_pendiente = true
+    mui_timer(1, EV_TIC)
+end
 
 # Las palabras de una orden: un argumento entre comillas puede llevar espacios. resto_desde dice desde qué
 # argumento (desde 0) se quiere el resto de la línea tal cual, en _resto.
@@ -1020,7 +1156,7 @@ func orden_rexx(linea: String) -> String
         if p.length >= 3
             ed_ir_a(Int(p[2]), 1)
         end
-        redibujar()
+        redibujar_luego()
         return ""
     elif orden == "ABIERTO" and p.length >= 2
         if ed_buscar_ruta(p[1]) >= 0
@@ -1053,7 +1189,7 @@ func orden_rexx(linea: String) -> String
             mui_rexx_fail(10)
             return ""
         end
-        redibujar()
+        redibujar_luego()
         return ""
     elif orden == "GUARDAR"
         d = ed_actual()
@@ -1068,7 +1204,7 @@ func orden_rexx(linea: String) -> String
             mui_rexx_fail(10)
             return ""
         end
-        redibujar()
+        redibujar_luego()
         return ""
     elif orden == "COMPILAR" or orden == "EJECUTAR"
         if tarea != NADA
@@ -1078,8 +1214,30 @@ func orden_rexx(linea: String) -> String
         errores_ultimos = ""
         compilar(orden == "EJECUTAR")
         return ""
+    elif orden == "BUSCAR" and p.length >= 2
+        # BUSCAR texto: lo elige en el fichero activo y da su línea
+        d = ed_actual()
+        if d == nil or not ed_buscar(d, p[1], false, true)
+            mui_rexx_fail(5)
+            return ""
+        end
+        redibujar_luego()
+        return "#{d.cl + 1}"
+    elif orden == "CAMBIARTODO" and p.length >= 3
+        d = ed_actual()
+        if d == nil
+            mui_rexx_fail(10)
+            return ""
+        end
+        n = ed_cambiar_todo(d, p[1], p[2], true)
+        redibujar_luego()
+        return "#{n}"
+    elif orden == "IRA" and p.length >= 2
+        ed_ir_a(Int(p[1]), 1)
+        redibujar_luego()
+        return ""
     elif orden == "ESTADO"
-        var nombres: [String] = ["libre", "compilando", "ejecutando"]
+        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
         return nombres[tarea]
     elif orden == "ERRORES"
         return errores_ultimos
@@ -1094,6 +1252,9 @@ Main
         Print "Forja necesita MUI y un 68020 o mejor."
     else
         v = Principal_create()
+        vb = Buscar_create()
+        vi = IrA_create()
+        vp = PrefForja_create()
         mui_canvas_on_draw(v.proyecto, dibujar_proyecto)
         mui_canvas_on_draw(v.editor, dibujar_editor)
         mui_canvas_on_draw(v.salida, dibujar_salida)
@@ -1112,10 +1273,12 @@ Main
         if ruta == "" and arg_count() > 0
             ruta = arg(0)
         end
-        if ruta == "" or not abrir(ruta)
+        if ruta != "" and abrir(ruta)
+            proyecto_leer(cajon_de(ruta))
+        elif not sesion_abrir()
             ed_abrir_texto("sin nombre.dash", "", NUEVO)
+            proyecto_leer(cajon_de(ruta))
         end
-        proyecto_leer(cajon_de(ruta))
         salida_anadir("Forja " + VERSION + ", con Dash 2.0.", 0)
         salida_anadir("Listo.", 2)
 
@@ -1143,11 +1306,38 @@ Main
             end
             if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR)
                 if proyecto(ev)
+                    sesion_guardar()
                     break
                 end
             end
             if ev == EV_PROYECTO
                 en_proyecto()
+            elif ev == EV_BUSCAR
+                mui_window_open(vb.window)
+                mui_set_active(vb.window, vb.texto)
+            elif ev == EV_SIGUIENTE or ev == EV_ANTERIOR
+                buscar(ev == EV_SIGUIENTE)
+            elif ev == EV_CAMBIAR
+                cambiar_uno()
+            elif ev == EV_TODO_CAMBIAR
+                cambiar_todo(mui_get_text(vb.texto), mui_get_text(vb.cambio), mui_get_value(vb.mayus) != 0)
+            elif ev == EV_BUSCAR_CERRAR
+                mui_window_close(vb.window)
+            elif ev == EV_IRA
+                mui_set_text(vi.linea, "")
+                mui_window_open(vi.window)
+                mui_set_active(vi.window, vi.linea)
+            elif ev == EV_IR
+                ir_a(Int(str_trim(mui_get_text(vi.linea))))
+                mui_window_close(vi.window)
+            elif ev == EV_IRA_CERRAR
+                mui_window_close(vi.window)
+            elif ev == EV_PREFERENCIAS
+                preferencias_abrir()
+            elif ev == EV_PREF_GUARDAR or ev == EV_PREF_USAR
+                preferencias_aplicar(ev == EV_PREF_GUARDAR)
+            elif ev == EV_PREF_CANCELAR
+                mui_window_close(vp.window)
             elif ev == EV_SALIDA
                 en_salida()
             elif ev == EV_INFERENCIA

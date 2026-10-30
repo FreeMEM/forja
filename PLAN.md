@@ -88,6 +88,7 @@ Puerto `FORJA.1`:
 - `CAMBIAR fichero desde hasta "texto"`: el cambio entra en el deshacer. Con hasta = desde - 1 mete líneas.
 - `GUARDAR [fichero]`
 - `COMPILAR` y `EJECUTAR`, sin esperar; `ESTADO` dice si sigue y `ERRORES` da los de la última compilación.
+- `BUSCAR texto` (lo elige y da su línea), `CAMBIARTODO buscar cambiar` (cuántas) e `IRA línea`.
 
 El botón Inferencia (Amiga-I) le manda el fichero, o las líneas elegidas, con `ADJUNTAR`. Si Inferencia no está
 abierta, la arranca. Cuando Inferencia edita un fichero que Forja tiene abierto, lo hace con `CAMBIAR`: el cambio

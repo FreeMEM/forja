@@ -17,6 +17,8 @@
             { "label": "Guardar como...", "event": 33 },
             { "label": "Cerrar pestaña", "key": "W", "event": 34 },
             { "separator": true },
+            { "label": "Preferencias...", "event": 35 },
+            { "separator": true },
             { "label": "Salir", "key": "Q", "event": 99 }
           ]
         },
@@ -41,6 +43,8 @@
             { "label": "Pegar", "key": "V", "event": 42 },
             { "separator": true },
             { "label": "Seleccionar todo", "key": "A", "event": 45 },
+            { "label": "Buscar y cambiar...", "key": "F", "event": 48 },
+            { "label": "Ir a la línea...", "key": "L", "event": 49 },
             { "separator": true },
             { "label": "Diseño o texto (.dashui)", "key": "D", "event": 46 },
             { "label": "Vista previa (.dashui)", "key": "P", "event": 47 }
@@ -77,6 +81,87 @@
           },
           { "type": "balance" },
           { "type": "canvas", "name": "salida", "min_width": 240, "min_height": 44, "weight": 60 }
+        ]
+      }
+    },
+    {
+      "name": "Buscar",
+      "title": "Buscar y cambiar (Forja)",
+      "id": 3,
+      "close": 54,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          {
+            "type": "columns",
+            "columns": 2,
+            "children": [
+              { "type": "label", "text": "Buscar:", "color": [220, 220, 210] },
+              { "type": "string", "name": "texto", "text": "", "max": 200, "ack": 50 },
+              { "type": "label", "text": "Cambiar por:", "color": [220, 220, 210] },
+              { "type": "string", "name": "cambio", "text": "", "max": 200 },
+              { "type": "label", "text": "Mayúsculas:", "color": [220, 220, 210] },
+              { "type": "checkbox", "name": "mayus", "checked": false }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "siguiente", "label": "_Siguiente", "event": 50, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "anterior", "label": "_Anterior", "event": 51, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "cambiar", "label": "_Cambiar", "event": 52, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "todo", "label": "_Todo", "event": 53, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "IrA",
+      "title": "Ir a la línea (Forja)",
+      "id": 4,
+      "close": 56,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "hgroup",
+        "children": [
+          { "type": "label", "text": "Línea:", "color": [220, 220, 210] },
+          { "type": "string", "name": "linea", "text": "", "max": 8, "ack": 55 },
+          { "type": "button", "name": "ir", "label": "_Ir", "event": 55, "background": [44, 44, 52], "color": [220, 220, 210] }
+        ]
+      }
+    },
+    {
+      "name": "PrefForja",
+      "title": "Preferencias de Forja",
+      "id": 5,
+      "close": 59,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          {
+            "type": "columns",
+            "columns": 2,
+            "children": [
+              { "type": "label", "text": "dashc:", "color": [220, 220, 210] },
+              { "type": "string", "name": "dashc", "text": "", "max": 300 },
+              { "type": "label", "text": "Inferencia:", "color": [220, 220, 210] },
+              { "type": "string", "name": "inferencia", "text": "", "max": 300 },
+              { "type": "label", "text": "Abrir lo de la última vez:", "color": [220, 220, 210] },
+              { "type": "checkbox", "name": "recordar", "checked": true }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "pguardar", "label": "_Guardar", "event": 57, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "pusar", "label": "_Usar", "event": 58, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "space" },
+              { "type": "button", "name": "pcancelar", "label": "_Cancelar", "event": 59, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          }
         ]
       }
     }

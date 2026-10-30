@@ -1,0 +1,116 @@
+# Buscar, cambiar todo e ir a la línea en Forja: por ARexx (BUSCAR, CAMBIARTODO, IRA, SELECCION, TEXTO) y por
+# teclado (Amiga-F y Amiga-L abren sus ventanas con el cursor en el campo). Lo arranca tests/buscar.sh; anota en
+# DH0:Prueba/buscar.txt.
+
+const FORJA = "FORJA.1"
+const MAIN = "DH0:Prueba/juego/main.dash"
+const AMIGA = 8
+const RETURN = 0x44
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/buscar.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and input_active_title() != titulo
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return input_active_title() == titulo
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+# La línea (desde 1) donde empieza lo elegido, o la del cursor
+func linea_elegida() -> String
+    return str_split(rexx("SELECCION"), "\n")[1]
+end
+
+Main
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    rexx("ABRIR " + MAIN + " 1")
+    r = rexx("BUSCAR total")
+    ver("BUSCAR total: línea 17", r == "17", r)
+    r = rexx("BUSCAR total")
+    ver("BUSCAR otra vez: la siguiente, línea 19", r == "19", r)
+    ver("BUSCAR algo que no está: RC 5", rexx("BUSCAR noestaaqui") == "" and rexx_rc() == 5, "rc #{rexx_rc()}")
+    r = rexx("CAMBIARTODO Nave Barco")
+    # (struct Nave, n: Nave, dos Nave( y "Naves" del Print)
+    ver("CAMBIARTODO Nave Barco: 5 veces", r == "5", r)
+    t = rexx("TEXTO " + MAIN)
+    ver("el texto cambiado", str_contains(t, "struct Barco") and not str_contains(t, "Nave"), t)
+    rexx("IRA 5")
+    ver("IRA 5", linea_elegida() == "5", rexx("SELECCION"))
+    # por teclado: Amiga-F, escribir "mover" y Return busca
+    if activar("Forja")
+        input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+        time_delay(5)
+        input_key(0x23, AMIGA)
+        if activar("Buscar y cambiar (Forja)")
+            time_delay(25)
+            input_text("mover")
+            input_key(RETURN, 0)
+            time_delay(50)
+            ver("Amiga-F y Return: mover en la línea 11", linea_elegida() == "11", rexx("SELECCION"))
+        else
+            ver("Amiga-F abre la ventana de buscar", false, input_active_title())
+        end
+        # para la captura
+        time_delay(150)
+        activar("Forja")
+        input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+        time_delay(5)
+        input_key(0x28, AMIGA)
+        if activar("Ir a la línea (Forja)")
+            time_delay(25)
+            input_text("20")
+            input_key(RETURN, 0)
+            time_delay(50)
+            ver("Amiga-L, 20 y Return", linea_elegida() == "20", rexx("SELECCION"))
+        else
+            ver("Amiga-L abre la ventana de ir a la línea", false, input_active_title())
+        end
+    end
+    time_delay(100)
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    rexx("QUIT")
+    n = 0
+    while n < 40 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    if input_active_title() == "Cambios sin guardar"
+        time_delay(25)
+        input_key(0x22, 0)
+    end
+end

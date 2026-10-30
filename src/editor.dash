@@ -222,6 +222,132 @@ func ed_lineas_seleccion(d: Documento)
     end
 end
 
+# La posición de t en s desde la columna desde (-1 si no está); sin mayus, sin mirar mayúsculas
+func _buscar_en(s: String, t: String, desde: Int, mayus: Bool) -> Int
+    if not mayus
+        s = str_lower(s)
+        t = str_lower(t)
+    end
+    if desde > s.length
+        return -1
+    end
+    return str_find_from(s, t, desde)
+end
+
+# La última posición de t en s que empieza antes de la columna hasta (-1 si no hay)
+func _buscar_antes(s: String, t: String, hasta: Int, mayus: Bool) -> Int
+    ultima = -1
+    p = _buscar_en(s, t, 0, mayus)
+    while p >= 0 and p < hasta
+        ultima = p
+        p = _buscar_en(s, t, p + 1, mayus)
+    end
+    return ultima
+end
+
+# Busca t desde el cursor (hacia delante o hacia atrás, dando la vuelta al texto) y lo deja elegido
+func ed_buscar(d: Documento, t: String, mayus: Bool, adelante: Bool) -> Bool
+    if t == "" or str_contains(t, "\n")
+        return false
+    end
+    n = d.lineas.length
+    if adelante
+        l = d.cl
+        c = d.cc
+        k = 0
+        while k <= n
+            p = _buscar_en(d.lineas[l], t, c, mayus)
+            if p >= 0
+                d.al = l
+                d.ac = p
+                d.cl = l
+                d.cc = p + t.length
+                ed_seguir_cursor(d)
+                return true
+            end
+            l = (l + 1) % n
+            c = 0
+            k = k + 1
+        end
+        return false
+    end
+    # hacia atrás: antes del principio de lo elegido
+    l = d.cl
+    c = d.cc
+    if ed_hay_seleccion(d)
+        _orden(d)
+        l = _l1
+        c = _c1
+    end
+    k = 0
+    while k <= n
+        p = _buscar_antes(d.lineas[l], t, c, mayus)
+        if p >= 0
+            d.al = l
+            d.ac = p
+            d.cl = l
+            d.cc = p + t.length
+            ed_seguir_cursor(d)
+            return true
+        end
+        l = (l - 1 + n) % n
+        c = d.lineas[l].length + 1
+        k = k + 1
+    end
+    return false
+end
+
+# Lo elegido es t (para Cambiar)
+func ed_elegido_es(d: Documento, t: String, mayus: Bool) -> Bool
+    s = ed_seleccion(d)
+    if mayus
+        return s == t
+    end
+    return str_lower(s) == str_lower(t)
+end
+
+# Cambia todas las veces que está t por nuevo, en un solo paso de deshacer; cuántas
+func ed_cambiar_todo(d: Documento, t: String, nuevo: String, mayus: Bool) -> Int
+    if t == "" or str_contains(t, "\n")
+        return 0
+    end
+    veces = 0
+    var lineas: [String] = []
+    for linea in d.lineas
+        r = ""
+        desde = 0
+        p = _buscar_en(linea, t, 0, mayus)
+        while p >= 0
+            r = r + linea[desde:p] + nuevo
+            desde = p + t.length
+            veces = veces + 1
+            p = _buscar_en(linea, t, desde, mayus)
+        end
+        lineas.push(r + linea[desde:])
+    end
+    if veces > 0
+        texto = ""
+        i = 0
+        for linea in lineas
+            if i > 0
+                texto = texto + "\n"
+            end
+            texto = texto + linea
+            i = i + 1
+        end
+        cl = d.cl
+        ed_cambiar_lineas(d, 1, d.lineas.length, texto)
+        d.cl = cl
+        if d.cl > d.lineas.length - 1
+            d.cl = d.lineas.length - 1
+        end
+        d.cc = 0
+        d.al = -1
+        ed_seguir_cursor(d)
+    end
+    return veces
+end
+
 func ed_cerrar(i: Int)
     documentos.remove(i)
     if activo >= documentos.length
