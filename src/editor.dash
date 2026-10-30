@@ -73,6 +73,9 @@ var ed_zona_ancho: Int = 0
 var ed_zona_alto: Int = 0
 var ed_solo_linea: Int = -1    # con mui_canvas_update: dibujar solo esta línea
 var ed_ms_dibujo: Int = 0      # lo que tardó el último dibujo entero
+# Las pestañas que se ven: de dónde a dónde, desde la esquina de la zona
+var _pestana_x1: [Int] = []
+var _pestana_x2: [Int] = []
 # Lo que devuelven las funciones de posiciones
 var _fin_l: Int = 0
 var _fin_c: Int = 0
@@ -119,6 +122,63 @@ func ed_actual() -> Documento
         return nil
     end
     return documentos[activo]
+end
+
+# La pestaña del fichero con esa ruta; -1 si no está abierto
+func ed_buscar_ruta(ruta: String) -> Int
+    i = 0
+    for d in documentos
+        if ruta != "" and str_lower(d.ruta) == str_lower(ruta)
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+func ed_cerrar(i: Int)
+    documentos.remove(i)
+    if activo >= documentos.length
+        activo = documentos.length - 1
+    end
+end
+
+# La pestaña (su número) en x, y de la zona; -1 si no hay ninguna ahí
+func ed_pestana_en(x: Int, y: Int) -> Int
+    if y >= ALTO_PESTANAS
+        return -1
+    end
+    i = 0
+    while i < _pestana_x1.length
+        if x >= _pestana_x1[i] and x <= _pestana_x2[i]
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Los centros de las pestañas, desde la esquina de la ventana: "x,y x,y..." (para las pruebas)
+func ed_pestanas_ventana() -> String
+    r = ""
+    i = 0
+    while i < _pestana_x1.length
+        if r != ""
+            r = r + " "
+        end
+        r = r + "#{ed_zona_x + (_pestana_x1[i] + _pestana_x2[i]) / 2},#{ed_zona_y + ALTO_PESTANAS / 2}"
+        i = i + 1
+    end
+    return r
+end
+
+# El texto tal como va al disco: en UTF-8 si venía así
+func ed_texto_disco(d: Documento) -> String
+    t = ed_texto(d)
+    if d.utf8
+        return latin1_to_utf8(t)
+    end
+    return t
 end
 
 # Todo el texto, con saltos de línea
@@ -659,6 +719,8 @@ func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + ALTO_PESTANAS - 1)
     usar_panel(0)
+    _pestana_x1.clear()
+    _pestana_x2.clear()
     tx = x + 4
     i = 0
     for d in documentos
@@ -677,6 +739,8 @@ func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
             gfx_pen(tema.tenue)
         end
         gfx_text_at(tx + 10, y + (ALTO_PESTANAS - font_height()) / 2 + 2 + font_baseline(), nombre)
+        _pestana_x1.push(tx - x)
+        _pestana_x2.push(tx + w - 1 - x)
         tx = tx + w + 2
         i = i + 1
     end

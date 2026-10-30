@@ -1,0 +1,131 @@
+# Hace de usuario de Forja en el emulador: abre un fichero desde el panel del proyecto, cambia de pestaña,
+# guarda con Amiga-S (también uno en UTF-8, que debe seguir en UTF-8), y cierra una pestaña con cambios: la
+# primera Amiga-W solo avisa, la segunda cierra sin guardar. Sale con Amiga-Q.
+# Lo arranca tests/ficheros.sh; anota en DH0:Prueba/ficheros.txt.
+
+const ESPERA_DECIMAS = 600
+const AMIGA = 8
+const CTRL = 2
+const ARRIBA = 0x4C
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/ficheros.txt", registro)
+end
+
+func fallo(texto: String)
+    anotar("FALLO: " + texto)
+    fallos = fallos + 1
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+# La sonda: "línea columna nombre" y el texto
+func sonda() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text("RAM:forja-sonda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func nombre_activo() -> String
+    t = sonda()
+    p = str_split(str_split(t, "\n")[0], " ")
+    if p.length < 3
+        return ""
+    end
+    return p[2]
+end
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        fallo(paso)
+    end
+end
+
+# Un número de una variable "a b c"
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+# El puntero sobre el editor, para que el teclado vaya a él
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+func pestana(i: Int)
+    p = str_split(env_get("FORJA_PESTANAS"), " ")
+    if i >= p.length
+        fallo("no hay pestaña #{i}: " + env_get("FORJA_PESTANAS"))
+        return
+    end
+    xy = str_split(p[i], ",")
+    input_click(Int(xy[0]), Int(xy[1]), 0)
+    al_editor()
+end
+
+Main
+    n = 0
+    while n < ESPERA_DECIMAS and not (env_get("FORJA_PROYECTO") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= ESPERA_DECIMAS
+        fallo("la ventana de Forja no aparece")
+    else
+        # el proyecto es DH0:Prueba/juego: "/", main.dash, red.dash, ventana.dashui; red.dash es la fila 2
+        fila = campo("FORJA_PROYECTO", 2)
+        input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + 2 * fila + fila / 2, 0)
+        ver("abrir red.dash desde el proyecto", nombre_activo() == "red.dash")
+        pestana(0)
+        ver("pestaña de main.dash", nombre_activo() == "main.dash")
+        # main.dash está en UTF-8: un cambio y guardar debe dejarlo en UTF-8
+        input_key(ARRIBA, CTRL)
+        input_text("Z")
+        input_key(0x21, AMIGA)
+        time_delay(50)
+        t = file_read_text("DH0:Prueba/juego/main.dash")
+        ver("guardar main.dash", t != nil and str_starts(t, "Z# Un juego"))
+        ver("main.dash sigue en UTF-8", t != nil and str_contains(t, str_char(0xC3) + str_char(0xB1)))
+        pestana(1)
+        ver("pestaña de red.dash", nombre_activo() == "red.dash")
+        input_key(ARRIBA, CTRL)
+        input_text("Y")
+        input_key(0x11, AMIGA)
+        ver("Amiga-W con cambios solo avisa", nombre_activo() == "red.dash")
+        input_key(0x11, AMIGA)
+        ver("Amiga-W otra vez cierra", nombre_activo() == "main.dash")
+        t = file_read_text("DH0:Prueba/juego/red.dash")
+        ver("red.dash sin guardar", t != nil and str_starts(t, "# La red"))
+        time_delay(150)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+end

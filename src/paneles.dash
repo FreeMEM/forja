@@ -5,13 +5,43 @@ import "tema.dash"
 const TITULO_ALTO = 18
 
 var proyecto_cajon: String = ""
-var proyecto_ficheros: [String] = []
+var proyecto_ficheros: [String] = []    # los cajones acaban en "/"; "/" solo es el de arriba
+var proyecto_fila: Int = 14
+var proyecto_y0: Int = 0                # la y de la primera fila, desde la esquina de la zona
+var proyecto_zona_x: Int = 0
+var proyecto_zona_y: Int = 0
 var salida_lineas: [String] = []
 var salida_tipos: [Int] = []      # 0 normal, 1 error, 2 bien
+
+func ruta_unir(cajon: String, nombre: String) -> String
+    if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
+        return cajon + nombre
+    end
+    return cajon + "/" + nombre
+end
+
+# El cajón de una ruta ("Work:juego/main.dash" -> "Work:juego")
+func cajon_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/"
+            return ruta[0:i]
+        end
+        if c == ":"
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
 
 func proyecto_leer(cajon: String)
     proyecto_cajon = cajon
     proyecto_ficheros = []
+    if cajon != "" and not str_ends(cajon, ":")
+        proyecto_ficheros.push("/")
+    end
     n = dir_read(cajon)
     i = 0
     while i < n
@@ -53,6 +83,10 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     _titulo(x, y, ancho, str_upper(nombre))
     usar_panel(0)
     fila = font_height() + 3
+    proyecto_fila = fila
+    proyecto_y0 = TITULO_ALTO + 4
+    proyecto_zona_x = x
+    proyecto_zona_y = y
     fy = y + TITULO_ALTO + 4
     for f in proyecto_ficheros
         if fy + fila > y + alto
@@ -62,9 +96,25 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         if str_ends(f, "/")
             gfx_pen(tema.acento)
         end
-        gfx_text_at(x + 12, fy + font_baseline(), f)
+        nombre = f
+        if f == "/"
+            nombre = "/ (arriba)"
+        end
+        gfx_text_at(x + 12, fy + font_baseline(), nombre)
         fy = fy + fila
     end
+end
+
+# La entrada del proyecto en la y de la zona; -1 si no hay
+func proyecto_en(y: Int) -> Int
+    if y < proyecto_y0
+        return -1
+    end
+    i = (y - proyecto_y0) / proyecto_fila
+    if i >= proyecto_ficheros.length
+        return -1
+    end
+    return i
 end
 
 func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)

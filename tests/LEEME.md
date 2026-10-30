@@ -13,3 +13,7 @@ escribe un programa en el editor (sangría automática, Tab, Retroceso), corta c
 Amiga-X, pega, deshace dos veces y pone el cursor con un clic. Comprueba el texto con la sonda de Forja
 (`ENV:FORJA_SONDA`), anota cuánto tarda un dibujo entero y acaba con "TODO BIEN". `REAL=1` emula la CPU a la
 velocidad de un A1200 (68020 a 14 MHz) en lugar de al máximo.
+
+`tests/ficheros.sh <worktree de Dash>`: `tests/ficheros.dash` abre `red.dash` desde el panel del proyecto, cambia
+de pestaña, guarda `main.dash` con Amiga-S (que sigue en UTF-8) y cierra una pestaña con cambios: la primera
+Amiga-W avisa, la segunda la cierra sin guardar. Los diálogos de abrir y guardar como (ASL) no se prueban solos.

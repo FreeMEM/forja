@@ -9,9 +9,13 @@
 # final de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Los atajos con
 # Amiga son los del menú, también sobre el editor.
 #
+# Cerrar una pestaña o salir con cambios sin guardar avisa en la salida y pide la misma orden otra vez.
+#
 # Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar. Con ENV:FORJA_SONDA, para un programa que
-# hace de usuario (tests/teclas.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y ancho alto" desde la
-# esquina de la ventana) y RAM:forja-sonda.txt lleva, tras cada cambio, "línea columna" del cursor y el texto.
+# hace de usuario (tests/teclas.dash, tests/ficheros.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y
+# ancho alto" desde la esquina de la ventana), ENV:FORJA_PROYECTO dónde empiezan las filas del proyecto ("x y
+# alto de fila"), ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
+# tras cada cambio, "línea columna nombre" y el texto.
 
 import "tema.dash"
 import "editor.dash"
@@ -26,6 +30,12 @@ const EV_INFERENCIA = 19
 const EV_BARRA = 3
 const EV_EDITOR = 4
 const EV_ARRASTRE = 5
+const EV_PROYECTO = 6
+const EV_NUEVO = 30
+const EV_ABRIR = 31
+const EV_GUARDAR = 32
+const EV_GUARDAR_COMO = 33
+const EV_CERRAR = 34
 const EV_CORTAR = 40
 const EV_COPIAR = 41
 const EV_PEGAR = 42
@@ -42,6 +52,11 @@ var sonda_editor: String = ""
 var barra_total: Int = -1
 var barra_visibles: Int = -1
 var barra_valor: Int = -1
+var sonda_proyecto: String = ""
+var sonda_pestanas: String = ""
+# Cerrar o salir con cambios sin guardar pide la misma orden otra vez seguida
+var pendiente: Int = 0
+var abierta: Bool = false
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -55,12 +70,14 @@ func dibujar_salida(x: Int, y: Int, ancho: Int, alto: Int)
     salida_dibujar(x, y, ancho, alto)
 end
 
-func abrir(ruta: String) -> Bool
-    texto = file_read_text(ruta)
-    if texto == nil
-        salida_anadir("No se puede leer " + ruta, 1)
-        return false
+func avisar(texto: String, tipo: Int)
+    salida_anadir(texto, tipo)
+    if abierta
+        mui_canvas_redraw(v.salida)
     end
+end
+
+func nombre_de(ruta: String) -> String
     nombre = ruta
     for sep in [":", "/"]
         p = str_find(nombre, sep)
@@ -69,24 +86,128 @@ func abrir(ruta: String) -> Bool
             p = str_find(nombre, sep)
         end
     end
-    ed_abrir_texto(nombre, ruta, texto)
+    return nombre
+end
+
+# Abre un fichero en una pestaña nueva, o va a la suya si ya está abierto
+func abrir(ruta: String) -> Bool
+    i = ed_buscar_ruta(ruta)
+    if i >= 0
+        activo = i
+        return true
+    end
+    texto = file_read_text(ruta)
+    if texto == nil
+        avisar("No se puede leer " + ruta, 1)
+        return false
+    end
+    ed_abrir_texto(nombre_de(ruta), ruta, texto)
     return true
 end
 
-# El cajón de una ruta ("Work:juego/main.dash" -> "Work:juego")
-func cajon_de(ruta: String) -> String
-    i = ruta.length - 1
-    while i >= 0
-        c = ruta[i:i + 1]
-        if c == "/"
-            return ruta[0:i]
-        end
-        if c == ":"
-            return ruta[0:i + 1]
-        end
-        i = i - 1
+func guardar_en(d: Documento, ruta: String) -> Bool
+    if not file_write_text(ruta, ed_texto_disco(d))
+        avisar("No se puede escribir " + ruta, 1)
+        return false
     end
-    return ""
+    d.ruta = ruta
+    d.nombre = nombre_de(ruta)
+    d.cambiado = false
+    avisar("Guardado: " + ruta, 2)
+    if cajon_de(ruta) == proyecto_cajon
+        proyecto_leer(proyecto_cajon)
+        mui_canvas_redraw(v.proyecto)
+    end
+    return true
+end
+
+func guardar_como(d: Documento) -> Bool
+    if not file_save_dialog("Guardar " + d.nombre, "#?.(dash|dashui)")
+        return false
+    end
+    return guardar_en(d, file_fullpath())
+end
+
+func guardar(d: Documento) -> Bool
+    if d.ruta == ""
+        return guardar_como(d)
+    end
+    return guardar_en(d, d.ruta)
+end
+
+func cambiados() -> Int
+    n = 0
+    for d in documentos
+        if d.cambiado
+            n = n + 1
+        end
+    end
+    return n
+end
+
+# Las órdenes del menú Proyecto. Devuelve true si hay que salir.
+func proyecto(ev: Int) -> Bool
+    d = ed_actual()
+    repetida = pendiente == ev
+    pendiente = 0
+    if ev == EV_NUEVO
+        ed_abrir_texto("sin nombre.dash", "", NUEVO)
+    elif ev == EV_ABRIR
+        if file_open_dialog("Abrir", "#?.(dash|dashui)")
+            ruta = file_fullpath()
+            if abrir(ruta) and cajon_de(ruta) != proyecto_cajon
+                proyecto_leer(cajon_de(ruta))
+                mui_canvas_redraw(v.proyecto)
+            end
+        end
+    elif ev == EV_GUARDAR and d != nil
+        guardar(d)
+    elif ev == EV_GUARDAR_COMO and d != nil
+        guardar_como(d)
+    elif ev == EV_CERRAR and d != nil
+        if d.cambiado and not repetida
+            avisar(d.nombre + " tiene cambios sin guardar. Amiga-W otra vez la cierra sin guardarlos.", 1)
+            pendiente = ev
+            return false
+        end
+        ed_cerrar(activo)
+        if documentos.length == 0
+            ed_abrir_texto("sin nombre.dash", "", NUEVO)
+        end
+    elif ev == EV_SALIR
+        n = cambiados()
+        if n > 0 and not repetida
+            avisar("Hay #{n} ficheros con cambios sin guardar. Amiga-Q otra vez sale sin guardarlos.", 1)
+            pendiente = ev
+            return false
+        end
+        return true
+    end
+    redibujar()
+    return false
+end
+
+# Un clic en el panel del proyecto: un fichero se abre; un cajón se enseña
+func en_proyecto()
+    if mui_canvas_button(v.proyecto) != 1
+        return
+    end
+    i = proyecto_en(mui_canvas_mouse_y(v.proyecto))
+    if i < 0
+        return
+    end
+    f = proyecto_ficheros[i]
+    if f == "/"
+        proyecto_leer(cajon_de(proyecto_cajon))
+    elif str_ends(f, "/")
+        proyecto_leer(ruta_unir(proyecto_cajon, f[0:f.length - 1]))
+    else
+        if abrir(ruta_unir(proyecto_cajon, f))
+            redibujar()
+        end
+        return
+    end
+    mui_canvas_redraw(v.proyecto)
 end
 
 # La barra sigue al editor
@@ -129,7 +250,7 @@ end
 func escribir_sonda()
     if sonda
         d = ed_actual()
-        file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc}\n" + ed_texto(d))
+        file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
     end
 end
@@ -166,8 +287,8 @@ end
 
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -196,6 +317,9 @@ func en_editor() -> Int
         if d.primera < 0
             d.primera = 0
         end
+        redibujar()
+    elif mui_canvas_button(v.editor) == 1 and ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor)) >= 0
+        activo = ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
     elif mui_canvas_button(v.editor) == 1
         ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), (teclas & Q_MAYUS) != 0)
@@ -233,6 +357,16 @@ func publicar_sonda()
         sonda_editor = e
         env_set("FORJA_EDITOR", e, false)
     end
+    p = "#{proyecto_zona_x} #{proyecto_zona_y + proyecto_y0} #{proyecto_fila}"
+    if p != sonda_proyecto
+        sonda_proyecto = p
+        env_set("FORJA_PROYECTO", p, false)
+    end
+    t = ed_pestanas_ventana()
+    if t != sonda_pestanas
+        sonda_pestanas = t
+        env_set("FORJA_PESTANAS", t, false)
+    end
 end
 
 Main
@@ -246,6 +380,7 @@ Main
         mui_canvas_buffered(v.editor, true)
         mui_canvas_on_input(v.editor, EV_EDITOR)
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
+        mui_canvas_on_input(v.proyecto, EV_PROYECTO)
         mui_canvas_take_tab(v.editor, true)
         # lo que aún no hace nada, apagado
         for b in [v.compilar, v.ejecutar, v.depurar, v.inferencia]
@@ -265,6 +400,7 @@ Main
         salida_anadir("Listo.", 2)
 
         mui_window_open(v.window)
+        abierta = true
         mui_canvas_set_pointer(v.editor, 1)
         ajustar_barra()
         if sonda
@@ -278,10 +414,19 @@ Main
                     ev = otro
                 end
             end
-            if ev == -1 or ev == EV_SALIR
-                break
+            if ev == -1
+                ev = EV_SALIR
             end
-            if ev >= EV_CORTAR and ev <= EV_TODO
+            if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR)
+                if proyecto(ev)
+                    break
+                end
+            elif ev != EV_EDITOR
+                pendiente = 0
+            end
+            if ev == EV_PROYECTO
+                en_proyecto()
+            elif ev >= EV_CORTAR and ev <= EV_TODO
                 edicion(ev)
             elif ev == EV_ARRASTRE
                 if mui_canvas_drag(v.editor) == 1
