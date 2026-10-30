@@ -1,0 +1,142 @@
+# Hace de usuario de Forja en el emulador: ejecuta el programa abierto (Amiga-E, que compila con dashc), mete
+# un error al final, compila (Amiga-K) y hace clic en el error de la salida: el cursor debe ir a su línea.
+# Lo arranca tests/compilar.sh; anota en DH0:Prueba/compilar.txt.
+
+const ESPERA_DECIMAS = 1800      # 3 minutos: dashc en un 68020
+const AMIGA = 8
+const CTRL = 2
+const ARRIBA = 0x4C
+const ABAJO = 0x4D
+const RETURN = 0x44
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/compilar.txt", registro)
+end
+
+func fallo(texto: String)
+    anotar("FALLO: " + texto)
+    fallos = fallos + 1
+end
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        fallo(paso)
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func leer(fichero: String) -> String
+    t = file_read_text(fichero)
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text(fichero)
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# Espera a que la salida tenga ese texto
+func esperar_salida(texto: String) -> Bool
+    n = 0
+    while n < ESPERA_DECIMAS
+        if str_contains(leer("RAM:forja-salida.txt"), texto)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    fallo("la salida no llega a \"" + texto + "\": [" + leer("RAM:forja-salida.txt") + "]")
+    return false
+end
+
+Main
+    n = 0
+    while n < ESPERA_DECIMAS and not (env_get("FORJA_SALIDA") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= ESPERA_DECIMAS
+        fallo("la ventana de Forja no aparece")
+    else
+        al_editor()
+        input_key(0x12, AMIGA)
+        if esperar_salida("acabó con código")
+            ver("ejecutar: el programa escribe", str_contains(leer("RAM:forja-salida.txt"), "Naves: 2"))
+            anotar(str_trim(leer("RAM:forja-salida.txt")))
+        end
+        # un error en la última línea, el cursor arriba y compilar
+        input_key(ABAJO, CTRL)
+        input_text("x = (")
+        input_key(ARRIBA, CTRL)
+        input_key(0x27, AMIGA)
+        if esperar_salida("No compila")
+            lineas = str_split(leer("RAM:forja-salida.txt"), "\n")
+            i = 0
+            error = -1
+            while i < lineas.length and error < 0
+                if str_contains(lineas[i], ": Error: ")
+                    error = i
+                end
+                i = i + 1
+            end
+            if error < 0
+                fallo("no hay ningún error con sitio: [" + leer("RAM:forja-salida.txt") + "]")
+            else
+                anotar("error: " + lineas[error])
+                sitio = str_split(lineas[error][0:str_find(lineas[error], ": Error: ")], ":")
+                num = Int(sitio[sitio.length - 2])
+                fila = campo("FORJA_SALIDA", 2)
+                y = campo("FORJA_SALIDA", 1) + (error - campo("FORJA_SALIDA", 3)) * fila + fila / 2
+                input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
+                time_delay(30)
+                cursor = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
+                ver("clic en el error lleva a la línea #{num}", Int(cursor[0]) == num - 1 and num > 1)
+            end
+        end
+        time_delay(150)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+    # si queda algo sin guardar, pregunta: Descartar
+    n = 0
+    while n < 20 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    if input_active_title() == "Cambios sin guardar"
+        input_key(0x22, 0)
+    end
+end

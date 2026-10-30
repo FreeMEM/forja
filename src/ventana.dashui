@@ -21,6 +21,13 @@
           ]
         },
         {
+          "title": "Programa",
+          "items": [
+            { "label": "Compilar", "key": "K", "event": 10 },
+            { "label": "Ejecutar", "key": "E", "event": 11 }
+          ]
+        },
+        {
           "title": "Edición",
           "items": [
             { "label": "Deshacer", "key": "Z", "event": 43 },

@@ -9,12 +9,17 @@
 # final de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Los atajos con
 # Amiga son los del menú, también sobre el editor.
 #
-# Cerrar una pestaña o salir con cambios sin guardar avisa en la salida y pide la misma orden otra vez.
+# Compilar (Amiga-K) llama a dashc sin parar la ventana (ENV:Forja/dashc, o "dashc" del camino de órdenes); sus
+# errores van a la salida y un clic en uno lleva a su línea. Ejecutar (Amiga-E) compila y ejecuta; mientras el
+# programa corre, el botón es Parar (Ctrl-C).
+#
+# Cerrar una pestaña o salir con cambios sin guardar pregunta: Guardar, Descartar o Cancelar.
 #
 # Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar. Con ENV:FORJA_SONDA, para un programa que
 # hace de usuario (tests/teclas.dash, tests/ficheros.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y
 # ancho alto" desde la esquina de la ventana), ENV:FORJA_PROYECTO dónde empiezan las filas del proyecto ("x y
-# alto de fila"), ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
+# alto de fila"), ENV:FORJA_SALIDA lo de la salida ("x y alto_de_fila primera_vista total"; el texto en
+# RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
 # tras cada cambio, "línea columna nombre" y el texto.
 
 import "tema.dash"
@@ -31,6 +36,14 @@ const EV_BARRA = 3
 const EV_EDITOR = 4
 const EV_ARRASTRE = 5
 const EV_PROYECTO = 6
+const EV_TIC = 7
+const EV_SALIDA = 8
+const TIC_MS = 100
+const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
+
+const NADA = 0
+const COMPILANDO = 1
+const EJECUTANDO = 2
 const EV_NUEVO = 30
 const EV_ABRIR = 31
 const EV_GUARDAR = 32
@@ -44,6 +57,7 @@ const EV_REHACER = 44
 const EV_TODO = 45
 const EV_SALIR = 99
 
+const TITULO_CAMBIOS = "Cambios sin guardar"
 const NUEVO = "# Un programa de Dash\n\nMain\n    Print \"Hola, Amiga\"\nend\n"
 
 var v: Principal = nil
@@ -54,9 +68,13 @@ var barra_visibles: Int = -1
 var barra_valor: Int = -1
 var sonda_proyecto: String = ""
 var sonda_pestanas: String = ""
-# Cerrar o salir con cambios sin guardar pide la misma orden otra vez seguida
-var pendiente: Int = 0
+var sonda_salida: String = ""
 var abierta: Bool = false
+var tarea: Int = NADA
+var tarea_run: Int = 0
+var tarea_inicio: Int = 0
+var tarea_exe: String = ""
+var ejecutar_despues: Bool = false
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -148,8 +166,6 @@ end
 # Las órdenes del menú Proyecto. Devuelve true si hay que salir.
 func proyecto(ev: Int) -> Bool
     d = ed_actual()
-    repetida = pendiente == ev
-    pendiente = 0
     if ev == EV_NUEVO
         ed_abrir_texto("sin nombre.dash", "", NUEVO)
     elif ev == EV_ABRIR
@@ -165,10 +181,11 @@ func proyecto(ev: Int) -> Bool
     elif ev == EV_GUARDAR_COMO and d != nil
         guardar_como(d)
     elif ev == EV_CERRAR and d != nil
-        if d.cambiado and not repetida
-            avisar(d.nombre + " tiene cambios sin guardar. Amiga-W otra vez la cierra sin guardarlos.", 1)
-            pendiente = ev
-            return false
+        if d.cambiado
+            r = mui_request(v.window, TITULO_CAMBIOS, d.nombre + " tiene cambios sin guardar.", "_Guardar|_Descartar|_Cancelar")
+            if r == 0 or (r == 1 and not guardar(d))
+                return false
+            end
         end
         ed_cerrar(activo)
         if documentos.length == 0
@@ -176,15 +193,183 @@ func proyecto(ev: Int) -> Bool
         end
     elif ev == EV_SALIR
         n = cambiados()
-        if n > 0 and not repetida
-            avisar("Hay #{n} ficheros con cambios sin guardar. Amiga-Q otra vez sale sin guardarlos.", 1)
-            pendiente = ev
-            return false
+        if n > 0
+            texto = "Hay #{n} ficheros con cambios sin guardar."
+            if n == 1
+                texto = "Hay un fichero con cambios sin guardar."
+            end
+            r = mui_request(v.window, TITULO_CAMBIOS, texto, "_Guardar|_Descartar|_Cancelar")
+            if r == 0
+                return false
+            end
+            if r == 1
+                for o in documentos
+                    if o.cambiado and not guardar(o)
+                        return false
+                    end
+                end
+            end
         end
         return true
     end
     redibujar()
     return false
+end
+
+# --- Compilar y ejecutar ---
+
+# dashc: ENV:Forja/dashc, o el que haya en el camino de órdenes
+func dashc() -> String
+    c = env_get("Forja/dashc")
+    if c == ""
+        c = "dashc"
+    end
+    return c
+end
+
+# "main.dash" -> "main"
+func ejecutable_de(ruta: String) -> String
+    if str_ends(str_lower(ruta), ".dash")
+        return ruta[0:ruta.length - 5]
+    end
+    return ruta + ".exe"
+end
+
+func segundos(ms: Int) -> String
+    return "#{ms / 1000},#{(ms % 1000) / 100} s"
+end
+
+func poner_tarea(t: Int)
+    tarea = t
+    mui_set_enabled(v.compilar, t == NADA)
+    mui_set_enabled(v.ejecutar, t != COMPILANDO)
+    if t == EJECUTANDO
+        mui_set_text(v.ejecutar, "_Parar")
+    else
+        mui_set_text(v.ejecutar, "_Ejecutar")
+    end
+    if sonda
+        var nombres: [String] = ["libre", "compilando", "ejecutando"]
+        env_set("FORJA_ESTADO", nombres[t], false)
+    end
+end
+
+func compilar(y_ejecutar: Bool)
+    if tarea == EJECUTANDO
+        run_break(tarea_run)
+        return
+    end
+    if tarea != NADA
+        return
+    end
+    d = ed_actual()
+    if d == nil
+        return
+    end
+    if d.ruta == "" and not guardar_como(d)
+        return
+    end
+    # lo que haya sin guardar va al disco antes (dashc lee los ficheros)
+    for o in documentos
+        if o.cambiado and o.ruta != ""
+            guardar_en(o, o.ruta)
+        end
+    end
+    redibujar()
+    tarea_exe = ejecutable_de(d.ruta)
+    orden = dashc() + " \"" + d.ruta + "\" -o \"" + tarea_exe + "\""
+    avisar("Compilando " + d.nombre + "...", 0)
+    tarea_run = run_start(orden, ESPERA_DASHC)
+    if tarea_run == 0
+        avisar("No se puede ejecutar " + dashc() + ". Pon su ruta en ENV:Forja/dashc.", 1)
+        return
+    end
+    ejecutar_despues = y_ejecutar
+    tarea_inicio = time_ms()
+    poner_tarea(COMPILANDO)
+    mui_timer(TIC_MS, EV_TIC)
+end
+
+func tic()
+    if tarea == NADA
+        return
+    end
+    if not run_ready(tarea_run)
+        mui_timer(TIC_MS, EV_TIC)
+        return
+    end
+    texto = run_finish(tarea_run)
+    rc = run_rc()
+    tarea_run = 0
+    ms = time_ms() - tarea_inicio
+    if tarea == COMPILANDO
+        errores = 0
+        for l in str_split(str_trim(texto), "\n")
+            if salida_error_dashc(l)
+                errores = errores + 1
+            elif l != ""
+                salida_anadir(l, 0)
+            end
+        end
+        if rc != 0
+            if errores == 1
+                avisar("No compila: un error (clic en él para ir a su línea).", 1)
+            else
+                avisar("No compila: #{errores} errores (clic en uno para ir a su línea).", 1)
+            end
+            poner_tarea(NADA)
+            return
+        end
+        avisar("Compilado en " + segundos(ms) + ": " + tarea_exe, 2)
+        if not ejecutar_despues
+            poner_tarea(NADA)
+            return
+        end
+        avisar("Ejecutando " + nombre_de(tarea_exe) + "...", 0)
+        tarea_run = run_start("\"" + tarea_exe + "\"", 0)
+        if tarea_run == 0
+            avisar("No se puede ejecutar " + tarea_exe, 1)
+            poner_tarea(NADA)
+            return
+        end
+        tarea_inicio = time_ms()
+        poner_tarea(EJECUTANDO)
+        mui_timer(TIC_MS, EV_TIC)
+        return
+    end
+    # acabó el programa
+    if str_trim(texto) != ""
+        salida_anadir(str_trim(texto), 0)
+    end
+    tipo = 2
+    if rc != 0
+        tipo = 1
+    end
+    avisar(nombre_de(tarea_exe) + " acabó con código #{rc} en " + segundos(ms) + ".", tipo)
+    poner_tarea(NADA)
+end
+
+# Un clic en un error de la salida: a su fichero y su línea
+func en_salida()
+    if mui_canvas_button(v.salida) != 1
+        return
+    end
+    i = salida_en(mui_canvas_mouse_y(v.salida))
+    if i < 0 or salida_rutas[i] == ""
+        return
+    end
+    ruta = salida_rutas[i]
+    # una ruta relativa es del cajón del fichero activo
+    if str_find(ruta, ":") < 0
+        d = ed_actual()
+        if d != nil
+            ruta = ruta_unir(cajon_de(d.ruta), ruta)
+        end
+    end
+    if abrir(ruta)
+        ed_ir_a(salida_num[i], salida_col[i])
+        redibujar()
+    end
 end
 
 # Un clic en el panel del proyecto: un fichero se abre; un cajón se enseña
@@ -287,8 +472,8 @@ end
 
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -362,6 +547,16 @@ func publicar_sonda()
         sonda_proyecto = p
         env_set("FORJA_PROYECTO", p, false)
     end
+    s = "#{salida_zona_x} #{salida_zona_y + salida_y0} #{salida_fila} #{salida_desde} #{salida_lineas.length}"
+    if s != sonda_salida
+        sonda_salida = s
+        env_set("FORJA_SALIDA", s, false)
+        texto = ""
+        for l in salida_lineas
+            texto = texto + l + "\n"
+        end
+        file_write_text("RAM:forja-salida.txt", texto)
+    end
     t = ed_pestanas_ventana()
     if t != sonda_pestanas
         sonda_pestanas = t
@@ -381,9 +576,10 @@ Main
         mui_canvas_on_input(v.editor, EV_EDITOR)
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
         mui_canvas_on_input(v.proyecto, EV_PROYECTO)
+        mui_canvas_on_input(v.salida, EV_SALIDA)
         mui_canvas_take_tab(v.editor, true)
         # lo que aún no hace nada, apagado
-        for b in [v.compilar, v.ejecutar, v.depurar, v.inferencia]
+        for b in [v.depurar, v.inferencia]
             mui_set_enabled(b, false)
         end
         sonda = env_get("FORJA_SONDA") != ""
@@ -405,6 +601,7 @@ Main
         ajustar_barra()
         if sonda
             publicar_sonda()
+            env_set("FORJA_ESTADO", "libre", false)
         end
         while true
             ev = mui_wait_event()
@@ -421,11 +618,17 @@ Main
                 if proyecto(ev)
                     break
                 end
-            elif ev != EV_EDITOR
-                pendiente = 0
             end
             if ev == EV_PROYECTO
                 en_proyecto()
+            elif ev == EV_SALIDA
+                en_salida()
+            elif ev == EV_COMPILAR
+                compilar(false)
+            elif ev == EV_EJECUTAR
+                compilar(true)
+            elif ev == EV_TIC
+                tic()
             elif ev >= EV_CORTAR and ev <= EV_TODO
                 edicion(ev)
             elif ev == EV_ARRASTRE

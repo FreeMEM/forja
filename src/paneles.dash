@@ -12,6 +12,14 @@ var proyecto_zona_x: Int = 0
 var proyecto_zona_y: Int = 0
 var salida_lineas: [String] = []
 var salida_tipos: [Int] = []      # 0 normal, 1 error, 2 bien
+var salida_rutas: [String] = []   # el fichero de un error ("" si no es un error con sitio)
+var salida_num: [Int] = []        # su línea (desde 1) y su columna
+var salida_col: [Int] = []
+var salida_desde: Int = 0         # la primera línea que se ve
+var salida_y0: Int = 0            # la y de la primera fila, desde la esquina de la zona
+var salida_fila: Int = 10
+var salida_zona_x: Int = 0
+var salida_zona_y: Int = 0
 
 func ruta_unir(cajon: String, nombre: String) -> String
     if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
@@ -59,7 +67,44 @@ func salida_anadir(texto: String, tipo: Int)
     for l in str_split(texto, "\n")
         salida_lineas.push(l)
         salida_tipos.push(tipo)
+        salida_rutas.push("")
+        salida_num.push(0)
+        salida_col.push(0)
     end
+end
+
+# Una línea de dashc: "fichero:línea:columna: Error: texto" (el fichero puede llevar ":", como DH0:x.dash).
+# Si lo es, va como error con su sitio y devuelve true.
+func salida_error_dashc(l: String) -> Bool
+    p = str_find(l, ": Error: ")
+    if p < 0
+        return false
+    end
+    sitio = str_split(l[0:p], ":")
+    if sitio.length < 3
+        return false
+    end
+    col = Int(sitio[sitio.length - 1])
+    num = Int(sitio[sitio.length - 2])
+    ruta = l[0:p - sitio[sitio.length - 1].length - sitio[sitio.length - 2].length - 2]
+    salida_lineas.push(l)
+    salida_tipos.push(1)
+    salida_rutas.push(ruta)
+    salida_num.push(num)
+    salida_col.push(col)
+    return true
+end
+
+# La línea de la salida en la y de la zona; -1 si no hay
+func salida_en(y: Int) -> Int
+    if y < salida_y0
+        return -1
+    end
+    i = salida_desde + (y - salida_y0) / salida_fila
+    if i >= salida_lineas.length
+        return -1
+    end
+    return i
 end
 
 func _titulo(x: Int, y: Int, ancho: Int, texto: String)
@@ -130,6 +175,11 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     if desde < 0
         desde = 0
     end
+    salida_desde = desde
+    salida_fila = fila
+    salida_y0 = TITULO_ALTO + 3
+    salida_zona_x = x
+    salida_zona_y = y
     fy = y + TITULO_ALTO + 3
     i = desde
     while i < salida_lineas.length

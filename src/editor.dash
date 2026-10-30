@@ -136,6 +136,35 @@ func ed_buscar_ruta(ruta: String) -> Int
     return -1
 end
 
+# Lleva el cursor a la línea n (desde 1) y la columna c (desde 1) del documento activo, y la deja a la vista
+func ed_ir_a(n: Int, c: Int)
+    d = ed_actual()
+    if d == nil
+        return
+    end
+    d.cl = n - 1
+    if d.cl < 0
+        d.cl = 0
+    end
+    if d.cl > d.lineas.length - 1
+        d.cl = d.lineas.length - 1
+    end
+    d.cc = c - 1
+    if d.cc < 0
+        d.cc = 0
+    end
+    if d.cc > d.lineas[d.cl].length
+        d.cc = d.lineas[d.cl].length
+    end
+    d.al = -1
+    # la línea, hacia la mitad de lo que se ve
+    d.primera = d.cl - ed_visibles / 2
+    if d.primera < 0
+        d.primera = 0
+    end
+    ed_seguir_cursor(d)
+end
+
 func ed_cerrar(i: Int)
     documentos.remove(i)
     if activo >= documentos.length

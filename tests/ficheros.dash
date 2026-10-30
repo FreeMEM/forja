@@ -1,6 +1,6 @@
 # Hace de usuario de Forja en el emulador: abre un fichero desde el panel del proyecto, cambia de pestaña,
-# guarda con Amiga-S (también uno en UTF-8, que debe seguir en UTF-8), y cierra una pestaña con cambios: la
-# primera Amiga-W solo avisa, la segunda cierra sin guardar. Sale con Amiga-Q.
+# guarda con Amiga-S (también uno en UTF-8, que debe seguir en UTF-8), y cierra una pestaña con cambios: Amiga-W
+# pregunta; Cancelar la deja y Descartar la cierra sin guardar. Sale con Amiga-Q.
 # Lo arranca tests/ficheros.sh; anota en DH0:Prueba/ficheros.txt.
 
 const ESPERA_DECIMAS = 600
@@ -76,6 +76,19 @@ func al_editor()
     time_delay(5)
 end
 
+# La petición de "Cambios sin guardar" delante
+func esperar_peticion() -> Bool
+    n = 0
+    while n < 100
+        if input_active_title() == "Cambios sin guardar"
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
 func pestana(i: Int)
     p = str_split(env_get("FORJA_PESTANAS"), " ")
     if i >= p.length
@@ -114,10 +127,27 @@ Main
         ver("pestaña de red.dash", nombre_activo() == "red.dash")
         input_key(ARRIBA, CTRL)
         input_text("Y")
+        # Amiga-W con cambios pregunta: Cancelar (Esc) la deja; Descartar (D) la cierra sin guardar
         input_key(0x11, AMIGA)
-        ver("Amiga-W con cambios solo avisa", nombre_activo() == "red.dash")
+        ver("Amiga-W con cambios pregunta", esperar_peticion())
+        input_key(0x45, 0)
+        time_delay(25)
+        activar()
+        al_editor()
+        ver("Cancelar la deja abierta", nombre_activo() == "red.dash")
+        time_delay(50)
         input_key(0x11, AMIGA)
-        ver("Amiga-W otra vez cierra", nombre_activo() == "main.dash")
+        if esperar_peticion()
+            # la petición tarda un momento en tomar las teclas
+            time_delay(25)
+            input_key(0x22, 0)
+        else
+            anotar("la segunda Amiga-W no pregunta; activa: " + input_active_title())
+        end
+        time_delay(25)
+        activar()
+        al_editor()
+        ver("Descartar la cierra", nombre_activo() == "main.dash")
         t = file_read_text("DH0:Prueba/juego/red.dash")
         ver("red.dash sin guardar", t != nil and str_starts(t, "# La red"))
         time_delay(150)
