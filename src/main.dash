@@ -40,6 +40,12 @@ const VERSION = "0.1"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
+const EV_DEPURAR = 12
+const EV_SEGUIR = 13
+const EV_PASO = 14
+const EV_ENTRAR = 15
+const EV_SALIR_FUNCION = 16
+const EV_PARAR = 17
 const EV_INFERENCIA = 19
 const EV_BARRA = 3
 const EV_EDITOR = 4
@@ -53,6 +59,13 @@ const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
 const NADA = 0
 const COMPILANDO = 1
 const EJECUTANDO = 2
+const DEPURANDO = 3
+# Teclas de función sobre el editor
+const T_F5 = 0x54
+const T_F6 = 0x55
+const T_F7 = 0x56
+const T_F9 = 0x58
+const T_F10 = 0x59
 const EV_NUEVO = 30
 const EV_ABRIR = 31
 const EV_GUARDAR = 32
@@ -91,6 +104,8 @@ var tarea_run: Int = 0
 var tarea_inicio: Int = 0
 var tarea_exe: String = ""
 var ejecutar_despues: Bool = false
+var depurar_despues: Bool = false
+var salida_vista: Int = 0          # lo que ya se enseñó de dbg_output()
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -259,13 +274,31 @@ func poner_tarea(t: Int)
     tarea = t
     mui_set_enabled(v.compilar, t == NADA)
     mui_set_enabled(v.ejecutar, t != COMPILANDO)
-    if t == EJECUTANDO
-        mui_set_text(v.ejecutar, "_Parar")
+    mui_set_enabled(v.depurar, t == NADA)
+    # al depurar, los botones del depurador en lugar de los de siempre (todos no caben: primero se ocultan unos y
+    # luego se enseñan los otros)
+    if t == DEPURANDO
+        for b in [v.compilar, v.ejecutar, v.depurar]
+            mui_set_visible(b, false)
+        end
+        for b in [v.seguir, v.paso, v.entrar, v.salir, v.parar]
+            mui_set_visible(b, true)
+        end
     else
-        mui_set_text(v.ejecutar, "_Ejecutar")
+        for b in [v.seguir, v.paso, v.entrar, v.salir, v.parar]
+            mui_set_visible(b, false)
+        end
+        for b in [v.compilar, v.ejecutar, v.depurar]
+            mui_set_visible(b, true)
+        end
+    end
+    if t == EJECUTANDO
+        mui_set_text(v.ejecutar, "Parar")
+    else
+        mui_set_text(v.ejecutar, "Ejecutar")
     end
     if sonda
-        var nombres: [String] = ["libre", "compilando", "ejecutando"]
+        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
         env_set("FORJA_ESTADO", nombres[t], false)
     end
 end
@@ -293,7 +326,11 @@ func compilar(y_ejecutar: Bool)
     end
     redibujar()
     tarea_exe = ejecutable_de(d.ruta)
-    orden = dashc() + " \"" + d.ruta + "\" -o \"" + tarea_exe + "\""
+    opciones = ""
+    if depurar_despues
+        opciones = " --debug"
+    end
+    orden = dashc() + opciones + " \"" + d.ruta + "\" -o \"" + tarea_exe + "\""
     avisar("Compilando " + d.nombre + "...", 0)
     tarea_run = run_start(orden, ESPERA_DASHC)
     if tarea_run == 0
@@ -322,6 +359,14 @@ func tic()
     if tarea == NADA
         return
     end
+    if tarea == DEPURANDO
+        # (la señal del depurador es lo normal; esto, por si se pierde)
+        mirar_depuracion()
+        if tarea == DEPURANDO
+            mui_timer(TIC_MS * 3, EV_TIC)
+        end
+        return
+    end
     if not run_ready(tarea_run)
         mui_timer(TIC_MS, EV_TIC)
         return
@@ -348,9 +393,15 @@ func tic()
                 avisar("No compila: #{errores} errores (clic en uno para ir a su línea).", 1)
             end
             poner_tarea(NADA)
+            depurar_despues = false
             return
         end
         avisar("Compilado en " + segundos(ms) + ": " + tarea_exe, 2)
+        if depurar_despues
+            depurar_despues = false
+            empezar_depuracion()
+            return
+        end
         if not ejecutar_despues
             poner_tarea(NADA)
             return
@@ -377,6 +428,170 @@ func tic()
     end
     avisar(nombre_de(tarea_exe) + " acabó con código #{rc} en " + segundos(ms) + ".", tipo)
     poner_tarea(NADA)
+end
+
+# --- Depurar ---
+
+func depurar()
+    if tarea != NADA
+        return
+    end
+    depurar_despues = true
+    compilar(false)
+    if tarea != COMPILANDO
+        depurar_despues = false
+    end
+end
+
+func empezar_depuracion()
+    if not dbg_start(tarea_exe, "")
+        avisar("No se puede depurar: " + dbg_error(), 1)
+        poner_tarea(NADA)
+        return
+    end
+    for d in documentos
+        for p in d.puntos
+            dbg_break(d.nombre, p)
+        end
+    end
+    salida_vista = 0
+    avisar("Depurando " + nombre_de(tarea_exe) + " (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada).", 0)
+    poner_tarea(DEPURANDO)
+    dbg_continue()
+    mui_timer(TIC_MS * 3, EV_TIC)
+    mirar_depuracion()
+    publicar_depuracion()
+end
+
+# Lo nuevo que escribió el programa, a la salida
+func salida_programa()
+    t = dbg_output()
+    if t.length > salida_vista
+        nuevo = t[salida_vista:]
+        salida_vista = t.length
+        if nuevo.length > 0 and str_ends(nuevo, "\n")
+            nuevo = nuevo[0:nuevo.length - 1]
+        end
+        avisar(nuevo, 0)
+    end
+end
+
+# El depurador avisó (o un tic): ¿ha parado o ha acabado?
+func mirar_depuracion()
+    if tarea != DEPURANDO
+        return
+    end
+    e = dbg_state()
+    if e == 3
+        al_parar()
+    elif e == 4 or e == 0
+        al_acabar()
+    end
+end
+
+func al_parar()
+    salida_programa()
+    ruta = dbg_file()
+    n = dbg_line()
+    ed_dbg_ruta = ruta
+    ed_dbg_linea = n
+    if abrir(ruta)
+        ed_ir_a(n, 1)
+    end
+    # la pila y las variables, en el panel de la izquierda
+    depuracion_lineas.clear()
+    depuracion_tipos.clear()
+    depuracion_lineas.push("PILA")
+    depuracion_tipos.push(0)
+    i = 0
+    while i < dbg_frames()
+        depuracion_lineas.push(dbg_frame_function(i) + "  #{dbg_frame_line(i)}")
+        if i == 0
+            depuracion_tipos.push(2)
+        else
+            depuracion_tipos.push(1)
+        end
+        i = i + 1
+    end
+    depuracion_lineas.push("VARIABLES")
+    depuracion_tipos.push(0)
+    k = 0
+    while k < dbg_vars(0)
+        nombre = dbg_var_name(0, k)
+        depuracion_lineas.push(nombre + " = " + dbg_value(0, nombre))
+        depuracion_tipos.push(1)
+        k = k + 1
+    end
+    if dbg_globals() > 0
+        depuracion_lineas.push("GLOBALES")
+        depuracion_tipos.push(0)
+        g = 0
+        while g < dbg_globals()
+            nombre = dbg_global_name(g)
+            depuracion_lineas.push(nombre + " = " + dbg_value(0, nombre))
+            depuracion_tipos.push(1)
+            g = g + 1
+        end
+    end
+    mui_canvas_redraw(v.proyecto)
+    redibujar()
+    publicar_depuracion()
+end
+
+func al_acabar()
+    salida_programa()
+    avisar(nombre_de(tarea_exe) + " acabó con código #{dbg_rc()}.", 2)
+    ed_dbg_ruta = ""
+    ed_dbg_linea = 0
+    depuracion_lineas.clear()
+    depuracion_tipos.clear()
+    poner_tarea(NADA)
+    mui_canvas_redraw(v.proyecto)
+    redibujar()
+    publicar_depuracion()
+end
+
+# Seguir, paso, entrar, salir o parar
+func orden_depurador(ev: Int)
+    if tarea != DEPURANDO
+        return
+    end
+    if ev == EV_PARAR
+        dbg_end(3000)
+        al_acabar()
+        return
+    end
+    if dbg_state() != 3 and dbg_state() != 1
+        return
+    end
+    ed_dbg_linea = 0
+    if ev == EV_SEGUIR
+        dbg_continue()
+    elif ev == EV_PASO
+        dbg_next()
+    elif ev == EV_ENTRAR
+        dbg_step()
+    elif ev == EV_SALIR_FUNCION
+        dbg_out()
+    end
+    redibujar()
+    # (puede haber parado o acabado ya)
+    mirar_depuracion()
+    publicar_depuracion()
+end
+
+# Para las pruebas: ENV:FORJA_DEPURAR ("estado línea función") y ENV:FORJA_VARIABLES (las líneas del panel)
+func publicar_depuracion()
+    if not sonda
+        return
+    end
+    # las variables antes que el estado: quien espera el estado ya las encuentra
+    t = ""
+    for l in depuracion_lineas
+        t = t + l + "|"
+    end
+    env_set("FORJA_VARIABLES", t, false)
+    env_set("FORJA_DEPURAR", "#{dbg_state()} #{dbg_line()} " + dbg_function(), false)
 end
 
 # Un clic en un error de la salida: a su fichero y su línea
@@ -523,6 +738,21 @@ func edicion(ev: Int)
     redibujar()
 end
 
+# Pone o quita un punto de parada; si se está depurando, también en el programa
+func alternar_punto(d: Documento, n: Int)
+    puesto = ed_alternar_punto(d, n)
+    if tarea == DEPURANDO
+        if puesto
+            if not dbg_break(d.nombre, n)
+                avisar("La línea #{n} no tiene código: el punto no para ahí.", 1)
+            end
+        else
+            dbg_unbreak(d.nombre, n)
+        end
+    end
+    redibujar()
+end
+
 # Si la vista previa está abierta, se rehace con lo cambiado
 func rehacer_vista()
     if dv_vista != 0 and dv_error_carga == ""
@@ -572,6 +802,9 @@ func en_editor() -> Int
     elif mui_canvas_button(v.editor) == 1 and d.diseno
         dv_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
+    elif mui_canvas_button(v.editor) == 1 and mui_canvas_mouse_x(v.editor) < ed_margen - 4 and mui_canvas_mouse_y(v.editor) >= ALTO_PESTANAS
+        # un clic en el margen de los números: punto de parada
+        alternar_punto(d, ed_linea_en(d, mui_canvas_mouse_y(v.editor)))
     elif mui_canvas_button(v.editor) == 1
         ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), (teclas & Q_MAYUS) != 0)
         redibujar()
@@ -583,6 +816,25 @@ func en_editor() -> Int
         letra = mui_canvas_char(v.editor)
         if (teclas & Q_AMIGA) != 0
             return atajo(letra)
+        end
+        if codigo == T_F9
+            alternar_punto(d, d.cl + 1)
+            return 0
+        end
+        if codigo == T_F5
+            if tarea == DEPURANDO
+                return EV_SEGUIR
+            end
+            return EV_DEPURAR
+        end
+        if codigo == T_F10
+            return EV_PASO
+        end
+        if codigo == T_F6
+            return EV_ENTRAR
+        end
+        if codigo == T_F7
+            return EV_SALIR_FUNCION
         end
         if d.diseno
             if dv_tecla(codigo, teclas, letra)
@@ -853,9 +1105,7 @@ Main
         mui_canvas_take_tab(v.editor, true)
         # lo que aún no hace nada, apagado
         mui_app_rexx(app, orden_rexx)
-        for b in [v.depurar]
-            mui_set_enabled(b, false)
-        end
+        poner_tarea(NADA)
         sonda = env_get("FORJA_SONDA") != ""
 
         ruta = env_get("FORJA_PRUEBA")
@@ -878,7 +1128,10 @@ Main
             env_set("FORJA_ESTADO", "libre", false)
         end
         while true
-            ev = mui_wait_event()
+            ev = mui_wait_event_signals(dbg_signal())
+            if ev == 0
+                mirar_depuracion()
+            end
             if ev == EV_EDITOR
                 otro = en_editor()
                 if otro != 0
@@ -899,6 +1152,10 @@ Main
                 en_salida()
             elif ev == EV_INFERENCIA
                 boton_inferencia()
+            elif ev == EV_DEPURAR
+                depurar()
+            elif ev >= EV_SEGUIR and ev <= EV_PARAR
+                orden_depurador(ev)
             elif ev == EV_COMPILAR
                 compilar(false)
             elif ev == EV_EJECUTAR

@@ -10,6 +10,9 @@ var proyecto_fila: Int = 14
 var proyecto_y0: Int = 0                # la y de la primera fila, desde la esquina de la zona
 var proyecto_zona_x: Int = 0
 var proyecto_zona_y: Int = 0
+# Al depurar, el panel del proyecto enseña la pila y las variables (estas líneas)
+var depuracion_lineas: [String] = []
+var depuracion_tipos: [Int] = []      # 0 título, 1 normal, 2 la de ahora
 var salida_lineas: [String] = []
 var salida_tipos: [Int] = []      # 0 normal, 1 error, 2 bien
 var salida_rutas: [String] = []   # el fichero de un error ("" si no es un error con sitio)
@@ -121,6 +124,10 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_mode(0)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    if depuracion_lineas.length > 0
+        _depuracion_dibujar(x, y, ancho, alto)
+        return
+    end
     nombre = proyecto_cajon
     if nombre == ""
         nombre = "Proyecto"
@@ -147,6 +154,29 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         end
         gfx_text_at(x + 12, fy + font_baseline(), nombre)
         fy = fy + fila
+    end
+end
+
+func _depuracion_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    fy = y + 2
+    i = 0
+    while i < depuracion_lineas.length
+        if depuracion_tipos[i] == 0
+            _titulo(x, fy, ancho, depuracion_lineas[i])
+            fy = fy + TITULO_ALTO + 2
+        else
+            usar_codigo()
+            if fy + alto_letra + 2 > y + alto
+                return
+            end
+            gfx_pen(tema.texto)
+            if depuracion_tipos[i] == 2
+                gfx_pen(tema.cursor)
+            end
+            gfx_text_at(x + 8, fy + base_letra, depuracion_lineas[i])
+            fy = fy + alto_letra + 2
+        end
+        i = i + 1
     end
 end
 

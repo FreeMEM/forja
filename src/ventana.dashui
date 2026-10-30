@@ -25,6 +25,7 @@
           "items": [
             { "label": "Compilar", "key": "K", "event": 10 },
             { "label": "Ejecutar", "key": "E", "event": 11 },
+            { "label": "Depurar", "key": "G", "event": 12 },
             { "separator": true },
             { "label": "Preguntar a Inferencia", "key": "I", "event": 19 }
           ]
@@ -55,6 +56,11 @@
               { "type": "button", "name": "compilar", "label": "_Compilar", "event": 10, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "button", "name": "ejecutar", "label": "_Ejecutar", "event": 11, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "button", "name": "depurar", "label": "_Depurar", "event": 12, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "seguir", "label": "Seguir F5", "event": 13, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "paso", "label": "Paso F10", "event": 14, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "entrar", "label": "Entrar F6", "event": 15, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "salir", "label": "Salir F7", "event": 16, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "parar", "label": "Parar", "event": 17, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "space" },
               { "type": "button", "name": "inferencia", "label": "_Inferencia", "event": 19, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]

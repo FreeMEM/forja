@@ -156,21 +156,18 @@ Main
         p_enviar = str_find(t, "\"_Mandar\"")
         ver("añadir un text detrás de enviar", p_nuevo > p_enviar and p_enviar > 0, t)
         # Alt + arriba: delante de enviar
-        # (la vista previa rehecha puede quedarse el teclado: pieza 16 de dashc)
         activar()
         al_editor()
         input_key(0x4C, 4)
         t = espera_cambio(t)
         ver("moverlo delante", str_find(t, "\"text\": \"Texto\"") < str_find(t, "\"_Mandar\"") and str_find(t, "\"text\": \"Texto\"") > 0, t)
         # Supr lo quita
-        # (la vista previa rehecha puede quedarse el teclado: pieza 16 de dashc)
         activar()
         al_editor()
         input_key(0x46, 0)
         t = espera_cambio(t)
         ver("quitarlo", not str_contains(t, "\"text\": \"Texto\"") and str_contains(t, "\"_Mandar\""), t)
         # el menú: filas 13 menú Proyecto, 14 Conversación nueva, 15 separador, 16 Salir
-        # (la vista previa rehecha puede quedarse el teclado: pieza 16 de dashc)
         activar()
         al_editor()
         teclas(ABAJO, 6)

@@ -1,0 +1,138 @@
+# Hace de usuario del depurador de Forja: pone un punto de parada con F9 en la línea 20 de main.dash (dentro del
+# while), depura (Amiga-G), y comprueba la línea, la pila y las variables con F10 (paso), F5 (seguir), F6 (entrar en
+# mover) y F7 (salir). Al acabar, la salida del programa. Sale con Amiga-Q.
+# Lo arranca tests/depurar.sh; anota en DH0:Prueba/depurar.txt.
+
+const AMIGA = 8
+const CTRL = 2
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const F5 = 0x54
+const F6 = 0x55
+const F7 = 0x56
+const F9 = 0x58
+const F10 = 0x59
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/depurar.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+# Una variable de ENV: que Forja puede estar escribiendo justo ahora (entonces sale vacía): otra vez
+func variables() -> String
+    t = env_get("FORJA_VARIABLES")
+    n = 0
+    while t == "" and n < 10
+        time_delay(5)
+        t = env_get("FORJA_VARIABLES")
+        n = n + 1
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# Espera a que el depurador esté parado ("3 línea función") en esa línea, o acabado ("4"); da lo que haya
+func esperar_parada(que: String) -> String
+    n = 0
+    while n < 900
+        e = env_get("FORJA_DEPURAR")
+        if str_starts(e, que)
+            return e
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return env_get("FORJA_DEPURAR")
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        al_editor()
+        input_key(ARRIBA, CTRL)
+        k = 0
+        while k < 19
+            input_key(ABAJO, 0)
+            k = k + 1
+        end
+        input_key(F9, 0)
+        input_key(0x24, AMIGA)
+        e = esperar_parada("3 20 ")
+        ver("para en el punto de la línea 20", str_starts(e, "3 20 Main"), e)
+        vs = variables()
+        ver("pila y variables (j = 0, total = 2)", str_contains(vs, "PILA|Main  20|") and str_contains(vs, "j = 0|") and str_contains(vs, "total = 2|"), vs)
+        # para la captura: parado en la 20
+        time_delay(250)
+        input_key(F10, 0)
+        e = esperar_parada("3 21 ")
+        ver("F10: paso a la línea 21", str_starts(e, "3 21 Main"), e)
+        input_key(F5, 0)
+        e = esperar_parada("3 20 ")
+        vs = variables()
+        ver("F5: otra vez en la 20, con j = 1", str_starts(e, "3 20 Main") and str_contains(vs, "j = 1|"), vs)
+        input_key(F6, 0)
+        e = esperar_parada("3 12 ")
+        vs = variables()
+        ver("F6: dentro de mover, con su pila", str_starts(e, "3 12 mover") and str_contains(vs, "mover  12|Main  20|") and str_contains(vs, "dx = 5|"), vs)
+        input_key(F7, 0)
+        e = esperar_parada("3 21 ")
+        ver("F7: fuera de mover, en la 21", str_starts(e, "3 21 Main"), e)
+        input_key(F5, 0)
+        e = esperar_parada("4 ")
+        ver("F5: acaba", str_starts(e, "4 "), e)
+        s = file_read_text("RAM:forja-salida.txt")
+        n = 0
+        while n < 50 and (s == nil or not str_contains(s, "acabó con código"))
+            time_delay(10)
+            s = file_read_text("RAM:forja-salida.txt")
+            n = n + 1
+        end
+        ver("la salida del programa", s != nil and str_contains(s, "Naves: 2") and str_contains(s, "acabó con código 0"), s)
+        # para la captura: los botones de siempre otra vez
+        time_delay(250)
+        ver("vuelven los botones de siempre", env_get("FORJA_ESTADO") == "libre", env_get("FORJA_ESTADO"))
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+end

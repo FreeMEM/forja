@@ -40,7 +40,8 @@ Escrito en Dash 2.0 (dashc), sin `@native` y con licencia MIT.
   - Colores según la sintaxis de Dash, números de línea y puntos de parada.
   - Buscar y reemplazar, deshacer y pestañas.
   - Es la pieza más grande.
-- **Botones**: los del depurador (Paso, Entrar, Salir, Seguir) solo salen al depurar; todos a la vez no caben en
+- **Botones**: los del depurador (Seguir F5, Paso F10, Entrar F6, Salir F7, Parar) solo salen al depurar, en
+  lugar de Compilar, Ejecutar y Depurar; todos a la vez no caben en
   una pantalla de 640 píxeles.
 - **Proyecto**: los ficheros. Al depurar, también las variables y la pila de llamadas.
 - **Salida**: los errores de dashc. Con un clic se salta a la línea.

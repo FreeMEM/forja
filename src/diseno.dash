@@ -665,13 +665,11 @@ func dv_vista_previa(evento_cerrar: Int, volver: Bool) -> String
         mui_window_dispose(dv_vista)
     end
     dv_vista = ui.window
-    mui_window_open(dv_vista)
     if volver
-        # el teclado vuelve a Forja: se sigue editando aquí (un rodeo: buscarla por su título; pieza 16 de dashc)
-        w = window_find("Forja")
-        if w != 0
-            window_found_activate(w)
-        end
+        # rehecha tras un cambio: sin quitarle el teclado a Forja
+        mui_window_open_back(dv_vista)
+    else
+        mui_window_open(dv_vista)
     end
     return ""
 end

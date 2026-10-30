@@ -61,6 +61,7 @@ struct Documento
     deshacer: [Cambio]
     rehacer: [Cambio]
     diseno: Bool          # un .dashui que se ve con el editor de ventanas (Amiga-D: como texto)
+    puntos: [Int]         # las líneas (desde 1) con punto de parada
 end
 
 var documentos: [Documento] = []
@@ -80,6 +81,9 @@ var ed_ms_dibujo: Int = 0      # lo que tardó el último dibujo entero
 var _pestana_x1: [Int] = []
 var _pestana_x2: [Int] = []
 # Lo que devuelven las funciones de posiciones
+# Dónde está parado el programa que se depura (la línea, desde 1; 0 si no está parado)
+var ed_dbg_ruta: String = ""
+var ed_dbg_linea: Int = 0
 var ed_sel_desde: Int = 0
 var ed_sel_hasta: Int = 0
 var _fin_l: Int = 0
@@ -119,7 +123,8 @@ func ed_abrir_texto(nombre: String, ruta: String, texto: String)
     var d1: [Cambio] = []
     var d2: [Cambio] = []
     diseno = str_ends(str_lower(nombre), ".dashui")
-    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno))
+    var pp: [Int] = []
+    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno, pp))
     activo = documentos.length - 1
 end
 
@@ -870,9 +875,29 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
             gfx_rect(tx + desde * ancho_letra, fy, tx + hasta * ancho_letra - 1, fy + ed_alto_fila - 1)
         end
     end
+    parada = ed_dbg_linea == n + 1 and ed_dbg_ruta != "" and str_lower(ed_dbg_ruta) == str_lower(d.ruta)
+    if parada
+        # la línea donde está parado el depurador
+        gfx_pen(tema.parada)
+        gfx_rect(x + ed_margen - 3, fy, x + ancho - 1, fy + ed_alto_fila - 1)
+    end
+    if _tiene_punto(d, n + 1)
+        gfx_pen(tema.error)
+        gfx_rect(x + 2, fy + 2, x + 7, fy + ed_alto_fila - 3)
+    end
+    if parada
+        # una flecha en el margen (con 4 colores el fondo de la línea no se distingue)
+        gfx_pen(tema.cursor)
+        medio = fy + ed_alto_fila / 2
+        k = 0
+        while k < 4
+            gfx_line(x + 9 + k, medio - 3 + k, x + 9 + k, medio + 3 - k)
+            k = k + 1
+        end
+    end
     num = "#{n + 1}"
     gfx_pen(tema.tenue)
-    if n == d.cl
+    if n == d.cl or parada
         gfx_pen(tema.texto)
     end
     base = fy + 1 + base_letra
@@ -930,6 +955,35 @@ func ed_aplicar_diseno(d: Documento)
     d.cl = 0
     d.cc = 0
     d.primera = 0
+end
+
+# Pone o quita el punto de parada de la línea n (desde 1); true si queda puesto
+func ed_alternar_punto(d: Documento, n: Int) -> Bool
+    i = 0
+    while i < d.puntos.length
+        if d.puntos[i] == n
+            d.puntos.remove(i)
+            return false
+        end
+        i = i + 1
+    end
+    d.puntos.push(n)
+    return true
+end
+
+func _tiene_punto(d: Documento, n: Int) -> Bool
+    for p in d.puntos
+        if p == n
+            return true
+        end
+    end
+    return false
+end
+
+# La línea (desde 1) de un punto y de la zona, para los clics en el margen
+func ed_linea_en(d: Documento, y: Int) -> Int
+    _posicion(d, 0, y)
+    return _fin_l + 1
 end
 
 # La y de la fila de la línea n, desde la esquina de la zona (-1 si no se ve)

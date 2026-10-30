@@ -30,4 +30,6 @@ está en el repo de Inferencia: `FORJA=~/Projects/forja PERMISO=Si tests/usuario
 `tests/diseno.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/diseno.dash` usa el editor de ventanas con
 `ventana.dashui`: elige un botón en el árbol, cambia su texto, prueba un número mal escrito, abre la vista previa,
 deshace (en un paso), rehace y guarda; después añade un objeto, lo mueve, lo quita y cambia una opción del menú.
-A veces falla porque la vista previa rehecha se queda con el teclado (pieza 16 de dashc).
+
+`tests/depurar.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/depurar.dash` pone un punto de parada con F9,
+depura (Amiga-G) y comprueba la línea, la pila y las variables con F10, F5, F6 y F7, y la salida al acabar.
