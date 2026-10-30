@@ -77,6 +77,8 @@ var ed_ms_dibujo: Int = 0      # lo que tardó el último dibujo entero
 var _pestana_x1: [Int] = []
 var _pestana_x2: [Int] = []
 # Lo que devuelven las funciones de posiciones
+var ed_sel_desde: Int = 0
+var ed_sel_hasta: Int = 0
 var _fin_l: Int = 0
 var _fin_c: Int = 0
 var _l1: Int = 0
@@ -163,6 +165,52 @@ func ed_ir_a(n: Int, c: Int)
         d.primera = 0
     end
     ed_seguir_cursor(d)
+end
+
+# Cambia las líneas desde..hasta (desde 1, las dos incluidas) del documento por texto, con deshacer.
+# Con hasta = desde - 1 mete texto como líneas nuevas antes de la línea desde.
+func ed_cambiar_lineas(d: Documento, desde: Int, hasta: Int, texto: String) -> Bool
+    if desde < 1 or desde > d.lineas.length + 1 or hasta < desde - 1 or hasta > d.lineas.length
+        return false
+    end
+    if hasta == desde - 1
+        if desde == d.lineas.length + 1
+            # al final: detrás de la última línea
+            d.cl = d.lineas.length - 1
+            d.cc = d.lineas[d.cl].length
+            d.al = -1
+            ed_escribir(d, "\n" + texto)
+        else
+            d.cl = desde - 1
+            d.cc = 0
+            d.al = -1
+            ed_escribir(d, texto + "\n")
+        end
+    else
+        d.al = desde - 1
+        d.ac = 0
+        d.cl = hasta - 1
+        d.cc = d.lineas[hasta - 1].length
+        ed_escribir(d, texto)
+    end
+    ed_seguir_cursor(d)
+    return true
+end
+
+# Las líneas de la selección (desde 1) en ed_sel_desde y ed_sel_hasta; sin selección, la del cursor
+func ed_lineas_seleccion(d: Documento)
+    if ed_hay_seleccion(d)
+        _orden(d)
+        ed_sel_desde = _l1 + 1
+        ed_sel_hasta = _l2 + 1
+        # una selección que acaba al principio de una línea no la incluye
+        if _c2 == 0 and _l2 > _l1
+            ed_sel_hasta = _l2
+        end
+    else
+        ed_sel_desde = d.cl + 1
+        ed_sel_hasta = d.cl + 1
+    end
 end
 
 func ed_cerrar(i: Int)

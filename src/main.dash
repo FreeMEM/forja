@@ -13,6 +13,14 @@
 # errores van a la salida y un clic en uno lleva a su línea. Ejecutar (Amiga-E) compila y ejecuta; mientras el
 # programa corre, el botón es Parar (Ctrl-C).
 #
+# Inferencia (Amiga-I o el botón) le manda el fichero activo, o las líneas elegidas, con ADJUNTAR, y la enseña;
+# si no está abierta, la arranca (ENV:Forja/inferencia, o "Inferencia" del camino de órdenes).
+#
+# Puerto ARexx FORJA.1: ABRIR fichero [línea]; ABIERTO fichero (1 o 0); TEXTO fichero (lo que hay en el editor,
+# guardado o no); SELECCION (fichero, desde, hasta y el texto, en líneas); CAMBIAR fichero desde hasta texto
+# (con deshacer; hasta = desde - 1 mete líneas); GUARDAR [fichero]; COMPILAR y EJECUTAR (sin esperar);
+# ESTADO (libre, compilando, ejecutando); ERRORES (los de la última compilación).
+#
 # Cerrar una pestaña o salir con cambios sin guardar pregunta: Guardar, Descartar o Cancelar.
 #
 # Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar. Con ENV:FORJA_SONDA, para un programa que
@@ -61,6 +69,10 @@ const TITULO_CAMBIOS = "Cambios sin guardar"
 const NUEVO = "# Un programa de Dash\n\nMain\n    Print \"Hola, Amiga\"\nend\n"
 
 var v: Principal = nil
+var app: Int = 0
+var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
+var inferencia_espera: Int = 0      # tics esperando a que arranque Inferencia
+var inferencia_pendiente: String = ""
 var sonda: Bool = false
 var sonda_editor: String = ""
 var barra_total: Int = -1
@@ -291,6 +303,18 @@ func compilar(y_ejecutar: Bool)
 end
 
 func tic()
+    if inferencia_espera > 0
+        if inferencia_mandar()
+            redibujar()
+        else
+            inferencia_espera = inferencia_espera - 1
+            if inferencia_espera == 0
+                avisar("Inferencia no aparece.", 1)
+            elif tarea == NADA
+                mui_timer(TIC_MS, EV_TIC)
+            end
+        end
+    end
     if tarea == NADA
         return
     end
@@ -304,9 +328,11 @@ func tic()
     ms = time_ms() - tarea_inicio
     if tarea == COMPILANDO
         errores = 0
+        errores_ultimos = ""
         for l in str_split(str_trim(texto), "\n")
             if salida_error_dashc(l)
                 errores = errores + 1
+                errores_ultimos = errores_ultimos + l + "\n"
             elif l != ""
                 salida_anadir(l, 0)
             end
@@ -472,8 +498,8 @@ end
 
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -564,8 +590,207 @@ func publicar_sonda()
     end
 end
 
+# --- Inferencia ---
+
+const PUERTO_INFERENCIA = "INFERENCIA.1"
+
+func inferencia_ruta() -> String
+    r = env_get("Forja/inferencia")
+    if r == ""
+        r = "Inferencia"
+    end
+    return r
+end
+
+# Manda a Inferencia el fichero activo (o las líneas elegidas) y la enseña; si no está abierta, la arranca y
+# lo manda cuando aparezca su puerto (tic)
+func boton_inferencia()
+    d = ed_actual()
+    if d == nil
+        return
+    end
+    ed_lineas_seleccion(d)
+    que = d.nombre
+    texto = ed_texto(d)
+    if ed_hay_seleccion(d)
+        que = d.nombre + ", líneas #{ed_sel_desde} a #{ed_sel_hasta}"
+        texto = ed_seleccion(d)
+    end
+    ruta = d.ruta
+    if ruta == ""
+        ruta = d.nombre
+    end
+    # "ADJUNTAR título" y el texto en las líneas siguientes: Inferencia no tiene que leerlo de Forja
+    inferencia_pendiente = "ADJUNTAR " + que + " (" + ruta + ")\n" + texto
+    if not inferencia_mandar()
+        if inferencia_espera > 0
+            return
+        end
+        if run_start("Run >NIL: \"" + inferencia_ruta() + "\"", 5000) == 0
+            avisar("No se puede arrancar " + inferencia_ruta() + ". Pon su ruta en ENV:Forja/inferencia.", 1)
+            return
+        end
+        avisar("Arrancando Inferencia...", 0)
+        inferencia_espera = 150
+        mui_timer(TIC_MS, EV_TIC)
+    end
+end
+
+# true si Inferencia lo recibió
+func inferencia_mandar() -> Bool
+    rexx_send(PUERTO_INFERENCIA, inferencia_pendiente)
+    if rexx_rc() == -1
+        return false
+    end
+    if rexx_rc() != 0
+        avisar("Inferencia no lo aceptó (RC #{rexx_rc()}).", 1)
+    else
+        rexx_send(PUERTO_INFERENCIA, "MOSTRAR")
+        avisar("Mandado a Inferencia.", 2)
+    end
+    inferencia_pendiente = ""
+    inferencia_espera = 0
+    return true
+end
+
+# --- El puerto ARexx FORJA.1 ---
+
+# Las palabras de una orden: un argumento entre comillas puede llevar espacios. resto_desde dice desde qué
+# argumento (desde 0) se quiere el resto de la línea tal cual, en _resto.
+var _resto: String = ""
+
+func _partes(linea: String, resto_desde: Int) -> [String]
+    var ps: [String] = []
+    _resto = ""
+    i = 0
+    n = linea.length
+    while i < n
+        while i < n and linea[i:i + 1] == " "
+            i = i + 1
+        end
+        if i >= n
+            break
+        end
+        if ps.length == resto_desde
+            _resto = linea[i:]
+            if _resto.length >= 2 and str_starts(_resto, "\"") and str_ends(_resto, "\"")
+                _resto = _resto[1:_resto.length - 1]
+            end
+            return ps
+        end
+        if linea[i:i + 1] == "\""
+            j = str_find_from(linea, "\"", i + 1)
+            if j < 0
+                j = n
+            end
+            ps.push(linea[i + 1:j])
+            i = j + 1
+        else
+            j = str_find_from(linea, " ", i)
+            if j < 0
+                j = n
+            end
+            ps.push(linea[i:j])
+            i = j
+        end
+    end
+    return ps
+end
+
+# El documento de esa ruta, abriéndolo si hace falta (nil si no se puede leer)
+func _documento(ruta: String) -> Documento
+    if not abrir(ruta)
+        return nil
+    end
+    return ed_actual()
+end
+
+func orden_rexx(linea: String) -> String
+    p = _partes(linea, 99)
+    if p.length == 0
+        mui_rexx_fail(10)
+        return ""
+    end
+    orden = str_upper(p[0])
+    if orden == "ABRIR" and p.length >= 2
+        if _documento(p[1]) == nil
+            mui_rexx_fail(10)
+            return ""
+        end
+        if p.length >= 3
+            ed_ir_a(Int(p[2]), 1)
+        end
+        redibujar()
+        return ""
+    elif orden == "ABIERTO" and p.length >= 2
+        if ed_buscar_ruta(p[1]) >= 0
+            return "1"
+        end
+        return "0"
+    elif orden == "TEXTO" and p.length >= 2
+        i = ed_buscar_ruta(p[1])
+        if i < 0
+            mui_rexx_fail(10)
+            return ""
+        end
+        return ed_texto(documentos[i])
+    elif orden == "SELECCION"
+        d = ed_actual()
+        if d == nil
+            mui_rexx_fail(10)
+            return ""
+        end
+        ed_lineas_seleccion(d)
+        return d.ruta + "\n#{ed_sel_desde}\n#{ed_sel_hasta}\n" + ed_seleccion(d)
+    elif orden == "CAMBIAR"
+        p = _partes(linea, 4)
+        if p.length < 4
+            mui_rexx_fail(10)
+            return ""
+        end
+        d = _documento(p[1])
+        if d == nil or not ed_cambiar_lineas(d, Int(p[2]), Int(p[3]), _resto)
+            mui_rexx_fail(10)
+            return ""
+        end
+        redibujar()
+        return ""
+    elif orden == "GUARDAR"
+        d = ed_actual()
+        if p.length >= 2
+            i = ed_buscar_ruta(p[1])
+            d = nil
+            if i >= 0
+                d = documentos[i]
+            end
+        end
+        if d == nil or d.ruta == "" or not guardar_en(d, d.ruta)
+            mui_rexx_fail(10)
+            return ""
+        end
+        redibujar()
+        return ""
+    elif orden == "COMPILAR" or orden == "EJECUTAR"
+        if tarea != NADA
+            mui_rexx_fail(5)
+            return ""
+        end
+        errores_ultimos = ""
+        compilar(orden == "EJECUTAR")
+        return ""
+    elif orden == "ESTADO"
+        var nombres: [String] = ["libre", "compilando", "ejecutando"]
+        return nombres[tarea]
+    elif orden == "ERRORES"
+        return errores_ultimos
+    end
+    mui_rexx_fail(10)
+    return ""
+end
+
 Main
-    if mui_app_begin("Forja", "FORJA") == 0
+    app = mui_app_begin("Forja", "FORJA")
+    if app == 0
         Print "Forja necesita MUI y un 68020 o mejor."
     else
         v = Principal_create()
@@ -579,7 +804,8 @@ Main
         mui_canvas_on_input(v.salida, EV_SALIDA)
         mui_canvas_take_tab(v.editor, true)
         # lo que aún no hace nada, apagado
-        for b in [v.depurar, v.inferencia]
+        mui_app_rexx(app, orden_rexx)
+        for b in [v.depurar]
             mui_set_enabled(b, false)
         end
         sonda = env_get("FORJA_SONDA") != ""
@@ -623,6 +849,8 @@ Main
                 en_proyecto()
             elif ev == EV_SALIDA
                 en_salida()
+            elif ev == EV_INFERENCIA
+                boton_inferencia()
             elif ev == EV_COMPILAR
                 compilar(false)
             elif ev == EV_EJECUTAR

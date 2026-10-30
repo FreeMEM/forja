@@ -1,0 +1,79 @@
+# Maneja Forja por su puerto ARexx (FORJA.1): ABRIR con línea, ABIERTO, TEXTO, CAMBIAR (cambiar y meter líneas),
+# SELECCION, GUARDAR, COMPILAR con un error (ESTADO y ERRORES) y EJECUTAR. Sale con QUIT.
+# Lo arranca tests/rexx.sh; anota en DH0:Prueba/rexx.txt.
+
+const FORJA = "FORJA.1"
+const RED = "DH0:Prueba/juego/red.dash"
+const MAIN = "DH0:Prueba/juego/main.dash"
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/rexx.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func esperar_libre()
+    n = 0
+    time_delay(10)
+    while n < 1800 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+end
+
+Main
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("el puerto contesta", n < 600, "")
+    rexx("ABRIR \"" + RED + "\" 3")
+    ver("ABIERTO", rexx("ABIERTO " + RED) == "1", "rc #{rexx_rc()}")
+    s = rexx("SELECCION")
+    ver("SELECCION sin elegir da la línea del cursor", str_starts(s, RED + "\n3\n3\n"), s)
+    rexx("CAMBIAR " + RED + " 3 3 \"func conectar(intentos: Int) -> Bool\"")
+    ver("CAMBIAR una línea", str_contains(rexx("TEXTO " + RED), "func conectar(intentos: Int) -> Bool"), rexx("TEXTO " + RED))
+    rexx("CAMBIAR " + RED + " 3 2 \"# Conecta con el servidor\"")
+    t = rexx("TEXTO " + RED)
+    ver("CAMBIAR mete una línea", str_contains(t, "\n# Conecta con el servidor\nfunc conectar("), t)
+    rexx("CAMBIAR " + RED + " 9 9 \"x\"")
+    ver("CAMBIAR fuera del fichero da RC 10", rexx_rc() == 10, "rc #{rexx_rc()}")
+    rexx("GUARDAR " + RED)
+    d = file_read_text(RED)
+    ver("GUARDAR", d != nil and str_contains(d, "# Conecta con el servidor"), d)
+    # un error en main.dash y compilar
+    rexx("ABRIR " + MAIN)
+    rexx("CAMBIAR " + MAIN + " 26 25 \"x = (\"")
+    rexx("COMPILAR")
+    esperar_libre()
+    e = rexx("ERRORES")
+    ver("COMPILAR y ERRORES", str_contains(e, "main.dash:") and str_contains(e, ": Error: "), e)
+    # sin el error, EJECUTAR
+    rexx("CAMBIAR " + MAIN + " 26 26 \"\"")
+    rexx("EJECUTAR")
+    esperar_libre()
+    # (un RESULT vacío llega como el de la orden anterior: pieza 14 de dashc; por eso no se compara con "")
+    e = rexx("ERRORES")
+    ver("EJECUTAR sin errores", not str_contains(e, ": Error: "), e)
+    time_delay(100)
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    rexx("QUIT")
+end

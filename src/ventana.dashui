@@ -24,7 +24,9 @@
           "title": "Programa",
           "items": [
             { "label": "Compilar", "key": "K", "event": 10 },
-            { "label": "Ejecutar", "key": "E", "event": 11 }
+            { "label": "Ejecutar", "key": "E", "event": 11 },
+            { "separator": true },
+            { "label": "Preguntar a Inferencia", "key": "I", "event": 19 }
           ]
         },
         {

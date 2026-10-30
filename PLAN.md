@@ -79,11 +79,18 @@ En un Amiga de verdad, no solo en el emulador. Las piezas ya están en Dash 2.0 
 ## ARexx
 
 Puerto propio, para Inferencia y para quien quiera:
+Puerto `FORJA.1`:
 - `ABRIR fichero [línea]`
-- `SELECCION`: devuelve el texto elegido, el fichero y las líneas.
-- `CAMBIAR fichero desde hasta "texto"`: el cambio entra en el deshacer.
-- `COMPILAR`: devuelve los errores.
-- `EJECUTAR`
+- `ABIERTO fichero`: 1 si está en una pestaña.
+- `TEXTO fichero`: lo que hay en el editor, guardado o no.
+- `SELECCION`: el fichero, las líneas y el texto elegido, uno por línea.
+- `CAMBIAR fichero desde hasta "texto"`: el cambio entra en el deshacer. Con hasta = desde - 1 mete líneas.
+- `GUARDAR [fichero]`
+- `COMPILAR` y `EJECUTAR`, sin esperar; `ESTADO` dice si sigue y `ERRORES` da los de la última compilación.
+
+El botón Inferencia (Amiga-I) le manda el fichero, o las líneas elegidas, con `ADJUNTAR`. Si Inferencia no está
+abierta, la arranca. Cuando Inferencia edita un fichero que Forja tiene abierto, lo hace con `CAMBIAR`: el cambio
+queda sin guardar y se puede deshacer.
 
 ## Piezas de Dash
 
