@@ -109,7 +109,7 @@ func _dv_logica(p: String) -> Bool
 end
 
 func _dv_lista(p: String) -> Bool
-    return p == "size" or p == "background" or p == "color"
+    return p == "size" or p == "background" or p == "color" or p == "field_colors"
 end
 
 func _dv_fila(n: Json, nivel: Int, clase: Int, padre: Json)
@@ -195,7 +195,7 @@ func _dv_listar_props()
     f = dv_filas[dv_sel]
     n = f.nodo
     if f.clase == F_VENTANA
-        for p in ["name", "title", "id", "size", "close", "background"]
+        for p in ["name", "title", "id", "size", "close", "background", "field_colors"]
             dv_props.push(p)
         end
     elif f.clase == F_MENU
@@ -651,6 +651,8 @@ func dv_vista_previa(evento_cerrar: Int, volver: Bool) -> String
     _dv_sin_eventos(copia)
     # sin el número de ventana: MUI recordaría su sitio, y puede ser el mismo que el de Forja
     json_remove(copia, "id")
+    # los colores de los campos son de toda la aplicación: cambiarían los de Forja
+    json_remove(copia, "field_colors")
     json_set_int(copia, "close", evento_cerrar)
     doc = json_object()
     json_set_int(doc, "dashui", 1)
