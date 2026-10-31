@@ -3,7 +3,7 @@
 # La ventana (ventana.dashui): botones arriba; el proyecto a la izquierda; el editor con sus pestañas; la salida
 # abajo. Los paneles se dibujan en lienzos con el tema oscuro (tema.dash).
 #
-#   Forja [fichero]      # sin fichero, uno nuevo
+#   Forja [fichero]      # sin fichero, la bienvenida: el logo de Dash con el cursor parpadeando
 #
 # El teclado va al editor cuando el puntero está encima. Flechas; con Mayúsculas seleccionan; Alt: principio y
 # final de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Los atajos con
@@ -127,6 +127,7 @@ var tarea_exe: String = ""
 var ejecutar_despues: Bool = false
 var depurar_despues: Bool = false
 var salida_vista: Int = 0          # lo que ya se enseñó de dbg_output()
+var tic_armado: Bool = false       # el temporizador (solo hay uno) está en marcha
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -240,9 +241,6 @@ func proyecto(ev: Int) -> Bool
             end
         end
         ed_cerrar(activo)
-        if documentos.length == 0
-            ed_abrir_texto("sin nombre.dash", "", NUEVO)
-        end
     elif ev == EV_SALIR
         n = cambiados()
         if n > 0
@@ -361,10 +359,21 @@ func compilar(y_ejecutar: Bool)
     ejecutar_despues = y_ejecutar
     tarea_inicio = time_ms()
     poner_tarea(COMPILANDO)
-    mui_timer(TIC_MS, EV_TIC)
+    armar_tic(TIC_MS, EV_TIC)
+end
+
+# El único temporizador de MUI: uno nuevo cancela el anterior, así que todo lo que espera pasa por tic()
+func armar_tic(ms: Int, ev: Int)
+    tic_armado = true
+    mui_timer(ms, ev)
 end
 
 func tic()
+    tic_armado = false
+    if bienvenida_parpadear()
+        z = bienvenida_zona()
+        mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
+    end
     if inferencia_espera > 0
         if inferencia_mandar()
             redibujar()
@@ -373,7 +382,7 @@ func tic()
             if inferencia_espera == 0
                 avisar(tr(12, "Inferencia no aparece."), 1)
             elif tarea == NADA
-                mui_timer(TIC_MS, EV_TIC)
+                armar_tic(TIC_MS, EV_TIC)
             end
         end
     end
@@ -384,12 +393,12 @@ func tic()
         # (la señal del depurador es lo normal; esto, por si se pierde)
         mirar_depuracion()
         if tarea == DEPURANDO
-            mui_timer(TIC_MS * 3, EV_TIC)
+            armar_tic(TIC_MS * 3, EV_TIC)
         end
         return
     end
     if not run_ready(tarea_run)
-        mui_timer(TIC_MS, EV_TIC)
+        armar_tic(TIC_MS, EV_TIC)
         return
     end
     texto = run_finish(tarea_run)
@@ -436,7 +445,7 @@ func tic()
         end
         tarea_inicio = time_ms()
         poner_tarea(EJECUTANDO)
-        mui_timer(TIC_MS, EV_TIC)
+        armar_tic(TIC_MS, EV_TIC)
         return
     end
     # acabó el programa
@@ -479,7 +488,7 @@ func empezar_depuracion()
     avisar(tr(18, "Depurando ") + nombre_de(tarea_exe) + tr(19, " (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada)."), 0)
     poner_tarea(DEPURANDO)
     dbg_continue()
-    mui_timer(TIC_MS * 3, EV_TIC)
+    armar_tic(TIC_MS * 3, EV_TIC)
     mirar_depuracion()
     publicar_depuracion()
 end
@@ -687,6 +696,10 @@ end
 
 func redibujar_linea(n: Int)
     d = ed_actual()
+    if d == nil
+        redibujar()
+        return
+    end
     fy = ed_fila_y(d, n)
     if fy < 0
         redibujar()
@@ -701,6 +714,10 @@ end
 func escribir_sonda()
     if sonda
         d = ed_actual()
+        if d == nil
+            file_write_text("RAM:forja-sonda.txt", "0 0 \n")
+            return
+        end
         file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
         env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
@@ -1057,7 +1074,7 @@ func boton_inferencia()
         end
         avisar(tr(27, "Arrancando Inferencia..."), 0)
         inferencia_espera = 150
-        mui_timer(TIC_MS, EV_TIC)
+        armar_tic(TIC_MS, EV_TIC)
     end
 end
 
@@ -1265,8 +1282,7 @@ Main
         if ruta != "" and abrir(ruta)
             proyecto_leer(cajon_de(ruta))
         elif not sesion_abrir()
-            ed_abrir_texto("sin nombre.dash", "", NUEVO)
-            proyecto_leer(cajon_de(ruta))
+            proyecto_leer(cajon_de(ruta))     # sin fichero: la bienvenida, con el logo de Dash
         end
         salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.0."), 0)
         salida_anadir(tr(31, "Listo."), 2)
@@ -1275,6 +1291,9 @@ Main
         abierta = true
         mui_canvas_set_pointer(v.editor, 1)
         ajustar_barra()
+        if ed_actual() == nil
+            armar_tic(500, EV_TIC)
+        end
         if sonda
             publicar_sonda()
             env_set("FORJA_ESTADO", "libre", false)
@@ -1359,6 +1378,9 @@ Main
                 end
             end
             ajustar_barra()
+            if ed_actual() == nil and not tic_armado
+                armar_tic(500, EV_TIC)
+            end
             if sonda
                 publicar_sonda()
             end

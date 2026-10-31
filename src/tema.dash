@@ -23,6 +23,7 @@ struct Tema
 end
 
 var tema: Tema = nil
+var pen_logo: [Int] = []      # el logo de Dash: azul, naranja y blanco del Workbench
 var fuente_codigo: Int = 0      # Topaz 8: todas las letras igual de anchas
 var fuente_panel: Int = 0
 var ancho_letra: Int = 8
@@ -48,6 +49,7 @@ func tema_preparar()
     # normal, palabra clave, tipo, texto, número, comentario, llamada, constante
     tema.sintaxis = [tema.texto, color_pen(200, 130, 230), color_pen(100, 190, 230), color_pen(150, 210, 110),
                      color_pen(240, 170, 90), color_pen(120, 120, 136), color_pen(240, 220, 140), color_pen(240, 170, 90)]
+    pen_logo = [color_pen(0, 85, 170), color_pen(255, 136, 0), color_pen(255, 255, 255)]
     fuente_codigo = font_open("topaz.font", 8)
     fuente_panel = font_open("helvetica.font", 11)
     if fuente_panel == 0

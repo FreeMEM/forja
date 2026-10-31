@@ -1120,6 +1120,57 @@ func ed_fila_y(d: Documento, n: Int) -> Int
     return ALTO_PESTANAS + 2 + (n - d.primera) * ed_alto_fila
 end
 
+# --- La bienvenida: sin ficheros abiertos, el logo de Dash con el cursor del Shell parpadeando ---
+# El logo es de 16x16 cuadros (docs/logo/dash.svg de Dash). tic() de main.dash lo hace parpadear con
+# bienvenida_parpadear().
+
+var bienvenida_cursor: Bool = true
+var _bienvenida_cambio: Int = 0
+var _bienvenida_zona: [Int] = [0, 0, 0, 0]  # el cursor: x, y, ancho y alto desde la esquina del lienzo
+
+func _cuadros(lx: Int, ly: Int, c: Int, cx: Int, cy: Int, ancho: Int, alto: Int)
+    gfx_rect(lx + cx * c, ly + cy * c, lx + (cx + ancho) * c - 1, ly + (cy + alto) * c - 1)
+end
+
+func _dibujar_bienvenida(x: Int, y: Int, ancho: Int, alto: Int)
+    # el lado de un cuadro: el logo ocupa unos dos quintos del lado corto
+    c = alto / 40
+    if ancho / 40 < c
+        c = ancho / 40
+    end
+    if c < 2
+        c = 2
+    end
+    lx = x + (ancho - 16 * c) / 2
+    ly = y + (alto - 16 * c) / 2
+    gfx_pen(pen_logo[0])
+    gfx_rect(lx, ly, lx + 16 * c - 1, ly + 16 * c - 1)
+    gfx_pen(pen_logo[1])
+    _cuadros(lx, ly, c, 3, 4, 5, 1)
+    _cuadros(lx, ly, c, 3, 5, 2, 6)
+    _cuadros(lx, ly, c, 7, 5, 2, 6)
+    _cuadros(lx, ly, c, 3, 11, 5, 1)
+    if bienvenida_cursor
+        gfx_pen(pen_logo[2])
+        _cuadros(lx, ly, c, 10, 11, 3, 1)
+    end
+    _bienvenida_zona = [lx + 10 * c - ed_zona_x, ly + 11 * c - ed_zona_y, 3 * c, c]
+end
+
+# Enciende o apaga el cursor si ha pasado medio segundo; true si hay que redibujar su zona
+func bienvenida_parpadear() -> Bool
+    if ed_actual() != nil or time_ms() - _bienvenida_cambio < 400
+        return false
+    end
+    _bienvenida_cambio = time_ms()
+    bienvenida_cursor = not bienvenida_cursor
+    return true
+end
+
+func bienvenida_zona() -> [Int]
+    return _bienvenida_zona
+end
+
 func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
     gfx_mode(0)
@@ -1154,6 +1205,7 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_pen(tema.fondo)
     gfx_rect(x, ty, x + ancho - 1, y + alto - 1)
     if d == nil
+        _dibujar_bienvenida(x, ty, ancho, y + alto - ty)
         return
     end
     usar_codigo()
