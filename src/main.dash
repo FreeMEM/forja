@@ -268,11 +268,12 @@ end
 
 # --- Compilar y ejecutar ---
 
-# dashc: ENV:Forja/dashc, o el que haya en el camino de órdenes
+# El compilador: ENV:Forja/dashc, o la orden dash del camino de órdenes (la pone el instalador de Dash 2.0.1;
+# la 2.0.0 la llamaba dashc)
 func dashc() -> String
     c = env_get("Forja/dashc")
     if c == ""
-        c = "dashc"
+        c = "dash"
     end
     return c
 end
