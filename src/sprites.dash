@@ -712,6 +712,86 @@ func sp_zona_rejilla(s: Sprite) -> [Int]
     return [_sp_gx - _sp_zx - 1, _sp_gy - _sp_zy - 1, s.ancho * _sp_z + 2, s.alto * _sp_z + 2]
 end
 
+# Un fotograma en pequeño: cada píxel de e x e en la pantalla, tomando uno de cada k (para los muy altos)
+func _sp_miniatura(s: Sprite, f: Int, x: Int, y: Int, e: Int, k: Int)
+    px = s.fotos[f]
+    pens = _sp_pens
+    puesto = -1
+    fy = 0
+    yy = 0
+    while yy < s.alto
+        fila = yy * s.ancho
+        xx = 0
+        fx = 0
+        while xx < s.ancho
+            c = px[fila + xx]
+            x2 = xx + k
+            n = 1
+            while x2 < s.ancho and px[fila + x2] == c
+                x2 = x2 + k
+                n = n + 1
+            end
+            p = pens[c]
+            if p != puesto
+                gfx_pen(p)
+                puesto = p
+            end
+            gfx_rect(x + fx * e, y + fy * e, x + (fx + n) * e - 1, y + fy * e + e - 1)
+            fx = fx + n
+            xx = x2
+        end
+        yy = yy + k
+        fy = fy + 1
+    end
+end
+
+# La escala de las miniaturas: e (aumento) y k (uno de cada k píxeles)
+func _sp_escala_miniatura(s: Sprite) -> [Int]
+    if s.alto <= 24
+        return [2, 1]
+    end
+    if s.alto <= 64
+        return [1, 1]
+    end
+    return [1, (s.alto + 63) / 64]
+end
+
+# La tira de fotogramas: una miniatura por fotograma (el actual enmarcado) y un "+" al final; se desplaza para
+# que se vea el actual
+func _sp_dibujar_tira(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
+    gfx_pen(tema.fondo_salida)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    ek = _sp_escala_miniatura(s)
+    e = ek[0]
+    k = ek[1]
+    mw = ((s.ancho + k - 1) / k) * e
+    mh = ((s.alto + k - 1) / k) * e
+    paso = mw + 8
+    caben = (ancho - 16 - 20) / paso
+    if caben < 1
+        caben = 1
+    end
+    desde = 0
+    if s.actual >= caben
+        desde = s.actual - caben + 1
+    end
+    my = y + (alto - mh) / 2
+    f = desde
+    mx = x + 8
+    while f < s.fotos.length and mx + mw <= x + ancho - 28
+        if f == s.actual
+            gfx_pen(tema.cursor)
+            gfx_box(mx - 2, my - 2, mx + mw + 1, my + mh + 1)
+        end
+        _sp_miniatura(s, f, mx, my, e, k)
+        _sp_boton(mx, my, mx + mw - 1, my + mh - 1, SP_A_FOTO + f)
+        mx = mx + paso
+        f = f + 1
+    end
+    usar_panel(0)
+    _sp_boton_texto(mx, y + alto / 2 - 8, mx + 16, y + alto / 2 + 8, "+", false, SP_A_FOTO_NUEVO)
+end
+
 func sp_nombre_herramienta(h: Int) -> String
     nombres = [tr(93, "Lápiz"), tr(94, "Línea"), tr(95, "Caja"), tr(96, "Relleno"), tr(97, "Cuentagotas"), tr(98, "Agarre")]
     return nombres[h]
@@ -751,6 +831,8 @@ const SP_A_PLANOS_MENOS = 4004
 const SP_A_PLANOS_MAS = 4005
 const SP_A_TIPO = 4006
 const SP_A_PAGINA = 5000       # + la página del panel
+const SP_A_FOTO = 6000         # + el número del fotograma (una miniatura de la tira)
+const SP_A_FOTO_NUEVO = 5999   # el "+" del final de la tira
 
 # El panel va en páginas, con pestañas arriba: en 640x256 no cabe todo a la vez
 const SP_PAG_DIBUJO = 0
@@ -985,8 +1067,7 @@ func sp_dibujar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
     sp_con_tira = tira > 0
     _sp_dibujar_panel(s, x + ancho - panel, y, panel, alto)
     if tira > 0
-        gfx_pen(tema.fondo_salida)
-        gfx_rect(x, y + alto - estado_alto - tira, x + ancho - panel - 1, y + alto - estado_alto - 1)
+        _sp_dibujar_tira(s, x, y + alto - estado_alto - tira, ancho - panel, tira)
     end
     # la rejilla, del mayor zoom que quepa
     gw = ancho - panel - 8
@@ -1244,6 +1325,13 @@ func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
             s.color = a - SP_A_COLOR
             return SP_TODO
         end
+        if a >= SP_A_FOTO
+            s.actual = a - SP_A_FOTO
+            return SP_TODO
+        end
+        if a == SP_A_FOTO_NUEVO
+            return sp_nuevo_fotograma(s, false)
+        end
         if a >= SP_A_PAGINA and a <= SP_A_PAGINA + SP_PAG_TAMANO
             sp_pagina = a - SP_A_PAGINA
             return SP_TODO
@@ -1468,12 +1556,145 @@ func sp_cambiar_tipo(s: Sprite) -> Int
     return SP_CAMBIO | SP_TODO
 end
 
+# --- Fotogramas ---
+
+var _sp_copia: [Int] = []      # el fotograma copiado (Amiga-C), y su tamaño
+var _sp_copia_ancho: Int = 0
+var _sp_copia_alto: Int = 0
+
+func sp_ir_fotograma(s: Sprite, paso: Int) -> Int
+    n = s.fotos.length
+    s.actual = ((s.actual + paso) % n + n) % n
+    return SP_TODO
+end
+
+# Uno nuevo detrás del actual: vacío, o copia del actual
+func sp_nuevo_fotograma(s: Sprite, copia: Bool) -> Int
+    sp_apuntar(s, -1)
+    nuevo = sp_vacio(s.ancho, s.alto)
+    if copia
+        px = s.fotos[s.actual]
+        nuevo = px[0:px.length]
+    end
+    s.fotos.insert(s.actual + 1, nuevo)
+    s.actual = s.actual + 1
+    return SP_CAMBIO | SP_TODO
+end
+
+func sp_quitar_fotograma(s: Sprite) -> Int
+    if s.fotos.length < 2
+        sp_mensaje = tr(115, "Hace falta al menos un fotograma.")
+        return SP_TODO
+    end
+    sp_apuntar(s, -1)
+    s.fotos.remove(s.actual)
+    if s.actual >= s.fotos.length
+        s.actual = s.fotos.length - 1
+    end
+    return SP_CAMBIO | SP_TODO
+end
+
+# Cambia el actual de sitio con su vecino (paso -1 o 1)
+func sp_mover_fotograma(s: Sprite, paso: Int) -> Int
+    otro = s.actual + paso
+    if otro < 0 or otro >= s.fotos.length
+        return 0
+    end
+    sp_apuntar(s, -1)
+    px = s.fotos[s.actual]
+    s.fotos[s.actual] = s.fotos[otro]
+    s.fotos[otro] = px
+    s.actual = otro
+    return SP_CAMBIO | SP_TODO
+end
+
+func sp_vaciar_fotograma(s: Sprite) -> Int
+    sp_apuntar(s, s.actual)
+    s.fotos[s.actual] = sp_vacio(s.ancho, s.alto)
+    return SP_CAMBIO | SP_TODO
+end
+
+# Espejo (horizontal: izquierda y derecha) del fotograma actual
+func sp_espejo(s: Sprite, horizontal: Bool) -> Int
+    sp_apuntar(s, s.actual)
+    px = s.fotos[s.actual]
+    nuevo = sp_vacio(s.ancho, s.alto)
+    y = 0
+    while y < s.alto
+        x = 0
+        while x < s.ancho
+            if horizontal
+                nuevo[y * s.ancho + x] = px[y * s.ancho + s.ancho - 1 - x]
+            else
+                nuevo[y * s.ancho + x] = px[(s.alto - 1 - y) * s.ancho + x]
+            end
+            x = x + 1
+        end
+        y = y + 1
+    end
+    s.fotos[s.actual] = nuevo
+    return SP_CAMBIO | SP_TODO
+end
+
+# Desplaza el dibujo del fotograma actual dx, dy píxeles; lo que sale por un lado entra por el otro
+func sp_desplazar(s: Sprite, dx: Int, dy: Int) -> Int
+    sp_apuntar(s, s.actual)
+    px = s.fotos[s.actual]
+    nuevo = sp_vacio(s.ancho, s.alto)
+    y = 0
+    while y < s.alto
+        x = 0
+        while x < s.ancho
+            nx = (x + dx + s.ancho) % s.ancho
+            ny = (y + dy + s.alto) % s.alto
+            nuevo[ny * s.ancho + nx] = px[y * s.ancho + x]
+            x = x + 1
+        end
+        y = y + 1
+    end
+    s.fotos[s.actual] = nuevo
+    return SP_CAMBIO | SP_TODO
+end
+
+func sp_copiar_fotograma(s: Sprite)
+    px = s.fotos[s.actual]
+    _sp_copia = px[0:px.length]
+    _sp_copia_ancho = s.ancho
+    _sp_copia_alto = s.alto
+    sp_mensaje = tr(116, "Fotograma copiado.")
+end
+
+# Pega lo copiado como un fotograma nuevo detrás del actual (si el tamaño es otro, desde la esquina y cortado)
+func sp_pegar_fotograma(s: Sprite) -> Int
+    if _sp_copia.length == 0
+        sp_mensaje = tr(117, "No hay ningún fotograma copiado.")
+        return SP_TODO
+    end
+    sp_apuntar(s, -1)
+    nuevo = sp_vacio(s.ancho, s.alto)
+    mascara = sp_colores(s) - 1
+    y = 0
+    while y < s.alto and y < _sp_copia_alto
+        x = 0
+        while x < s.ancho and x < _sp_copia_ancho
+            nuevo[y * s.ancho + x] = _sp_copia[y * _sp_copia_ancho + x] & mascara
+            x = x + 1
+        end
+        y = y + 1
+    end
+    s.fotos.insert(s.actual + 1, nuevo)
+    s.actual = s.actual + 1
+    return SP_CAMBIO | SP_TODO
+end
+
 # --- Teclado (sin Amiga) ---
 
 const SP_T_ARRIBA = 0x4C
 const SP_T_ABAJO = 0x4D
 
 const SP_T_DERECHA = 0x4E
+const SP_T_SUPRIMIR = 0x46
+const SP_T_RETROCESO = 0x41
 const SP_T_IZQUIERDA = 0x4F
 
 func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
@@ -1492,6 +1713,45 @@ func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
     end
     if str_lower(letra) == "t"
         return sp_cambiar_tipo(s)
+    end
+    if (teclas & SP_Q_MAYUS) != 0
+        if codigo == SP_T_DERECHA
+            return sp_desplazar(s, 1, 0)
+        elif codigo == SP_T_IZQUIERDA
+            return sp_desplazar(s, -1, 0)
+        elif codigo == SP_T_ABAJO
+            return sp_desplazar(s, 0, 1)
+        elif codigo == SP_T_ARRIBA
+            return sp_desplazar(s, 0, -1)
+        end
+    end
+    if (teclas & SP_Q_ALT) != 0 and (codigo == SP_T_DERECHA or codigo == SP_T_IZQUIERDA)
+        if codigo == SP_T_DERECHA
+            return sp_mover_fotograma(s, 1)
+        end
+        return sp_mover_fotograma(s, -1)
+    end
+    if codigo == SP_T_DERECHA
+        return sp_ir_fotograma(s, 1)
+    end
+    if codigo == SP_T_IZQUIERDA
+        return sp_ir_fotograma(s, -1)
+    end
+    if codigo == SP_T_SUPRIMIR
+        return sp_quitar_fotograma(s)
+    end
+    if codigo == SP_T_RETROCESO
+        return sp_vaciar_fotograma(s)
+    end
+    l = str_lower(letra)
+    if l == "n"
+        return sp_nuevo_fotograma(s, false)
+    elif l == "d"
+        return sp_nuevo_fotograma(s, true)
+    elif l == "h"
+        return sp_espejo(s, true)
+    elif l == "v"
+        return sp_espejo(s, false)
     end
     if codigo == SP_T_ARRIBA
         s.color = (s.color + n - 1) % n

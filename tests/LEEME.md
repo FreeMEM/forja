@@ -66,3 +66,7 @@ los botones del panel. La caja rellena (Mayúsculas al empezar) no se prueba: `i
 `tests/sprites_tamano.sh <worktree de Dash>`: `tests/sprites_tamano.dash` cambia alto y ancho con Ctrl + flechas y
 con los botones de la pestaña Tamaño, los colores (los píxeles pierden sus bits altos), el tipo con T (a sprite de
 hardware corta a 16 de ancho y 2 planos) y deshace.
+
+`tests/sprites_fotogramas.sh <worktree de Dash>`: `tests/sprites_fotogramas.dash` duplica (D), hace espejo (H, V),
+va de un fotograma a otro (flechas), añade uno vacío (N), lo quita (Supr), lo mueve (Alt + flechas), desplaza el
+dibujo (Mayúsculas + flechas), lo vacía (Retroceso), deshace, copia y pega (Amiga-C y Amiga-V) y usa la tira.

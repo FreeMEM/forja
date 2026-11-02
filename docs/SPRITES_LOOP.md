@@ -216,7 +216,7 @@ Pedido: "una biblioteca dash en plan pygame", "en el editor algo parecido a como
 sistema de jerarquías", "una estructura, un bucle de juego, un motor de físicas, un sistema de renderizado de
 luces", "todo eso podría ir en una biblioteca aparte para hacer videojuegos". "Hay que diseñarlo bien o tratar de
 copiar un poco sus formas de trabajar".
-- [?] 26. **Diseño, sin código.** Hecho en `docs/JUEGOS_DISENO.md`; falta que el usuario lo revise y decida lo de su sección 7. Escribe `docs/JUEGOS_DISENO.md` (castellano llano, como los demás docs):
+- [?] 26. **Diseño, sin código.** Hecho en `docs/JUEGOS_DISENO.md`. El usuario decidió 1 a 4 (Fragua, A1200, API en inglés, con modo que se adueña del hardware); falta la 5 (cómo se compilan las escenas). Escribe `docs/JUEGOS_DISENO.md` (castellano llano, como los demás docs):
       - **Cómo trabajan pygame y Godot**, de sus docs oficiales (WebFetch): en pygame display, Surface, Rect,
         sprite.Sprite y Group, event, time.Clock, mixer, font, transform y mask. En Godot el árbol de nodos y las
         escenas que se instancian, Node2D, Sprite2D, AnimatedSprite2D, TileMap, Camera2D,
@@ -237,7 +237,7 @@ copiar un poco sus formas de trabajar".
       - **Decisiones para el usuario,** al final y en una lista: nombre y repo de la biblioteca, máquina mínima,
         y lo que haga falta.
       Déjala `[?]` al acabar: el usuario revisa el diseño antes de que se programe nada. El loop sigue con C.
-- [?] 27. **Diseño de las herramientas de Forja por tipo de proyecto, sin código** Hecho en `docs/HERRAMIENTAS_DISENO.md`; falta que el usuario lo revise y decida lo de su sección 7. (pedido: "herramientas en forja
+- [?] 27. **Diseño de las herramientas de Forja por tipo de proyecto, sin código** Hecho en `docs/HERRAMIENTAS_DISENO.md`. Decidido por el usuario: `.forja` sí, el orden propuesto, iconos de 3.5 (ColorIcons) y Shrinkler si está instalado (recomendado por Claude). (pedido: "herramientas en forja
       específicas para hacer videojuegos, otras para demos y otras para aplicaciones de escritorio"). En
       `docs/HERRAMIENTAS_DISENO.md`:
       - **Proyecto con tipo:** un fichero de proyecto (`.forja`, ya en el plan) dice si es juego, demo o
@@ -254,7 +254,7 @@ copiar un poco sus formas de trabajar".
         en cada una). Decisiones para el usuario al final. `[?]` al acabar, como la 26.
 
 ### C. Animar
-- [ ] 9. **Fotogramas.** Tira de miniaturas (con zoom 2, 1 o muestreo si son altas) y "+". Nuevo, duplicar,
+- [x] 9. **Fotogramas.** Tira de miniaturas (con zoom 2, 1 o muestreo si son altas) y "+". Nuevo, duplicar,
       quitar, mover, vaciar, espejo H y V, desplazar con Mayúsculas + flechas, y copiar, cortar y pegar fotogramas.
 - [ ] 10. **Piel de cebolla.** Los píxeles del fotograma anterior como un punto en el centro de la celda vacía.
 - [ ] 11. **Vista animada.** A tamaño real (y al doble si cabe), con velocidad, Espacio y botones, por `tic()`
@@ -453,3 +453,17 @@ a pantalla completa). Lo que falta:
   `mui_app_rexx`); las pistas en vivo de las demos lo necesitan (`rexx_port_*`). No comprobado: si Shrinkler
   tiene versión de Amiga.
 - Queda `[?]`: el usuario decide el `.forja`, el orden, los iconos y Shrinkler. El loop sigue con el bloque C.
+
+### 2026-11-02 — Tarea 9 (fotogramas)
+- Tira de miniaturas: al doble si el sprite mide hasta 24 de alto, a tamaño real hasta 64, y tomando uno de cada
+  k píxeles si es más alto. El actual va enmarcado, hay un "+" al final, y la tira se desplaza para que el actual
+  se vea. Un clic elige el fotograma. Sin sitio para la tira (pantallas bajas), las teclas siguen valiendo.
+- Teclas: flechas (con vuelta), Alt + flechas mueve, Mayúsculas + flechas desplaza el dibujo dando la vuelta, N
+  nuevo, D duplicar, Supr quitar (nunca el último), Retroceso vaciar, H y V espejo. La rueda del ratón cambia de
+  fotograma. Amiga-C, X y V copian, cortan (vacía) y pegan fotogramas dentro de Forja; pegar mete uno nuevo detrás
+  del actual, cortado al tamaño y a los colores. Todo con deshacer.
+- `tests/sprites_fotogramas.sh`: TODO BIEN (14), y la captura RTG se ve bien. `lapiz`, `herramientas` y `tamano`
+  siguen en TODO BIEN.
+- El usuario decidió el diseño de los bloques H: Fragua, A1200, API en inglés y modo que se adueña del hardware
+  (falta la 5, cómo se compilan las escenas); y para las herramientas, `.forja`, el orden propuesto, iconos de
+  3.5 y Shrinkler si está instalado.

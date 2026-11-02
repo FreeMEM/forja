@@ -1,0 +1,141 @@
+# Hace de usuario de los fotogramas del editor de sprites: duplicar, espejo, ir de uno a otro, nuevo, quitar,
+# mover, desplazar el dibujo, vaciar, deshacer, copiar y pegar, y la tira de miniaturas con su "+".
+# Sale con Amiga-Q (descartando). Lo arranca tests/sprites_fotogramas.sh; anota en DH0:Prueba/sprites_fotogramas.txt.
+
+const AMIGA = 8
+const MAYUS = 1
+const ALT = 4
+const IZQUIERDA = 0x4F
+const DERECHA = 0x4E
+const SUPRIMIR = 0x46
+const RETROCESO = 0x41
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_fotogramas.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+# "fotos actual" de la cabecera
+func fotos() -> String
+    p = str_split(sonda()[1], " ")
+    return p[4] + " " + p[5]
+end
+
+# La fila y del fotograma f (16 de alto)
+func fila(f: Int, y: Int) -> String
+    l = sonda()
+    i = 2 + f * 16 + y
+    if i >= l.length
+        return "?"
+    end
+    return l[i]
+end
+
+func boton(accion: Int)
+    for b in str_split(env_get("FORJA_SPRITE_BOTONES"), " ")
+        p = str_split(b, ",")
+        if p.length == 3 and p[0] == "#{accion}"
+            input_click(campo("FORJA_EDITOR", 0) + Int(p[1]), campo("FORJA_EDITOR", 1) + Int(p[2]), 0)
+            time_delay(30)
+            return
+        end
+    end
+    ver("el botón #{accion} se ve", false, env_get("FORJA_SPRITE_BOTONES"))
+end
+
+func tecla(codigo: Int, teclas: Int)
+    input_key(codigo, teclas)
+    time_delay(15)
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SPRITE_BOTONES") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + 4)
+        input_text("d")
+        ver("D duplica: 2 fotogramas, en el segundo", fotos() == "2 1" and fila(1, 0) == "1000000000000002", fotos() + " / " + fila(1, 0))
+        input_text("h")
+        ver("H: espejo del segundo; el primero sigue igual", fila(1, 0) == "2000000000000001" and fila(0, 0) == "1000000000000002", fila(0, 0) + " " + fila(1, 0))
+        tecla(IZQUIERDA, 0)
+        ver("izquierda: el primero", fotos() == "2 0", fotos())
+        tecla(DERECHA, 0)
+        tecla(DERECHA, 0)
+        ver("derecha dos veces da la vuelta: el primero", fotos() == "2 0", fotos())
+        input_text("n")
+        ver("N: uno vacío detrás del actual", fotos() == "3 1" and fila(1, 0) == "0000000000000000" and fila(2, 0) == "2000000000000001", fotos() + " / " + fila(2, 0))
+        tecla(SUPRIMIR, 0)
+        ver("Supr lo quita", fotos() == "2 1" and fila(1, 0) == "2000000000000001", fotos() + " / " + fila(1, 0))
+        tecla(IZQUIERDA, ALT)
+        ver("Alt + izquierda lo mueve delante", fotos() == "2 0" and fila(0, 0) == "2000000000000001" and fila(1, 0) == "1000000000000002", fila(0, 0) + " " + fila(1, 0))
+        tecla(DERECHA, MAYUS)
+        ver("Mayúsculas + derecha desplaza (lo de la punta entra por el otro lado)", fila(0, 0) == "1200000000000000", fila(0, 0))
+        input_text("v")
+        ver("V: espejo vertical", fila(0, 0) == "0000000000000000" and fila(0, 15) == "1200000000000000", fila(0, 15))
+        tecla(RETROCESO, 0)
+        ver("Retroceso lo vacía", fila(0, 15) == "0000000000000000", fila(0, 15))
+        tecla(0x31, AMIGA)
+        ver("deshacer lo devuelve", fila(0, 15) == "1200000000000000", fila(0, 15))
+        tecla(0x33, AMIGA)
+        tecla(0x34, AMIGA)
+        ver("Amiga-C y Amiga-V: una copia detrás", fotos() == "3 1" and fila(1, 15) == "1200000000000000", fotos() + " / " + fila(1, 15))
+        boton(6002)
+        ver("un clic en la tercera miniatura", fotos() == "3 2", fotos() + " / " + env_get("FORJA_SPRITE_BOTONES"))
+        boton(5999)
+        ver("el + de la tira añade uno", fotos() == "4 3", fotos())
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 100 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    time_delay(25)
+    input_key(0x22, 0)
+end

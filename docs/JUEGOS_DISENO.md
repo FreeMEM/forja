@@ -223,7 +223,17 @@ end
 - pad CD32 (`lowlevel.library`);
 - `import` de `.escena` en el compilador.
 
-## 7. Decisiones para el usuario
+## 7. Decisiones del usuario (2026-11-02)
+
+1. **Nombre: Fragua.** Biblioteca aparte (repo propio, propuesta), que se instala junto a Dash.
+2. **Máquina mínima: el A1200**; el A500 funciona con menos cosas en pantalla.
+3. **API en inglés**, como pygame, Godot y los builtins de Dash. Los ejemplos de este documento, escritos en
+   castellano, se pasan al inglés cuando empiece la fase 1.
+4. **Con modo que se adueña del hardware**, además del modo amigable con el sistema. Si falla, cuelga el Amiga:
+   ese modo necesita salir siempre limpio (devolver el sistema) y probarse en el emulador antes de nada.
+5. **Pendiente:** cómo se compilan las escenas. Explicado al usuario el 2026-11-02; falta su respuesta.
+
+## Preguntas que se hicieron
 
 1. **Nombre y sitio de la biblioteca.** Un repo propio de FreeMEM (propuestas: Yunque, Fragua, Brasa; van con
    Forja) o una carpeta de `lib/` dentro de Dash. Lo pedido fue "aparte": la propuesta es un repo propio, que se

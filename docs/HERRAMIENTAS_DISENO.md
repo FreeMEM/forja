@@ -100,7 +100,18 @@ en el Amiga, eso tiene que pasar a Forja.
 - listas de copper a doble búfer;
 - escribir 8SVX.
 
-## 7. Decisiones para el usuario
+## 7. Decisiones del usuario (2026-11-02)
+
+1. **Fichero `.forja`:** sí, como se propone.
+2. **Orden:** el propuesto (escritorio antes que demos).
+3. **Iconos de 3.5 en adelante** (ColorIcons). Ese formato es un `.info` clásico con la imagen en color añadida al
+   final: un Workbench 3.0 o 3.1 enseña la parte clásica. Así un solo fichero sirve para todos.
+4. **Compresor: Shrinkler, si está instalado.** Es el compresor de ejecutables que usan las intros de 4K y 64K
+   del Amiga, de Blueberry. Comprime más que los demás. Escribir uno propio así es un proyecto entero.
+   Propuesta: Forja lo llama si lo encuentra (en el Amiga o, si no tiene versión de Amiga, desde el PC), y dice
+   cómo conseguirlo si no está. Antes de meterlo en un paquete, mirar su licencia.
+
+## Preguntas que se hicieron
 
 1. **¿Fichero de proyecto `.forja`** como se propone, o el tipo en otro sitio (por ejemplo, en el cajón)?
 2. **El orden:** ¿escritorio antes que demos (propuesta: es lo que Forja e Inferencia ya necesitan), o demos

@@ -814,7 +814,17 @@ func edicion(ev: Int)
         return
     end
     if d.sprite != nil
-        if ev == EV_DESHACER and sp_deshacer(d.sprite)
+        if ev == EV_COPIAR or ev == EV_CORTAR
+            sp_copiar_fotograma(d.sprite)
+            if ev == EV_CORTAR
+                sp_vaciar_fotograma(d.sprite)
+                d.cambiado = true
+            end
+        elif ev == EV_PEGAR
+            if (sp_pegar_fotograma(d.sprite) & SP_CAMBIO) != 0
+                d.cambiado = true
+            end
+        elif ev == EV_DESHACER and sp_deshacer(d.sprite)
             d.cambiado = true
         elif ev == EV_REHACER and sp_rehacer(d.sprite)
             d.cambiado = true
@@ -941,7 +951,9 @@ func en_editor() -> Int
     end
     rueda = mui_canvas_wheel(v.editor)
     teclas = mui_canvas_qualifiers(v.editor)
-    if rueda != 0
+    if rueda != 0 and d.sprite != nil
+        sp_resultado(d, sp_ir_fotograma(d.sprite, -rueda))
+    elif rueda != 0
         d.primera = d.primera - rueda * 3
         maximo = d.lineas.length - ed_visibles
         if d.primera > maximo
