@@ -216,7 +216,7 @@ Pedido: "una biblioteca dash en plan pygame", "en el editor algo parecido a como
 sistema de jerarquías", "una estructura, un bucle de juego, un motor de físicas, un sistema de renderizado de
 luces", "todo eso podría ir en una biblioteca aparte para hacer videojuegos". "Hay que diseñarlo bien o tratar de
 copiar un poco sus formas de trabajar".
-- [ ] 26. **Diseño, sin código.** Escribe `docs/JUEGOS_DISENO.md` (castellano llano, como los demás docs):
+- [?] 26. **Diseño, sin código.** Hecho en `docs/JUEGOS_DISENO.md`; falta que el usuario lo revise y decida lo de su sección 7. Escribe `docs/JUEGOS_DISENO.md` (castellano llano, como los demás docs):
       - **Cómo trabajan pygame y Godot**, de sus docs oficiales (WebFetch): en pygame display, Surface, Rect,
         sprite.Sprite y Group, event, time.Clock, mixer, font, transform y mask. En Godot el árbol de nodos y las
         escenas que se instancian, Node2D, Sprite2D, AnimatedSprite2D, TileMap, Camera2D,
@@ -431,3 +431,14 @@ a pantalla completa). Lo que falta:
   pasaron. La prueba ahora espera a la sonda entre la tecla A y el clic. No está explicado: si se repite, mirarlo.
 - El usuario pidió en esta vuelta la biblioteca de juegos tipo pygame y el editor de escenas tipo Godot, y las
   herramientas de Forja por tipo de proyecto: bloque H (tareas 26 y 27, de diseño), antes del bloque C.
+
+### 2026-11-02 — Tarea 26 (diseño de la biblioteca de juegos y el editor de escenas)
+- `docs/JUEGOS_DISENO.md`: qué se copia de pygame (piezas sueltas, Sprite y Group, choques, capas) y de Godot
+  (árbol de nodos, escenas que se instancian, `_ready`/`_process`/`_physics_process` con paso fijo, señales,
+  inspector), sacado de sus docs oficiales; lo que no se copia y por qué. Cuentas del fotograma de 50 Hz con las
+  medidas de Dash (A500 ~2.000 vueltas sencillas por fotograma, A1200 ~9.000; dibujar con el sistema es lo
+  caro). Luces en tres caminos (paleta/copper, luz por tiles precalculada, RTG). Físicas AABB y círculos en
+  coma fija. La biblioteca en dos capas (pygame y Godot), escenas `.escena` en JSON compiladas con un `import`
+  como `.dashui`, el editor de escenas en Forja, seis fases con un juego cada una y la lista de builtins.
+- Queda `[?]`: el usuario decide nombre y repo, máquina mínima, idioma de la API, si hay modo sin sistema y cómo
+  se compilan las escenas.
