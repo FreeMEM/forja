@@ -66,6 +66,15 @@ func linea(i: Int) -> String
     return l[i]
 end
 
+# Espera (como mucho 5 s) a que la pestaña activa sea esa
+func esperar_nombre(nombre: String) -> String
+    n = 0
+    while n < 10 and linea(0) != "0 0 " + nombre and not str_ends(linea(0), " " + nombre)
+        n = n + 1
+    end
+    return linea(0)
+end
+
 func salida() -> String
     time_delay(25)
     t = file_read_text("RAM:forja-salida.txt")
@@ -106,9 +115,11 @@ Main
         ver("sprite de hardware de 3 fotogramas", linea(1) == "16 16 2 true 3 0 1 0 6 0 0 false", linea(1))
         # el proyecto: "/", main.dash, nave.iff, red.dash, ventana.dashui
         fila_proyecto(3)
-        ver("abrir red.dash desde el proyecto", linea(0) == "0 0 red.dash" or str_ends(linea(0), " red.dash"), linea(0))
+        t = esperar_nombre("red.dash")
+        ver("abrir red.dash desde el proyecto", str_ends(t, " red.dash"), t + " / " + env_get("FORJA_PROYECTO"))
         fila_proyecto(2)
-        ver("nave.iff desde el proyecto vuelve a su pestaña", linea(0) == "0 0 nave.iff", linea(0))
+        t = esperar_nombre("nave.iff")
+        ver("nave.iff desde el proyecto vuelve a su pestaña", t == "0 0 nave.iff", t + " / " + env_get("FORJA_PROYECTO"))
         activar()
         al_editor()
         input_key(0x21, AMIGA)

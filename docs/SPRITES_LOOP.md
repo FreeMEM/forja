@@ -477,3 +477,8 @@ a pantalla completa). Lo que falta:
   `sprites_forja` sigue en TODO BIEN.
 - La primera versión de la prueba leía la pantalla antes de que Forja hubiera pintado. Ahora espera a la sonda
   antes de leer.
+- **Corrección:** el primer commit de esta tarea dio por buena `sprites_forja`, y tenía un FALLO; el "TODO BIEN"
+  que se vio era solo el de `iff.py`. Repetida, fallaba siempre al cambiar entre la pestaña del sprite y una de
+  texto desde el panel del proyecto. Esperando a la sonda (hasta 5 s) pasa: era lentitud. Al pasar de sprite a
+  texto se enseña o se oculta la salida, y MUI recoloca toda la ventana. **Pendiente:** medir con `REAL=1` cuánto
+  tarda ese cambio de pestaña en un A1200. Si se nota, ocultar la salida solo si la ventana es baja.
