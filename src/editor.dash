@@ -11,6 +11,7 @@
 import "tema.dash"
 import "sintaxis.dash"
 import "diseno.dash"
+import "sprites.dash"
 
 const ALTO_PESTANAS = 18
 const MARGEN_TEXTO = 6
@@ -62,6 +63,7 @@ struct Documento
     rehacer: [Cambio]
     diseno: Bool          # un .dashui que se ve con el editor de ventanas (Amiga-D: como texto)
     puntos: [Int]         # las líneas (desde 1) con punto de parada
+    sprite: Sprite        # un sprite o un BOB (sprites.dash); nil en los de texto
 end
 
 var documentos: [Documento] = []
@@ -124,7 +126,16 @@ func ed_abrir_texto(nombre: String, ruta: String, texto: String)
     var d2: [Cambio] = []
     diseno = str_ends(str_lower(nombre), ".dashui")
     var pp: [Int] = []
-    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno, pp))
+    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno, pp, nil))
+    activo = documentos.length - 1
+end
+
+# Una pestaña con el editor de sprites
+func ed_abrir_sprite(nombre: String, ruta: String, s: Sprite)
+    var d1: [Cambio] = []
+    var d2: [Cambio] = []
+    var pp: [Int] = []
+    documentos.push(Documento(nombre, ruta, [""], 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, s))
     activo = documentos.length - 1
 end
 

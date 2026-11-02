@@ -1,0 +1,46 @@
+# Prueba de src/sprites.dash sin ventana: píxeles, paleta, deshacer y rehacer. tests/sprites_base.sh la ejecuta.
+
+import "../src/sprites.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso
+        fallos = fallos + 1
+    end
+end
+
+Main
+    s = sp_nuevo(true)
+    ver("sprite de hardware 16x16, 2 planos", s.ancho == 16 and s.alto == 16 and s.planos == 2 and s.hardware)
+    ver("4 colores, paleta de 256", sp_colores(s) == 4 and s.paleta.length == 256)
+    ver("gris del final", s.paleta[255] == 0xE0E0E0)
+    sp_apuntar(s, 0)
+    sp_poner(s, 0, 3, 2, 2)
+    ver("píxel puesto", sp_px(s, 0, 3, 2) == 2 and s.fotos[0][2 * 16 + 3] == 2)
+    ver("fuera del dibujo es 0", sp_px(s, 0, 16, 0) == 0 and sp_px(s, 0, -1, 0) == 0)
+    sp_apuntar(s, -1)
+    s.fotos.push(sp_vacio(16, 16))
+    s.actual = 1
+    sp_poner(s, 1, 0, 0, 3)
+    ver("dos fotogramas", s.fotos.length == 2)
+    ver("deshacer quita el fotograma", sp_deshacer(s) and s.fotos.length == 1 and s.actual == 0)
+    ver("deshacer quita el píxel", sp_deshacer(s) and sp_px(s, 0, 3, 2) == 0)
+    ver("no hay más que deshacer", not sp_deshacer(s))
+    ver("rehacer el píxel", sp_rehacer(s) and sp_px(s, 0, 3, 2) == 2)
+    ver("rehacer el fotograma", sp_rehacer(s) and s.fotos.length == 2 and sp_px(s, 1, 0, 0) == 3)
+    b = sp_nuevo(false)
+    ver("BOB 32x32 de 16 colores", b.ancho == 32 and sp_colores(b) == 16 and b.paleta[1] == 0xFFFFFF)
+    i = 0
+    while i < 60
+        sp_apuntar(b, 0)
+        i = i + 1
+    end
+    ver("deshacer guarda 50", b.deshacer.length == 50)
+    if fallos == 0
+        Print "TODO BIEN"
+    end
+end

@@ -36,3 +36,7 @@ depura (Amiga-G) y comprueba la línea, la pila y las variables con F10, F5, F6 
 
 `tests/buscar.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/buscar.dash` busca, cambia todo y va a una
 línea por ARexx, y abre las ventanas de buscar (Amiga-F) e ir a la línea (Amiga-L) por teclado.
+
+Editor de sprites (`docs/SPRITES_LOOP.md`): `tests/sprites_base.sh <worktree de Dash>` prueba `src/sprites.dash` sin
+ventana (píxeles, deshacer y rehacer). `python3 tests/iff.py` crea imágenes IFF ILBM de prueba y lee las que guarda
+Forja (`python3 tests/iff.py prueba` se prueba a sí mismo).

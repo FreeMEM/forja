@@ -1,0 +1,195 @@
+# El editor de sprites: dibujar y animar sprites de hardware y BOBs (docs/SPRITES_LOOP.md).
+#
+#   s = sp_nuevo(true)           # un sprite de hardware: 16 de ancho, 2 planos (3 colores y el transparente)
+#   s = sp_nuevo(false)          # un BOB: 32x32, 4 planos
+#   c = sp_px(s, f, x, y)        # el color de un píxel del fotograma f
+#   sp_poner(s, f, x, y, c)
+#   sp_apuntar(s, f)             # antes de un cambio: f el fotograma que se toca, -1 si cambia todo
+#   sp_deshacer(s) / sp_rehacer(s)
+#
+# Un fotograma es una lista de ancho * alto colores, fila a fila. El color 0 es el transparente.
+
+import "tema.dash"
+
+const SP_MAX_DESHACER = 50
+
+# Herramientas
+const SP_LAPIZ = 0
+const SP_LINEA = 1
+const SP_CAJA = 2
+const SP_RELLENO = 3
+const SP_GOTAS = 4
+const SP_AGARRE = 5
+
+struct Sprite
+    ancho: Int            # de un fotograma
+    alto: Int
+    planos: Int           # 2^planos colores
+    hardware: Bool        # sprite de hardware: 16 de ancho y 2 planos
+    paleta: [Int]         # 256 colores 0xRRGGBB (se guardan los 2^planos primeros)
+    fotos: [[Int]]
+    actual: Int           # el fotograma que se dibuja
+    color: Int
+    herramienta: Int
+    velocidad: Int        # tics (1/50 s) por fotograma
+    cebolla: Bool
+    agarre_x: Int         # el punto de agarre (GRAB)
+    agarre_y: Int
+    deshacer: [SpPaso]
+    rehacer: [SpPaso]
+end
+
+# Lo que había antes de un cambio: un fotograma (foto >= 0), o todo (foto -1)
+struct SpPaso
+    foto: Int
+    px: [Int]
+    fotos: [[Int]]
+    paleta: [Int]
+    ancho: Int
+    alto: Int
+    planos: Int
+    hardware: Bool
+    actual: Int
+end
+
+# Los 32 primeros colores de un BOB; del 32 al 247, un cubo de 6x6x6; del 248 al 255, grises
+var _SP_PALETA: [Int] = [0x000000, 0xFFFFFF, 0x777777, 0xBBBBBB, 0x444444, 0xAA0000, 0xFF5555, 0xAA5500,
+                    0xFFAA00, 0xFFFF55, 0x00AA00, 0x55FF55, 0x00AAAA, 0x55FFFF, 0x0000AA, 0x5555FF,
+                    0xAA00AA, 0xFF55FF, 0x553311, 0x996633, 0xDDAA77, 0xFFDDBB, 0x113355, 0x336699,
+                    0x6699CC, 0x224422, 0x447744, 0x88AA66, 0x552255, 0x884488, 0xCC77AA, 0x333344]
+
+func sp_paleta_inicial(hardware: Bool) -> [Int]
+    var p: [Int] = []
+    for c in _SP_PALETA
+        p.push(c)
+    end
+    while p.length < 248
+        i = p.length - 32
+        p.push(((i / 36) % 6) * 51 * 65536 + ((i / 6) % 6) * 51 * 256 + (i % 6) * 51)
+    end
+    while p.length < 256
+        g = (p.length - 247) * 28
+        p.push(g * 65536 + g * 256 + g)
+    end
+    if hardware
+        p[1] = 0xE0E0E0
+        p[2] = 0xE08030
+        p[3] = 0x3060C0
+    end
+    return p
+end
+
+func sp_vacio(ancho: Int, alto: Int) -> [Int]
+    var px: [Int] = []
+    n = ancho * alto
+    i = 0
+    while i < n
+        px.push(0)
+        i = i + 1
+    end
+    return px
+end
+
+func sp_nuevo(hardware: Bool) -> Sprite
+    ancho = 32
+    alto = 32
+    planos = 4
+    if hardware
+        ancho = 16
+        alto = 16
+        planos = 2
+    end
+    var fotos: [[Int]] = []
+    fotos.push(sp_vacio(ancho, alto))
+    var d1: [SpPaso] = []
+    var d2: [SpPaso] = []
+    return Sprite(ancho, alto, planos, hardware, sp_paleta_inicial(hardware), fotos, 0, 1, SP_LAPIZ, 6, false, 0, 0, d1, d2)
+end
+
+func sp_colores(s: Sprite) -> Int
+    return 1 << s.planos
+end
+
+func sp_px(s: Sprite, f: Int, x: Int, y: Int) -> Int
+    if x < 0 or y < 0 or x >= s.ancho or y >= s.alto
+        return 0
+    end
+    return s.fotos[f][y * s.ancho + x]
+end
+
+func sp_poner(s: Sprite, f: Int, x: Int, y: Int, c: Int)
+    if x >= 0 and y >= 0 and x < s.ancho and y < s.alto
+        s.fotos[f][y * s.ancho + x] = c
+    end
+end
+
+# --- Deshacer ---
+
+func _sp_copia_fotos(s: Sprite) -> [[Int]]
+    var r: [[Int]] = []
+    for f in s.fotos
+        r.push(f[0:f.length])
+    end
+    return r
+end
+
+func _sp_paso(s: Sprite, foto: Int) -> SpPaso
+    var vacio: [Int] = []
+    var ninguno: [[Int]] = []
+    if foto >= 0
+        px = s.fotos[foto]
+        return SpPaso(foto, px[0:px.length], ninguno, vacio, s.ancho, s.alto, s.planos, s.hardware, s.actual)
+    end
+    return SpPaso(-1, vacio, _sp_copia_fotos(s), s.paleta[0:s.paleta.length], s.ancho, s.alto, s.planos, s.hardware, s.actual)
+end
+
+# Deja s como estaba en p
+func _sp_volver(s: Sprite, p: SpPaso)
+    if p.foto >= 0
+        s.fotos[p.foto] = p.px
+        s.actual = p.foto
+        return
+    end
+    s.fotos = p.fotos
+    s.paleta = p.paleta
+    s.ancho = p.ancho
+    s.alto = p.alto
+    s.planos = p.planos
+    s.hardware = p.hardware
+    s.actual = p.actual
+    if s.actual >= s.fotos.length
+        s.actual = s.fotos.length - 1
+    end
+    if s.color >= sp_colores(s)
+        s.color = sp_colores(s) - 1
+    end
+end
+
+# Antes de cambiar el fotograma foto (o todo, con -1)
+func sp_apuntar(s: Sprite, foto: Int)
+    s.deshacer.push(_sp_paso(s, foto))
+    if s.deshacer.length > SP_MAX_DESHACER
+        s.deshacer.remove(0)
+    end
+    s.rehacer.clear()
+end
+
+func sp_deshacer(s: Sprite) -> Bool
+    if s.deshacer.length == 0
+        return false
+    end
+    p = s.deshacer.pop()
+    s.rehacer.push(_sp_paso(s, p.foto))
+    _sp_volver(s, p)
+    return true
+end
+
+func sp_rehacer(s: Sprite) -> Bool
+    if s.rehacer.length == 0
+        return false
+    end
+    p = s.rehacer.pop()
+    s.deshacer.push(_sp_paso(s, p.foto))
+    _sp_volver(s, p)
+    return true
+end
