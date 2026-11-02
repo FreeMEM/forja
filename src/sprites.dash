@@ -552,10 +552,10 @@ func _sp_hex(c: Int, cifras: Int) -> String
     return t
 end
 
-# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad agarre_x agarre_y", las filas de cada
+# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad agarre_x agarre_y cebolla", las filas de cada
 # fotograma, un color por cifra hexadecimal (dos con más de 4 planos), y "paleta RRGGBB ..."
 func sp_sonda(s: Sprite) -> String
-    t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad} #{s.agarre_x} #{s.agarre_y}\n"
+    t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad} #{s.agarre_x} #{s.agarre_y} #{s.cebolla}\n"
     cifras = 1
     if s.planos > 4
         cifras = 2
@@ -683,6 +683,17 @@ func _sp_dibujar_rejilla(s: Sprite)
             x = x + 1
         end
     end
+    # la piel de cebolla: el fotograma anterior, como un punto en las celdas vacías
+    if s.cebolla and s.fotos.length > 1 and z >= 3
+        ant = s.fotos[sp_anterior(s)]
+        i = 0
+        while i < px.length
+            if px[i] == 0 and ant[i] != 0
+                _sp_punto_cebolla(s, i, ant[i], hueco)
+            end
+            i = i + 1
+        end
+    end
     # la línea o la caja que se está arrastrando
     if _sp_figura
         gfx_pen(_sp_pens[_sp_con])
@@ -700,6 +711,23 @@ func _sp_dibujar_rejilla(s: Sprite)
         gfx_rect(ax - z, ay, ax + z, ay)
         gfx_rect(ax, ay - z, ax, ay + z)
     end
+end
+
+# El fotograma de antes del actual (el último si el actual es el primero: las animaciones dan la vuelta)
+func sp_anterior(s: Sprite) -> Int
+    return (s.actual + s.fotos.length - 1) % s.fotos.length
+end
+
+# Un punto en el centro de la celda i, del color c, de un tercio de su lado
+func _sp_punto_cebolla(s: Sprite, i: Int, c: Int, hueco: Int)
+    lado = (_sp_z - hueco) / 3
+    if lado < 1
+        lado = 1
+    end
+    cx = _sp_gx + (i % s.ancho) * _sp_z + (_sp_z - hueco - lado) / 2
+    cy = _sp_gy + (i / s.ancho) * _sp_z + (_sp_z - hueco - lado) / 2
+    gfx_pen(_sp_pens[c])
+    gfx_rect(cx, cy, cx + lado - 1, cy + lado - 1)
 end
 
 # Solo la rejilla (mientras se arrastra una línea o una caja)
@@ -806,6 +834,9 @@ func _sp_dibujar_estado(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
         tipo = tr(87, "Sprite de hardware")
     end
     t = tipo + "  #{s.ancho} x #{s.alto}  " + hueco2(tr(99, "fotograma %1 de %2"), "#{s.actual + 1}", "#{s.fotos.length}") + "  " + hueco(tr(100, "color %1"), "#{s.color}") + "  " + sp_nombre_herramienta(s.herramienta)
+    if s.cebolla
+        t = t + "  " + tr(118, "cebolla")
+    end
     gfx_pen(tema.texto)
     if sp_mensaje != ""
         t = sp_mensaje
@@ -1147,8 +1178,15 @@ func sp_dibujar_celda(s: Sprite, i: Int)
     end
     cx = _sp_gx + (i % s.ancho) * _sp_z
     cy = _sp_gy + (i / s.ancho) * _sp_z
-    gfx_pen(_sp_pens[s.fotos[s.actual][i]])
+    c = s.fotos[s.actual][i]
+    gfx_pen(_sp_pens[c])
     gfx_rect(cx, cy, cx + _sp_z - 1 - hueco, cy + _sp_z - 1 - hueco)
+    if c == 0 and s.cebolla and s.fotos.length > 1 and _sp_z >= 3
+        a = s.fotos[sp_anterior(s)][i]
+        if a != 0
+            _sp_punto_cebolla(s, i, a, hueco)
+        end
+    end
 end
 
 # Pinta un píxel del trazo (guarda el paso de deshacer antes del primer cambio)
@@ -1744,6 +1782,10 @@ func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
         return sp_vaciar_fotograma(s)
     end
     l = str_lower(letra)
+    if l == "o"
+        s.cebolla = not s.cebolla
+        return SP_TODO
+    end
     if l == "n"
         return sp_nuevo_fotograma(s, false)
     elif l == "d"

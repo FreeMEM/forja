@@ -70,3 +70,7 @@ hardware corta a 16 de ancho y 2 planos) y deshace.
 `tests/sprites_fotogramas.sh <worktree de Dash>`: `tests/sprites_fotogramas.dash` duplica (D), hace espejo (H, V),
 va de un fotograma a otro (flechas), añade uno vacío (N), lo quita (Supr), lo mueve (Alt + flechas), desplaza el
 dibujo (Mayúsculas + flechas), lo vacía (Retroceso), deshace, copia y pega (Amiga-C y Amiga-V) y usa la tira.
+
+`tests/sprites_cebolla.sh <worktree de Dash>`: `tests/sprites_cebolla.dash` enciende y apaga la piel de cebolla (O)
+y mira los píxeles de verdad en la pantalla (`screen_pixel`): una celda vacía enseña el color del fotograma
+anterior solo con la cebolla encendida.

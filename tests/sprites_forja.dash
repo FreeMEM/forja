@@ -103,7 +103,7 @@ Main
     else
         al_editor()
         ver("abre nave.iff en el editor de sprites", linea(0) == "0 0 nave.iff", linea(0))
-        ver("sprite de hardware de 3 fotogramas", linea(1) == "16 16 2 true 3 0 1 0 6 0 0", linea(1))
+        ver("sprite de hardware de 3 fotogramas", linea(1) == "16 16 2 true 3 0 1 0 6 0 0 false", linea(1))
         # el proyecto: "/", main.dash, nave.iff, red.dash, ventana.dashui
         fila_proyecto(3)
         ver("abrir red.dash desde el proyecto", linea(0) == "0 0 red.dash" or str_ends(linea(0), " red.dash"), linea(0))
@@ -125,7 +125,7 @@ Main
         time_delay(25)
         activar()
         al_editor()
-        ver("un BOB nuevo", linea(0) == "0 0 sin nombre.iff" and linea(1) == "32 32 4 false 1 0 1 0 6 0 0", linea(0) + " / " + linea(1))
+        ver("un BOB nuevo", linea(0) == "0 0 sin nombre.iff" and linea(1) == "32 32 4 false 1 0 1 0 6 0 0 false", linea(0) + " / " + linea(1))
         # compilar desde un sprite compila el .dash abierto (aquí no hay compilador: basta con que lo intente)
         input_key(0x27, AMIGA)
         time_delay(50)

@@ -256,7 +256,7 @@ copiar un poco sus formas de trabajar".
 ### C. Animar
 - [x] 9. **Fotogramas.** Tira de miniaturas (con zoom 2, 1 o muestreo si son altas) y "+". Nuevo, duplicar,
       quitar, mover, vaciar, espejo H y V, desplazar con Mayúsculas + flechas, y copiar, cortar y pegar fotogramas.
-- [ ] 10. **Piel de cebolla.** Los píxeles del fotograma anterior como un punto en el centro de la celda vacía.
+- [x] 10. **Piel de cebolla.** Los píxeles del fotograma anterior como un punto en el centro de la celda vacía.
 - [ ] 11. **Vista animada.** A tamaño real (y al doble si cabe), con velocidad, Espacio y botones, por `tic()`
       sin estorbar a compilar ni a la bienvenida. Al cambiar de pestaña se para sola.
 - [ ] 12. **Código.** C y el botón: las líneas de Dash al portapapeles y un aviso en la salida. Prueba: compilar
@@ -467,3 +467,13 @@ a pantalla completa). Lo que falta:
 - El usuario decidió el diseño de los bloques H: Fragua, A1200, API en inglés y modo que se adueña del hardware
   (falta la 5, cómo se compilan las escenas); y para las herramientas, `.forja`, el orden propuesto, iconos de
   3.5 y Shrinkler si está instalado.
+
+### 2026-11-02 — Tarea 10 (piel de cebolla)
+- O la enciende y la apaga. Las celdas vacías del fotograma actual enseñan un punto, de un tercio del lado, con
+  el color que tiene esa celda en el fotograma anterior (el último si el actual es el primero, porque las
+  animaciones dan la vuelta). Solo con zoom de 3 o más. Las celdas sueltas que se repintan también lo llevan. La
+  barra de estado dice "cebolla", y la sonda la lleva al final de la cabecera.
+- `tests/sprites_cebolla.sh`: TODO BIEN dos veces seguidas, mirando píxeles reales con `screen_pixel`.
+  `sprites_forja` sigue en TODO BIEN.
+- La primera versión de la prueba leía la pantalla antes de que Forja hubiera pintado. Ahora espera a la sonda
+  antes de leer.
