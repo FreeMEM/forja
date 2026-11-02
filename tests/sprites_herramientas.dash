@@ -1,0 +1,126 @@
+# Hace de usuario de las herramientas del editor de sprites: línea, caja (y rellena con Mayúsculas), relleno, agarre
+# y los botones del panel. Sale con Amiga-Q (descartando).
+# Lo arranca tests/sprites_herramientas.sh; anota en DH0:Prueba/sprites_herramientas.txt.
+
+const AMIGA = 8
+const MAYUS = 1
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_herramientas.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+func cabecera(i: Int) -> String
+    return str_split(sonda()[1], " ")[i]
+end
+
+func px(x: Int, y: Int) -> String
+    return sonda()[y + 2][x:x + 1]
+end
+
+func fila(y: Int) -> String
+    return sonda()[y + 2]
+end
+
+func cx(x: Int) -> Int
+    return campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+end
+
+func cy(y: Int) -> Int
+    return campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+end
+
+# El botón de la herramienta h en el panel
+func boton(h: Int)
+    bx = campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE_PANEL", 8) + (h % 3) * campo("FORJA_SPRITE_PANEL", 10) + 8
+    by = campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE_PANEL", 9) + (h / 3) * campo("FORJA_SPRITE_PANEL", 11) + 4
+    input_click(bx, by, 0)
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SPRITE_PANEL") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        input_move(cx(8), cy(8))
+        input_text("l")
+        ver("L: la línea", cabecera(7) == "1", sonda()[1])
+        input_drag(cx(0), cy(0), cx(7), cy(7))
+        ver("una línea en diagonal", px(0, 0) == "1" and px(3, 3) == "1" and px(7, 7) == "1" and px(1, 0) == "0", fila(3))
+        input_text("b")
+        ver("B: la caja", cabecera(7) == "2", sonda()[1])
+        input_drag(cx(9), cy(1), cx(14), cy(5))
+        ver("una caja: el contorno", fila(1)[9:15] == "111111" and fila(5)[9:15] == "111111" and px(9, 3) == "1" and px(14, 3) == "1", fila(1) + " " + fila(3))
+        ver("la caja está hueca", fila(3)[10:14] == "0000", fila(3))
+        input_drag(cx(9), cy(8), cx(12), cy(10))
+        ver("otra caja, hueca (input_drag no lleva Mayúsculas: la rellena no se prueba aquí)", px(10, 9) == "0", fila(9))
+        input_key(0x31, AMIGA)
+        input_text("2")
+        boton(3)
+        ver("el botón Relleno", cabecera(7) == "3", sonda()[1])
+        input_click(cx(0), cy(15), 0)
+        ver("el relleno llena lo de fuera con el color 2", px(0, 15) == "2" and px(15, 15) == "2" and px(8, 0) == "2", fila(15))
+        ver("el relleno no entra en la caja cerrada", fila(3)[10:14] == "0000", fila(3))
+        ver("ni pisa la línea", px(3, 3) == "1", fila(3))
+        input_key(0x31, AMIGA)
+        ver("deshacer el relleno de una vez", px(0, 15) == "0" and px(8, 0) == "0", fila(15))
+        input_text("a")
+        input_click(cx(5), cy(6), 0)
+        ver("el agarre en 5, 6", cabecera(9) == "5" and cabecera(10) == "6", sonda()[1])
+        boton(0)
+        ver("el botón Lápiz", cabecera(7) == "0", sonda()[1])
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 100 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    time_delay(25)
+    input_key(0x22, 0)
+end

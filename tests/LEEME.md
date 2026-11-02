@@ -58,3 +58,7 @@ diagonal, sin huecos), borra con Alt + clic, coge el color con Ctrl + clic, y de
 `tests/sprites_paleta.sh <worktree de Dash>`: `tests/sprites_paleta.dash` elige el color con cifras, flechas y un
 clic en la paleta, lo cambia con las barras R G B (clic y arrastre, en pasos de 4 bits en un sprite de hardware) y
 deshace. `RTG=1` para verlo en 256 colores.
+
+`tests/sprites_herramientas.sh <worktree de Dash>`: `tests/sprites_herramientas.dash` dibuja una línea y una caja
+(hueca) arrastrando, rellena (sin entrar en la caja cerrada) y deshace el relleno de una vez, pone el agarre y usa
+los botones del panel. La caja rellena (Mayúsculas al empezar) no se prueba: `input_drag` no lleva teclas.

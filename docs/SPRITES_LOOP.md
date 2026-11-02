@@ -206,7 +206,7 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
       - Barras R G B con clic y arrastre, en pasos de 4 bits si es sprite de hardware.
       - Deshacer de la paleta.
       - Comprobar qué pasa con los lápices al mover mucho una barra en 256 colores (ObtainBestPen) y apuntarlo.
-- [ ] 7. **Herramientas.** Línea, caja, relleno (4 vecinos, sin recursión), cuentagotas y agarre (con su cruz).
+- [x] 7. **Herramientas.** Línea, caja, relleno (4 vecinos, sin recursión), cuentagotas y agarre (con su cruz).
       Línea y caja se ven mientras se arrastra. Botones en el panel.
 - [ ] 8. **Tamaño y tipo.** Ancho, alto y planos (Ctrl + flechas y botones), con recorte o relleno y deshacer.
       T cambia de tipo; a sprite de hardware recorta a 16 de ancho y quita planos.
@@ -358,3 +358,19 @@ a pantalla completa). Lo que falta:
   Pero Dash guarda 128 lápices y, pasado el tope, suelta cada uno en seguida, así que un BOB de 256 colores o
   mucho arrastre pueden cambiar colores en pantalla. No visto, no descartado: tarea 15c.
 - La cuota semanal se renovó (0 %) a las 23:08: la excepción de la regla 0 ya no hace falta.
+
+### 2026-11-02 — Tarea 7 (herramientas)
+- Botones de las seis herramientas en el panel, encima de la paleta. Teclas P L B F K A.
+- Línea y caja: mientras se arrastra, la figura se dibuja encima de la rejilla y solo se redibuja la rejilla
+  (`SP_REJILLA`, `sp_zona_rejilla`, `sp_solo_rejilla`). Al soltar pasa al dibujo, con un paso de deshacer si cambia
+  algo. Mayúsculas al empezar rellena la caja.
+- Relleno de 4 vecinos con una pila (sin recursión), un paso de deshacer. Agarre: un clic lo pone; con esa
+  herramienta se ve una cruz en el punto.
+- La sonda lleva también el agarre: "... velocidad agarre_x agarre_y". `ENV:FORJA_SPRITE_PANEL` añade
+  "x y paso_x paso_y" de los botones de herramientas.
+- `tests/sprites_herramientas.sh`: TODO BIEN (14), también con `RTG=1`. `paleta`, `lapiz` y `forja` siguen en TODO
+  BIEN. **Sin probar:** la caja rellena con Mayúsculas (`input_drag` no lleva teclas).
+- Visto con las capturas: una captura puede salir a medias mientras MUI copia el búfer del lienzo a la pantalla
+  (arriba lo viejo, abajo lo nuevo). Otra captura un segundo después sale bien; no es un fallo de Forja.
+- Pulsar una tecla y arrastrar en seguida (la prueba, sin esperar) puede llegar antes de que Forja procese la
+  tecla. A mano no pasa; la prueba espera a la sonda entre los dos.

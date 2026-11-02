@@ -900,6 +900,11 @@ func sp_resultado(d: Documento, r: Int)
         end
         sp_celda_sola = -1
         escribir_sonda()
+    elif (r & SP_REJILLA) != 0
+        z = sp_zona_rejilla(d.sprite)
+        sp_solo_rejilla = true
+        mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
+        sp_solo_rejilla = false
     end
 end
 

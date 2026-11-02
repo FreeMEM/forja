@@ -1191,6 +1191,10 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
             sp_dibujar_celda(d.sprite, sp_celda_sola)
             return
         end
+        if mui_canvas_updating() and sp_solo_rejilla
+            sp_dibujar_rejilla_sola(d.sprite)
+            return
+        end
         _dibujar_pestanas(x, y, ancho)
         ed_zona_x = x
         ed_zona_y = y

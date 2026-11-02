@@ -552,10 +552,10 @@ func _sp_hex(c: Int, cifras: Int) -> String
     return t
 end
 
-# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad", las filas de cada
+# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad agarre_x agarre_y", las filas de cada
 # fotograma, un color por cifra hexadecimal (dos con más de 4 planos), y "paleta RRGGBB ..."
 func sp_sonda(s: Sprite) -> String
-    t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad}\n"
+    t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad} #{s.agarre_x} #{s.agarre_y}\n"
     cifras = 1
     if s.planos > 4
         cifras = 2
@@ -683,6 +683,33 @@ func _sp_dibujar_rejilla(s: Sprite)
             x = x + 1
         end
     end
+    # la línea o la caja que se está arrastrando
+    if _sp_figura
+        gfx_pen(_sp_pens[_sp_con])
+        for i in _sp_puntos_figura(s)
+            cx = gx + (i % ancho) * z
+            cy = _sp_gy + (i / ancho) * z
+            gfx_rect(cx, cy, cx + z - 1 - hueco, cy + z - 1 - hueco)
+        end
+    end
+    # el punto de agarre, con la herramienta de agarre
+    if s.herramienta == SP_AGARRE
+        ax = gx + s.agarre_x * z + z / 2
+        ay = _sp_gy + s.agarre_y * z + z / 2
+        gfx_pen(tema.cursor)
+        gfx_rect(ax - z, ay, ax + z, ay)
+        gfx_rect(ax, ay - z, ax, ay + z)
+    end
+end
+
+# Solo la rejilla (mientras se arrastra una línea o una caja)
+func sp_dibujar_rejilla_sola(s: Sprite)
+    _sp_dibujar_rejilla(s)
+end
+
+# x, y, ancho y alto de la rejilla, desde la esquina de la zona
+func sp_zona_rejilla(s: Sprite) -> [Int]
+    return [_sp_gx - _sp_zx - 1, _sp_gy - _sp_zy - 1, s.ancho * _sp_z + 2, s.alto * _sp_z + 2]
 end
 
 func sp_nombre_herramienta(h: Int) -> String
@@ -715,6 +742,7 @@ end
 
 const SP_A_COLOR = 1000        # + el número del color
 const SP_A_BARRA = 2000        # + 0 rojo, 1 verde, 2 azul
+const SP_A_HERR = 3000         # + la herramienta
 
 var _sp_bx1: [Int] = []
 var _sp_by1: [Int] = []
@@ -743,8 +771,10 @@ func _sp_boton_en(ax: Int, ay: Int) -> Int
     return -1
 end
 
+var _sp_panel_herr: String = ""   # "x y paso_x paso_y" de los botones de herramientas
+
 func sp_geometria_panel() -> String
-    return _sp_panel
+    return _sp_panel + " " + _sp_panel_herr
 end
 
 func _sp_titulo(x: Int, y: Int, texto: String) -> Int
@@ -824,10 +854,42 @@ func _sp_dibujar_paleta(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
     return y + 3 * paso + 4
 end
 
+# Un botón con texto, encendido o no
+func _sp_boton_texto(x1: Int, y1: Int, x2: Int, y2: Int, texto: String, encendido: Bool, accion: Int)
+    gfx_pen(tema.fondo_linea)
+    if encendido
+        gfx_pen(tema.seleccion)
+    end
+    gfx_rect(x1, y1, x2, y2)
+    gfx_pen(tema.texto)
+    w = font_text_width(texto)
+    gfx_text_at(x1 + (x2 - x1 + 1 - w) / 2, y1 + (y2 - y1 + 1 - font_height()) / 2 + font_baseline(), texto)
+    _sp_boton(x1, y1, x2, y2, accion)
+end
+
+# Las seis herramientas, en 3 columnas; devuelve la y de debajo
+func _sp_dibujar_herramientas(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
+    y = _sp_titulo(x, y, tr(102, "HERRAMIENTA"))
+    usar_panel(0)
+    bw = (ancho - 4) / 3
+    bh = font_height() + 4
+    cortos = [tr(93, "Lápiz"), tr(94, "Línea"), tr(95, "Caja"), tr(96, "Relleno"), tr(103, "Gotas"), tr(98, "Agarre")]
+    h = 0
+    while h < 6
+        bx = x + (h % 3) * (bw + 2)
+        by = y + (h / 3) * (bh + 2)
+        _sp_boton_texto(bx, by, bx + bw - 1, by + bh - 1, cortos[h], h == s.herramienta, SP_A_HERR + h)
+        h = h + 1
+    end
+    _sp_panel_herr = "#{x - _sp_zx} #{y - _sp_zy} #{bw + 2} #{bh + 2}"
+    return y + 2 * (bh + 2) + 6
+end
+
 func _sp_dibujar_panel(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
-    _sp_dibujar_paleta(s, x + 6, y + 6, ancho - 12)
+    y2 = _sp_dibujar_herramientas(s, x + 6, y + 6, ancho - 12)
+    _sp_dibujar_paleta(s, x + 6, y2, ancho - 12)
 end
 
 # x, y, ancho, alto: la zona bajo las pestañas; arriba: el alto de las pestañas (para la esquina de la zona)
@@ -885,6 +947,11 @@ end
 const SP_CAMBIO = 1
 const SP_TODO = 2
 const SP_CELDAS = 4
+const SP_REJILLA = 8           # redibujar solo la rejilla (sp_zona_rejilla, con sp_solo_rejilla)
+
+const SP_Q_MAYUS = 1
+
+var sp_solo_rejilla: Bool = false
 
 const SP_Q_CTRL = 2
 const SP_Q_ALT = 4
@@ -892,6 +959,10 @@ const SP_Q_ALT = 4
 var sp_tocados: [Int] = []     # los píxeles (y * ancho + x) que cambió el último evento
 var sp_celda_sola: Int = -1    # con mui_canvas_update: dibujar solo este píxel
 var _sp_trazando: Bool = false
+var _sp_figura: Bool = false   # arrastrando una línea o una caja (se ve, aún no está en el dibujo)
+var _sp_rellena: Bool = false  # la caja, rellena (Mayúsculas al empezar)
+var _sp_ix: Int = 0            # donde empezó la figura
+var _sp_iy: Int = 0
 var _sp_apuntado: Bool = false # el trazo ya guardó su paso de deshacer
 var _sp_con: Int = 0           # el color del trazo
 var _sp_ux: Int = 0            # el último píxel del trazo
@@ -996,6 +1067,99 @@ func _sp_barra_poner(s: Sprite, ax: Int)
     s.paleta[s.color] = (c & ~(255 << desp)) | (v << desp)
 end
 
+# Los píxeles de la línea o la caja de _sp_ix, _sp_iy a _sp_ux, _sp_uy
+func _sp_puntos_figura(s: Sprite) -> [Int]
+    var r: [Int] = []
+    if s.herramienta == SP_LINEA
+        x0 = _sp_ix
+        y0 = _sp_iy
+        dx = _sp_ux - x0
+        sx = 1
+        if dx < 0
+            dx = -dx
+            sx = -1
+        end
+        dy = _sp_uy - y0
+        sy = 1
+        if dy < 0
+            dy = -dy
+            sy = -1
+        end
+        err = dx - dy
+        while true
+            r.push(y0 * s.ancho + x0)
+            if x0 == _sp_ux and y0 == _sp_uy
+                break
+            end
+            e2 = err * 2
+            if e2 > -dy
+                err = err - dy
+                x0 = x0 + sx
+            end
+            if e2 < dx
+                err = err + dx
+                y0 = y0 + sy
+            end
+        end
+        return r
+    end
+    x1 = _sp_ix
+    x2 = _sp_ux
+    if x2 < x1
+        x1 = _sp_ux
+        x2 = _sp_ix
+    end
+    y1 = _sp_iy
+    y2 = _sp_uy
+    if y2 < y1
+        y1 = _sp_uy
+        y2 = _sp_iy
+    end
+    y = y1
+    while y <= y2
+        x = x1
+        while x <= x2
+            if _sp_rellena or y == y1 or y == y2 or x == x1 or x == x2
+                r.push(y * s.ancho + x)
+            end
+            x = x + 1
+        end
+        y = y + 1
+    end
+    return r
+end
+
+# Rellena desde x, y los píxeles del mismo color unidos por los lados (con una pila, sin recursión)
+func _sp_rellenar(s: Sprite, x: Int, y: Int)
+    px = s.fotos[s.actual]
+    viejo = px[y * s.ancho + x]
+    if viejo == _sp_con
+        return
+    end
+    sp_apuntar(s, s.actual)
+    var pila: [Int] = [y * s.ancho + x]
+    while pila.length > 0
+        i = pila.pop()
+        if px[i] == viejo
+            px[i] = _sp_con
+            cx = i % s.ancho
+            if cx > 0
+                pila.push(i - 1)
+            end
+            if cx < s.ancho - 1
+                pila.push(i + 1)
+            end
+            if i >= s.ancho
+                pila.push(i - s.ancho)
+            end
+            if i + s.ancho < px.length
+                pila.push(i + s.ancho)
+            end
+        end
+    end
+    sp_tocados.push(y * s.ancho + x)
+end
+
 func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
     sp_mensaje = ""
     sp_tocados = []
@@ -1009,6 +1173,10 @@ func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
         a = _sp_bacc[b]
         if a >= SP_A_COLOR and a < SP_A_COLOR + 256
             s.color = a - SP_A_COLOR
+            return SP_TODO
+        end
+        if a >= SP_A_HERR and a <= SP_A_HERR + SP_AGARRE
+            s.herramienta = a - SP_A_HERR
             return SP_TODO
         end
         if a >= SP_A_BARRA and a <= SP_A_BARRA + 2
@@ -1029,6 +1197,27 @@ func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
     if (teclas & SP_Q_ALT) != 0
         _sp_con = 0
     end
+    if s.herramienta == SP_AGARRE
+        s.agarre_x = _sp_px
+        s.agarre_y = _sp_py
+        return SP_CAMBIO | SP_TODO
+    end
+    if s.herramienta == SP_RELLENO
+        _sp_rellenar(s, _sp_px, _sp_py)
+        if sp_tocados.length > 0
+            return SP_CAMBIO | SP_TODO
+        end
+        return 0
+    end
+    if s.herramienta == SP_LINEA or s.herramienta == SP_CAJA
+        _sp_figura = true
+        _sp_rellena = (teclas & SP_Q_MAYUS) != 0
+        _sp_ix = _sp_px
+        _sp_iy = _sp_py
+        _sp_ux = _sp_px
+        _sp_uy = _sp_py
+        return SP_REJILLA
+    end
     _sp_trazando = true
     _sp_apuntado = false
     _sp_ux = _sp_px
@@ -1047,6 +1236,34 @@ func sp_arrastrar(s: Sprite, x: Int, y: Int, soltado: Bool) -> Int
         _sp_barra_poner(s, x + _sp_zx)
         if soltado
             _sp_barra = -1
+        end
+        return SP_CAMBIO | SP_TODO
+    end
+    if _sp_figura
+        if _sp_celda(s, x, y)
+            _sp_ux = _sp_px
+            _sp_uy = _sp_py
+        end
+        if not soltado
+            return SP_REJILLA
+        end
+        # al soltar, la figura pasa al dibujo
+        _sp_figura = false
+        _sp_con2 = _sp_con
+        puntos = _sp_puntos_figura(s)
+        px = s.fotos[s.actual]
+        cambia = false
+        for i in puntos
+            if px[i] != _sp_con2
+                cambia = true
+            end
+        end
+        if not cambia
+            return SP_TODO
+        end
+        sp_apuntar(s, s.actual)
+        for i in puntos
+            px[i] = _sp_con2
         end
         return SP_CAMBIO | SP_TODO
     end
@@ -1087,6 +1304,12 @@ func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
     end
     if codigo == SP_T_ABAJO
         s.color = (s.color + 1) % n
+        return SP_TODO
+    end
+    letras = "plbfka"
+    h = str_find(letras, str_lower(letra))
+    if letra.length == 1 and h >= 0
+        s.herramienta = h
         return SP_TODO
     end
     if letra.length == 1 and str_code(letra, 0) >= 48 and str_code(letra, 0) <= 57
