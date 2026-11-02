@@ -237,7 +237,7 @@ copiar un poco sus formas de trabajar".
       - **Decisiones para el usuario,** al final y en una lista: nombre y repo de la biblioteca, máquina mínima,
         y lo que haga falta.
       Déjala `[?]` al acabar: el usuario revisa el diseño antes de que se programe nada. El loop sigue con C.
-- [ ] 27. **Diseño de las herramientas de Forja por tipo de proyecto, sin código** (pedido: "herramientas en forja
+- [?] 27. **Diseño de las herramientas de Forja por tipo de proyecto, sin código** Hecho en `docs/HERRAMIENTAS_DISENO.md`; falta que el usuario lo revise y decida lo de su sección 7. (pedido: "herramientas en forja
       específicas para hacer videojuegos, otras para demos y otras para aplicaciones de escritorio"). En
       `docs/HERRAMIENTAS_DISENO.md`:
       - **Proyecto con tipo:** un fichero de proyecto (`.forja`, ya en el plan) dice si es juego, demo o
@@ -442,3 +442,14 @@ a pantalla completa). Lo que falta:
   como `.dashui`, el editor de escenas en Forja, seis fases con un juego cada una y la lista de builtins.
 - Queda `[?]`: el usuario decide nombre y repo, máquina mínima, idioma de la API, si hay modo sin sistema y cómo
   se compilan las escenas.
+
+### 2026-11-02 — Tarea 27 (diseño de las herramientas por tipo de proyecto)
+- `docs/HERRAMIENTAS_DISENO.md`: un `.forja` con tipo (juego, demo, aplicación) que cambia el menú
+  Herramientas, la plantilla y el panel; lo común (perfil, memcheck y memoria con vistas en Forja); juegos (vista
+  de depuración, efectos 8SVX, medidor); demos (pistas de sincronía en vivo, vista del MOD, línea de tiempo,
+  editor de copper, medidor de líneas, tamaño y Shrinkler); escritorio (traducciones, iconos `.info`,
+  AmigaGuide, puerto ARexx, instalador y paquete para Aminet, que hoy solo existen en Python en el PC).
+- Comprobado en Dash: no hay forma de que un programa sin MUI reciba órdenes ARexx (solo `rexx_send` y
+  `mui_app_rexx`); las pistas en vivo de las demos lo necesitan (`rexx_port_*`). No comprobado: si Shrinkler
+  tiene versión de Amiga.
+- Queda `[?]`: el usuario decide el `.forja`, el orden, los iconos y Shrinkler. El loop sigue con el bloque C.
