@@ -35,8 +35,20 @@ Preferencias).
   propiedades; "+" añade, Supr quita, Alt+flechas mueve. Amiga-P abre la vista previa con MUI de verdad. Se guarda
   igual que la extensión de VS Code.
 - **Inferencia** (Amiga-I): le manda el fichero, o las líneas elegidas.
-- **Sprites y BOBs** (en obras): las imágenes IFF ILBM se abren en su propio editor; Amiga-B crea un sprite de
-  hardware o un BOB. Se guardan como IFF, y `sprite_load` y `bob_load` de Dash los cargan tal cual.
+- **Sprites y BOBs**: las imágenes IFF ILBM (también los pinceles de DPaint) se abren en su propio editor, y
+  Amiga-B crea un sprite de hardware (16 de ancho, 3 colores y el transparente) o un BOB (del tamaño y los
+  colores que quieras). Se guardan como IFF, y `sprite_load` y `bob_load` de Dash los cargan tal cual.
+  - Dibujar: P lápiz, L línea, B caja (con Mayúsculas al empezar, rellena), F relleno, K cuentagotas, A punto
+    de agarre. Alt + clic borra; Ctrl + clic coge el color. Arriba, abajo y las cifras eligen color; las barras
+    R G B lo cambian.
+  - Fotogramas: flechas para ir de uno a otro, N nuevo, D duplicar, Supr quitar, Retroceso vaciar, H y V espejo,
+    Alt + flechas mover, Mayúsculas + flechas desplazar el dibujo, Amiga-C/X/V copiar, cortar y pegar. O enciende
+    la piel de cebolla.
+  - Animar: Espacio pone en marcha la vista animada; + y - cambian la velocidad.
+  - Tamaño: Ctrl + flechas, o la pestaña Tamaño (ancho, alto, colores); T pasa de sprite de hardware a BOB.
+  - C copia al portapapeles las líneas de Dash que lo cargan, con sus colores y cómo animarlo.
+
+  ![El editor de sprites con una nave de 4 fotogramas](docs/img/sprites.png)
 
 ### ARexx
 

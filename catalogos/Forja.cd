@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja-sprites/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -112,6 +112,122 @@ MSG_76 (76//)
 Amiga-D enseña el fichero como texto.
 MSG_77 (77//)
 Los textos no pueden llevar #
+MSG_80 (80//)
+No hay memoria para el fichero.
+MSG_81 (81//)
+No se puede escribir 
+MSG_82 (82//)
+No se puede leer 
+MSG_83 (83//)
+ no es una imagen IFF ILBM.
+MSG_84 (84//)
+: a la imagen le falta BMHD o BODY.
+MSG_85 (85//)
+: solo imágenes de 1 a 8 planos, sin comprimir o con ByteRun1.
+MSG_86 (86//)
+: la imagen está cortada.
+MSG_87 (87//)
+Sprite de hardware
+MSG_88 (88//)
+Nuevo sprite
+MSG_89 (89//)
+¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter.
+MSG_90 (90//)
+_Sprite|_BOB|_Cancelar
+MSG_91 (91//)
+Para compilar, abre el .dash del programa.
+MSG_92 (92//)
+Inferencia lee texto: un sprite no se le puede mandar.
+MSG_93 (93//)
+Lápiz
+MSG_94 (94//)
+Línea
+MSG_95 (95//)
+Caja
+MSG_96 (96//)
+Relleno
+MSG_97 (97//)
+Cuentagotas
+MSG_98 (98//)
+Agarre
+MSG_99 (99//)
+fotograma %1 de %2
+MSG_100 (100//)
+color %1
+MSG_101 (101//)
+PALETA
+MSG_103 (103//)
+Gotas
+MSG_104 (104//)
+TAMAÑO
+MSG_105 (105//)
+Ancho
+MSG_106 (106//)
+Alto
+MSG_107 (107//)
+Colores
+MSG_108 (108//)
+Es un BOB (T)
+MSG_109 (109//)
+Sprite de hardware (T)
+MSG_110 (110//)
+Un sprite de hardware mide 16 de ancho (T lo pasa a BOB).
+MSG_111 (111//)
+Un sprite de hardware tiene 3 colores y el transparente (T lo pasa a BOB).
+MSG_112 (112//)
+Ahora es un BOB.
+MSG_113 (113//)
+Ahora es un sprite de hardware: 16 de ancho y 4 colores.
+MSG_114 (114//)
+Dibujo
+MSG_115 (115//)
+Hace falta al menos un fotograma.
+MSG_116 (116//)
+Fotograma copiado.
+MSG_117 (117//)
+No hay ningún fotograma copiado.
+MSG_118 (118//)
+cebolla
+MSG_119 (119//)
+Animar
+MSG_120 (120//)
+Reproducir (Espacio)
+MSG_121 (121//)
+Parar (Espacio)
+MSG_122 (122//)
+Tics
+MSG_123 (123//)
+Piel de cebolla (O)
+MSG_124 (124//)
+Copiar el código (C)
+MSG_125 (125//)
+sprite de hardware de 16 x %1
+MSG_126 (126//)
+colores
+MSG_127 (127//)
+fotogramas
+MSG_128 (128//)
+tics por fotograma
+MSG_129 (129//)
+No se puede cargar 
+MSG_130 (130//)
+sus colores (de 4 bits, en una pantalla propia del programa)
+MSG_131 (131//)
+animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y
+MSG_132 (132//)
+sus colores en la paleta de la pantalla (el 0 es el transparente)
+MSG_133 (133//)
+OJO: bob_load solo separa fotogramas cuadrados, y estos miden %1 x %2
+MSG_134 (134//)
+Guarda el sprite primero: el código lleva el nombre de su fichero.
+MSG_135 (135//)
+El código para cargarlo está en el portapapeles (Amiga-V en el .dash).
+MSG_136 (136//)
+No se puede escribir en el portapapeles.
+MSG_137 (137//)
+Tamaño
+MSG_138 (138//)
+BOB de %1 x %2
 MSG_300 (300//)
 Forja
 MSG_301 (301//)
@@ -216,3 +332,5 @@ MSG_350 (350//)
 _Usar
 MSG_351 (351//)
 _Cancelar
+MSG_352 (352//)
+Nuevo sprite...

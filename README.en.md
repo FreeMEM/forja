@@ -35,8 +35,20 @@ in the preferences).
   "+" adds, Del removes, Alt+arrows moves. Amiga-P opens the preview with real MUI. It saves the same way as the VS
   Code extension.
 - **Inferencia** (Amiga-I): sends it the file, or the selected lines.
-- **Sprites and BOBs** (work in progress): IFF ILBM pictures open in their own editor; Amiga-B makes a hardware
-  sprite or a BOB. They are saved as IFF, and Dash's `sprite_load` and `bob_load` load them as they are.
+- **Sprites and BOBs**: IFF ILBM pictures (DPaint brushes too) open in their own editor, and Amiga-B makes a
+  hardware sprite (16 wide, 3 colours and the transparent one) or a BOB (any size and colours). They are saved as
+  IFF, and Dash's `sprite_load` and `bob_load` load them as they are.
+  - Drawing: P pencil, L line, B box (filled with Shift when you start), F fill, K eyedropper, A handle point.
+    Alt + click erases; Ctrl + click picks the colour. Up, down and the digits choose a colour; the R G B bars
+    change it.
+  - Frames: the arrows go from one to another, N new, D duplicate, Del remove, Backspace clear, H and V mirror,
+    Alt + arrows move, Shift + arrows scroll the drawing, Amiga-C/X/V copy, cut and paste. O turns the onion skin
+    on.
+  - Animation: Space starts the animated preview; + and - change the speed.
+  - Size: Ctrl + arrows, or the Size tab (width, height, colours); T turns a hardware sprite into a BOB.
+  - C copies to the clipboard the Dash lines that load it, with its colours and how to animate it.
+
+  ![The sprite editor with a 4-frame ship](docs/img/sprites-en.png)
 
 ### ARexx
 

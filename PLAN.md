@@ -110,3 +110,7 @@ Hechas en la rama `ide-piezas` de Dash, todavía sin fusionar:
 - **F3**: el editor de `.dashui` con MUI de verdad.
 - **F4**: el depurador.
 - **F5**: proyectos, catálogos, el paquete y la publicación.
+- **F10**: el editor de sprites y BOBs (dibujar, paleta, fotogramas, piel de cebolla, vista animada, IFF que
+  leen `sprite_load` y `bob_load`). Plan y bitácora en `docs/SPRITES_LOOP.md`.
+- **Después**, diseñado y por revisar: Fragua, la biblioteca de juegos (`docs/JUEGOS_DISENO.md`); las
+  herramientas por tipo de proyecto (`docs/HERRAMIENTAS_DISENO.md`); y el 3D con MiniGL (`docs/3D_DISENO.md`).

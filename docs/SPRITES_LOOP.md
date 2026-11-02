@@ -281,7 +281,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 - [x] 13. **Usuario de prueba completo.** `tests/sprites.sh` y `tests/sprites.dash`: abrir el pincel de
       `iff.py`, dibujar, rellenar, deshacer, fotogramas, guardar con Amiga-S, comprobar con `bob_load` y
       `iff.py`. Después, nuevo BOB con Amiga-B y salir descartando. Capturas `RTG=1` para el README.
-- [ ] 14. **Acabado.** Catálogo (`tools/catalogos.py cd` y `ct`, con las traducciones al inglés), README es y en,
+- [x] 14. **Acabado.** Catálogo (`tools/catalogos.py cd` y `ct`, con las traducciones al inglés), README es y en,
       `tests/LEEME.md`, `PLAN.md` (fase nueva) y el paquete (`tools/paquete.py`) si hace falta.
 
 ### E. Piezas de Dash (builtins nuevos, en el worktree de Dash)
@@ -554,3 +554,15 @@ a pantalla completa). Lo que falta:
   fallos intermitentes de las tareas 7 y 11 y parte de la "lentitud" de la tarea 10.
 - **Pendiente:** medir el cambio de pestaña dentro de Forja. Medido desde la prueba (inflado por sus lecturas
   constantes de la sonda): 0,9 s a un texto, 2,7 s a un sprite, sin `REAL=1`.
+
+### 2026-11-03 — Tarea 14 (acabado)
+- Catálogo: `tools/catalogos.py cd` falló con el texto 104 repetido ("TAMAÑO" y "Tamaño"): la pestaña pasa al 137.
+  El trozo "BOB de %1 x %2" del código copiado pasa a ser traducible (138). Los 60 textos nuevos traducidos en
+  `catalogos/english.ct` (80 a 138 y 352); `catalog` construye `build/Catalogs/english/Forja.catalog`. Con
+  `CATALOGOS=1` el editor sale en inglés (captura).
+- `tests/ventana.sh` con `SPRITE=1`: abre una nave de ejemplo (BOB de 32x32, 16 colores, 4 fotogramas, de
+  `iff.py`). Capturas RTG en castellano e inglés en `docs/img/sprites.png` y `sprites-en.png` (14 KB cada una),
+  enlazadas desde los README. Los README describen el editor entero con sus teclas; `PLAN.md` gana la fase F10 y
+  los diseños por revisar.
+- El paquete (`tools/paquete.py`) no necesita nada: el editor va dentro del ejecutable y el catálogo ya se
+  empaqueta.

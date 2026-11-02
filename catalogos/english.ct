@@ -1,4 +1,4 @@
-## version $VER: Forja.catalog 1.0 (30.10.2026)
+## version $VER: Forja.catalog 1.0 (03.11.2026)
 ## language english
 ## codeset 0
 ;
@@ -170,6 +170,180 @@ Amiga-D shows the file as text.
 MSG_77
 Texts cannot contain #
 ; Los textos no pueden llevar #
+MSG_80
+Not enough memory for the file.
+; No hay memoria para el fichero.
+MSG_81
+Cannot write 
+; No se puede escribir 
+MSG_82
+Cannot read 
+; No se puede leer 
+MSG_83
+ is not an IFF ILBM picture.
+;  no es una imagen IFF ILBM.
+MSG_84
+: the picture has no BMHD or BODY.
+; : a la imagen le falta BMHD o BODY.
+MSG_85
+: only pictures of 1 to 8 planes, uncompressed or ByteRun1.
+; : solo imágenes de 1 a 8 planos, sin comprimir o con ByteRun1.
+MSG_86
+: the picture is cut short.
+; : la imagen está cortada.
+MSG_87
+Hardware sprite
+; Sprite de hardware
+MSG_88
+New sprite
+; Nuevo sprite
+MSG_89
+What are you going to draw?\n\nA hardware sprite: 16 pixels wide, 3 colours and the transparent one.\nA BOB: any size and any number of colours; the blitter draws it.
+; ¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter.
+MSG_90
+_Sprite|_BOB|_Cancel
+; _Sprite|_BOB|_Cancelar
+MSG_91
+To compile, open the program's .dash.
+; Para compilar, abre el .dash del programa.
+MSG_92
+Inferencia reads text: a sprite cannot be sent to it.
+; Inferencia lee texto: un sprite no se le puede mandar.
+MSG_93
+Pencil
+; Lápiz
+MSG_94
+Line
+; Línea
+MSG_95
+Box
+; Caja
+MSG_96
+Fill
+; Relleno
+MSG_97
+Eyedropper
+; Cuentagotas
+MSG_98
+Handle
+; Agarre
+MSG_99
+frame %1 of %2
+; fotograma %1 de %2
+MSG_100
+colour %1
+; color %1
+MSG_101
+PALETTE
+; PALETA
+MSG_103
+Pick
+; Gotas
+MSG_104
+SIZE
+; TAMAÑO
+MSG_105
+Width
+; Ancho
+MSG_106
+Height
+; Alto
+MSG_107
+Colours
+; Colores
+MSG_108
+It is a BOB (T)
+; Es un BOB (T)
+MSG_109
+Hardware sprite (T)
+; Sprite de hardware (T)
+MSG_110
+A hardware sprite is 16 pixels wide (T makes it a BOB).
+; Un sprite de hardware mide 16 de ancho (T lo pasa a BOB).
+MSG_111
+A hardware sprite has 3 colours and the transparent one (T makes it a BOB).
+; Un sprite de hardware tiene 3 colores y el transparente (T lo pasa a BOB).
+MSG_112
+Now it is a BOB.
+; Ahora es un BOB.
+MSG_113
+Now it is a hardware sprite: 16 wide and 4 colours.
+; Ahora es un sprite de hardware: 16 de ancho y 4 colores.
+MSG_114
+Draw
+; Dibujo
+MSG_115
+At least one frame is needed.
+; Hace falta al menos un fotograma.
+MSG_116
+Frame copied.
+; Fotograma copiado.
+MSG_117
+No frame has been copied.
+; No hay ningún fotograma copiado.
+MSG_118
+onion skin
+; cebolla
+MSG_119
+Animate
+; Animar
+MSG_120
+Play (Space)
+; Reproducir (Espacio)
+MSG_121
+Stop (Space)
+; Parar (Espacio)
+MSG_122
+Ticks
+; Tics
+MSG_123
+Onion skin (O)
+; Piel de cebolla (O)
+MSG_124
+Copy the code (C)
+; Copiar el código (C)
+MSG_125
+hardware sprite of 16 x %1
+; sprite de hardware de 16 x %1
+MSG_126
+colours
+; colores
+MSG_127
+frames
+; fotogramas
+MSG_128
+ticks per frame
+; tics por fotograma
+MSG_129
+Cannot load 
+; No se puede cargar 
+MSG_130
+its colours (4 bits, on a screen of the program's own)
+; sus colores (de 4 bits, en una pantalla propia del programa)
+MSG_131
+to animate it: at each wait_vblank(), count = count + 1 and
+; animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y
+MSG_132
+its colours in the screen's palette (0 is the transparent one)
+; sus colores en la paleta de la pantalla (el 0 es el transparente)
+MSG_133
+NOTE: bob_load only splits square frames, and these are %1 x %2
+; OJO: bob_load solo separa fotogramas cuadrados, y estos miden %1 x %2
+MSG_134
+Save the sprite first: the code carries the name of its file.
+; Guarda el sprite primero: el código lleva el nombre de su fichero.
+MSG_135
+The code to load it is in the clipboard (Amiga-V in the .dash).
+; El código para cargarlo está en el portapapeles (Amiga-V en el .dash).
+MSG_136
+Cannot write to the clipboard.
+; No se puede escribir en el portapapeles.
+MSG_137
+Size
+; Tamaño
+MSG_138
+BOB of %1 x %2
+; BOB de %1 x %2
 MSG_300
 Forja
 ; Forja
@@ -326,3 +500,6 @@ _Use
 MSG_351
 _Cancel
 ; _Cancelar
+MSG_352
+New sprite...
+; Nuevo sprite...

@@ -1181,7 +1181,7 @@ func _sp_dibujar_panel(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     # las pestañas de las páginas
     usar_panel(0)
-    nombres = [tr(114, "Dibujo"), tr(104, "Tamaño"), tr(119, "Animar")]
+    nombres = [tr(114, "Dibujo"), tr(137, "Tamaño"), tr(119, "Animar")]
     bh = font_height() + 4
     bw = (ancho - 12) / nombres.length
     i = 0
@@ -1985,7 +1985,7 @@ func sp_codigo(s: Sprite, fichero: String) -> String
     if s.hardware
         t = t + hueco(tr(125, "sprite de hardware de 16 x %1"), "#{s.alto}")
     else
-        t = t + "BOB de #{s.ancho} x #{s.alto}, #{sp_colores(s)} " + tr(126, "colores")
+        t = t + hueco2(tr(138, "BOB de %1 x %2"), "#{s.ancho}", "#{s.alto}") + ", #{sp_colores(s)} " + tr(126, "colores")
     end
     t = t + ", #{n} " + tr(127, "fotogramas") + ", #{s.velocidad} " + tr(128, "tics por fotograma") + "\n"
     if s.hardware
