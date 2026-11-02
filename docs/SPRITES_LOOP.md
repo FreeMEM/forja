@@ -257,7 +257,7 @@ copiar un poco sus formas de trabajar".
 Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el grupo de Amiga de Telegram: Santi
 (DarkG) hace cosas con MiniGL y un modeler. Claude no puede leer Telegram: si el usuario pasa los mensajes
 (exportados desde Telegram Desktop o pegados), se leen antes de escribir el diseño.
-- [ ] 28. **Diseño 3D, sin código.** En `docs/3D_DISENO.md`:
+- [?] 28. **Diseño 3D, sin código.** Hecho en `docs/3D_DISENO.md`; falta que el usuario lo revise, decida lo de su sección 6 y pase los mensajes de Santi. En `docs/3D_DISENO.md`:
       - **Qué es MiniGL hoy en el Amiga clásico** (fuentes públicas, WebFetch/WebSearch, citadas): sobre qué va
         (Warp3D, Wazp3D por software, tarjetas 3D como Permedia2, Voodoo o Virge, Vampire, PiStorm/Emu68), qué
         versión, licencia, qué parte de OpenGL tiene y qué rinde en cada máquina. No afirmar nada sin fuente.
@@ -511,3 +511,15 @@ a pantalla completa). Lo que falta:
   `cebolla` siguen en TODO BIEN. Una vez, antes del arreglo, la segunda pulsación de Espacio no se vio en 5 s;
   no se repitió en las tres siguientes.
 - El usuario pidió en esta vuelta juegos en 3D con MiniGL (bloque I).
+
+### 2026-11-03 — Tarea 28 (diseño 3D con MiniGL)
+- `docs/3D_DISENO.md`, con fuentes: en 2026 hay una minigl.library compartida de Steffen Häuser (licencia
+  Hyperion MiniGL Open Source, SDK para programas nuevos). Hay PiStorm3D (aceleración con la GPU de la Pi 4 en el
+  PiStorm32), MiniGL Classic (tarjetas 3D clásicas y QuarkTex para WinUAE), Wazp3D (Warp3D por software) y
+  WarpMiniGL, y muchos juegos portados.
+- Consecuencia: el 3D de verdad pide aceleración (PiStorm32 con Pi 4, tarjeta 3D o Vampire). Va como "Fragua 3D",
+  aparte de la base A1200, con `Float`. Propuesta: builtins `gl_*` en Dash, nodos 3D como Godot, modelos `.lwo`
+  (formato público) y `.obj`, visor de modelos y vista 3D en Forja, en cinco fases.
+- Lo de Santi: las fuentes públicas solo lo nombran como autor de los iconos de LightwaveRTG. Lo de su modeler con
+  MiniGL no aparece: hacen falta sus mensajes.
+- Sin comprobar: si MiniGL Classic con Wazp3D funciona en FS-UAE (es la fase 1).
