@@ -42,6 +42,37 @@ Se copian el árbol, las escenas que se instancian, las tres llamadas, el paso f
 - **Un editor que corra el juego dentro:** la vista previa es el juego compilado, como la vista previa de ventanas
   MUI de Forja enseña la ventana de verdad.
 
+## 1b. Godot adaptado: lo que entra en Fragua (pedido del usuario, 2026-11-03)
+
+El usuario propone copiar una buena parte de lo que hace Godot, adaptado a los límites del Amiga, sin ser tan
+completo. Es la línea de este diseño. La lista, con los nombres en inglés (decisión 3):
+
+| De Godot | En Fragua | Cómo se adapta |
+|---|---|---|
+| Árbol de nodos, `add_child`, `queue_free`, rutas (`get_node("Jugador/Arma")`) | Sí | Igual, en Dash (interfaces y `weak`) |
+| Escenas que se instancian y se cambian (`change_scene`) | Sí | Ficheros `.escena`, compilados (forma B: Forja genera el `.dash`) |
+| `_ready`, `_process`, `_physics_process` | Sí | Paso fijo de 50 Hz (60 en NTSC) |
+| Señales | Sí | `signal(name, from, data)` en cada nodo; cola repartida una vez por fotograma |
+| Grupos (`add_to_group`, `get_tree().get_nodes_in_group`) | Sí | Listas por nombre; muy útil para "enemigos", "balas" |
+| Autoload (nodos globales) | Sí | Variables globales de Dash, montadas antes de la primera escena |
+| Mapa de entrada (acciones "saltar", "disparar") | Sí | Acciones con teclas y joystick, como `Input.is_action_pressed` |
+| Node2D, Sprite2D, AnimatedSprite2D | Sí | Con sprites de hardware o BOBs del editor de sprites |
+| TileMap | Sí | Del editor de mapas (F), con scroll de hardware |
+| Camera2D | Sí | Con límites y seguimiento suave en coma fija |
+| CharacterBody2D (`move_and_slide`), Area2D, StaticBody2D, CollisionShape2D | Sí | Cajas y círculos, en coma fija |
+| RigidBody2D | En pequeño | Gravedad, velocidad, rebote; sin giros ni pilas |
+| Timer, AudioStreamPlayer | Sí | Sobre el reloj y `sound_*`/`music_*` |
+| AnimationPlayer | En pequeño | Pistas de propiedades con claves; sin curvas complejas |
+| Luces 2D (PointLight2D, CanvasModulate) | En pequeño | Paleta, copper y luz por tiles (sección 2) |
+| Partículas (GPUParticles2D) | En pequeño | Pocas, en la CPU (CPUParticles2D) |
+| Nodos de interfaz (Label, Button, contenedores) | Pocos | Label, Button y un panel para menús y marcadores |
+| Recursos (`preload`, `.tres`) | En pequeño | Cargar una vez al empezar la escena |
+| Guardar partida | Sí | Un fichero con las variables que diga el juego |
+| GDScript, editor que corre el juego dentro | No | Dash compilado; se prueba ejecutando |
+| Shaders, 3D en la base, físicas con giros, red, VR | No | El 3D, aparte: `docs/3D_DISENO.md` |
+
+Orden: lo marcado "Sí" entra en las fases 1 a 4 de la sección 6; lo "En pequeño", en las fases 5 y 6.
+
 ## 2. Lo que manda el Amiga
 
 **Cuánto cabe en un fotograma.** A 50 Hz (PAL) hay 20 ms por fotograma. Medido con Dash
