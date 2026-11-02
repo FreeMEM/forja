@@ -749,3 +749,152 @@ func sp_dibujar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
     _sp_dibujar_estado(s, x, y + alto - estado_alto, ancho - panel, estado_alto)
     sp_ms_dibujo = time_ms() - t0
 end
+
+# --- Ratón ---
+# sp_clic y sp_arrastrar devuelven lo que hay que hacer, sumado: SP_CAMBIO (el documento cambió), SP_TODO
+# (redibujar todo) y SP_CELDAS (redibujar solo las celdas de sp_tocados, con sp_zona_celda y sp_celda_sola).
+
+const SP_CAMBIO = 1
+const SP_TODO = 2
+const SP_CELDAS = 4
+
+const SP_Q_CTRL = 2
+const SP_Q_ALT = 4
+
+var sp_tocados: [Int] = []     # los píxeles (y * ancho + x) que cambió el último evento
+var sp_celda_sola: Int = -1    # con mui_canvas_update: dibujar solo este píxel
+var _sp_trazando: Bool = false
+var _sp_apuntado: Bool = false # el trazo ya guardó su paso de deshacer
+var _sp_con: Int = 0           # el color del trazo
+var _sp_ux: Int = 0            # el último píxel del trazo
+var _sp_uy: Int = 0
+var _sp_px: Int = 0            # lo que devuelve _sp_celda
+var _sp_py: Int = 0
+
+# El píxel bajo x, y de la zona (en _sp_px, _sp_py); false si cae fuera de la rejilla
+func _sp_celda(s: Sprite, x: Int, y: Int) -> Bool
+    ax = x + _sp_zx - _sp_gx
+    ay = y + _sp_zy - _sp_gy
+    if ax < 0 or ay < 0
+        return false
+    end
+    _sp_px = ax / _sp_z
+    _sp_py = ay / _sp_z
+    return _sp_px < s.ancho and _sp_py < s.alto
+end
+
+# x, y, ancho y alto de la celda del píxel i, desde la esquina de la zona
+func sp_zona_celda(s: Sprite, i: Int) -> [Int]
+    return [_sp_gx - _sp_zx + (i % s.ancho) * _sp_z, _sp_gy - _sp_zy + (i / s.ancho) * _sp_z, _sp_z, _sp_z]
+end
+
+func sp_dibujar_celda(s: Sprite, i: Int)
+    hueco = 0
+    if _sp_z >= SP_REJILLA_DESDE
+        hueco = 1
+    end
+    cx = _sp_gx + (i % s.ancho) * _sp_z
+    cy = _sp_gy + (i / s.ancho) * _sp_z
+    gfx_pen(_sp_pens[s.fotos[s.actual][i]])
+    gfx_rect(cx, cy, cx + _sp_z - 1 - hueco, cy + _sp_z - 1 - hueco)
+end
+
+# Pinta un píxel del trazo (guarda el paso de deshacer antes del primer cambio)
+func _sp_pintar(s: Sprite, x: Int, y: Int)
+    i = y * s.ancho + x
+    px = s.fotos[s.actual]
+    if px[i] == _sp_con
+        return
+    end
+    if not _sp_apuntado
+        sp_apuntar(s, s.actual)
+        _sp_apuntado = true
+    end
+    px[i] = _sp_con
+    sp_tocados.push(i)
+end
+
+# Una línea de píxeles (Bresenham), para que un arrastre rápido no deje huecos
+func _sp_linea(s: Sprite, x0: Int, y0: Int, x1: Int, y1: Int)
+    dx = x1 - x0
+    sx = 1
+    if dx < 0
+        dx = -dx
+        sx = -1
+    end
+    dy = y1 - y0
+    sy = 1
+    if dy < 0
+        dy = -dy
+        sy = -1
+    end
+    err = dx - dy
+    while true
+        _sp_pintar(s, x0, y0)
+        if x0 == x1 and y0 == y1
+            break
+        end
+        e2 = err * 2
+        if e2 > -dy
+            err = err - dy
+            x0 = x0 + sx
+        end
+        if e2 < dx
+            err = err + dx
+            y0 = y0 + sy
+        end
+    end
+end
+
+# Un clic en la zona (x, y desde su esquina; teclas: las de mui_canvas_qualifiers)
+func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
+    sp_mensaje = ""
+    sp_tocados = []
+    _sp_trazando = false
+    if not _sp_celda(s, x, y)
+        return 0
+    end
+    if (teclas & SP_Q_CTRL) != 0 or s.herramienta == SP_GOTAS
+        s.color = sp_px(s, s.actual, _sp_px, _sp_py)
+        return SP_TODO
+    end
+    _sp_con = s.color
+    if (teclas & SP_Q_ALT) != 0
+        _sp_con = 0
+    end
+    _sp_trazando = true
+    _sp_apuntado = false
+    _sp_ux = _sp_px
+    _sp_uy = _sp_py
+    _sp_pintar(s, _sp_px, _sp_py)
+    if sp_tocados.length > 0
+        return SP_CAMBIO | SP_TODO
+    end
+    return SP_TODO
+end
+
+# El ratón arrastrado (soltado: se soltó el botón)
+func sp_arrastrar(s: Sprite, x: Int, y: Int, soltado: Bool) -> Int
+    sp_tocados = []
+    if not _sp_trazando
+        return 0
+    end
+    # al soltar también se pinta hasta donde se soltó: el último movimiento puede no haber llegado ahí
+    dentro = _sp_celda(s, x, y)
+    if dentro
+        _sp_linea(s, _sp_ux, _sp_uy, _sp_px, _sp_py)
+        _sp_ux = _sp_px
+        _sp_uy = _sp_py
+    end
+    if soltado
+        _sp_trazando = false
+        if sp_tocados.length > 0
+            return SP_CAMBIO | SP_TODO
+        end
+        return SP_TODO
+    end
+    if sp_tocados.length == 0
+        return 0
+    end
+    return SP_CAMBIO | SP_CELDAS
+end

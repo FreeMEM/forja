@@ -1187,6 +1187,10 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_mode(0)
     d = ed_actual()
     if d != nil and d.sprite != nil
+        if mui_canvas_updating() and sp_celda_sola >= 0
+            sp_dibujar_celda(d.sprite, sp_celda_sola)
+            return
+        end
         _dibujar_pestanas(x, y, ancho)
         ed_zona_x = x
         ed_zona_y = y

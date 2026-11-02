@@ -199,7 +199,7 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
 - [x] 4. **Rejilla.** Zoom que llena la zona, tramos, color 0, líneas de rejilla, barra de estado,
       `ENV:FORJA_SPRITE`. Mide el dibujo entero con `REAL=1` (A1200, 68020 a 14 MHz) para 16x16, 32x32 y 64x64,
       y apúntalo aquí. Si 32x32 pasa de 200 ms, busca cómo bajarlo antes de seguir.
-- [ ] 5. **Lápiz.** Clic y arrastre con líneas entre puntos (sin huecos), Alt + clic con el color 0, Ctrl + clic
+- [x] 5. **Lápiz.** Clic y arrastre con líneas entre puntos (sin huecos), Alt + clic con el color 0, Ctrl + clic
       coge el color. Mientras se arrastra, solo las celdas tocadas. Deshacer y rehacer por trazo.
 - [ ] 6. **Paleta.**
       - Elegir con un clic, con arriba y abajo, o con las cifras.
@@ -326,3 +326,15 @@ a pantalla completa). Lo que falta:
 - Captura RTG (scratchpad `rtg-14.png`): bien.
 - Webs (fuera del loop): el agente terminó `forja` e `inferencia` en `webs-freemem`, rama `forja-inferencia`, sin
   publicar.
+
+### 2026-11-02 — Tarea 5 (lápiz)
+- `sp_clic` y `sp_arrastrar` devuelven `SP_CAMBIO`, `SP_TODO` y `SP_CELDAS`. `sp_resultado` (en `main.dash`)
+  marca el documento y redibuja todo, o solo las celdas de `sp_tocados` (`mui_canvas_update_area` con
+  `sp_celda_sola`, como `ed_solo_linea`).
+- Trazo con líneas de Bresenham entre los puntos del arrastre. El paso de deshacer se guarda antes del primer
+  píxel que cambia, así que un clic que no cambia nada no deja paso. Alt + clic pinta con el 0; Ctrl + clic (o
+  el cuentagotas) coge el color. Al soltar también se pinta hasta donde se soltó: el último movimiento llegaba
+  antes del final y la diagonal quedaba sin su último píxel (la prueba lo cazó).
+- `tests/sprites_lapiz.sh`: TODO BIEN (10). `tests/sprites_forja.sh` sigue en TODO BIEN.
+- Webs (fuera del loop, lo pidió el usuario): publicadas forja e inferencia.freemem.space (haproxy del CT 101 con
+  copia, `main` subido con la cuenta FreeMEM, `desplegar.py --certificado`). Comprobado desde fuera.

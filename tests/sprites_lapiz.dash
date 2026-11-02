@@ -1,0 +1,120 @@
+# Hace de usuario del lápiz del editor de sprites: clic, arrastre en recta y en diagonal (sin huecos), Alt + clic
+# borra (color 0), Ctrl + clic coge el color, y deshacer y rehacer por trazo. Sale con Amiga-Q (descartando).
+# Lo arranca tests/sprites_lapiz.sh con vacio.iff (16x16 vacío); anota en DH0:Prueba/sprites_lapiz.txt.
+
+const AMIGA = 8
+const CTRL = 2
+const ALT = 4
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_lapiz.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+# El color del píxel x, y del primer fotograma, según la sonda
+func px(x: Int, y: Int) -> String
+    l = sonda()
+    if y + 2 >= l.length
+        return "?"
+    end
+    return l[y + 2][x:x + 1]
+end
+
+func fila(y: Int) -> String
+    l = sonda()
+    if y + 2 >= l.length
+        return "?"
+    end
+    return l[y + 2]
+end
+
+# El centro del píxel x, y en la ventana
+func cx(x: Int) -> Int
+    return campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+end
+
+func cy(y: Int) -> Int
+    return campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SPRITE") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        input_move(cx(8), cy(8))
+        input_click(cx(2), cy(3), 0)
+        ver("un clic pinta con el color 1", px(2, 3) == "1", fila(3))
+        input_drag(cx(0), cy(8), cx(15), cy(8))
+        ver("arrastrar pinta la fila entera", fila(8) == "1111111111111111", fila(8))
+        input_drag(cx(0), cy(10), cx(5), cy(15))
+        ver("arrastrar en diagonal, sin huecos", px(0, 10) == "1" and px(1, 11) == "1" and px(2, 12) == "1" and px(3, 13) == "1" and px(4, 14) == "1" and px(5, 15) == "1", fila(12))
+        input_click(cx(2), cy(3), ALT)
+        ver("Alt + clic borra", px(2, 3) == "0", fila(3))
+        input_click(cx(9), cy(1), CTRL)
+        ver("Ctrl + clic coge el color 0", str_split(sonda()[1], " ")[6] == "0", sonda()[1])
+        input_click(cx(9), cy(8), CTRL)
+        ver("Ctrl + clic coge el color 1", str_split(sonda()[1], " ")[6] == "1", sonda()[1])
+        ver("el cuentagotas no cambia el dibujo", px(9, 1) == "0" and px(9, 8) == "1", fila(1))
+        input_key(0x31, AMIGA)
+        ver("deshacer devuelve lo borrado", px(2, 3) == "1", fila(3))
+        input_key(0x31, AMIGA)
+        ver("deshacer quita la diagonal entera", px(0, 10) == "0" and px(5, 15) == "0" and fila(8) == "1111111111111111", fila(10))
+        input_key(0x13, AMIGA)
+        ver("rehacer vuelve a poner la diagonal", px(0, 10) == "1" and px(5, 15) == "1", fila(10))
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    # pregunta por los cambios: Descartar
+    n = 0
+    while n < 100 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    time_delay(25)
+    input_key(0x22, 0)
+end

@@ -51,3 +51,6 @@ sprite (compila el `.dash` abierto) y prueba Inferencia; `iff.py` comprueba el f
 `tests/sprites_dibujo.sh <worktree de Dash> [captura.png segundos...]` mide el dibujo entero del editor de sprites
 con 16x16, 32x32 y 64x64 (píxeles casi al azar, lo peor) y una bola de 32x32 (como un sprite de verdad).
 `REAL=1` para los tiempos de un A1200; `RTG=1` para ver los colores en las capturas.
+
+`tests/sprites_lapiz.sh <worktree de Dash>`: `tests/sprites_lapiz.dash` pinta con clic y arrastre (en recta y en
+diagonal, sin huecos), borra con Alt + clic, coge el color con Ctrl + clic, y deshace y rehace por trazo.

@@ -885,6 +885,24 @@ func alternar_punto(d: Documento, n: Int)
     redibujar()
 end
 
+# Lo que pide el editor de sprites tras un clic o un arrastre (SP_CAMBIO, SP_TODO, SP_CELDAS)
+func sp_resultado(d: Documento, r: Int)
+    if (r & SP_CAMBIO) != 0
+        d.cambiado = true
+    end
+    if (r & SP_TODO) != 0
+        redibujar()
+    elif (r & SP_CELDAS) != 0
+        for i in sp_tocados
+            z = sp_zona_celda(d.sprite, i)
+            sp_celda_sola = i
+            mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
+        end
+        sp_celda_sola = -1
+        escribir_sonda()
+    end
+end
+
 # Si la vista previa está abierta, se rehace con lo cambiado
 func rehacer_vista()
     if dv_vista != 0 and dv_error_carga == ""
@@ -932,8 +950,9 @@ func en_editor() -> Int
         activo = ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
     elif d.sprite != nil
-        # el editor de sprites (tareas 4 y siguientes): de momento solo los atajos con Amiga
-        if mui_canvas_key(v.editor) >= 0 and (teclas & Q_AMIGA) != 0
+        if mui_canvas_button(v.editor) == 1
+            sp_resultado(d, sp_clic(d.sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), teclas))
+        elif mui_canvas_key(v.editor) >= 0 and (teclas & Q_AMIGA) != 0
             return atajo(mui_canvas_char(v.editor))
         end
         return 0
@@ -1475,7 +1494,7 @@ Main
             elif ev >= EV_CORTAR and ev <= EV_VISTA
                 edicion(ev)
             elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().sprite != nil
-                ev = 0
+                sp_resultado(ed_actual(), sp_arrastrar(ed_actual().sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
             elif ev == EV_ARRASTRE
                 if mui_canvas_drag(v.editor) == 1
                     ed_arrastrar(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
