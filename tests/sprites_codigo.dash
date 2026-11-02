@@ -85,6 +85,11 @@ Main
         t = copiar_codigo(clip_read_text())
         file_write_text("DH0:Prueba/codigo_sprite.txt", t)
         ver("C copia el código del sprite", str_contains(t, "sprite_load(0, \"nave.iff\")") and str_contains(t, "sprite_color(0, 2,"), t)
+        n = 0
+        while n < 20 and not str_contains(salida(), "portapapeles")
+            time_delay(10)
+            n = n + 1
+        end
         ver("y lo dice", str_contains(salida(), "portapapeles"), salida())
         # bola.iff desde el proyecto: "/", bola.iff, main.dash, nave.iff...
         f = campo("FORJA_PROYECTO", 2)

@@ -278,7 +278,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
       y ejecutar ese código con dashc carga el fichero.
 
 ### D. Pruebas y acabado
-- [ ] 13. **Usuario de prueba completo.** `tests/sprites.sh` y `tests/sprites.dash`: abrir el pincel de
+- [x] 13. **Usuario de prueba completo.** `tests/sprites.sh` y `tests/sprites.dash`: abrir el pincel de
       `iff.py`, dibujar, rellenar, deshacer, fotogramas, guardar con Amiga-S, comprobar con `bob_load` y
       `iff.py`. Después, nuevo BOB con Amiga-B y salir descartando. Capturas `RTG=1` para el README.
 - [ ] 14. **Acabado.** Catálogo (`tools/catalogos.py cd` y `ct`, con las traducciones al inglés), README es y en,
@@ -538,3 +538,19 @@ a pantalla completa). Lo que falta:
   carga el sprite y el BOB en el emulador.
 - **Fallo de Dash encontrado:** `gfx_rgb8` sin ventana cuelga el programa (`_dash_win` NULL). Aislado con 9
   programas pequeños en el emulador. Tarea 15d. La prueba abre una ventana en la pantalla, como un juego de verdad.
+
+### 2026-11-03 — Tarea 13 (usuario de prueba completo)
+- `tests/sprites.sh`: de principio a fin. Abre un pincel con ByteRun1 sin FRJA, dibuja, hace línea, rellena y
+  deshace, duplica y voltea, pasa a sprite de hardware, guarda (Amiga-S) y lee lo guardado con `bob_load` y con
+  `iff.py`, que lo compara con lo que enseñaba el editor. Mide el cambio de pestaña, crea un BOB, lo toca y sale
+  descartando. TODO BIEN dos veces seguidas.
+- `tests/sprites_todas.sh`: las 13 pruebas de sprites con un resumen. Todas en TODO BIEN, tras arreglar
+  `sprites_base` (con Kickstart 3.1 le faltaba `locale.library`: ahora lleva sistema) y `sprites_codigo` (leía la
+  salida antes de que Forja la escribiera).
+- **Lo que parecían eventos perdidos no lo era.** Con un registro de eventos en la sonda (`RAM:forja-eventos.txt`)
+  se vio que todas las teclas y el soltar del arrastre llegaban. Lo que fallaba era la escritura de la sonda: si
+  la prueba tenía el fichero abierto, AmigaDOS no dejaba escribirlo, y la prueba leía el estado viejo. Ahora Forja
+  reintenta (`sonda_fichero`), y la sonda del sprite solo se publica si cambia. Probablemente explica también los
+  fallos intermitentes de las tareas 7 y 11 y parte de la "lentitud" de la tarea 10.
+- **Pendiente:** medir el cambio de pestaña dentro de Forja. Medido desde la prueba (inflado por sus lecturas
+  constantes de la sonda): 0,9 s a un texto, 2,7 s a un sprite, sin `REAL=1`.

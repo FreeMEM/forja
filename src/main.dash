@@ -122,6 +122,8 @@ var barra_valor: Int = -1
 var sonda_proyecto: String = ""
 var sonda_pestanas: String = ""
 var sonda_salida: String = ""
+var sonda_sprite: String = ""      # lo último publicado del editor de sprites
+var sonda_eventos: String = ""     # los eventos recibidos, en orden (RAM:forja-eventos.txt)
 var abierta: Bool = false
 var tarea: Int = NADA
 var tarea_run: Int = 0
@@ -803,17 +805,27 @@ func redibujar_linea(n: Int)
     escribir_sonda()
 end
 
+# Escribe un fichero de la sonda; si la prueba lo tiene abierto en ese momento, AmigaDOS no deja escribirlo:
+# se reintenta unas veces (si no, la prueba leería lo de antes)
+func sonda_fichero(ruta: String, texto: String)
+    n = 0
+    while not file_write_text(ruta, texto) and n < 20
+        time_delay(1)
+        n = n + 1
+    end
+end
+
 func escribir_sonda()
     if sonda
         d = ed_actual()
         if d == nil
-            file_write_text("RAM:forja-sonda.txt", "0 0 \n")
+            sonda_fichero("RAM:forja-sonda.txt", "0 0 \n")
             return
         end
         if d.sprite != nil
-            file_write_text("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + sp_sonda(d.sprite))
+            sonda_fichero("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + sp_sonda(d.sprite))
         else
-            file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
+            sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
         end
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
         env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
@@ -1082,13 +1094,17 @@ func publicar_sonda()
         for l in salida_lineas
             texto = texto + l + "\n"
         end
-        file_write_text("RAM:forja-salida.txt", texto)
+        sonda_fichero("RAM:forja-salida.txt", texto)
     end
     d = ed_actual()
     if d != nil and d.sprite != nil
-        env_set("FORJA_SPRITE", sp_geometria(), false)
-        env_set("FORJA_SPRITE_PANEL", sp_geometria_panel(), false)
-        env_set("FORJA_SPRITE_BOTONES", sp_botones(), false)
+        g = sp_geometria() + "|" + sp_geometria_panel() + "|" + sp_botones()
+        if g != sonda_sprite
+            sonda_sprite = g
+            env_set("FORJA_SPRITE", sp_geometria(), false)
+            env_set("FORJA_SPRITE_PANEL", sp_geometria_panel(), false)
+            env_set("FORJA_SPRITE_BOTONES", sp_botones(), false)
+        end
     end
     t = ed_pestanas_ventana()
     if t != sonda_pestanas
@@ -1475,6 +1491,16 @@ Main
         end
         while true
             ev = mui_wait_event_signals(dbg_signal())
+            if sonda
+                sonda_eventos = sonda_eventos + "#{ev}"
+                if ev == EV_EDITOR
+                    sonda_eventos = sonda_eventos + ":#{mui_canvas_key(v.editor)}/#{mui_canvas_button(v.editor)}q#{mui_canvas_qualifiers(v.editor)}"
+                elif ev == EV_ARRASTRE
+                    sonda_eventos = sonda_eventos + "d#{mui_canvas_drag(v.editor)}"
+                end
+                sonda_eventos = sonda_eventos + " "
+                sonda_fichero("RAM:forja-eventos.txt", sonda_eventos)
+            end
             if ev == 0
                 mirar_depuracion()
             end

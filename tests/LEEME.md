@@ -82,3 +82,13 @@ Animar y mira que cambiar de pestaña la para.
 `tests/sprites_codigo.sh <worktree de Dash>`: `tests/sprites_codigo.dash` pulsa C en un sprite de hardware y en un
 BOB y guarda lo copiado; después el script mete cada código en un programa (con su pantalla y una ventana), lo
 compila con Dash y lo ejecuta en el emulador con su IFF: los dos tienen que cargar.
+
+`tests/sprites.sh <worktree de Dash>`: el editor de sprites de principio a fin (`tests/sprites.dash`): abre un pincel
+comprimido como los de DPaint, dibuja, rellena, deshace, duplica y voltea, lo pasa a sprite de hardware, guarda,
+comprueba con `bob_load` y con `iff.py` que el fichero es lo que enseñaba el editor, mide el cambio de pestaña, crea
+un BOB y sale descartando. `tests/sprites_todas.sh <worktree de Dash>` pasa todas las de sprites con un resumen
+(unos 20 minutos).
+
+Con la sonda, Forja apunta también los eventos que recibe en `RAM:forja-eventos.txt` (número de evento, y en los del
+editor la tecla, el botón y los calificadores; en los de arrastre, su estado). Si la prueba tiene abierto un fichero
+de la sonda cuando Forja lo escribe, AmigaDOS no deja escribirlo: Forja reintenta (`sonda_fichero`).
