@@ -257,7 +257,7 @@ copiar un poco sus formas de trabajar".
 - [x] 9. **Fotogramas.** Tira de miniaturas (con zoom 2, 1 o muestreo si son altas) y "+". Nuevo, duplicar,
       quitar, mover, vaciar, espejo H y V, desplazar con Mayúsculas + flechas, y copiar, cortar y pegar fotogramas.
 - [x] 10. **Piel de cebolla.** Los píxeles del fotograma anterior como un punto en el centro de la celda vacía.
-- [ ] 11. **Vista animada.** A tamaño real (y al doble si cabe), con velocidad, Espacio y botones, por `tic()`
+- [x] 11. **Vista animada.** A tamaño real (y al doble si cabe), con velocidad, Espacio y botones, por `tic()`
       sin estorbar a compilar ni a la bienvenida. Al cambiar de pestaña se para sola.
 - [ ] 12. **Código.** C y el botón: las líneas de Dash al portapapeles y un aviso en la salida. Prueba: compilar
       y ejecutar ese código con dashc carga el fichero.
@@ -482,3 +482,17 @@ a pantalla completa). Lo que falta:
   texto desde el panel del proyecto. Esperando a la sonda (hasta 5 s) pasa: era lentitud. Al pasar de sprite a
   texto se enseña o se oculta la salida, y MUI recoloca toda la ventana. **Pendiente:** medir con `REAL=1` cuánto
   tarda ese cambio de pestaña en un A1200. Si se nota, ocultar la salida solo si la ventana es baja.
+
+### 2026-11-02 — Tarea 11 (vista animada)
+- Tercera pestaña del panel, "Animar": la vista (al doble si cabe; si no, a tamaño real, o tomando uno de cada
+  k), con el color 0 transparente. Botón Reproducir/Parar (Espacio), "Tics" por fotograma con - y + (y las teclas
+  - y +, de 1 a 50 tics; se guarda en FRJA) y la cebolla (O). Al reproducir se va a esa pestaña.
+- `tic()` avanza la vista por el reloj (`sp_avanzar`) y redibuja solo su zona (`sp_solo_vista`). El bucle
+  principal vuelve a armar el tic con el intervalo de la animación, como hace la bienvenida. Cambiar de pestaña
+  para las animaciones de los demás sprites (`ajustar_paneles`).
+- Error de la primera prueba: los botones nuevos (7000 en adelante) caían en la comprobación de las miniaturas
+  (6000 en adelante) y elegían el fotograma 1000. Arreglado con el rango de 6000 a 6999.
+- `tests/sprites_animar.sh`: TODO BIEN tres veces (una con `RTG=1`, captura bien). `forja`, `fotogramas` y
+  `cebolla` siguen en TODO BIEN. Una vez, antes del arreglo, la segunda pulsación de Espacio no se vio en 5 s;
+  no se repitió en las tres siguientes.
+- El usuario pidió en esta vuelta juegos en 3D con MiniGL (bloque I).

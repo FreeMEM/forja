@@ -165,6 +165,11 @@ var _salida_oculta: Bool = false
 
 func ajustar_paneles()
     d = ed_actual()
+    for o in documentos
+        if o.sprite != nil and o != d
+            o.sprite.reproduciendo = false
+        end
+    end
     ocultar = d != nil and d.sprite != nil
     if ocultar != _salida_oculta
         _salida_oculta = ocultar
@@ -448,6 +453,14 @@ end
 
 func tic()
     tic_armado = false
+    d = ed_actual()
+    if d != nil and d.sprite != nil and sp_avanzar(d.sprite)
+        z = sp_zona_vista()
+        sp_solo_vista = true
+        mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
+        sp_solo_vista = false
+        escribir_sonda()
+    end
     if bienvenida_parpadear()
         z = bienvenida_zona()
         mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
@@ -1532,6 +1545,10 @@ Main
             ajustar_barra()
             if ed_actual() == nil and not tic_armado
                 armar_tic(500, EV_TIC)
+            end
+            # la vista animada del sprite: el tic la avanza (un fotograma por tic, o menos si va lenta)
+            if ed_actual() != nil and ed_actual().sprite != nil and ed_actual().sprite.reproduciendo and not tic_armado
+                armar_tic(sp_intervalo(ed_actual().sprite), EV_TIC)
             end
             if sonda
                 publicar_sonda()

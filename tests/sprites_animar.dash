@@ -1,0 +1,156 @@
+# Hace de usuario de la vista animada del editor de sprites: Espacio la pone en marcha (los fotogramas pasan solos),
+# + y - cambian la velocidad, Espacio la para, los botones de la página Animar, y cambiar de pestaña la para.
+# Sale con Amiga-Q (descartando). Lo arranca tests/sprites_animar.sh; anota en DH0:Prueba/sprites_animar.txt.
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_animar.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+func cabecera(i: Int) -> String
+    p = str_split(sonda()[1], " ")
+    if i >= p.length
+        return "?"
+    end
+    return p[i]
+end
+
+# Espera (como mucho 5 s) a que el campo i valga v
+func esperar(i: Int, v: String) -> Bool
+    n = 0
+    while n < 10 and cabecera(i) != v
+        n = n + 1
+    end
+    return cabecera(i) == v
+end
+
+# Cuántos fotogramas distintos enseña la vista en n miradas (cada medio segundo)
+func distintos(n: Int) -> Int
+    var vistos: [String] = []
+    i = 0
+    while i < n
+        f = cabecera(13)
+        nuevo = true
+        for x in vistos
+            if x == f
+                nuevo = false
+            end
+        end
+        if nuevo
+            vistos.push(f)
+        end
+        i = i + 1
+    end
+    return vistos.length
+end
+
+func boton(accion: Int)
+    for b in str_split(env_get("FORJA_SPRITE_BOTONES"), " ")
+        p = str_split(b, ",")
+        if p.length == 3 and p[0] == "#{accion}"
+            input_click(campo("FORJA_EDITOR", 0) + Int(p[1]), campo("FORJA_EDITOR", 1) + Int(p[2]), 0)
+            time_delay(30)
+            return
+        end
+    end
+    ver("el botón #{accion} se ve", false, env_get("FORJA_SPRITE_BOTONES"))
+end
+
+func fila_proyecto(i: Int)
+    f = campo("FORJA_PROYECTO", 2)
+    input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + i * f + f / 2, 0)
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SPRITE_BOTONES") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + 4)
+        input_text(" ")
+        ver("Espacio la pone en marcha", esperar(12, "true"), sonda()[1])
+        d = distintos(8)
+        ver("los fotogramas pasan solos (#{d} distintos en 4 s)", d >= 2, sonda()[1])
+        input_text("+")
+        ver("+: más rápida (5 tics)", esperar(8, "5"), sonda()[1])
+        input_text("-")
+        input_text("-")
+        ver("- dos veces: 7 tics", esperar(8, "7"), sonda()[1])
+        input_text(" ")
+        ver("Espacio la para", esperar(12, "false"), sonda()[1])
+        f = cabecera(13)
+        time_delay(50)
+        ver("parada, la vista no cambia", cabecera(13) == f, sonda()[1])
+        boton(7000)
+        ver("el botón Reproducir", esperar(12, "true"), sonda()[1])
+        boton(7003)
+        ver("el botón de la cebolla", esperar(11, "true"), sonda()[1])
+        # cambiar de pestaña la para: red.dash y vuelta (el proyecto: "/", main.dash, red.dash, vacio.iff...)
+        fila_proyecto(2)
+        n = 0
+        while n < 10 and not str_ends(sonda()[0], " red.dash")
+            n = n + 1
+        end
+        fila_proyecto(3)
+        n = 0
+        while n < 10 and sonda()[0] != "0 0 vacio.iff"
+            n = n + 1
+        end
+        ver("al volver de otra pestaña está parada", cabecera(12) == "false", sonda()[0] + " / " + sonda()[1])
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 100 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    time_delay(25)
+    input_key(0x22, 0)
+end

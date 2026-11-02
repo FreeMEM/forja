@@ -37,6 +37,9 @@ struct Sprite
     agarre_y: Int
     deshacer: [SpPaso]
     rehacer: [SpPaso]
+    reproduciendo: Bool = false   # la vista animada en marcha
+    inicio: Int = 0               # time_ms() al empezar
+    vista: Int = 0                # el fotograma que enseña la vista
 end
 
 # Lo que había antes de un cambio: un fotograma (foto >= 0), o todo (foto -1)
@@ -552,10 +555,10 @@ func _sp_hex(c: Int, cifras: Int) -> String
     return t
 end
 
-# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad agarre_x agarre_y cebolla", las filas de cada
+# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad agarre_x agarre_y cebolla reproduciendo vista", las filas de cada
 # fotograma, un color por cifra hexadecimal (dos con más de 4 planos), y "paleta RRGGBB ..."
 func sp_sonda(s: Sprite) -> String
-    t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad} #{s.agarre_x} #{s.agarre_y} #{s.cebolla}\n"
+    t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad} #{s.agarre_x} #{s.agarre_y} #{s.cebolla} #{s.reproduciendo} #{s.vista}\n"
     cifras = 1
     if s.planos > 4
         cifras = 2
@@ -864,10 +867,15 @@ const SP_A_TIPO = 4006
 const SP_A_PAGINA = 5000       # + la página del panel
 const SP_A_FOTO = 6000         # + el número del fotograma (una miniatura de la tira)
 const SP_A_FOTO_NUEVO = 5999   # el "+" del final de la tira
+const SP_A_PLAY = 7000
+const SP_A_LENTO = 7001
+const SP_A_RAPIDO = 7002
+const SP_A_CEBOLLA = 7003
 
 # El panel va en páginas, con pestañas arriba: en 640x256 no cabe todo a la vez
 const SP_PAG_DIBUJO = 0
 const SP_PAG_TAMANO = 1
+const SP_PAG_ANIMAR = 2
 var sp_pagina: Int = 0
 
 var _sp_bx1: [Int] = []
@@ -1051,12 +1059,126 @@ func _sp_dibujar_tamano(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
     return y + bh + 6
 end
 
+# --- La vista animada ---
+
+var _sp_vista_zona: [Int] = [0, 0, 0, 0]   # x, y, ancho y alto de la vista, desde la esquina de la zona
+var _sp_vista_x: Int = 0                   # su esquina en la ventana y su escala
+var _sp_vista_y: Int = 0
+var _sp_vista_e: Int = 1
+var _sp_vista_k: Int = 1
+var sp_solo_vista: Bool = false            # con mui_canvas_update: dibujar solo la vista
+
+# Los milisegundos de un fotograma de la animación (la velocidad va en tics de 1/50 s)
+func sp_intervalo(s: Sprite) -> Int
+    return s.velocidad * 20
+end
+
+func sp_reproducir(s: Sprite) -> Int
+    s.reproduciendo = not s.reproduciendo
+    if s.reproduciendo
+        s.inicio = time_ms()
+        s.vista = 0
+        sp_pagina = SP_PAG_ANIMAR
+    else
+        s.vista = s.actual
+    end
+    return SP_TODO
+end
+
+# Más lenta (+1 tic por fotograma) o más rápida (-1), de 1 a 50 tics
+func sp_velocidad(s: Sprite, d: Int) -> Int
+    v = s.velocidad + d
+    if v < 1 or v > 50
+        return 0
+    end
+    s.velocidad = v
+    s.inicio = time_ms() - s.vista * sp_intervalo(s)
+    return SP_CAMBIO | SP_TODO
+end
+
+# Con la animación en marcha: true si le toca otro fotograma (lo pone en s.vista)
+func sp_avanzar(s: Sprite) -> Bool
+    if not s.reproduciendo
+        return false
+    end
+    f = ((time_ms() - s.inicio) / sp_intervalo(s)) % s.fotos.length
+    if f == s.vista
+        return false
+    end
+    s.vista = f
+    return true
+end
+
+func sp_zona_vista() -> [Int]
+    return _sp_vista_zona
+end
+
+# La vista: el fotograma s.vista (s.actual si está parada); el color 0, transparente (el fondo)
+func sp_dibujar_vista(s: Sprite)
+    f = s.actual
+    if s.reproduciendo
+        f = s.vista
+    end
+    if f >= s.fotos.length
+        f = 0
+    end
+    z = _sp_vista_zona
+    gfx_pen(tema.fondo_salida)
+    gfx_rect(_sp_vista_x, _sp_vista_y, _sp_vista_x + z[2] - 1, _sp_vista_y + z[3] - 1)
+    cero = _sp_pens[0]
+    _sp_pens[0] = tema.fondo_salida
+    mw = ((s.ancho + _sp_vista_k - 1) / _sp_vista_k) * _sp_vista_e
+    mh = ((s.alto + _sp_vista_k - 1) / _sp_vista_k) * _sp_vista_e
+    _sp_miniatura(s, f, _sp_vista_x + (z[2] - mw) / 2, _sp_vista_y + (z[3] - mh) / 2, _sp_vista_e, _sp_vista_k)
+    _sp_pens[0] = cero
+end
+
+# La página Animar: la vista, reproducir, la velocidad y la cebolla
+func _sp_dibujar_animar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
+    usar_panel(0)
+    bh = font_height() + 4
+    # la vista: al doble si cabe; si no, a tamaño real, o tomando uno de cada k
+    sitio = alto - 3 * (bh + 4) - 8
+    e = 1
+    k = 1
+    if s.ancho * 2 <= ancho and s.alto * 2 <= sitio
+        e = 2
+    elif s.ancho > ancho or s.alto > sitio
+        k = (s.alto + sitio - 1) / sitio
+        if (s.ancho + ancho - 1) / ancho > k
+            k = (s.ancho + ancho - 1) / ancho
+        end
+        if k < 1
+            k = 1
+        end
+    end
+    vh = ((s.alto + k - 1) / k) * e
+    if vh < 16
+        vh = 16
+    end
+    _sp_vista_x = x
+    _sp_vista_y = y
+    _sp_vista_e = e
+    _sp_vista_k = k
+    _sp_vista_zona = [x - _sp_zx, y - _sp_zy, ancho, vh + 4]
+    sp_dibujar_vista(s)
+    y = y + vh + 8
+    texto = tr(120, "Reproducir (Espacio)")
+    if s.reproduciendo
+        texto = tr(121, "Parar (Espacio)")
+    end
+    _sp_boton_texto(x, y, x + ancho - 1, y + bh - 1, texto, s.reproduciendo, SP_A_PLAY)
+    y = y + bh + 4
+    y = _sp_fila_numero(x, y, ancho, tr(122, "Tics"), "#{s.velocidad}", SP_A_RAPIDO, SP_A_LENTO)
+    _sp_boton_texto(x, y + 2, x + ancho - 1, y + bh + 1, tr(123, "Piel de cebolla (O)"), s.cebolla, SP_A_CEBOLLA)
+end
+
 func _sp_dibujar_panel(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     # las pestañas de las páginas
     usar_panel(0)
-    nombres = [tr(114, "Dibujo"), tr(104, "Tamaño")]
+    nombres = [tr(114, "Dibujo"), tr(104, "Tamaño"), tr(119, "Animar")]
     bh = font_height() + 4
     bw = (ancho - 12) / nombres.length
     i = 0
@@ -1068,6 +1190,8 @@ func _sp_dibujar_panel(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
     y2 = y + 4 + bh + 6
     if sp_pagina == SP_PAG_TAMANO
         _sp_dibujar_tamano(s, x + 6, y2, ancho - 12)
+    elif sp_pagina == SP_PAG_ANIMAR
+        _sp_dibujar_animar(s, x + 6, y2, ancho - 12, y + alto - y2)
     else
         y2 = _sp_dibujar_herramientas(s, x + 6, y2, ancho - 12)
         _sp_dibujar_paleta(s, x + 6, y2, ancho - 12)
@@ -1363,14 +1487,27 @@ func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
             s.color = a - SP_A_COLOR
             return SP_TODO
         end
-        if a >= SP_A_FOTO
+        if a >= SP_A_FOTO and a < SP_A_FOTO + 1000
             s.actual = a - SP_A_FOTO
             return SP_TODO
         end
         if a == SP_A_FOTO_NUEVO
             return sp_nuevo_fotograma(s, false)
         end
-        if a >= SP_A_PAGINA and a <= SP_A_PAGINA + SP_PAG_TAMANO
+        if a == SP_A_PLAY
+            return sp_reproducir(s)
+        end
+        if a == SP_A_LENTO
+            return sp_velocidad(s, 1)
+        end
+        if a == SP_A_RAPIDO
+            return sp_velocidad(s, -1)
+        end
+        if a == SP_A_CEBOLLA
+            s.cebolla = not s.cebolla
+            return SP_TODO
+        end
+        if a >= SP_A_PAGINA and a <= SP_A_PAGINA + SP_PAG_ANIMAR
             sp_pagina = a - SP_A_PAGINA
             return SP_TODO
         end
@@ -1782,6 +1919,15 @@ func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
         return sp_vaciar_fotograma(s)
     end
     l = str_lower(letra)
+    if l == " "
+        return sp_reproducir(s)
+    end
+    if l == "+"
+        return sp_velocidad(s, -1)
+    end
+    if l == "-"
+        return sp_velocidad(s, 1)
+    end
     if l == "o"
         s.cebolla = not s.cebolla
         return SP_TODO

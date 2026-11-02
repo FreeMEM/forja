@@ -74,3 +74,7 @@ dibujo (Mayúsculas + flechas), lo vacía (Retroceso), deshace, copia y pega (Am
 `tests/sprites_cebolla.sh <worktree de Dash>`: `tests/sprites_cebolla.dash` enciende y apaga la piel de cebolla (O)
 y mira los píxeles de verdad en la pantalla (`screen_pixel`): una celda vacía enseña el color del fotograma
 anterior solo con la cebolla encendida.
+
+`tests/sprites_animar.sh <worktree de Dash>`: `tests/sprites_animar.dash` pone en marcha la vista animada (Espacio),
+comprueba que los fotogramas pasan solos, cambia la velocidad (+ y -), la para, usa los botones de la pestaña
+Animar y mira que cambiar de pestaña la para.
