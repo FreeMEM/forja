@@ -78,3 +78,7 @@ anterior solo con la cebolla encendida.
 `tests/sprites_animar.sh <worktree de Dash>`: `tests/sprites_animar.dash` pone en marcha la vista animada (Espacio),
 comprueba que los fotogramas pasan solos, cambia la velocidad (+ y -), la para, usa los botones de la pestaña
 Animar y mira que cambiar de pestaña la para.
+
+`tests/sprites_codigo.sh <worktree de Dash>`: `tests/sprites_codigo.dash` pulsa C en un sprite de hardware y en un
+BOB y guarda lo copiado; después el script mete cada código en un programa (con su pantalla y una ventana), lo
+compila con Dash y lo ejecuta en el emulador con su IFF: los dos tienen que cargar.

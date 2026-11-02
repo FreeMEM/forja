@@ -274,7 +274,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 - [x] 10. **Piel de cebolla.** Los píxeles del fotograma anterior como un punto en el centro de la celda vacía.
 - [x] 11. **Vista animada.** A tamaño real (y al doble si cabe), con velocidad, Espacio y botones, por `tic()`
       sin estorbar a compilar ni a la bienvenida. Al cambiar de pestaña se para sola.
-- [ ] 12. **Código.** C y el botón: las líneas de Dash al portapapeles y un aviso en la salida. Prueba: compilar
+- [x] 12. **Código.** C y el botón: las líneas de Dash al portapapeles y un aviso en la salida. Prueba: compilar
       y ejecutar ese código con dashc carga el fichero.
 
 ### D. Pruebas y acabado
@@ -295,6 +295,10 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
       (otro ObtainBestPen puede cambiarle el color en la pantalla). Un BOB de 256 colores ya pasa del tope, y mover
       una barra R G B pide un lápiz por cada valor. Pedir `color_pen_free(pen)` o `color_pens_reset()` para soltar
       los que ya no se usan (tarea 6).
+- [ ] 15d. **`gfx_rgb8` sin ventana cuelga el programa:** su C es `SetRGB32(&_dash_win->WScreen->ViewPort, ...)`
+      (`compiler/amiga_builtins.py`). Con `screen_open_custom` y sin ventana, `_dash_win` es NULL. Usar la pantalla
+      del programa (`_dash_screen`) si la hay, y no hacer nada si no hay ni ventana ni pantalla. Test con
+      `screen_open_custom` + `gfx_rgb8` sin ventana. Mirar si otros builtins tienen el mismo `_dash_win->`.
 - [ ] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
 - [ ] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
@@ -523,3 +527,14 @@ a pantalla completa). Lo que falta:
 - Lo de Santi: las fuentes públicas solo lo nombran como autor de los iconos de LightwaveRTG. Lo de su modeler con
   MiniGL no aparece: hacen falta sus mensajes.
 - Sin comprobar: si MiniGL Classic con Wazp3D funciona en FS-UAE (es la fase 1).
+
+### 2026-11-03 — Tarea 12 (código)
+- C, o el botón "Copiar el código (C)" de la pestaña Tamaño, copia al portapapeles las líneas de Dash para usar el
+  sprite. Un sprite de hardware lleva `sprite_load` con aviso si falla, `sprite_color` de los colores 1-3 (en 4
+  bits, índices 0-2 como en el runtime) y cómo animarlo con `sprite_frame`. Un BOB lleva `bob_load`, `gfx_rgb8` de
+  sus colores, y `bob_frame`/`bob_pos`/`bob_draw`; si sus fotogramas no son cuadrados, avisa en un comentario.
+  Sin guardar, pide guardar antes (el código lleva el nombre del fichero).
+- `tests/sprites_codigo.sh`: TODO BIEN. Forja copia el código y luego se compila de verdad dentro de un programa y
+  carga el sprite y el BOB en el emulador.
+- **Fallo de Dash encontrado:** `gfx_rgb8` sin ventana cuelga el programa (`_dash_win` NULL). Aislado con 9
+  programas pequeños en el emulador. Tarea 15d. La prueba abre una ventana en la pantalla, como un juego de verdad.

@@ -871,6 +871,7 @@ const SP_A_PLAY = 7000
 const SP_A_LENTO = 7001
 const SP_A_RAPIDO = 7002
 const SP_A_CEBOLLA = 7003
+const SP_A_CODIGO = 7004
 
 # El panel va en páginas, con pestañas arriba: en 640x256 no cabe todo a la vez
 const SP_PAG_DIBUJO = 0
@@ -1056,6 +1057,8 @@ func _sp_dibujar_tamano(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
     end
     bh = font_height() + 4
     _sp_boton_texto(x, y, x + ancho - 1, y + bh - 1, tipo, false, SP_A_TIPO)
+    y = y + bh + 4
+    _sp_boton_texto(x, y, x + ancho - 1, y + bh - 1, tr(124, "Copiar el código (C)"), false, SP_A_CODIGO)
     return y + bh + 6
 end
 
@@ -1253,6 +1256,7 @@ const SP_CAMBIO = 1
 const SP_TODO = 2
 const SP_CELDAS = 4
 const SP_REJILLA = 8           # redibujar solo la rejilla (sp_zona_rejilla, con sp_solo_rejilla)
+const SP_CODIGO = 16           # copiar al portapapeles el código para usarlo (sp_codigo)
 
 const SP_Q_MAYUS = 1
 
@@ -1502,6 +1506,9 @@ func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
         end
         if a == SP_A_RAPIDO
             return sp_velocidad(s, -1)
+        end
+        if a == SP_A_CODIGO
+            return SP_CODIGO
         end
         if a == SP_A_CEBOLLA
             s.cebolla = not s.cebolla
@@ -1919,6 +1926,9 @@ func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
         return sp_vaciar_fotograma(s)
     end
     l = str_lower(letra)
+    if l == "c"
+        return SP_CODIGO
+    end
     if l == " "
         return sp_reproducir(s)
     end
@@ -1963,4 +1973,50 @@ func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
         end
     end
     return 0
+end
+
+# --- El código para usarlo en un programa ---
+
+# Las líneas de Dash que cargan este sprite (fichero: su nombre, como lo verá el programa), le dan sus colores y
+# dicen cómo animarlo
+func sp_codigo(s: Sprite, fichero: String) -> String
+    n = s.fotos.length
+    t = "# " + fichero + ": "
+    if s.hardware
+        t = t + hueco(tr(125, "sprite de hardware de 16 x %1"), "#{s.alto}")
+    else
+        t = t + "BOB de #{s.ancho} x #{s.alto}, #{sp_colores(s)} " + tr(126, "colores")
+    end
+    t = t + ", #{n} " + tr(127, "fotogramas") + ", #{s.velocidad} " + tr(128, "tics por fotograma") + "\n"
+    if s.hardware
+        t = t + "if not sprite_load(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
+        t = t + "# " + tr(130, "sus colores (de 4 bits, en una pantalla propia del programa)") + "\n"
+        i = 1
+        while i < 4
+            c = s.paleta[i]
+            t = t + "sprite_color(0, #{i - 1}, #{((c >> 16) & 255) / 17}, #{((c >> 8) & 255) / 17}, #{(c & 255) / 17})\n"
+            i = i + 1
+        end
+        if n > 1
+            t = t + "# " + tr(131, "animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y") + "\n"
+            t = t + "# sprite_frame(0, (cuenta / #{s.velocidad}) % #{n})\n"
+        end
+        return t
+    end
+    t = t + "if not bob_load(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
+    t = t + "# " + tr(132, "sus colores en la paleta de la pantalla (el 0 es el transparente)") + "\n"
+    i = 1
+    while i < sp_colores(s)
+        c = s.paleta[i]
+        t = t + "gfx_rgb8(#{i}, #{(c >> 16) & 255}, #{(c >> 8) & 255}, #{c & 255})\n"
+        i = i + 1
+    end
+    if n > 1
+        if s.ancho != s.alto
+            t = t + "# " + hueco2(tr(133, "OJO: bob_load solo separa fotogramas cuadrados, y estos miden %1 x %2"), "#{s.ancho}", "#{s.alto}") + "\n"
+        end
+        t = t + "# " + tr(131, "animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y") + "\n"
+        t = t + "# bob_frame(0, (cuenta / #{s.velocidad}) % #{n}), bob_pos(0, x, y), bob_draw(0)\n"
+    end
+    return t
 end

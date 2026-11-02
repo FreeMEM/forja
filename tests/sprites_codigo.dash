@@ -1,0 +1,107 @@
+# Hace de usuario del botón Código del editor de sprites: C en nave.iff (sprite de hardware) y en bola.iff (BOB)
+# copia al portapapeles las líneas que los cargan; las guarda en DH0:Prueba/codigo_sprite.txt y codigo_bob.txt para
+# que tests/sprites_codigo.sh las compile y las ejecute. Sale con Amiga-Q.
+# Lo arranca tests/sprites_codigo.sh; anota en DH0:Prueba/sprites_codigo.txt.
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_codigo.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+func salida() -> String
+    t = file_read_text("RAM:forja-salida.txt")
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func al_sprite()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + 4)
+    time_delay(5)
+end
+
+# C, y espera a que el portapapeles cambie (como mucho 5 s)
+func copiar_codigo(antes: String) -> String
+    input_text("c")
+    n = 0
+    t = clip_read_text()
+    while n < 25 and t == antes
+        time_delay(10)
+        t = clip_read_text()
+        n = n + 1
+    end
+    return t
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SPRITE_BOTONES") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        al_sprite()
+        t = copiar_codigo(clip_read_text())
+        file_write_text("DH0:Prueba/codigo_sprite.txt", t)
+        ver("C copia el código del sprite", str_contains(t, "sprite_load(0, \"nave.iff\")") and str_contains(t, "sprite_color(0, 2,"), t)
+        ver("y lo dice", str_contains(salida(), "portapapeles"), salida())
+        # bola.iff desde el proyecto: "/", bola.iff, main.dash, nave.iff...
+        f = campo("FORJA_PROYECTO", 2)
+        input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + f + f / 2, 0)
+        n = 0
+        while n < 10 and sonda()[0] != "0 0 bola.iff"
+            n = n + 1
+        end
+        al_sprite()
+        t2 = copiar_codigo(t)
+        file_write_text("DH0:Prueba/codigo_bob.txt", t2)
+        ver("C copia el código del BOB", str_contains(t2, "bob_load(0, \"bola.iff\")") and str_contains(t2, "gfx_rgb8(15,") and str_contains(t2, "bob_frame"), t2)
+        time_delay(50)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+end

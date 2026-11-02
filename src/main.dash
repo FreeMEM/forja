@@ -913,6 +913,18 @@ func sp_resultado(d: Documento, r: Int)
     if (r & SP_CAMBIO) != 0
         d.cambiado = true
     end
+    if (r & SP_CODIGO) != 0
+        if d.ruta == ""
+            avisar(tr(134, "Guarda el sprite primero: el código lleva el nombre de su fichero."), 1)
+            return
+        end
+        if clip_write_text(latin1_to_utf8(sp_codigo(d.sprite, d.nombre)))
+            avisar(tr(135, "El código para cargarlo está en el portapapeles (Amiga-V en el .dash)."), 2)
+        else
+            avisar(tr(136, "No se puede escribir en el portapapeles."), 1)
+        end
+        return
+    end
     if (r & SP_TODO) != 0
         redibujar()
     elif (r & SP_CELDAS) != 0
