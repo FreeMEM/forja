@@ -1186,6 +1186,15 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
     gfx_mode(0)
     d = ed_actual()
+    if d != nil and d.sprite != nil
+        _dibujar_pestanas(x, y, ancho)
+        ed_zona_x = x
+        ed_zona_y = y
+        ed_zona_ancho = ancho
+        ed_zona_alto = alto
+        sp_dibujar(d.sprite, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS)
+        return
+    end
     if d != nil and d.diseno
         if not mui_canvas_updating()
             _dibujar_pestanas(x, y, ancho)

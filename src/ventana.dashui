@@ -13,6 +13,7 @@
           "tr": 301, "title": "Proyecto",
           "items": [
             { "tr": 302, "label": "Nuevo", "key": "N", "event": 30 },
+            { "tr": 352, "label": "Nuevo sprite...", "key": "B", "event": 36 },
             { "tr": 303, "label": "Abrir...", "key": "O", "event": 31 },
             { "tr": 304, "label": "Guardar", "key": "S", "event": 32 },
             { "tr": 305, "label": "Guardar como...", "event": 33 },

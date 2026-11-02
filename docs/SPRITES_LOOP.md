@@ -187,7 +187,7 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
 - [x] 2. **Leer y escribir ILBM.** `sp_leer(ruta)` y `sp_escribir(s, ruta)`: BMHD, CMAP, GRAB, FRJA, BODY,
       ByteRun1 y masking 1 al leer. Prueba en el emulador: ida y vuelta; un pincel comprimido de `iff.py` sin
       FRJA; `bob_load` y `sprite_load` (en una pantalla propia) cargan lo escrito; `iff.py` compara los píxeles.
-- [ ] 3. **En Forja.**
+- [x] 3. **En Forja.**
       - Abrir por extensión o por contenido, también desde el panel del proyecto y la sesión.
       - Guardar y guardar como (patrón de imágenes).
       - Amiga-B "Nuevo sprite..." con su petición.
@@ -286,3 +286,20 @@ a pantalla completa). Lo que falta:
   ella `emu_run.py` usa la ROM de AROS y `sprite_load` (datatypes) se queda colgado. No es de Forja; no se ha
   mirado más.
 - El usuario pidió en esta vuelta soporte de pantallas propias, también clonadas del Workbench: añadido el bloque G.
+
+### 2026-11-02 — Tarea 3 (en Forja)
+- Abrir: un fichero que no es `.dash`/`.dashui` y empieza por FORM....ILBM va al editor de sprites
+  (`sp_es_ilbm`); el panel del proyecto lista también las imágenes (`sp_extension`). Guardar y guardar como, con
+  `SP_PATRON`. Amiga-B "Nuevo sprite..." (evento 36, `tr` 352) con la petición `_Sprite|_BOB|_Cancelar`.
+- Compilar desde un sprite compila `main.dash` si está abierto, si no el primer `.dash` (`programa_abierto`).
+  Inferencia, Amiga-D y Amiga-P avisan. Deshacer y rehacer van a `sp_deshacer`/`sp_rehacer`. La pestaña dibuja de
+  momento una línea con el tipo y el tamaño (`sp_dibujar`, la rejilla es la tarea 4).
+- La sonda se escribe también al arrancar (antes, solo al redibujar), y con un sprite lleva `sp_sonda`.
+- Textos nuevos: 87 a 92 en `.dash` y 352 en `ventana.dashui` (al catálogo en la tarea 14).
+- `tests/sprites_forja.sh`: TODO BIEN (8 en el Amiga y `iff.py` sobre lo guardado). `teclas.sh` y `ficheros.sh`
+  siguen dando TODO BIEN. `diseno`, `compilar`, `depurar`, `rexx` y `buscar` no se pasaron: necesitan dashc para el
+  Amiga (`make amiga`), que no está construido.
+- Visto de paso, no es de esta tarea: si no se encuentra el compilador, la salida dice "No compila: 0 errores" en
+  vez de que no se puede ejecutar.
+- Aparte del loop, el usuario pidió los registros A de forja e inferencia.freemem.space: puestos en OVH
+  (37.187.75.28, comprobado con dig en dns15/ns15.ovh.net). Las webs las hace otro agente en `webs-freemem`.

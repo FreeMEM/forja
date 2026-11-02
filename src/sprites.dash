@@ -512,3 +512,78 @@ func sp_leer(ruta: String) -> Sprite
     sp_error = ""
     return Sprite(fw, h, planos, hardware, paleta, fotos, 0, 1, SP_LAPIZ, velocidad, false, gx, gy, d1, d2)
 end
+
+# --- En Forja ---
+
+const SP_PATRON = "#?.(iff|ilbm|lbm|brush|bob|spr)"
+
+# ¿Un nombre de imagen? (por la extensión)
+func sp_extension(nombre: String) -> Bool
+    n = str_lower(nombre)
+    for e in [".iff", ".ilbm", ".lbm", ".brush", ".bob", ".spr"]
+        if str_ends(n, e)
+            return true
+        end
+    end
+    return false
+end
+
+# ¿Empieza el fichero por FORM....ILBM?
+func sp_es_ilbm(ruta: String) -> Bool
+    b = buffer_alloc(12)
+    if b == 0
+        return false
+    end
+    ok = false
+    fh = file_open(ruta, 1005)
+    if fh != 0
+        ok = file_read(fh, b, 12) == 12 and buffer_equals(b, 0, 4, "FORM") and buffer_equals(b, 8, 4, "ILBM")
+        file_close(fh)
+    end
+    buffer_free(b)
+    return ok
+end
+
+func _sp_hex(c: Int, cifras: Int) -> String
+    t = str_upper(str_from_int(c, 16))
+    while t.length < cifras
+        t = "0" + t
+    end
+    return t
+end
+
+# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad" y después las filas de
+# cada fotograma, un color por cifra hexadecimal (dos con más de 4 planos)
+func sp_sonda(s: Sprite) -> String
+    t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad}\n"
+    cifras = 1
+    if s.planos > 4
+        cifras = 2
+    end
+    for px in s.fotos
+        y = 0
+        while y < s.alto
+            x = 0
+            while x < s.ancho
+                t = t + _sp_hex(px[y * s.ancho + x], cifras)
+                x = x + 1
+            end
+            t = t + "\n"
+            y = y + 1
+        end
+    end
+    return t
+end
+
+# El dibujo de la pestaña (la rejilla llega en la tarea 4)
+func sp_dibujar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
+    gfx_pen(tema.fondo)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_panel(0)
+    gfx_pen(tema.texto)
+    tipo = "BOB"
+    if s.hardware
+        tipo = tr(87, "Sprite de hardware")
+    end
+    gfx_text_at(x + 8, y + 6 + font_baseline(), tipo + ", #{s.ancho} x #{s.alto}, #{sp_colores(s)} colores, #{s.fotos.length} fotogramas")
+end

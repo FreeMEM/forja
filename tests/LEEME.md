@@ -43,3 +43,7 @@ Forja (`python3 tests/iff.py prueba` se prueba a sí mismo).
 `tests/sprites_iff.sh <worktree de Dash>` lee pinceles de `iff.py` (ByteRun1, plano de máscara, GRAB), escribe y
 vuelve a leer, comprueba que `bob_load` y `sprite_load` cargan lo escrito y que `iff.py` lo lee igual. Necesita
 `DASH_KICKSTART` (3.1): con la ROM de AROS, `sprite_load` se queda colgado.
+
+`tests/sprites_forja.sh <worktree de Dash>`: `tests/sprites_forja.dash` abre `nave.iff` (de `iff.py`), lo ve en el
+panel del proyecto, cambia de pestaña, guarda con Amiga-S, crea un BOB con Amiga-B, compila desde la pestaña del
+sprite (compila el `.dash` abierto) y prueba Inferencia; `iff.py` comprueba el fichero guardado.

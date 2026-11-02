@@ -1,0 +1,143 @@
+# Hace de usuario del editor de sprites dentro de Forja: abre nave.iff (FORJA_PRUEBA), el panel del proyecto lo
+# lista, cambia de pestaña, guarda con Amiga-S, crea un BOB con Amiga-B, compila desde la pestaña del sprite
+# (compila el .dash abierto) y prueba Inferencia. Sale con Amiga-Q.
+# Lo arranca tests/sprites_forja.sh; anota en DH0:Prueba/sprites_forja.txt.
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_forja.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+func sonda() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text("RAM:forja-sonda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+# La primera línea de la sonda ("0 0 nombre") y la segunda (la del sprite)
+func linea(i: Int) -> String
+    l = str_split(sonda(), "\n")
+    if i >= l.length
+        return ""
+    end
+    return l[i]
+end
+
+func salida() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-salida.txt")
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func fila_proyecto(i: Int)
+    f = campo("FORJA_PROYECTO", 2)
+    input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + i * f + f / 2, 0)
+end
+
+func esperar_ventana(titulo: String) -> Bool
+    n = 0
+    while n < 100
+        if input_active_title() == titulo
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_PROYECTO") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        al_editor()
+        ver("abre nave.iff en el editor de sprites", linea(0) == "0 0 nave.iff", linea(0))
+        ver("sprite de hardware de 3 fotogramas", linea(1) == "16 16 2 true 3 0 1 0 6", linea(1))
+        # el proyecto: "/", main.dash, nave.iff, red.dash, ventana.dashui
+        fila_proyecto(3)
+        ver("abrir red.dash desde el proyecto", linea(0) == "0 0 red.dash" or str_ends(linea(0), " red.dash"), linea(0))
+        fila_proyecto(2)
+        ver("nave.iff desde el proyecto vuelve a su pestaña", linea(0) == "0 0 nave.iff", linea(0))
+        activar()
+        al_editor()
+        input_key(0x21, AMIGA)
+        time_delay(50)
+        ver("Amiga-S guarda nave.iff", str_contains(salida(), "Guardado: DH0:Prueba/juego/nave.iff"), salida())
+        # Amiga-B: la petición; B elige un BOB
+        input_key(0x35, AMIGA)
+        if esperar_ventana("Nuevo sprite")
+            time_delay(25)
+            input_key(0x35, 0)
+        else
+            ver("Amiga-B pregunta qué dibujar", false, input_active_title())
+        end
+        time_delay(25)
+        activar()
+        al_editor()
+        ver("un BOB nuevo", linea(0) == "0 0 sin nombre.iff" and linea(1) == "32 32 4 false 1 0 1 0 6", linea(0) + " / " + linea(1))
+        # compilar desde un sprite compila el .dash abierto (aquí no hay compilador: basta con que lo intente)
+        input_key(0x27, AMIGA)
+        time_delay(50)
+        ver("Amiga-K en un sprite compila red.dash", str_contains(salida(), "Compilando red.dash"), salida())
+        input_key(0x17, AMIGA)
+        ver("Inferencia avisa con un sprite", str_contains(salida(), "Inferencia lee texto"), salida())
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+end

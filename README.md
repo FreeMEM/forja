@@ -35,6 +35,8 @@ Preferencias).
   propiedades; "+" añade, Supr quita, Alt+flechas mueve. Amiga-P abre la vista previa con MUI de verdad. Se guarda
   igual que la extensión de VS Code.
 - **Inferencia** (Amiga-I): le manda el fichero, o las líneas elegidas.
+- **Sprites y BOBs** (en obras): las imágenes IFF ILBM se abren en su propio editor; Amiga-B crea un sprite de
+  hardware o un BOB. Se guardan como IFF, y `sprite_load` y `bob_load` de Dash los cargan tal cual.
 
 ### ARexx
 

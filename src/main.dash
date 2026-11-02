@@ -27,6 +27,8 @@
 #
 # Cerrar una pestaña o salir con cambios sin guardar pregunta: Guardar, Descartar o Cancelar.
 #
+# Las imágenes IFF ILBM se abren en el editor de sprites (sprites.dash); Amiga-B crea un sprite de hardware o un BOB.
+#
 # Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar. Con ENV:FORJA_SONDA, para un programa que
 # hace de usuario (tests/teclas.dash, tests/ficheros.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y
 # ancho alto" desde la esquina de la ventana), ENV:FORJA_PROYECTO dónde empiezan las filas del proyecto ("x y
@@ -87,6 +89,7 @@ const EV_DISENO = 46
 const EV_VISTA = 47
 const EV_VISTA_CERRADA = 60
 const EV_PREFERENCIAS = 35
+const EV_NUEVO_SPRITE = 36
 const EV_BUSCAR = 48
 const EV_IRA = 49
 const EV_SIGUIENTE = 50
@@ -160,11 +163,22 @@ func nombre_de(ruta: String) -> String
     return nombre
 end
 
-# Abre un fichero en una pestaña nueva, o va a la suya si ya está abierto
+# Abre un fichero en una pestaña nueva, o va a la suya si ya está abierto. Una imagen IFF ILBM va al editor de
+# sprites.
 func abrir(ruta: String) -> Bool
     i = ed_buscar_ruta(ruta)
     if i >= 0
         activo = i
+        return true
+    end
+    l = str_lower(ruta)
+    if not str_ends(l, ".dash") and not str_ends(l, ".dashui") and sp_es_ilbm(ruta)
+        s = sp_leer(ruta)
+        if s == nil
+            avisar(sp_error, 1)
+            return false
+        end
+        ed_abrir_sprite(nombre_de(ruta), ruta, s)
         return true
     end
     texto = file_read_text(ruta)
@@ -177,7 +191,12 @@ func abrir(ruta: String) -> Bool
 end
 
 func guardar_en(d: Documento, ruta: String) -> Bool
-    if not file_write_text(ruta, ed_texto_disco(d))
+    if d.sprite != nil
+        if not sp_escribir(d.sprite, ruta)
+            avisar(sp_error, 1)
+            return false
+        end
+    elif not file_write_text(ruta, ed_texto_disco(d))
         avisar(tr(2, "No se puede escribir ") + ruta, 1)
         return false
     end
@@ -193,7 +212,11 @@ func guardar_en(d: Documento, ruta: String) -> Bool
 end
 
 func guardar_como(d: Documento) -> Bool
-    if not file_save_dialog("Guardar " + d.nombre, "#?.(dash|dashui)")
+    patron = "#?.(dash|dashui)"
+    if d.sprite != nil
+        patron = SP_PATRON
+    end
+    if not file_save_dialog("Guardar " + d.nombre, patron)
         return false
     end
     return guardar_en(d, file_fullpath())
@@ -221,8 +244,15 @@ func proyecto(ev: Int) -> Bool
     d = ed_actual()
     if ev == EV_NUEVO
         ed_abrir_texto("sin nombre.dash", "", NUEVO)
+    elif ev == EV_NUEVO_SPRITE
+        r = mui_request(v.window, tr(88, "Nuevo sprite"), tr(89, "¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter."), tr(90, "_Sprite|_BOB|_Cancelar"))
+        if r == 1
+            ed_abrir_sprite("sin nombre.iff", "", sp_nuevo(true))
+        elif r == 2
+            ed_abrir_sprite("sin nombre.iff", "", sp_nuevo(false))
+        end
     elif ev == EV_ABRIR
-        if file_open_dialog("Abrir", "#?.(dash|dashui)")
+        if file_open_dialog("Abrir", "#?.(dash|dashui|iff|ilbm|lbm|brush|bob|spr)")
             ruta = file_fullpath()
             if abrir(ruta) and cajon_de(ruta) != proyecto_cajon
                 proyecto_leer(cajon_de(ruta))
@@ -332,6 +362,13 @@ func compilar(y_ejecutar: Bool)
         return
     end
     d = ed_actual()
+    if d != nil and d.sprite != nil
+        d = programa_abierto()
+        if d == nil
+            avisar(tr(91, "Para compilar, abre el .dash del programa."), 1)
+            return
+        end
+    end
     if d == nil
         return
     end
@@ -361,6 +398,22 @@ func compilar(y_ejecutar: Bool)
     tarea_inicio = time_ms()
     poner_tarea(COMPILANDO)
     armar_tic(TIC_MS, EV_TIC)
+end
+
+# Desde una pestaña de sprite se compila el programa: main.dash si está abierto, si no el primer .dash
+func programa_abierto() -> Documento
+    var otro: Documento = nil
+    for o in documentos
+        if o.sprite == nil and str_ends(str_lower(o.nombre), ".dash")
+            if str_lower(o.nombre) == "main.dash"
+                return o
+            end
+            if otro == nil
+                otro = o
+            end
+        end
+    end
+    return otro
 end
 
 # El único temporizador de MUI: uno nuevo cancela el anterior, así que todo lo que espera pasa por tic()
@@ -719,7 +772,11 @@ func escribir_sonda()
             file_write_text("RAM:forja-sonda.txt", "0 0 \n")
             return
         end
-        file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
+        if d.sprite != nil
+            file_write_text("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + sp_sonda(d.sprite))
+        else
+            file_write_text("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
+        end
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
         env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
     end
@@ -729,6 +786,17 @@ end
 func edicion(ev: Int)
     d = ed_actual()
     if d == nil
+        return
+    end
+    if d.sprite != nil
+        if ev == EV_DESHACER and sp_deshacer(d.sprite)
+            d.cambiado = true
+        elif ev == EV_REHACER and sp_rehacer(d.sprite)
+            d.cambiado = true
+        elif ev == EV_DISENO or ev == EV_VISTA
+            avisar(tr(20, "El editor de ventanas es para ficheros .dashui."), 1)
+        end
+        redibujar()
         return
     end
     if ev == EV_CORTAR or ev == EV_COPIAR
@@ -804,8 +872,8 @@ end
 
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p", "f", "l", "g"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA, EV_BUSCAR, EV_IRA, EV_DEPURAR]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p", "f", "l", "g", "b"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA, EV_BUSCAR, EV_IRA, EV_DEPURAR, EV_NUEVO_SPRITE]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -838,6 +906,12 @@ func en_editor() -> Int
     elif mui_canvas_button(v.editor) == 1 and ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor)) >= 0
         activo = ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
+    elif d.sprite != nil
+        # el editor de sprites (tareas 4 y siguientes): de momento solo los atajos con Amiga
+        if mui_canvas_key(v.editor) >= 0 and (teclas & Q_AMIGA) != 0
+            return atajo(mui_canvas_char(v.editor))
+        end
+        return 0
     elif mui_canvas_button(v.editor) == 1 and d.diseno
         dv_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
@@ -1050,6 +1124,10 @@ end
 func boton_inferencia()
     d = ed_actual()
     if d == nil
+        return
+    end
+    if d.sprite != nil
+        avisar(tr(92, "Inferencia lee texto: un sprite no se le puede mandar."), 1)
         return
     end
     ed_lineas_seleccion(d)
@@ -1297,6 +1375,7 @@ Main
         end
         if sonda
             publicar_sonda()
+            escribir_sonda()
             env_set("FORJA_ESTADO", "libre", false)
         end
         while true
@@ -1313,7 +1392,7 @@ Main
             if ev == -1
                 ev = EV_SALIR
             end
-            if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR)
+            if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR) or ev == EV_NUEVO_SPRITE
                 if proyecto(ev)
                     sesion_guardar()
                     break
@@ -1365,6 +1444,8 @@ Main
                 dv_cerrar_vista()
             elif ev >= EV_CORTAR and ev <= EV_VISTA
                 edicion(ev)
+            elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().sprite != nil
+                ev = 0
             elif ev == EV_ARRASTRE
                 if mui_canvas_drag(v.editor) == 1
                     ed_arrastrar(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))

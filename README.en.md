@@ -35,6 +35,8 @@ in the preferences).
   "+" adds, Del removes, Alt+arrows moves. Amiga-P opens the preview with real MUI. It saves the same way as the VS
   Code extension.
 - **Inferencia** (Amiga-I): sends it the file, or the selected lines.
+- **Sprites and BOBs** (work in progress): IFF ILBM pictures open in their own editor; Amiga-B makes a hardware
+  sprite or a BOB. They are saved as IFF, and Dash's `sprite_load` and `bob_load` load them as they are.
 
 ### ARexx
 
