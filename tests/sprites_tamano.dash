@@ -1,0 +1,124 @@
+# Hace de usuario del tamaño, los colores y el tipo en el editor de sprites: Ctrl + flechas, los botones - y + del
+# panel (en su pestaña) y T, con lo que se corta y deshacer. Sale con Amiga-Q (descartando).
+# Lo arranca tests/sprites_tamano.sh (patron.iff: un sprite de hardware de 16x16); anota en DH0:Prueba/sprites_tamano.txt.
+
+const AMIGA = 8
+const CTRL = 2
+const ARRIBA = 0x4C
+const ABAJO = 0x4D
+const DERECHA = 0x4E
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_tamano.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+# "ancho alto planos hardware" de la cabecera de la sonda
+func forma() -> String
+    p = str_split(sonda()[1], " ")
+    return p[0] + " " + p[1] + " " + p[2] + " " + p[3]
+end
+
+func fila(y: Int) -> String
+    return sonda()[y + 2]
+end
+
+# Un clic en el botón de esa acción (ENV:FORJA_SPRITE_BOTONES: "acción,x,y ...")
+func boton(accion: Int)
+    for b in str_split(env_get("FORJA_SPRITE_BOTONES"), " ")
+        p = str_split(b, ",")
+        if p.length == 3 and p[0] == "#{accion}"
+            input_click(campo("FORJA_EDITOR", 0) + Int(p[1]), campo("FORJA_EDITOR", 1) + Int(p[2]), 0)
+            time_delay(30)
+            return
+        end
+    end
+    ver("el botón #{accion} se ve", false, env_get("FORJA_SPRITE_BOTONES"))
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SPRITE_BOTONES") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + 4)
+        input_key(DERECHA, CTRL)
+        ver("un sprite de hardware no cambia de ancho", forma() == "16 16 2 true", forma())
+        input_key(ABAJO, CTRL)
+        ver("Ctrl + abajo: 17 de alto", forma() == "16 17 2 true" and fila(16) == "0000000000000000", forma())
+        input_key(ARRIBA, CTRL)
+        input_key(ARRIBA, CTRL)
+        ver("Ctrl + arriba dos veces: 15 (se corta la última fila)", forma() == "16 15 2 true" and fila(14) == "0000000000000001", forma() + " / " + fila(14))
+        input_key(0x31, AMIGA)
+        ver("deshacer: 16 con la última fila", forma() == "16 16 2 true" and fila(15) == "3000000000000002", forma() + " / " + fila(15))
+        input_text("t")
+        ver("T: ahora es un BOB", forma() == "16 16 2 false", forma())
+        boton(5001)
+        boton(4001)
+        ver("el botón + del ancho: 17", forma() == "17 16 2 false" and fila(0) == "12300000000000000", forma() + " / " + fila(0))
+        boton(4005)
+        ver("el botón + de colores: 3 planos", forma() == "17 16 3 false", forma())
+        boton(4004)
+        boton(4004)
+        ver("dos veces - de colores: 1 plano, los colores pierden sus bits altos", forma() == "17 16 1 false" and fila(0) == "10100000000000000", forma() + " / " + fila(0))
+        input_text("t")
+        ver("T: sprite de hardware de 16 de ancho y 2 planos", forma() == "16 16 2 true" and fila(0) == "1010000000000000", forma() + " / " + fila(0))
+        input_key(0x31, AMIGA)
+        ver("deshacer: el BOB de 17 de ancho y 1 plano", forma() == "17 16 1 false", forma())
+        boton(5000)
+        ver("la pestaña Dibujo vuelve a las herramientas", str_contains(env_get("FORJA_SPRITE_BOTONES"), "3000,"), env_get("FORJA_SPRITE_BOTONES"))
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 100 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    time_delay(25)
+    input_key(0x22, 0)
+end

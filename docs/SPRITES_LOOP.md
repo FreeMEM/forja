@@ -208,8 +208,50 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
       - Comprobar qué pasa con los lápices al mover mucho una barra en 256 colores (ObtainBestPen) y apuntarlo.
 - [x] 7. **Herramientas.** Línea, caja, relleno (4 vecinos, sin recursión), cuentagotas y agarre (con su cruz).
       Línea y caja se ven mientras se arrastra. Botones en el panel.
-- [ ] 8. **Tamaño y tipo.** Ancho, alto y planos (Ctrl + flechas y botones), con recorte o relleno y deshacer.
+- [x] 8. **Tamaño y tipo.** Ancho, alto y planos (Ctrl + flechas y botones), con recorte o relleno y deshacer.
       T cambia de tipo; a sprite de hardware recorta a 16 de ancho y quita planos.
+
+### H. Biblioteca de juegos y editor de escenas (pedido del usuario el 2026-11-02; va antes que C)
+Pedido: "una biblioteca dash en plan pygame", "en el editor algo parecido a como se trabaja en godot, con el
+sistema de jerarquías", "una estructura, un bucle de juego, un motor de físicas, un sistema de renderizado de
+luces", "todo eso podría ir en una biblioteca aparte para hacer videojuegos". "Hay que diseñarlo bien o tratar de
+copiar un poco sus formas de trabajar".
+- [ ] 26. **Diseño, sin código.** Escribe `docs/JUEGOS_DISENO.md` (castellano llano, como los demás docs):
+      - **Cómo trabajan pygame y Godot**, de sus docs oficiales (WebFetch): en pygame display, Surface, Rect,
+        sprite.Sprite y Group, event, time.Clock, mixer, font, transform y mask. En Godot el árbol de nodos y las
+        escenas que se instancian, Node2D, Sprite2D, AnimatedSprite2D, TileMap, Camera2D,
+        CharacterBody2D/RigidBody2D/Area2D con CollisionShape2D, señales, `_ready`/`_process`/`_physics_process`,
+        AnimationPlayer, PointLight2D y CanvasModulate, y el inspector. Qué se copia y qué no, y por qué.
+      - **El Amiga manda:** 68000 a 7 MHz como mínimo o 68020 a 14 MHz (decídelo con números: qué cabe en un
+        fotograma de 50 Hz), coma fija (`Fixed`), memoria chip, blitter, copper, sprites de hardware, paleta
+        (ECS/AGA) y RTG. Luces en una pantalla de paleta: tablas de sombreado (colormaps precalculadas), colores
+        del copper, o mezcla en RTG. Físicas: AABB, tiles, cuerpos simples con pasos fijos; nada que no quepa.
+      - **La biblioteca** (aparte de Forja y de Dash): capas (bucle de juego con paso fijo, render, entrada,
+        sonido, físicas, luces, escenas), su API en Dash con ejemplos cortos, qué es Dash puro y qué pide
+        builtins nuevos (lista, con los que ya salieron en este plan: 15b, 16, 17, 25 doble búfer).
+      - **Escenas:** el formato del fichero (JSON como `.dashui`, propuesta), nodos y sus propiedades, scripts en
+        Dash enganchados a nodos (cómo, sin intérprete: el compilador genera el código de la escena).
+      - **En Forja:** el editor de escenas (árbol de nodos, inspector y la vista con el render de verdad, como
+        el editor de ventanas) y cómo encaja con el editor de sprites y el de mapas (F).
+      - **Fases** pequeñas, cada una con un juego de ejemplo que funcione.
+      - **Decisiones para el usuario,** al final y en una lista: nombre y repo de la biblioteca, máquina mínima,
+        y lo que haga falta.
+      Déjala `[?]` al acabar: el usuario revisa el diseño antes de que se programe nada. El loop sigue con C.
+- [ ] 27. **Diseño de las herramientas de Forja por tipo de proyecto, sin código** (pedido: "herramientas en forja
+      específicas para hacer videojuegos, otras para demos y otras para aplicaciones de escritorio"). En
+      `docs/HERRAMIENTAS_DISENO.md`:
+      - **Proyecto con tipo:** un fichero de proyecto (`.forja`, ya en el plan) dice si es juego, demo o
+        aplicación, y Forja enseña las herramientas de ese tipo, con una plantilla para empezar cada uno.
+      - **Juegos:** sprites (este loop), mapas (F), escenas (26), y además vista de depuración (cajas de choque,
+        velocidades), efectos de sonido, y memoria chip y fast mientras corre.
+      - **Demos:** pistas de sincronía con la música (E8x, filas, línea de tiempo de escenas, editadas mientras la
+        demo corre), editor de copper y degradados, medidor del coste por fotograma, vista del MOD, compresión del
+        ejecutable (Shrinkler) y tamaño de 4K/64K a la vista.
+      - **Aplicaciones de escritorio:** el editor de ventanas `.dashui` (ya está), catálogos de idiomas (editar
+        `.cd`/`.ct`), iconos `.info`, guía AmigaGuide, puerto ARexx, script de Installer y el paquete para Aminet
+        (`.readme`).
+      - Qué hay ya en Forja y en Dash, qué es nuevo, qué builtins pide, y en qué orden (fases con algo que funcione
+        en cada una). Decisiones para el usuario al final. `[?]` al acabar, como la 26.
 
 ### C. Animar
 - [ ] 9. **Fotogramas.** Tira de miniaturas (con zoom 2, 1 o muestreo si son altas) y "+". Nuevo, duplicar,
@@ -374,3 +416,18 @@ a pantalla completa). Lo que falta:
   (arriba lo viejo, abajo lo nuevo). Otra captura un segundo después sale bien; no es un fallo de Forja.
 - Pulsar una tecla y arrastrar en seguida (la prueba, sin esperar) puede llegar antes de que Forja procese la
   tecla. A mano no pasa; la prueba espera a la sonda entre los dos.
+
+### 2026-11-02 — Tarea 8 (tamaño y tipo)
+- Ancho y alto (Ctrl + flechas, botones - y +), colores (planos de 1 a 8, botones) y tipo (T o su botón), con
+  deshacer completo. Cambiar de tamaño corta o rellena con el 0. Quitar planos deja los bits bajos, como
+  `sprite_load`. Pasar a sprite de hardware corta a 16 de ancho y 2 planos. Un sprite de hardware no cambia de
+  ancho ni de colores: un aviso dice que T lo pasa a BOB.
+- **Panel en pestañas** ("Dibujo" y "Tamaño", luego "Animar"), como el inspector de Godot: en 640x256 no cabían
+  herramientas, paleta y tamaño juntos, y los botones de tamaño quedaban fuera del lienzo. La página Dibujo se
+  compactó (sin el título de herramientas; el color elegido va en la línea del título de la paleta).
+- `ENV:FORJA_SPRITE_BOTONES`: "acción,x,y" del centro de cada botón, para que las pruebas pulsen por acción.
+- `tests/sprites_tamano.sh`: TODO BIEN (11). `paleta`, `lapiz` y `herramientas` siguen en TODO BIEN.
+- **Intermitente:** una de tres veces, `sprites_herramientas` dejó el agarre en 5,1 en vez de 5,6. Las otras dos
+  pasaron. La prueba ahora espera a la sonda entre la tecla A y el clic. No está explicado: si se repite, mirarlo.
+- El usuario pidió en esta vuelta la biblioteca de juegos tipo pygame y el editor de escenas tipo Godot, y las
+  herramientas de Forja por tipo de proyecto: bloque H (tareas 26 y 27, de diseño), antes del bloque C.

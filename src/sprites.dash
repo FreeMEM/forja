@@ -743,6 +743,19 @@ end
 const SP_A_COLOR = 1000        # + el número del color
 const SP_A_BARRA = 2000        # + 0 rojo, 1 verde, 2 azul
 const SP_A_HERR = 3000         # + la herramienta
+const SP_A_ANCHO_MENOS = 4000
+const SP_A_ANCHO_MAS = 4001
+const SP_A_ALTO_MENOS = 4002
+const SP_A_ALTO_MAS = 4003
+const SP_A_PLANOS_MENOS = 4004
+const SP_A_PLANOS_MAS = 4005
+const SP_A_TIPO = 4006
+const SP_A_PAGINA = 5000       # + la página del panel
+
+# El panel va en páginas, con pestañas arriba: en 640x256 no cabe todo a la vez
+const SP_PAG_DIBUJO = 0
+const SP_PAG_TAMANO = 1
+var sp_pagina: Int = 0
 
 var _sp_bx1: [Int] = []
 var _sp_by1: [Int] = []
@@ -777,6 +790,17 @@ func sp_geometria_panel() -> String
     return _sp_panel + " " + _sp_panel_herr
 end
 
+# Para las pruebas: "acción,x,y" del centro de cada botón, desde la esquina de la zona
+func sp_botones() -> String
+    t = ""
+    i = 0
+    while i < _sp_bacc.length
+        t = t + "#{_sp_bacc[i]},#{(_sp_bx1[i] + _sp_bx2[i]) / 2 - _sp_zx},#{(_sp_by1[i] + _sp_by2[i]) / 2 - _sp_zy} "
+        i = i + 1
+    end
+    return t
+end
+
 func _sp_titulo(x: Int, y: Int, texto: String) -> Int
     usar_panel(2)
     gfx_pen(tema.tenue)
@@ -792,6 +816,12 @@ end
 # La paleta (una cuadrícula), el color elegido y sus barras R G B; devuelve la y de debajo
 func _sp_dibujar_paleta(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
     n = sp_colores(s)
+    # el título y, a la derecha, el color elegido: número y valor
+    c = s.paleta[s.color]
+    usar_panel(0)
+    valor = "#{s.color}: " + _sp_hex6(c)
+    gfx_pen(tema.texto)
+    gfx_text_at(x + ancho - font_text_width(valor), y + font_baseline(), valor)
     y = _sp_titulo(x, y, tr(101, "PALETA"))
     cols = 8
     if n > 32
@@ -826,17 +856,12 @@ func _sp_dibujar_paleta(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
     gfx_pen(tema.cursor)
     gfx_box(ex - 1, ey - 1, ex + lado - 1, ey + lado - 1)
     panel = "#{x - _sp_zx} #{y - _sp_zy} #{lado} #{cols}"
-    y = y + ((n + cols - 1) / cols) * lado + 6
-    # el color elegido: número y valor
+    y = y + ((n + cols - 1) / cols) * lado + 4
     usar_panel(0)
-    c = s.paleta[s.color]
-    gfx_pen(tema.texto)
-    gfx_text_at(x, y + font_baseline(), "#{s.color}: " + _sp_hex6(c))
-    y = y + font_height() + 4
     # las barras R G B (con clic o arrastrando)
     bx = x + 12
     bw = ancho - 14
-    paso = 11
+    paso = 10
     k = 0
     for letra in ["R", "G", "B"]
         v = (c >> (16 - k * 8)) & 255
@@ -869,7 +894,6 @@ end
 
 # Las seis herramientas, en 3 columnas; devuelve la y de debajo
 func _sp_dibujar_herramientas(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
-    y = _sp_titulo(x, y, tr(102, "HERRAMIENTA"))
     usar_panel(0)
     bw = (ancho - 4) / 3
     bh = font_height() + 4
@@ -885,11 +909,56 @@ func _sp_dibujar_herramientas(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
     return y + 2 * (bh + 2) + 6
 end
 
+# Una fila "nombre  [-] valor [+]"; devuelve la y de debajo
+func _sp_fila_numero(x: Int, y: Int, ancho: Int, nombre: String, valor: String, menos: Int, mas: Int) -> Int
+    bh = font_height() + 2
+    bw = bh + 4
+    gfx_pen(tema.tenue)
+    gfx_text_at(x, y + 1 + font_baseline(), nombre)
+    _sp_boton_texto(x + ancho - 2 * bw - 40, y, x + ancho - bw - 41, y + bh - 1, "-", false, menos)
+    gfx_pen(tema.texto)
+    gfx_text_at(x + ancho - bw - 36, y + 1 + font_baseline(), valor)
+    _sp_boton_texto(x + ancho - bw, y, x + ancho - 1, y + bh - 1, "+", false, mas)
+    return y + bh + 2
+end
+
+# Ancho, alto, colores y el tipo; devuelve la y de debajo
+func _sp_dibujar_tamano(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
+    y = _sp_titulo(x, y, tr(104, "TAMAÑO"))
+    usar_panel(0)
+    y = _sp_fila_numero(x, y, ancho, tr(105, "Ancho"), "#{s.ancho}", SP_A_ANCHO_MENOS, SP_A_ANCHO_MAS)
+    y = _sp_fila_numero(x, y, ancho, tr(106, "Alto"), "#{s.alto}", SP_A_ALTO_MENOS, SP_A_ALTO_MAS)
+    y = _sp_fila_numero(x, y, ancho, tr(107, "Colores"), "#{sp_colores(s)}", SP_A_PLANOS_MENOS, SP_A_PLANOS_MAS)
+    tipo = tr(108, "Es un BOB (T)")
+    if s.hardware
+        tipo = tr(109, "Sprite de hardware (T)")
+    end
+    bh = font_height() + 4
+    _sp_boton_texto(x, y, x + ancho - 1, y + bh - 1, tipo, false, SP_A_TIPO)
+    return y + bh + 6
+end
+
 func _sp_dibujar_panel(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
-    y2 = _sp_dibujar_herramientas(s, x + 6, y + 6, ancho - 12)
-    _sp_dibujar_paleta(s, x + 6, y2, ancho - 12)
+    # las pestañas de las páginas
+    usar_panel(0)
+    nombres = [tr(114, "Dibujo"), tr(104, "Tamaño")]
+    bh = font_height() + 4
+    bw = (ancho - 12) / nombres.length
+    i = 0
+    while i < nombres.length
+        bx = x + 6 + i * bw
+        _sp_boton_texto(bx, y + 4, bx + bw - 2, y + 4 + bh - 1, nombres[i], i == sp_pagina, SP_A_PAGINA + i)
+        i = i + 1
+    end
+    y2 = y + 4 + bh + 6
+    if sp_pagina == SP_PAG_TAMANO
+        _sp_dibujar_tamano(s, x + 6, y2, ancho - 12)
+    else
+        y2 = _sp_dibujar_herramientas(s, x + 6, y2, ancho - 12)
+        _sp_dibujar_paleta(s, x + 6, y2, ancho - 12)
+    end
 end
 
 # x, y, ancho, alto: la zona bajo las pestañas; arriba: el alto de las pestañas (para la esquina de la zona)
@@ -1175,6 +1244,22 @@ func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
             s.color = a - SP_A_COLOR
             return SP_TODO
         end
+        if a >= SP_A_PAGINA and a <= SP_A_PAGINA + SP_PAG_TAMANO
+            sp_pagina = a - SP_A_PAGINA
+            return SP_TODO
+        end
+        if a == SP_A_ANCHO_MENOS or a == SP_A_ANCHO_MAS
+            return sp_cambiar_tamano(s, (a - SP_A_ANCHO_MENOS) * 2 - 1, 0)
+        end
+        if a == SP_A_ALTO_MENOS or a == SP_A_ALTO_MAS
+            return sp_cambiar_tamano(s, 0, (a - SP_A_ALTO_MENOS) * 2 - 1)
+        end
+        if a == SP_A_PLANOS_MENOS or a == SP_A_PLANOS_MAS
+            return sp_cambiar_planos(s, (a - SP_A_PLANOS_MENOS) * 2 - 1)
+        end
+        if a == SP_A_TIPO
+            return sp_cambiar_tipo(s)
+        end
         if a >= SP_A_HERR and a <= SP_A_HERR + SP_AGARRE
             s.herramienta = a - SP_A_HERR
             return SP_TODO
@@ -1290,14 +1375,124 @@ func sp_arrastrar(s: Sprite, x: Int, y: Int, soltado: Bool) -> Int
     return SP_CAMBIO | SP_CELDAS
 end
 
+# --- Tamaño, colores y tipo (todo con deshacer) ---
+
+# Cada fotograma pasa a ancho x alto: lo que sobra se corta, lo que falta queda en el color 0
+func _sp_redimensionar(s: Sprite, ancho: Int, alto: Int)
+    var fotos: [[Int]] = []
+    for px in s.fotos
+        nuevo = sp_vacio(ancho, alto)
+        y = 0
+        while y < alto and y < s.alto
+            x = 0
+            while x < ancho and x < s.ancho
+                nuevo[y * ancho + x] = px[y * s.ancho + x]
+                x = x + 1
+            end
+            y = y + 1
+        end
+        fotos.push(nuevo)
+    end
+    s.fotos = fotos
+    s.ancho = ancho
+    s.alto = alto
+    if s.agarre_x >= ancho
+        s.agarre_x = ancho - 1
+    end
+    if s.agarre_y >= alto
+        s.agarre_y = alto - 1
+    end
+end
+
+# Deja solo los colores que caben en planos (los bits bajos, como sprite_load)
+func _sp_poner_planos(s: Sprite, planos: Int)
+    mascara = (1 << planos) - 1
+    for px in s.fotos
+        i = 0
+        while i < px.length
+            px[i] = px[i] & mascara
+            i = i + 1
+        end
+    end
+    s.planos = planos
+    if s.color > mascara
+        s.color = mascara
+    end
+end
+
+func sp_cambiar_tamano(s: Sprite, dw: Int, dh: Int) -> Int
+    if s.hardware and dw != 0
+        sp_mensaje = tr(110, "Un sprite de hardware mide 16 de ancho (T lo pasa a BOB).")
+        return SP_TODO
+    end
+    w = s.ancho + dw
+    h = s.alto + dh
+    if w < 1 or h < 1 or w > 256 or h > 256
+        return 0
+    end
+    sp_apuntar(s, -1)
+    _sp_redimensionar(s, w, h)
+    return SP_CAMBIO | SP_TODO
+end
+
+func sp_cambiar_planos(s: Sprite, d: Int) -> Int
+    if s.hardware
+        sp_mensaje = tr(111, "Un sprite de hardware tiene 3 colores y el transparente (T lo pasa a BOB).")
+        return SP_TODO
+    end
+    p = s.planos + d
+    if p < 1 or p > 8
+        return 0
+    end
+    sp_apuntar(s, -1)
+    _sp_poner_planos(s, p)
+    return SP_CAMBIO | SP_TODO
+end
+
+# De BOB a sprite de hardware (16 de ancho, 2 planos: se corta lo que no cabe) o al revés
+func sp_cambiar_tipo(s: Sprite) -> Int
+    sp_apuntar(s, -1)
+    if s.hardware
+        s.hardware = false
+        sp_mensaje = tr(112, "Ahora es un BOB.")
+        return SP_CAMBIO | SP_TODO
+    end
+    if s.ancho != 16
+        _sp_redimensionar(s, 16, s.alto)
+    end
+    if s.planos != 2
+        _sp_poner_planos(s, 2)
+    end
+    s.hardware = true
+    sp_mensaje = tr(113, "Ahora es un sprite de hardware: 16 de ancho y 4 colores.")
+    return SP_CAMBIO | SP_TODO
+end
+
 # --- Teclado (sin Amiga) ---
 
 const SP_T_ARRIBA = 0x4C
 const SP_T_ABAJO = 0x4D
 
+const SP_T_DERECHA = 0x4E
+const SP_T_IZQUIERDA = 0x4F
+
 func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
     sp_mensaje = ""
     n = sp_colores(s)
+    if (teclas & SP_Q_CTRL) != 0
+        if codigo == SP_T_DERECHA
+            return sp_cambiar_tamano(s, 1, 0)
+        elif codigo == SP_T_IZQUIERDA
+            return sp_cambiar_tamano(s, -1, 0)
+        elif codigo == SP_T_ABAJO
+            return sp_cambiar_tamano(s, 0, 1)
+        elif codigo == SP_T_ARRIBA
+            return sp_cambiar_tamano(s, 0, -1)
+        end
+    end
+    if str_lower(letra) == "t"
+        return sp_cambiar_tipo(s)
+    end
     if codigo == SP_T_ARRIBA
         s.color = (s.color + n - 1) % n
         return SP_TODO

@@ -1051,6 +1051,7 @@ func publicar_sonda()
     if d != nil and d.sprite != nil
         env_set("FORJA_SPRITE", sp_geometria(), false)
         env_set("FORJA_SPRITE_PANEL", sp_geometria_panel(), false)
+        env_set("FORJA_SPRITE_BOTONES", sp_botones(), false)
     end
     t = ed_pestanas_ventana()
     if t != sonda_pestanas

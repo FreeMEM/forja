@@ -105,6 +105,7 @@ Main
         input_key(0x31, AMIGA)
         ver("deshacer el relleno de una vez", px(0, 15) == "0" and px(8, 0) == "0", fila(15))
         input_text("a")
+        ver("A: el agarre", cabecera(7) == "5", sonda()[1])
         input_click(cx(5), cy(6), 0)
         ver("el agarre en 5, 6", cabecera(9) == "5" and cabecera(10) == "6", sonda()[1])
         boton(0)

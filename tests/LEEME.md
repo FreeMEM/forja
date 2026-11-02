@@ -62,3 +62,7 @@ deshace. `RTG=1` para verlo en 256 colores.
 `tests/sprites_herramientas.sh <worktree de Dash>`: `tests/sprites_herramientas.dash` dibuja una línea y una caja
 (hueca) arrastrando, rellena (sin entrar en la caja cerrada) y deshace el relleno de una vez, pone el agarre y usa
 los botones del panel. La caja rellena (Mayúsculas al empezar) no se prueba: `input_drag` no lleva teclas.
+
+`tests/sprites_tamano.sh <worktree de Dash>`: `tests/sprites_tamano.dash` cambia alto y ancho con Ctrl + flechas y
+con los botones de la pestaña Tamaño, los colores (los píxeles pierden sus bits altos), el tipo con T (a sprite de
+hardware corta a 16 de ancho y 2 planos) y deshace.
