@@ -193,3 +193,322 @@ func sp_rehacer(s: Sprite) -> Bool
     _sp_volver(s, p)
     return true
 end
+
+# --- Ficheros: IFF ILBM ---
+# Los fotogramas van uno al lado del otro. FRJA (texto): "1 tipo ancho velocidad", tipo 1 sprite de hardware, 0
+# BOB. GRAB: el punto de agarre. Se escribe sin comprimir; se lee también ByteRun1 y el plano de máscara.
+
+var sp_error: String = ""     # por qué no se pudo leer o escribir
+
+func _sp_texto_en(b: Int, o: Int, t: String)
+    i = 0
+    while i < t.length
+        buffer_set_byte(b, o + i, str_code(t, i))
+        i = i + 1
+    end
+end
+
+# Un trozo: su nombre y su largo; devuelve dónde van sus datos
+func _sp_trozo(b: Int, o: Int, nombre: String, largo: Int) -> Int
+    _sp_texto_en(b, o, nombre)
+    buffer_set_long(b, o + 4, largo)
+    return o + 8
+end
+
+func sp_escribir(s: Sprite, ruta: String) -> Bool
+    nf = s.fotos.length
+    w = s.ancho * nf
+    h = s.alto
+    planos = s.planos
+    fila = ((w + 15) / 16) * 2
+    cuerpo = fila * h * planos
+    ncol = 1 << planos
+    cmap = ncol * 3
+    tipo = 0
+    if s.hardware
+        tipo = 1
+    end
+    frja = "1 #{tipo} #{s.ancho} #{s.velocidad}"
+    largo_frja = frja.length + (frja.length & 1)
+    total = 4 + 28 + 8 + cmap + (cmap & 1) + 12 + 8 + largo_frja + 8 + cuerpo
+    b = buffer_alloc(total + 8)
+    if b == 0
+        sp_error = tr(80, "No hay memoria para el fichero.")
+        return false
+    end
+    buffer_fill(b, 0, total + 8, 0)
+    o = _sp_trozo(b, 0, "FORM", total)
+    _sp_texto_en(b, o, "ILBM")
+    o = _sp_trozo(b, o + 4, "BMHD", 20)
+    buffer_set_word(b, o, w)
+    buffer_set_word(b, o + 2, h)
+    buffer_set_byte(b, o + 8, planos)
+    buffer_set_byte(b, o + 9, 2)              # masking 2: el color transparente
+    buffer_set_byte(b, o + 14, 10)            # proporción del píxel
+    buffer_set_byte(b, o + 15, 11)
+    buffer_set_word(b, o + 16, w)
+    buffer_set_word(b, o + 18, h)
+    o = _sp_trozo(b, o + 20, "CMAP", cmap)
+    i = 0
+    while i < ncol
+        c = s.paleta[i]
+        buffer_set_byte(b, o + i * 3, (c >> 16) & 255)
+        buffer_set_byte(b, o + i * 3 + 1, (c >> 8) & 255)
+        buffer_set_byte(b, o + i * 3 + 2, c & 255)
+        i = i + 1
+    end
+    o = _sp_trozo(b, o + cmap + (cmap & 1), "GRAB", 4)
+    buffer_set_word(b, o, s.agarre_x)
+    buffer_set_word(b, o + 2, s.agarre_y)
+    o = _sp_trozo(b, o + 4, "FRJA", frja.length)
+    _sp_texto_en(b, o, frja)
+    o = _sp_trozo(b, o + largo_frja, "BODY", cuerpo)
+    y = 0
+    while y < h
+        f = 0
+        while f < nf
+            px = s.fotos[f]
+            x = 0
+            while x < s.ancho
+                c = px[y * s.ancho + x]
+                if c != 0
+                    gx = f * s.ancho + x
+                    bit = 0x80 >> (gx & 7)
+                    p = 0
+                    while p < planos
+                        if (c >> p) & 1 != 0
+                            d = o + (y * planos + p) * fila + (gx >> 3)
+                            buffer_set_byte(b, d, buffer_get_byte(b, d) | bit)
+                        end
+                        p = p + 1
+                    end
+                end
+                x = x + 1
+            end
+            f = f + 1
+        end
+        y = y + 1
+    end
+    ok = false
+    fh = file_open(ruta, 1006)
+    if fh != 0
+        ok = file_write(fh, b, total + 8) == total + 8
+        file_close(fh)
+    end
+    buffer_free(b)
+    if not ok
+        sp_error = tr(81, "No se puede escribir ") + ruta
+    end
+    return ok
+end
+
+# Una fila de un plano a partir de pos del BODY, en la fila de destino (ByteRun1 si comprimido); la posición que
+# sigue, o -1 si el BODY se acaba antes
+func _sp_fila(b: Int, pos: Int, fin: Int, comprimido: Bool, destino: Int, largo: Int) -> Int
+    if not comprimido
+        if pos + largo > fin
+            return -1
+        end
+        buffer_copy(destino, 0, b, pos, largo)
+        return pos + largo
+    end
+    n = 0
+    while n < largo
+        if pos >= fin
+            return -1
+        end
+        c = buffer_get_byte(b, pos)
+        pos = pos + 1
+        if c < 128
+            k = c + 1
+            if pos + k > fin
+                return -1
+            end
+            if n + k > largo
+                k = largo - n
+            end
+            buffer_copy(destino, n, b, pos, k)
+            pos = pos + c + 1
+            n = n + k
+        elif c > 128
+            k = 257 - c
+            if pos >= fin
+                return -1
+            end
+            if n + k > largo
+                k = largo - n
+            end
+            buffer_fill(destino, n, k, buffer_get_byte(b, pos))
+            pos = pos + 1
+            n = n + k
+        end
+    end
+    return pos
+end
+
+func _sp_leer_error(b: Int, texto: String) -> Sprite
+    if b != 0
+        buffer_free(b)
+    end
+    sp_error = texto
+    return nil
+end
+
+# Lee un IFF ILBM; nil si no se puede (sp_error dice por qué)
+func sp_leer(ruta: String) -> Sprite
+    n = file_size(ruta)
+    if n < 12
+        return _sp_leer_error(0, tr(82, "No se puede leer ") + ruta)
+    end
+    b = buffer_alloc(n)
+    if b == 0
+        return _sp_leer_error(0, tr(80, "No hay memoria para el fichero."))
+    end
+    fh = file_open(ruta, 1005)
+    leidos = 0
+    if fh != 0
+        leidos = file_read(fh, b, n)
+        file_close(fh)
+    end
+    if leidos != n
+        return _sp_leer_error(b, tr(82, "No se puede leer ") + ruta)
+    end
+    if not buffer_equals(b, 0, 4, "FORM") or not buffer_equals(b, 8, 4, "ILBM")
+        return _sp_leer_error(b, ruta + tr(83, " no es una imagen IFF ILBM."))
+    end
+    w = 0
+    h = 0
+    planos = 0
+    mascara = 0
+    comp = 0
+    ncol = 0
+    cmap = 0
+    cuerpo = -1
+    fin_cuerpo = 0
+    gx = 0
+    gy = 0
+    frja = ""
+    pos = 12
+    while pos + 8 <= n
+        nombre = str_from_buffer(b, pos, 4)
+        largo = buffer_get_long(b, pos + 4)
+        d = pos + 8
+        if largo < 0 or d + largo > n
+            largo = n - d
+        end
+        if nombre == "BMHD" and largo >= 20
+            w = buffer_get_word(b, d)
+            h = buffer_get_word(b, d + 2)
+            planos = buffer_get_byte(b, d + 8)
+            mascara = buffer_get_byte(b, d + 9)
+            comp = buffer_get_byte(b, d + 10)
+        elif nombre == "CMAP"
+            cmap = d
+            ncol = largo / 3
+        elif nombre == "GRAB" and largo >= 4
+            gx = buffer_get_word(b, d)
+            gy = buffer_get_word(b, d + 2)
+        elif nombre == "FRJA"
+            frja = str_from_buffer(b, d, largo)
+        elif nombre == "BODY"
+            cuerpo = d
+            fin_cuerpo = d + largo
+        end
+        pos = d + largo + (largo & 1)
+    end
+    if w <= 0 or h <= 0 or cuerpo < 0
+        return _sp_leer_error(b, ruta + tr(84, ": a la imagen le falta BMHD o BODY."))
+    end
+    if planos < 1 or planos > 8 or comp > 1
+        return _sp_leer_error(b, ruta + tr(85, ": solo imágenes de 1 a 8 planos, sin comprimir o con ByteRun1."))
+    end
+    # los píxeles de toda la tira
+    fila = ((w + 15) / 16) * 2
+    tmp = buffer_alloc(fila)
+    var img: [Int] = sp_vacio(w, h)
+    p_total = planos
+    if mascara == 1
+        p_total = planos + 1
+    end
+    pos = cuerpo
+    y = 0
+    while y < h
+        p = 0
+        while p < p_total
+            pos = _sp_fila(b, pos, fin_cuerpo, comp == 1, tmp, fila)
+            if pos < 0
+                buffer_free(tmp)
+                return _sp_leer_error(b, ruta + tr(86, ": la imagen está cortada."))
+            end
+            if p < planos
+                bit = 1 << p
+                i = 0
+                while i < fila
+                    v = buffer_get_byte(tmp, i)
+                    if v != 0
+                        k = 0
+                        while k < 8
+                            x = i * 8 + k
+                            if (v & (0x80 >> k)) != 0 and x < w
+                                img[y * w + x] = img[y * w + x] | bit
+                            end
+                            k = k + 1
+                        end
+                    end
+                    i = i + 1
+                end
+            end
+            p = p + 1
+        end
+        y = y + 1
+    end
+    buffer_free(tmp)
+    # el ancho del fotograma: el de FRJA, o la regla de bob_load (fotogramas cuadrados)
+    hardware = false
+    velocidad = 6
+    fw = w
+    if w > h and w % h == 0
+        fw = h
+    end
+    partes = str_split(str_trim(frja), " ")
+    if partes.length >= 4 and partes[0] == "1"
+        a = Int(partes[2])
+        if a > 0 and w % a == 0
+            fw = a
+        end
+        if Int(partes[3]) > 0
+            velocidad = Int(partes[3])
+        end
+        hardware = partes[1] == "1" and fw == 16 and planos <= 2
+    end
+    paleta = sp_paleta_inicial(hardware)
+    i = 0
+    while i < ncol and i < 256
+        paleta[i] = buffer_get_byte(b, cmap + i * 3) * 65536 + buffer_get_byte(b, cmap + i * 3 + 1) * 256 + buffer_get_byte(b, cmap + i * 3 + 2)
+        i = i + 1
+    end
+    buffer_free(b)
+    if hardware
+        planos = 2
+    end
+    var fotos: [[Int]] = []
+    f = 0
+    while f < w / fw
+        px = sp_vacio(fw, h)
+        y = 0
+        while y < h
+            x = 0
+            while x < fw
+                px[y * fw + x] = img[y * w + f * fw + x]
+                x = x + 1
+            end
+            y = y + 1
+        end
+        fotos.push(px)
+        f = f + 1
+    end
+    var d1: [SpPaso] = []
+    var d2: [SpPaso] = []
+    sp_error = ""
+    return Sprite(fw, h, planos, hardware, paleta, fotos, 0, 1, SP_LAPIZ, velocidad, false, gx, gy, d1, d2)
+end

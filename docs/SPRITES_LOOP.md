@@ -184,7 +184,7 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
       fichero, quitándolo de `~/Projects/forja`; commit. `src/sprites.dash` con `struct Sprite`, `struct Paso`,
       `sp_nuevo(hardware)`, paletas por defecto y acceso a píxeles. `Documento.sprite` y `ed_abrir_sprite`.
       `tests/iff.py`: escribe y lee ILBM (con ByteRun1 y sin él) para crear y comprobar ficheros de prueba.
-- [ ] 2. **Leer y escribir ILBM.** `sp_leer(ruta)` y `sp_escribir(s, ruta)`: BMHD, CMAP, GRAB, FRJA, BODY,
+- [x] 2. **Leer y escribir ILBM.** `sp_leer(ruta)` y `sp_escribir(s, ruta)`: BMHD, CMAP, GRAB, FRJA, BODY,
       ByteRun1 y masking 1 al leer. Prueba en el emulador: ida y vuelta; un pincel comprimido de `iff.py` sin
       FRJA; `bob_load` y `sprite_load` (en una pantalla propia) cargan lo escrito; `iff.py` compara los píxeles.
 - [ ] 3. **En Forja.**
@@ -243,6 +243,23 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
       de 8, 16 o 32, y el builtin que pinta un trozo del mapa rápido (`tilemap_draw`). Escribe aquí el diseño
       y déjalo `[?]` para que el usuario lo vea antes de programar.
 
+### G. Pantallas propias (pedido del usuario el 2026-11-02, en el worktree de Dash)
+Hoy hay `screen_open` (modo del Workbench con `SA_LikeWorkbench`, solo para ventanas de Intuition),
+`screen_open_custom`, `rtg_open_screen` y `mui_window_own_screen` (copia la pública, pero solo para una ventana MUI
+a pantalla completa). Lo que falta:
+- [ ] 21. **Clon del Workbench, público.** Una pantalla igual que la del Workbench (modo, tamaño, profundidad,
+      colores, lápices y fuente), pública y con nombre. `screen_clone_wb(nombre)` o con opciones; que Intuition
+      la cierre bien cuando aún tiene ventanas de otros (esperar o avisar). Test y doc.
+- [ ] 22. **Ventanas MUI normales en una pantalla pública:** `mui_window_screen(win, nombre)` (o
+      `mui_app_screen(nombre)` para toda la aplicación). Prueba: una aplicación MUI con dos ventanas en el clon.
+- [ ] 23. **Elegir el modo:** la petición de modo de pantalla de ASL (`dialog_screen_mode`: modo, ancho, alto y
+      profundidad) y `screen_open_mode(modo, ancho, alto, planos, título)` con un modo exacto (PAL 320x256 a 32
+      colores, AGA, RTG).
+- [ ] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
+      programas que ejecuta salgan ahí (`[?]` si depende de piezas sin fusionar).
+- [ ] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`): `[?]`
+      antes de empezar. Pregunta si va aquí o con las piezas de juegos.
+
 ## Bitácora
 
 ### 2026-11-02 — Plan
@@ -258,3 +275,14 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
 - `Documento.sprite` (nil en los de texto) y `ed_abrir_sprite` en `editor.dash`.
 - `tests/sprites_base.sh`: TODO BIEN en FS-UAE (13 comprobaciones). `tests/iff.py prueba`: TODO BIEN (con y sin
   ByteRun1, con y sin plano de máscara, FRJA y GRAB).
+
+### 2026-11-02 — Tarea 2 (leer y escribir ILBM)
+- `sp_escribir` y `sp_leer` en `src/sprites.dash`, con `sp_error` y los textos 80 a 86. Se escribe sin comprimir
+  con masking 2, CMAP, GRAB y FRJA ("1 tipo ancho velocidad"). Se lee BMHD, CMAP, GRAB, FRJA y BODY, sin comprimir
+  o ByteRun1, con el plano de máscara (masking 1) saltado; sin FRJA, la regla de `bob_load`.
+- `tests/sprites_iff.sh`: TODO BIEN (14 en el Amiga y 3 de `iff.py` sobre lo escrito), con `bob_load` y
+  `sprite_load` cargando el fichero de Forja.
+- **Ojo:** las pruebas necesitan `DASH_KICKSTART="/home/freemem/Descargas/Telegram Desktop/ks31a1200.rom"`. Sin
+  ella `emu_run.py` usa la ROM de AROS y `sprite_load` (datatypes) se queda colgado. No es de Forja; no se ha
+  mirado más.
+- El usuario pidió en esta vuelta soporte de pantallas propias, también clonadas del Workbench: añadido el bloque G.

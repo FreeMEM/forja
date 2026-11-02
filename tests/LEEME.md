@@ -40,3 +40,6 @@ línea por ARexx, y abre las ventanas de buscar (Amiga-F) e ir a la línea (Amig
 Editor de sprites (`docs/SPRITES_LOOP.md`): `tests/sprites_base.sh <worktree de Dash>` prueba `src/sprites.dash` sin
 ventana (píxeles, deshacer y rehacer). `python3 tests/iff.py` crea imágenes IFF ILBM de prueba y lee las que guarda
 Forja (`python3 tests/iff.py prueba` se prueba a sí mismo).
+`tests/sprites_iff.sh <worktree de Dash>` lee pinceles de `iff.py` (ByteRun1, plano de máscara, GRAB), escribe y
+vuelve a leer, comprueba que `bob_load` y `sprite_load` cargan lo escrito y que `iff.py` lo lee igual. Necesita
+`DASH_KICKSTART` (3.1): con la ROM de AROS, `sprite_load` se queda colgado.
