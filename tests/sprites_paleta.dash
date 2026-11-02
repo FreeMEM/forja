@@ -1,0 +1,138 @@
+# Hace de usuario de la paleta del editor de sprites: elegir el color con cifras, flechas y un clic, cambiarlo con
+# las barras R G B (clic y arrastre, en pasos de 4 bits en un sprite de hardware) y deshacer los cambios de la
+# paleta. Sale con Amiga-Q (descartando). Lo arranca tests/sprites_paleta.sh; anota en DH0:Prueba/sprites_paleta.txt.
+
+const AMIGA = 8
+const ARRIBA = 0x4C
+const ABAJO = 0x4D
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_paleta.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+func color() -> String
+    return str_split(sonda()[1], " ")[6]
+end
+
+# El valor RRGGBB del color i de la paleta, según la sonda
+func paleta(i: Int) -> String
+    for l in sonda()
+        if str_starts(l, "paleta ")
+            p = str_split(l, " ")
+            if i + 1 < p.length
+                return p[i + 1]
+            end
+        end
+    end
+    return "?"
+end
+
+func zx() -> Int
+    return campo("FORJA_EDITOR", 0)
+end
+
+func zy() -> Int
+    return campo("FORJA_EDITOR", 1)
+end
+
+# El centro del color i de la paleta
+func celda_x(i: Int) -> Int
+    return zx() + campo("FORJA_SPRITE_PANEL", 0) + (i % campo("FORJA_SPRITE_PANEL", 3)) * campo("FORJA_SPRITE_PANEL", 2) + campo("FORJA_SPRITE_PANEL", 2) / 2 - 1
+end
+
+func celda_y(i: Int) -> Int
+    return zy() + campo("FORJA_SPRITE_PANEL", 1) + (i / campo("FORJA_SPRITE_PANEL", 3)) * campo("FORJA_SPRITE_PANEL", 2) + campo("FORJA_SPRITE_PANEL", 2) / 2 - 1
+end
+
+# Un punto de la barra k (0 R, 1 G, 2 B) a la fracción f/100
+func barra_x(f: Int) -> Int
+    return zx() + campo("FORJA_SPRITE_PANEL", 4) + (campo("FORJA_SPRITE_PANEL", 6) - 1) * f / 100
+end
+
+func barra_y(k: Int) -> Int
+    return zy() + campo("FORJA_SPRITE_PANEL", 5) + k * campo("FORJA_SPRITE_PANEL", 7) + 3
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SPRITE_PANEL") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        input_move(zx() + campo("FORJA_SPRITE", 0) + 4, zy() + campo("FORJA_SPRITE", 1) + 4)
+        input_text("2")
+        ver("la cifra 2 elige el color 2", color() == "2", sonda()[1])
+        input_key(ABAJO, 0)
+        ver("abajo: el color 3", color() == "3", sonda()[1])
+        input_key(ABAJO, 0)
+        ver("abajo desde el último: el 0", color() == "0", sonda()[1])
+        input_key(ARRIBA, 0)
+        ver("arriba desde el 0: el 3", color() == "3", sonda()[1])
+        input_click(celda_x(1), celda_y(1), 0)
+        ver("un clic en la paleta elige el color 1", color() == "1", sonda()[1] + " / " + env_get("FORJA_SPRITE_PANEL"))
+        input_click(barra_x(0), barra_y(0), 0)
+        ver("un clic al principio de la barra R: rojo 0", paleta(1) == "00E0E0", paleta(1))
+        input_drag(barra_x(0), barra_y(1), barra_x(100), barra_y(1))
+        ver("arrastrar la barra G hasta el final: verde FF", paleta(1) == "00FFE0", paleta(1))
+        input_click(barra_x(50), barra_y(2), 0)
+        ver("la barra B a la mitad, en pasos de 4 bits (77 u 88)", paleta(1) == "00FF77" or paleta(1) == "00FF88", paleta(1))
+        ver("los demás colores siguen igual", paleta(2) == "E08030" and paleta(3) == "3060C0", paleta(2) + " " + paleta(3))
+        input_key(0x31, AMIGA)
+        input_key(0x31, AMIGA)
+        input_key(0x31, AMIGA)
+        ver("deshacer tres veces devuelve el color", paleta(1) == "E0E0E0", paleta(1))
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 100 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    time_delay(25)
+    input_key(0x22, 0)
+end

@@ -54,3 +54,7 @@ con 16x16, 32x32 y 64x64 (píxeles casi al azar, lo peor) y una bola de 32x32 (c
 
 `tests/sprites_lapiz.sh <worktree de Dash>`: `tests/sprites_lapiz.dash` pinta con clic y arrastre (en recta y en
 diagonal, sin huecos), borra con Alt + clic, coge el color con Ctrl + clic, y deshace y rehace por trazo.
+
+`tests/sprites_paleta.sh <worktree de Dash>`: `tests/sprites_paleta.dash` elige el color con cifras, flechas y un
+clic en la paleta, lo cambia con las barras R G B (clic y arrastre, en pasos de 4 bits en un sprite de hardware) y
+deshace. `RTG=1` para verlo en 256 colores.

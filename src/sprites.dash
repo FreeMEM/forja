@@ -552,8 +552,8 @@ func _sp_hex(c: Int, cifras: Int) -> String
     return t
 end
 
-# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad" y después las filas de
-# cada fotograma, un color por cifra hexadecimal (dos con más de 4 planos)
+# Para las pruebas: "ancho alto planos hardware fotos actual color herramienta velocidad", las filas de cada
+# fotograma, un color por cifra hexadecimal (dos con más de 4 planos), y "paleta RRGGBB ..."
 func sp_sonda(s: Sprite) -> String
     t = "#{s.ancho} #{s.alto} #{s.planos} #{s.hardware} #{s.fotos.length} #{s.actual} #{s.color} #{s.herramienta} #{s.velocidad}\n"
     cifras = 1
@@ -572,7 +572,13 @@ func sp_sonda(s: Sprite) -> String
             y = y + 1
         end
     end
-    return t
+    t = t + "paleta"
+    i = 0
+    while i < sp_colores(s)
+        t = t + " " + _sp_hex(s.paleta[i], 6)
+        i = i + 1
+    end
+    return t + "\n"
 end
 
 # --- Dibujar ---
@@ -705,12 +711,136 @@ func _sp_dibujar_estado(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
     gfx_text_at(x + 8, y + (alto - font_height()) / 2 + font_baseline(), t)
 end
 
+# --- Botones del lienzo: cada dibujo apunta sus zonas (rectángulo y acción); un clic las busca ---
+
+const SP_A_COLOR = 1000        # + el número del color
+const SP_A_BARRA = 2000        # + 0 rojo, 1 verde, 2 azul
+
+var _sp_bx1: [Int] = []
+var _sp_by1: [Int] = []
+var _sp_bx2: [Int] = []
+var _sp_by2: [Int] = []
+var _sp_bacc: [Int] = []
+var _sp_panel: String = ""     # para las pruebas: "x y lado columnas" de la paleta y "x y ancho paso" de las barras
+
+func _sp_boton(x1: Int, y1: Int, x2: Int, y2: Int, accion: Int)
+    _sp_bx1.push(x1)
+    _sp_by1.push(y1)
+    _sp_bx2.push(x2)
+    _sp_by2.push(y2)
+    _sp_bacc.push(accion)
+end
+
+# El botón bajo x, y de la ventana (su número en las listas); -1 si no hay
+func _sp_boton_en(ax: Int, ay: Int) -> Int
+    i = 0
+    while i < _sp_bacc.length
+        if ax >= _sp_bx1[i] and ax <= _sp_bx2[i] and ay >= _sp_by1[i] and ay <= _sp_by2[i]
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+func sp_geometria_panel() -> String
+    return _sp_panel
+end
+
+func _sp_titulo(x: Int, y: Int, texto: String) -> Int
+    usar_panel(2)
+    gfx_pen(tema.tenue)
+    gfx_text_at(x, y + font_baseline(), texto)
+    font_style(0)
+    return y + font_height() + 3
+end
+
+func _sp_hex6(c: Int) -> String
+    return "#" + _sp_hex(c, 6)
+end
+
+# La paleta (una cuadrícula), el color elegido y sus barras R G B; devuelve la y de debajo
+func _sp_dibujar_paleta(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
+    n = sp_colores(s)
+    y = _sp_titulo(x, y, tr(101, "PALETA"))
+    cols = 8
+    if n > 32
+        cols = 16
+    end
+    if n < cols
+        cols = n
+    end
+    lado = ancho / cols
+    if lado > 16
+        lado = 16
+    end
+    i = 0
+    while i < n
+        cx = x + (i % cols) * lado
+        cy = y + (i / cols) * lado
+        if i == 0
+            gfx_pen(tema.fondo_linea)
+            gfx_rect(cx, cy, cx + lado - 2, cy + lado - 2)
+            gfx_pen(tema.tenue)
+            gfx_line(cx, cy + lado - 2, cx + lado - 2, cy)
+        else
+            gfx_pen(_sp_pens[i])
+            gfx_rect(cx, cy, cx + lado - 2, cy + lado - 2)
+        end
+        _sp_boton(cx, cy, cx + lado - 2, cy + lado - 2, SP_A_COLOR + i)
+        i = i + 1
+    end
+    # el elegido, enmarcado
+    ex = x + (s.color % cols) * lado
+    ey = y + (s.color / cols) * lado
+    gfx_pen(tema.cursor)
+    gfx_box(ex - 1, ey - 1, ex + lado - 1, ey + lado - 1)
+    panel = "#{x - _sp_zx} #{y - _sp_zy} #{lado} #{cols}"
+    y = y + ((n + cols - 1) / cols) * lado + 6
+    # el color elegido: número y valor
+    usar_panel(0)
+    c = s.paleta[s.color]
+    gfx_pen(tema.texto)
+    gfx_text_at(x, y + font_baseline(), "#{s.color}: " + _sp_hex6(c))
+    y = y + font_height() + 4
+    # las barras R G B (con clic o arrastrando)
+    bx = x + 12
+    bw = ancho - 14
+    paso = 11
+    k = 0
+    for letra in ["R", "G", "B"]
+        v = (c >> (16 - k * 8)) & 255
+        by = y + k * paso
+        gfx_pen(tema.tenue)
+        gfx_text_at(x, by + font_baseline() - 1, letra)
+        gfx_pen(tema.fondo)
+        gfx_rect(bx, by, bx + bw - 1, by + 7)
+        gfx_pen(tema.acento)
+        gfx_rect(bx, by, bx + (bw - 1) * v / 255, by + 7)
+        _sp_boton(bx, by, bx + bw - 1, by + 7, SP_A_BARRA + k)
+        k = k + 1
+    end
+    _sp_panel = panel + " #{bx - _sp_zx} #{y - _sp_zy} #{bw} #{paso}"
+    return y + 3 * paso + 4
+end
+
+func _sp_dibujar_panel(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    _sp_dibujar_paleta(s, x + 6, y + 6, ancho - 12)
+end
+
 # x, y, ancho, alto: la zona bajo las pestañas; arriba: el alto de las pestañas (para la esquina de la zona)
 func sp_dibujar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
     t0 = time_ms()
     _sp_zx = x
     _sp_zy = y - arriba
     _sp_preparar_pens(s)
+    _sp_bx1 = []
+    _sp_by1 = []
+    _sp_bx2 = []
+    _sp_by2 = []
+    _sp_bacc = []
     gfx_pen(tema.fondo)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     usar_panel(0)
@@ -722,9 +852,7 @@ func sp_dibujar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
         tira = 0
     end
     sp_con_tira = tira > 0
-    # el panel (se llena en las tareas 6 y 7)
-    gfx_pen(tema.fondo_panel)
-    gfx_rect(x + ancho - panel, y, x + ancho - 1, y + alto - 1)
+    _sp_dibujar_panel(s, x + ancho - panel, y, panel, alto)
     if tira > 0
         gfx_pen(tema.fondo_salida)
         gfx_rect(x, y + alto - estado_alto - tira, x + ancho - panel - 1, y + alto - estado_alto - 1)
@@ -768,6 +896,9 @@ var _sp_apuntado: Bool = false # el trazo ya guardó su paso de deshacer
 var _sp_con: Int = 0           # el color del trazo
 var _sp_ux: Int = 0            # el último píxel del trazo
 var _sp_uy: Int = 0
+var _sp_barra: Int = -1        # la barra de color que se arrastra (0 R, 1 G, 2 B), -1 ninguna
+var _sp_barra_x: Int = 0       # dónde empieza y lo que mide (en la ventana)
+var _sp_barra_w: Int = 1
 var _sp_px: Int = 0            # lo que devuelve _sp_celda
 var _sp_py: Int = 0
 
@@ -847,11 +978,47 @@ func _sp_linea(s: Sprite, x0: Int, y0: Int, x1: Int, y1: Int)
 end
 
 # Un clic en la zona (x, y desde su esquina; teclas: las de mui_canvas_qualifiers)
+# Pone la componente k (0 R, 1 G, 2 B) del color elegido según la x de la barra; en un sprite de hardware, en pasos
+# de 4 bits (lo que da sprite_color)
+func _sp_barra_poner(s: Sprite, ax: Int)
+    v = (ax - _sp_barra_x) * 255 / (_sp_barra_w - 1)
+    if v < 0
+        v = 0
+    end
+    if v > 255
+        v = 255
+    end
+    if s.hardware
+        v = ((v + 8) / 17) * 17
+    end
+    desp = 16 - _sp_barra * 8
+    c = s.paleta[s.color]
+    s.paleta[s.color] = (c & ~(255 << desp)) | (v << desp)
+end
+
 func sp_clic(s: Sprite, x: Int, y: Int, teclas: Int) -> Int
     sp_mensaje = ""
     sp_tocados = []
     _sp_trazando = false
+    _sp_barra = -1
     if not _sp_celda(s, x, y)
+        b = _sp_boton_en(x + _sp_zx, y + _sp_zy)
+        if b < 0
+            return 0
+        end
+        a = _sp_bacc[b]
+        if a >= SP_A_COLOR and a < SP_A_COLOR + 256
+            s.color = a - SP_A_COLOR
+            return SP_TODO
+        end
+        if a >= SP_A_BARRA and a <= SP_A_BARRA + 2
+            sp_apuntar(s, -1)
+            _sp_barra = a - SP_A_BARRA
+            _sp_barra_x = _sp_bx1[b]
+            _sp_barra_w = _sp_bx2[b] - _sp_bx1[b] + 1
+            _sp_barra_poner(s, x + _sp_zx)
+            return SP_CAMBIO | SP_TODO
+        end
         return 0
     end
     if (teclas & SP_Q_CTRL) != 0 or s.herramienta == SP_GOTAS
@@ -876,6 +1043,13 @@ end
 # El ratón arrastrado (soltado: se soltó el botón)
 func sp_arrastrar(s: Sprite, x: Int, y: Int, soltado: Bool) -> Int
     sp_tocados = []
+    if _sp_barra >= 0
+        _sp_barra_poner(s, x + _sp_zx)
+        if soltado
+            _sp_barra = -1
+        end
+        return SP_CAMBIO | SP_TODO
+    end
     if not _sp_trazando
         return 0
     end
@@ -897,4 +1071,30 @@ func sp_arrastrar(s: Sprite, x: Int, y: Int, soltado: Bool) -> Int
         return 0
     end
     return SP_CAMBIO | SP_CELDAS
+end
+
+# --- Teclado (sin Amiga) ---
+
+const SP_T_ARRIBA = 0x4C
+const SP_T_ABAJO = 0x4D
+
+func sp_tecla(s: Sprite, codigo: Int, teclas: Int, letra: String) -> Int
+    sp_mensaje = ""
+    n = sp_colores(s)
+    if codigo == SP_T_ARRIBA
+        s.color = (s.color + n - 1) % n
+        return SP_TODO
+    end
+    if codigo == SP_T_ABAJO
+        s.color = (s.color + 1) % n
+        return SP_TODO
+    end
+    if letra.length == 1 and str_code(letra, 0) >= 48 and str_code(letra, 0) <= 57
+        c = str_code(letra, 0) - 48
+        if c < n
+            s.color = c
+            return SP_TODO
+        end
+    end
+    return 0
 end

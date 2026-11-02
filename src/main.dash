@@ -954,6 +954,8 @@ func en_editor() -> Int
             sp_resultado(d, sp_clic(d.sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), teclas))
         elif mui_canvas_key(v.editor) >= 0 and (teclas & Q_AMIGA) != 0
             return atajo(mui_canvas_char(v.editor))
+        elif mui_canvas_key(v.editor) >= 0
+            sp_resultado(d, sp_tecla(d.sprite, mui_canvas_key(v.editor), teclas, mui_canvas_char(v.editor)))
         end
         return 0
     elif mui_canvas_button(v.editor) == 1 and d.diseno
@@ -1043,6 +1045,7 @@ func publicar_sonda()
     d = ed_actual()
     if d != nil and d.sprite != nil
         env_set("FORJA_SPRITE", sp_geometria(), false)
+        env_set("FORJA_SPRITE_PANEL", sp_geometria_panel(), false)
     end
     t = ed_pestanas_ventana()
     if t != sonda_pestanas

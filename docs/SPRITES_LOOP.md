@@ -201,7 +201,7 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
       y apúntalo aquí. Si 32x32 pasa de 200 ms, busca cómo bajarlo antes de seguir.
 - [x] 5. **Lápiz.** Clic y arrastre con líneas entre puntos (sin huecos), Alt + clic con el color 0, Ctrl + clic
       coge el color. Mientras se arrastra, solo las celdas tocadas. Deshacer y rehacer por trazo.
-- [ ] 6. **Paleta.**
+- [x] 6. **Paleta.**
       - Elegir con un clic, con arriba y abajo, o con las cifras.
       - Barras R G B con clic y arrastre, en pasos de 4 bits si es sprite de hardware.
       - Deshacer de la paleta.
@@ -234,6 +234,10 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
       píxel con el lápiz; WriteChunkyPixels o WritePixelArray8, con zoom). La rejilla de 32x32 con píxeles al azar
       tarda 240 ms en un A1200 porque son unos 1000 RectFill desde Dash (tarea 4). Forja lo usaría sin zoom de
       rejilla y en las miniaturas.
+- [ ] 15c. **Soltar lápices:** `color_pen` guarda 128 lápices y, pasado el tope, devuelve uno que suelta en seguida
+      (otro ObtainBestPen puede cambiarle el color en la pantalla). Un BOB de 256 colores ya pasa del tope, y mover
+      una barra R G B pide un lápiz por cada valor. Pedir `color_pen_free(pen)` o `color_pens_reset()` para soltar
+      los que ya no se usan (tarea 6).
 - [ ] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
 - [ ] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
@@ -338,3 +342,19 @@ a pantalla completa). Lo que falta:
 - `tests/sprites_lapiz.sh`: TODO BIEN (10). `tests/sprites_forja.sh` sigue en TODO BIEN.
 - Webs (fuera del loop, lo pidió el usuario): publicadas forja e inferencia.freemem.space (haproxy del CT 101 con
   copia, `main` subido con la cuenta FreeMEM, `desplegar.py --certificado`). Comprobado desde fuera.
+
+### 2026-11-02 — Tarea 6 (paleta)
+- Panel de la derecha con la paleta: cuadrícula de 8 columnas (16 con más de 32 colores), el color 0 con una raya
+  (es el transparente), el elegido enmarcado y su valor "#RRGGBB". Debajo, barras R G B: clic o arrastre. En un
+  sprite de hardware van en pasos de 17, porque `sprite_color` usa 4 bits. Un clic en una barra guarda un paso de
+  deshacer de todo (la paleta va en el paso completo).
+- Botones del lienzo: cada dibujo apunta rectángulo y acción (`_sp_boton`); `sp_clic` los busca fuera de la
+  rejilla. Teclado sin Amiga: `sp_tecla` (arriba y abajo dan la vuelta; las cifras eligen color).
+- La sonda acaba con "paleta RRGGBB ..."; `ENV:FORJA_SPRITE_PANEL` "x y lado columnas" de la paleta y "x y ancho
+  paso" de las barras.
+- `tests/sprites_paleta.sh`: TODO BIEN (10), también con `RTG=1`. `sprites_lapiz` y `sprites_forja` siguen en
+  TODO BIEN.
+- Lápices en 256 colores: tras arrastrar la barra G de punta a punta, la captura RTG no mostró colores cambiados.
+  Pero Dash guarda 128 lápices y, pasado el tope, suelta cada uno en seguida, así que un BOB de 256 colores o
+  mucho arrastre pueden cambiar colores en pantalla. No visto, no descartado: tarea 15c.
+- La cuota semanal se renovó (0 %) a las 23:08: la excepción de la regla 0 ya no hace falta.
