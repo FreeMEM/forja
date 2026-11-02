@@ -253,6 +253,21 @@ copiar un poco sus formas de trabajar".
       - Qué hay ya en Forja y en Dash, qué es nuevo, qué builtins pide, y en qué orden (fases con algo que funcione
         en cada una). Decisiones para el usuario al final. `[?]` al acabar, como la 26.
 
+### I. Juegos en 3D con MiniGL (pedido del usuario el 2026-11-02; va antes que lo que queda de C)
+Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el grupo de Amiga de Telegram: Santi
+(DarkG) hace cosas con MiniGL y un modeler. Claude no puede leer Telegram: si el usuario pasa los mensajes
+(exportados desde Telegram Desktop o pegados), se leen antes de escribir el diseño.
+- [ ] 28. **Diseño 3D, sin código.** En `docs/3D_DISENO.md`:
+      - **Qué es MiniGL hoy en el Amiga clásico** (fuentes públicas, WebFetch/WebSearch, citadas): sobre qué va
+        (Warp3D, Wazp3D por software, tarjetas 3D como Permedia2, Voodoo o Virge, Vampire, PiStorm/Emu68), qué
+        versión, licencia, qué parte de OpenGL tiene y qué rinde en cada máquina. No afirmar nada sin fuente.
+      - **Cómo lo usaría Dash:** builtins (`@extern` sobre minigl.library, como se hizo con otras bibliotecas) o
+        una capa en Fragua; con qué formato de modelos (los que use el modeler de Santi, si se sabe; si es LightWave,
+        su formato `.lwo` es público).
+      - **Encaje con Fragua y Forja:** nodos 3D en las escenas (cámara, malla, luz) y una vista 3D en el editor.
+      - **Lo que no se sabe** y lo que haría falta probar (en el emulador hay Wazp3D o no; en una máquina real).
+      - Decisiones para el usuario al final. `[?]` al acabar.
+
 ### C. Animar
 - [x] 9. **Fotogramas.** Tira de miniaturas (con zoom 2, 1 o muestreo si son altas) y "+". Nuevo, duplicar,
       quitar, mover, vaciar, espejo H y V, desplazar con Mayúsculas + flechas, y copiar, cortar y pegar fotogramas.
