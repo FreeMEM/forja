@@ -149,6 +149,30 @@ func avisar(texto: String, tipo: Int)
     if abierta
         mui_canvas_redraw(v.salida)
     end
+    d = ed_actual()
+    if d != nil and d.sprite != nil
+        # con un sprite la salida está oculta: el aviso va a su barra de estado
+        sp_mensaje = texto
+        sp_mensaje_tipo = tipo
+        if abierta
+            mui_canvas_redraw(v.editor)
+        end
+    end
+end
+
+# Con un sprite delante, la salida y la barra se ocultan: la rejilla necesita el alto (en 640x256 no hay más)
+var _salida_oculta: Bool = false
+
+func ajustar_paneles()
+    d = ed_actual()
+    ocultar = d != nil and d.sprite != nil
+    if ocultar != _salida_oculta
+        _salida_oculta = ocultar
+        mui_set_visible(v.salida, not ocultar)
+        mui_set_visible(v.balance_salida, not ocultar)
+        mui_set_visible(v.barra, not ocultar)
+        sp_mensaje = ""
+    end
 end
 
 func nombre_de(ruta: String) -> String
@@ -743,6 +767,7 @@ func ajustar_barra()
 end
 
 func redibujar()
+    ajustar_paneles()
     mui_canvas_redraw(v.editor)
     ajustar_barra()
     escribir_sonda()
@@ -995,6 +1020,10 @@ func publicar_sonda()
             texto = texto + l + "\n"
         end
         file_write_text("RAM:forja-salida.txt", texto)
+    end
+    d = ed_actual()
+    if d != nil and d.sprite != nil
+        env_set("FORJA_SPRITE", sp_geometria(), false)
     end
     t = ed_pestanas_ventana()
     if t != sonda_pestanas
@@ -1366,6 +1395,7 @@ Main
         salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.0."), 0)
         salida_anadir(tr(31, "Listo."), 2)
 
+        ajustar_paneles()
         mui_window_open(v.window)
         abierta = true
         mui_canvas_set_pointer(v.editor, 1)

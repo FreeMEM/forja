@@ -1192,7 +1192,8 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         ed_zona_y = y
         ed_zona_ancho = ancho
         ed_zona_alto = alto
-        sp_dibujar(d.sprite, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS)
+        sp_dibujar(d.sprite, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
+        ed_ms_dibujo = sp_ms_dibujo
         return
     end
     if d != nil and d.diseno

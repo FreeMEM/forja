@@ -1,0 +1,95 @@
+# Mide el dibujo entero del editor de sprites con 16x16, 32x32 y 64x64 (a16, b32 y c64, píxeles casi al azar: lo
+# peor) y una bola de 32x32 como un sprite de verdad (d32), abiertos desde
+# el panel del proyecto) y mira la geometría de la rejilla (ENV:FORJA_SPRITE). Sale con Amiga-Q.
+# Lo arranca tests/sprites_dibujo.sh; anota en DH0:Prueba/sprites_dibujo.txt.
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sprites_dibujo.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func nombre_activo() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return ""
+    end
+    return str_split(t, "\n")[0]
+end
+
+func fila_proyecto(i: Int)
+    f = campo("FORJA_PROYECTO", 2)
+    input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + i * f + f / 2, 0)
+    time_delay(50)
+end
+
+# Abre la fila i del proyecto y anota el dibujo; la rejilla tiene que caber en el editor
+func medir(i: Int, nombre: String, lado: Int)
+    fila_proyecto(i)
+    n = 0
+    while n < 40 and nombre_activo() != "0 0 " + nombre
+        n = n + 1
+    end
+    ver("abre " + nombre, nombre_activo() == "0 0 " + nombre, nombre_activo())
+    z = campo("FORJA_SPRITE", 2)
+    gx = campo("FORJA_SPRITE", 0)
+    ancho = campo("FORJA_EDITOR", 2)
+    ver(nombre + ": zoom #{z}, la rejilla cabe", z >= 1 and gx >= 0 and gx + lado * z <= ancho, env_get("FORJA_SPRITE") + " / " + env_get("FORJA_EDITOR"))
+    anotar(nombre + ": dibujo entero " + env_get("FORJA_DIBUJO") + " ms")
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_PROYECTO") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        # el proyecto: "/", a16.iff, b32.iff, c64.iff, d32.iff, main.dash...
+        medir(1, "a16.iff", 16)
+        medir(2, "b32.iff", 32)
+        medir(3, "c64.iff", 64)
+        anotar("otra vez, con los lápices ya pedidos:")
+        medir(1, "a16.iff", 16)
+        medir(2, "b32.iff", 32)
+        medir(3, "c64.iff", 64)
+        medir(4, "d32.iff", 32)
+        time_delay(250)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+end

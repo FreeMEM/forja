@@ -196,7 +196,7 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
       - Cerrar y salir con cambios preguntan, como con el texto.
 
 ### B. Dibujar
-- [ ] 4. **Rejilla.** Zoom que llena la zona, tramos, color 0, líneas de rejilla, barra de estado,
+- [x] 4. **Rejilla.** Zoom que llena la zona, tramos, color 0, líneas de rejilla, barra de estado,
       `ENV:FORJA_SPRITE`. Mide el dibujo entero con `REAL=1` (A1200, 68020 a 14 MHz) para 16x16, 32x32 y 64x64,
       y apúntalo aquí. Si 32x32 pasa de 200 ms, busca cómo bajarlo antes de seguir.
 - [ ] 5. **Lápiz.** Clic y arrastre con líneas entre puntos (sin huecos), Alt + clic con el color 0, Ctrl + clic
@@ -230,6 +230,10 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
 ### E. Piezas de Dash (builtins nuevos, en el worktree de Dash)
 - [ ] 15. **BOB con fotogramas de cualquier ancho:** `bob_frame_width(id, ancho)`, o que `bob_load` lea el ancho
       de `FRJA`. Decide cuál, con su test y su doc. Forja deja de avisar por los fotogramas no cuadrados.
+- [ ] 15b. **Pintar una imagen de lápices de golpe:** `gfx_pens_draw(buffer, ancho, alto, x, y, zoom)` (un byte por
+      píxel con el lápiz; WriteChunkyPixels o WritePixelArray8, con zoom). La rejilla de 32x32 con píxeles al azar
+      tarda 240 ms en un A1200 porque son unos 1000 RectFill desde Dash (tarea 4). Forja lo usaría sin zoom de
+      rejilla y en las miniaturas.
 - [ ] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
 - [ ] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
@@ -303,3 +307,22 @@ a pantalla completa). Lo que falta:
   vez de que no se puede ejecutar.
 - Aparte del loop, el usuario pidió los registros A de forja e inferencia.freemem.space: puestos en OVH
   (37.187.75.28, comprobado con dig en dns15/ns15.ovh.net). Las webs las hace otro agente en `webs-freemem`.
+
+### 2026-11-02 — Tarea 4 (rejilla)
+- `sp_dibujar`: la rejilla con el mayor zoom que cabe (hasta 32). Cada fila se pinta por tramos del mismo color y
+  el lápiz solo se cambia si cambia el color. Con zoom de 6 o más, separación de 1 píxel. El color 0 se pinta con un
+  gris del tema (`fondo_linea`), distinto del negro. Barra de estado (tipo, tamaño, fotograma, color,
+  herramienta, o el último aviso). `ENV:FORJA_SPRITE` "x y zoom".
+- **Sitio:** en 640x256 el editor deja unos 90 píxeles de alto y 32x32 cabía con zoom 2. Ahora, con un sprite
+  delante, se ocultan la salida, su divisor (`balance_salida`) y la barra (`ajustar_paneles` en `main.dash`), y
+  los avisos van a la barra de estado del sprite. La tira de fotogramas solo sale si con ella la rejilla tiene
+  zoom 4 o más. Así, en 640x256, 16x16 sale con zoom 5, 32x32 con zoom 4 y 64x64 con zoom 2. En RTG de 1024x768,
+  64x64 sale con zoom 8 y la bola de 32x32 con zoom 16.
+- **Tiempos** (`tests/sprites_dibujo.sh`, `REAL=1`, A1200 a 14 MHz, Workbench de 640x256): 16x16 al azar 75 ms;
+  32x32 al azar 239 ms; 64x64 al azar 890 ms; bola de 32x32 (como un sprite de verdad) 65 ms. Quitar las llamadas
+  de sobra no bajó nada (237 a 239): cada tramo es un RectFill que cuesta unos 0,22 ms. Pasa de 200 ms solo con
+  ruido, que no es lo normal. Mientras se pinta, la tarea 5 redibuja solo las celdas tocadas. Lo que lo arregla
+  es un builtin que pinte la imagen de golpe: tarea 15b. Se sigue adelante.
+- Captura RTG (scratchpad `rtg-14.png`): bien.
+- Webs (fuera del loop): el agente terminó `forja` e `inferencia` en `webs-freemem`, rama `forja-inferencia`, sin
+  publicar.

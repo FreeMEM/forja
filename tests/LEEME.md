@@ -47,3 +47,7 @@ vuelve a leer, comprueba que `bob_load` y `sprite_load` cargan lo escrito y que 
 `tests/sprites_forja.sh <worktree de Dash>`: `tests/sprites_forja.dash` abre `nave.iff` (de `iff.py`), lo ve en el
 panel del proyecto, cambia de pestaña, guarda con Amiga-S, crea un BOB con Amiga-B, compila desde la pestaña del
 sprite (compila el `.dash` abierto) y prueba Inferencia; `iff.py` comprueba el fichero guardado.
+
+`tests/sprites_dibujo.sh <worktree de Dash> [captura.png segundos...]` mide el dibujo entero del editor de sprites
+con 16x16, 32x32 y 64x64 (píxeles casi al azar, lo peor) y una bola de 32x32 (como un sprite de verdad).
+`REAL=1` para los tiempos de un A1200; `RTG=1` para ver los colores en las capturas.

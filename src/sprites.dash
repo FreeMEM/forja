@@ -575,15 +575,177 @@ func sp_sonda(s: Sprite) -> String
     return t
 end
 
-# El dibujo de la pestaña (la rejilla llega en la tarea 4)
-func sp_dibujar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
-    gfx_pen(tema.fondo)
+# --- Dibujar ---
+# La zona: la rejilla con zoom a la izquierda, el panel a la derecha (herramientas, paleta, vista), la tira de
+# fotogramas debajo de la rejilla y la barra de estado abajo. La geometría del último dibujo se guarda para los clics
+# (coordenadas de la ventana; sp_geometria() las da desde la esquina de la zona).
+
+const SP_REJILLA_DESDE = 6     # con este zoom o más, líneas entre los píxeles
+
+var sp_ms_dibujo: Int = 0
+var _sp_pens: [Int] = []       # el lápiz de la pantalla de cada color de la paleta
+var _sp_zx: Int = 0            # la esquina de la zona
+var _sp_zy: Int = 0
+var _sp_gx: Int = 0            # la esquina de la rejilla
+var _sp_gy: Int = 0
+var _sp_z: Int = 1             # el zoom: lado de un píxel en la pantalla
+var sp_con_tira: Bool = true   # si cupo la tira de fotogramas
+var sp_mensaje: String = ""    # un aviso para la barra de estado (con un sprite, la salida está oculta)
+var sp_mensaje_tipo: Int = 0   # 0 normal, 1 error, 2 bien
+
+# Los lápices de la pantalla de cada color; el 0 (transparente) es un gris del tema, distinto del negro
+func _sp_preparar_pens(s: Sprite)
+    _sp_pens = []
+    i = 0
+    while i < sp_colores(s)
+        c = s.paleta[i]
+        _sp_pens.push(color_pen((c >> 16) & 255, (c >> 8) & 255, c & 255))
+        i = i + 1
+    end
+    _sp_pens[0] = tema.fondo_linea
+end
+
+func sp_panel_ancho(ancho: Int) -> Int
+    if ancho >= 480
+        return 168
+    end
+    return 128
+end
+
+# El alto de una miniatura de la tira (el doble si es bajo; las muy altas, muestreadas a 64)
+func sp_miniatura_alto(s: Sprite) -> Int
+    if s.alto <= 24
+        return s.alto * 2
+    end
+    if s.alto <= 64
+        return s.alto
+    end
+    return 64
+end
+
+# "x y zoom" de la rejilla, desde la esquina de la zona (para las pruebas)
+func sp_geometria() -> String
+    return "#{_sp_gx - _sp_zx} #{_sp_gy - _sp_zy} #{_sp_z}"
+end
+
+# La rejilla: cada fila por tramos del mismo color; con zoom grande, un hueco de 1 píxel entre filas y líneas
+# verticales encima
+func _sp_dibujar_rejilla(s: Sprite)
+    px = s.fotos[s.actual]
+    pens = _sp_pens
+    z = _sp_z
+    hueco = 0
+    if z >= SP_REJILLA_DESDE
+        hueco = 1
+        gfx_pen(tema.borde)
+        gfx_rect(_sp_gx - 1, _sp_gy - 1, _sp_gx + s.ancho * z - 1, _sp_gy + s.alto * z - 1)
+    end
+    ancho = s.ancho
+    gx = _sp_gx
+    puesto = -1
+    y = 0
+    i = 0
+    while y < s.alto
+        fy = _sp_gy + y * z
+        fy2 = fy + z - 1 - hueco
+        fin = i + ancho
+        x = 0
+        while i < fin
+            c = px[i]
+            i2 = i + 1
+            while i2 < fin and px[i2] == c
+                i2 = i2 + 1
+            end
+            p = pens[c]
+            if p != puesto
+                gfx_pen(p)
+                puesto = p
+            end
+            x2 = x + i2 - i
+            gfx_rect(gx + x * z, fy, gx + x2 * z - 1 - hueco, fy2)
+            x = x2
+            i = i2
+        end
+        y = y + 1
+    end
+    if hueco == 1
+        gfx_pen(tema.borde)
+        x = 1
+        while x < ancho
+            lx = gx + x * z - 1
+            gfx_rect(lx, _sp_gy, lx, _sp_gy + s.alto * z - 2)
+            x = x + 1
+        end
+    end
+end
+
+func sp_nombre_herramienta(h: Int) -> String
+    nombres = [tr(93, "Lápiz"), tr(94, "Línea"), tr(95, "Caja"), tr(96, "Relleno"), tr(97, "Cuentagotas"), tr(98, "Agarre")]
+    return nombres[h]
+end
+
+func _sp_dibujar_estado(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
+    gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     usar_panel(0)
-    gfx_pen(tema.texto)
     tipo = "BOB"
     if s.hardware
         tipo = tr(87, "Sprite de hardware")
     end
-    gfx_text_at(x + 8, y + 6 + font_baseline(), tipo + ", #{s.ancho} x #{s.alto}, #{sp_colores(s)} colores, #{s.fotos.length} fotogramas")
+    t = tipo + "  #{s.ancho} x #{s.alto}  " + hueco2(tr(99, "fotograma %1 de %2"), "#{s.actual + 1}", "#{s.fotos.length}") + "  " + hueco(tr(100, "color %1"), "#{s.color}") + "  " + sp_nombre_herramienta(s.herramienta)
+    gfx_pen(tema.texto)
+    if sp_mensaje != ""
+        t = sp_mensaje
+        if sp_mensaje_tipo == 1
+            gfx_pen(tema.error)
+        elif sp_mensaje_tipo == 2
+            gfx_pen(tema.bien)
+        end
+    end
+    gfx_text_at(x + 8, y + (alto - font_height()) / 2 + font_baseline(), t)
+end
+
+# x, y, ancho, alto: la zona bajo las pestañas; arriba: el alto de las pestañas (para la esquina de la zona)
+func sp_dibujar(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
+    t0 = time_ms()
+    _sp_zx = x
+    _sp_zy = y - arriba
+    _sp_preparar_pens(s)
+    gfx_pen(tema.fondo)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_panel(0)
+    estado_alto = font_height() + 6
+    panel = sp_panel_ancho(ancho)
+    # la tira de fotogramas, si con ella la rejilla aún tiene zoom 4 (en una pantalla baja no cabe)
+    tira = sp_miniatura_alto(s) + 12
+    if (alto - estado_alto - tira - 8) / s.alto < 4
+        tira = 0
+    end
+    sp_con_tira = tira > 0
+    # el panel (se llena en las tareas 6 y 7)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x + ancho - panel, y, x + ancho - 1, y + alto - 1)
+    if tira > 0
+        gfx_pen(tema.fondo_salida)
+        gfx_rect(x, y + alto - estado_alto - tira, x + ancho - panel - 1, y + alto - estado_alto - 1)
+    end
+    # la rejilla, del mayor zoom que quepa
+    gw = ancho - panel - 8
+    gh = alto - estado_alto - tira - 8
+    z = gw / s.ancho
+    if gh / s.alto < z
+        z = gh / s.alto
+    end
+    if z > 32
+        z = 32
+    end
+    if z < 1
+        z = 1
+    end
+    _sp_z = z
+    _sp_gx = x + 4 + (gw - s.ancho * z) / 2
+    _sp_gy = y + 4 + (gh - s.alto * z) / 2
+    _sp_dibujar_rejilla(s)
+    _sp_dibujar_estado(s, x, y + alto - estado_alto, ancho - panel, estado_alto)
+    sp_ms_dibujo = time_ms() - t0
 end

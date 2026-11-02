@@ -81,7 +81,7 @@
               { "type": "scrollbar", "name": "barra", "vertical": true, "change": 3 }
             ]
           },
-          { "type": "balance" },
+          { "type": "balance", "name": "balance_salida" },
           { "type": "canvas", "name": "salida", "min_width": 240, "min_height": 44, "weight": 60 }
         ]
       }
