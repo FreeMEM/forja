@@ -285,7 +285,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
       `tests/LEEME.md`, `PLAN.md` (fase nueva) y el paquete (`tools/paquete.py`) si hace falta.
 
 ### E. Piezas de Dash (builtins nuevos, en el worktree de Dash)
-- [ ] 15. **BOB con fotogramas de cualquier ancho:** `bob_frame_width(id, ancho)`, o que `bob_load` lea el ancho
+- [x] 15. **BOB con fotogramas de cualquier ancho:** `bob_frame_width(id, ancho)`, o que `bob_load` lea el ancho
       de `FRJA`. Decide cuál, con su test y su doc. Forja deja de avisar por los fotogramas no cuadrados.
 - [ ] 15b. **Pintar una imagen de lápices de golpe:** `gfx_pens_draw(buffer, ancho, alto, x, y, zoom)` (un byte por
       píxel con el lápiz; WriteChunkyPixels o WritePixelArray8, con zoom). La rejilla de 32x32 con píxeles al azar
@@ -566,3 +566,19 @@ a pantalla completa). Lo que falta:
   los diseños por revisar.
 - El paquete (`tools/paquete.py`) no necesita nada: el editor va dentro del ejecutable y el catálogo ya se
   empaqueta.
+
+### 2026-11-03 — Tarea 15 (Dash: BOB con fotogramas de cualquier ancho)
+- Worktree de Dash `~/Projects/FreeMEMLang/.worktrees/forja-sprites`, rama `forja-sprites` desde main 67770c1 (Dash
+  2.0.2). **Ojo:** el main de Dash tiene cambios sin commit de otra sesión (`compiler/codegen.py`, `main.py`, los
+  `dashrt*.o`...). No se tocaron.
+- Decidido: las dos cosas. `bob_load` lee el trozo FRJA ("1 tipo ancho velocidad") y toma el ancho del fotograma;
+  así los ficheros de Forja funcionan sin código de más. `bob_frame_width(id, ancho)` sirve para cualquier otra
+  imagen (borra el BOB si estaba dibujado y vuelve al fotograma 0 si ya no existe).
+  `_dash_bitmap_fw[]`, a 0 en `_dash_bitmap_create`.
+- Test `tests/test_bob_frame_width.dash`: un IFF escrito a mano con FRJA (3 fotogramas de 8x4, que con la regla de
+  los cuadrados serían 6 de 4x4), el mismo sin FRJA, y con `bob_frame_width`. Pasa con `--emu` (y `test_bobs`
+  sigue bien), y también compilado con `./dash` directo a hunk tras `make -C dashc runtime` (runtime de dashc
+  rehecho, `builtins_tab.c` al día). `docs/BUILTINS*.md` y la gramática de VS Code regenerados. Batería sin
+  emulador: 522/522.
+- Commit 47b5b6f en `forja-sprites` de Dash. Fusionar en main de Dash lo decide el usuario (tarea 19). Hasta
+  entonces, Forja sigue avisando de los fotogramas no cuadrados en el código que copia.
