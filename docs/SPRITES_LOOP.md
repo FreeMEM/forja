@@ -302,7 +302,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
       (`compiler/amiga_builtins.py`). Con `screen_open_custom` y sin ventana, `_dash_win` es NULL. Usar la pantalla
       del programa (`_dash_screen`) si la hay, y no hacer nada si no hay ni ventana ni pantalla. Test con
       `screen_open_custom` + `gfx_rgb8` sin ventana. Mirar si otros builtins tienen el mismo `_dash_win->`.
-- [ ] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
+- [x] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
 - [ ] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
 - [ ] 18. **Sprites acoplados** (15 colores, parejas de sprites): `[?]` antes de empezar. Pregunta al usuario si
@@ -632,3 +632,15 @@ a pantalla completa). Lo que falta:
   de Dash en el emulador A1200: 783/783; sin emulador 525/525. Runtime de dashc rehecho. Commit 066239f.
 - Captura mandada al usuario: degradado de 32 colores en una pantalla propia sin ventana. Sale corrida unos
   píxeles a la izquierda (el título se corta); parece el encuadre del emulador, sin comprobar.
+
+### 2026-11-03 — Tarea 16 (Dash: `sprite_rgb8`)
+- `sprite_rgb8(id, i, r, g, b)`: como `sprite_color` (índice 0-2, los registros 17-31 según el sprite de hardware
+  que le tocó), con `SetRGB32` y componentes de 0 a 255. Exacto en AGA; en ECS el sistema se queda con 4 bits. Las
+  descripciones de los dos dicen ya el índice y el rango.
+- **Sin comprobar el color en el emulador:** `screen_open` no da más de 4 planos en esta máquina (5, 6 y 8 fallan),
+  y `screen_open_custom` con más planos elige un modo RTG, donde no hay sprites de hardware. Con 16 colores no se
+  pueden pintar y leer los colores 17-31. Dos intentos de test con `gfx_pixel_rgb` lo enseñaron. El test se queda
+  en: corre en una pantalla nativa con un sprite y no hace nada con un sprite que no existe.
+- Batería sin emulador 526/526; tests de sprites con `--emu` bien; runtime de dashc rehecho. Commit de53d5d.
+- Forja (tarea 19): el código que copia con C usará `sprite_rgb8` con los colores de 8 bits del editor (y en
+  `sprite_color`, los de 4 bits para ECS).
