@@ -234,3 +234,214 @@ def margen_x():
     f = forja()
     ex, ey, ew, eh = campos("FORJA_EDITOR")
     return f[1] + ex + 12
+
+
+def abrir(ruta):
+    """Amiga-O y la ruta entera en la petición de ASL."""
+    agente.tecla(K_O, RAMIGA); time.sleep(1.5)
+    agente.tecla(K_X, RAMIGA); time.sleep(0.2)
+    agente.escribir(ruta); time.sleep(0.3)
+    agente.tecla(K_RETURN); time.sleep(0.8)
+    agente.tecla(K_RETURN); time.sleep(2)
+
+
+# --- El editor de sprites ---
+
+def sp_celda(cx, cy):
+    """El centro de la celda cx, cy de la rejilla del editor de sprites, en la pantalla."""
+    f = forja()
+    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    gx, gy, z = campos("FORJA_SPRITE")
+    return f[1] + ex + gx + cx * z + z // 2, f[2] + ey + gy + cy * z + z // 2
+
+
+def arrastrar(desde, hasta, dur=0.8):
+    p.mover_a(*desde, dur=0.5)
+    orden("SEND_MOUSE", 0, 0, 1)
+    time.sleep(0.15)
+    p.mover_a(*hasta, dur=dur, botones=1)
+    time.sleep(0.15)
+    orden("SEND_MOUSE", 0, 0, 0)
+    time.sleep(0.5)
+
+
+def letra(c, cal=0):
+    """Una tecla por su letra o cifra (el teclado del Amiga, en códigos crudos)."""
+    fila1 = "1234567890"
+    fila2 = "qwertyuiop"
+    fila3 = "asdfghjkl"
+    fila4 = "zxcvbnm"
+    if c in fila1:
+        k = 0x01 + fila1.index(c)
+    elif c in fila2:
+        k = 0x10 + fila2.index(c)
+    elif c in fila3:
+        k = 0x20 + fila3.index(c)
+    elif c in fila4:
+        k = 0x31 + fila4.index(c)
+    elif c == " ":
+        k = 0x40
+    else:
+        raise ValueError(c)
+    agente.tecla(k, cal)
+    time.sleep(0.25)
+
+
+def muneco(cara="seria"):
+    """Un muñeco en el fotograma actual: la cabeza (caja y relleno), los ojos, la boca y la antena."""
+    letra("6"); letra("b")
+    arrastrar(sp_celda(8, 8), sp_celda(23, 27), 1.0)
+    letra("9"); letra("f")
+    uno(*sp_celda(15, 15), 0.6); time.sleep(0.6)
+    letra("1"); letra("p")
+    for x, y in ((12, 13), (13, 13), (12, 14), (13, 14), (18, 13), (19, 13), (18, 14), (19, 14)):
+        uno(*sp_celda(x, y), 0.25)
+    letra("5"); letra("l")
+    if cara == "seria":
+        arrastrar(sp_celda(12, 21), sp_celda(19, 21), 0.6)
+    else:
+        arrastrar(sp_celda(11, 19), sp_celda(12, 21), 0.4)
+        arrastrar(sp_celda(13, 22), sp_celda(18, 22), 0.5)
+        arrastrar(sp_celda(19, 21), sp_celda(20, 19), 0.4)
+    letra("6")
+    arrastrar(sp_celda(15, 7), sp_celda(15, 3), 0.5)
+    letra("8"); letra("p")
+    for x, y in ((14, 2), (15, 2), (16, 2), (15, 1)):
+        uno(*sp_celda(x, y), 0.25)
+
+
+def sonrisa():
+    """El segundo fotograma: el mismo muñeco sonriendo (se tapa la boca con el color de la cara)."""
+    letra("9"); letra("l")
+    arrastrar(sp_celda(12, 21), sp_celda(19, 21), 0.5)
+    letra("5")
+    arrastrar(sp_celda(11, 19), sp_celda(12, 21), 0.4)
+    arrastrar(sp_celda(13, 22), sp_celda(18, 22), 0.5)
+    arrastrar(sp_celda(19, 21), sp_celda(20, 19), 0.4)
+
+
+def montar_rapido():
+    """Para medir, sin rodaje: Dash descomprimido en RAM:, ENV:Forja/dashc y la carpeta MyFiles:Juego con el tileset
+    y el juego; Forja abierta desde RAM:Dash/Forja (con la sonda)."""
+    agente.lanzar(f"System:C/lha x Traspaso:{PAQUETE} RAM: >NIL:")
+    time.sleep(12)
+    agente.lanzar("C:MakeDir ENV:Forja MyFiles:Juego")
+    agente.lanzar('C:SetEnv Forja/dashc "RAM:Dash/dash"')
+    agente.lanzar("C:SetEnv FORJA_SONDA 1")
+    agente.lanzar("C:Copy Traspaso:juego/#? MyFiles:Juego/")
+    time.sleep(2)
+    agente.lanzar("Run >NIL: RAM:Dash/Forja/Forja")
+    t = time.time()
+    while time.time() - t < 30 and not forja():
+        time.sleep(0.5)
+    time.sleep(3)
+    return forja()
+
+
+def nuevo(cual):
+    """Amiga-B y en la petición "Nuevo sprite": s (sprite), b (BOB) o m (mapa). Espera a la petición antes."""
+    f = forja()
+    p.mover_a(f[1] + 600, f[2] + 400, 0.5); time.sleep(0.3)
+    agente.tecla(0x35, RAMIGA)
+    t = time.time()
+    while time.time() - t < 10:
+        if any(w[1] in ("Nuevo sprite", "New sprite") for w in amiga.ventanas()):
+            break
+        time.sleep(0.2)
+    time.sleep(0.6)
+    letra(cual)
+
+
+def pedir_fichero(ruta, titulos=("Tileset del mapa", "The map's tileset", "Sprite del objeto", "The object's sprite")):
+    """Espera a la petición de ficheros y escribe la ruta entera."""
+    t = time.time()
+    while time.time() - t < 10:
+        if any(w[1] in titulos for w in amiga.ventanas()):
+            break
+        time.sleep(0.2)
+    time.sleep(0.6)
+    agente.tecla(K_X, RAMIGA); time.sleep(0.2)
+    agente.escribir(ruta); time.sleep(0.3)
+    agente.tecla(K_RETURN); time.sleep(0.8)
+    agente.tecla(K_RETURN); time.sleep(2)
+
+
+# --- El editor de mapas ---
+
+def mp_celda(cx, cy):
+    """El centro de la celda cx, cy del mapa en la pantalla (con la vista en 0, 0)."""
+    f = forja()
+    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    gx, gy, lado, cols, filas = campos("FORJA_MAPA")
+    return f[1] + ex + gx + cx * lado + lado // 2, f[2] + ey + gy + cy * lado + lado // 2
+
+
+def mp_botones():
+    r = {}
+    for b in env("FORJA_MAPA_BOTONES").split():
+        a, x, y = b.split(",")
+        r[int(a)] = (int(x), int(y))
+    return r
+
+
+def mp_boton(accion, veces=1, pausa=0.25):
+    f = forja()
+    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    x, y = mp_botones()[accion]
+    p.mover_a(f[1] + ex + x, f[2] + ey + y, 0.6); time.sleep(0.2)
+    for _ in range(veces):
+        p.clic(); time.sleep(pausa)
+
+
+def mp_caja(tile_accion, c1, c2):
+    """La herramienta caja (B) con un tile del panel (su acción: 1000 + tile, o 2000 + tipo de choque)."""
+    mp_boton(tile_accion); time.sleep(0.3)
+    letra("b")
+    arrastrar(mp_celda(*c1), mp_celda(*c2), 0.8)
+
+
+def mp_lapiz(tile_accion, celdas):
+    mp_boton(tile_accion); time.sleep(0.3)
+    letra("p")
+    for c in celdas:
+        uno(*mp_celda(*c), 0.35)
+
+
+def nivel_fondo():
+    """La capa 0: hierba con la caja, la tierra con el relleno, una plataforma y una pared de ladrillo."""
+    mp_boton(5000); time.sleep(0.6)
+    mp_caja(1001, (0, 12), (21, 12))
+    mp_boton(1002); time.sleep(0.3)
+    letra("f")
+    uno(*mp_celda(6, 14), 0.6); time.sleep(1.5)
+    mp_caja(1003, (7, 8), (10, 8))
+    mp_caja(1003, (15, 10), (16, 11))
+
+
+def nivel_delante():
+    """Una capa nueva delante: nubes y monedas."""
+    mp_boton(5001); time.sleep(0.6)
+    mp_boton(6200); time.sleep(1.0)
+    mp_boton(5000); time.sleep(0.6)
+    mp_lapiz(1005, [(3, 3), (12, 2), (18, 4)])
+    mp_lapiz(1006, [(8, 6), (9, 6), (10, 6)])
+
+
+def nivel_choques():
+    """Otra capa, de choques: el suelo y la pared sólidos, la plataforma."""
+    mp_boton(5001); time.sleep(0.6)
+    mp_boton(6200); time.sleep(1.0)
+    mp_boton(6204); time.sleep(1.0)
+    mp_boton(5000); time.sleep(0.6)
+    mp_caja(2001, (0, 12), (21, 15))
+    mp_caja(2001, (15, 10), (16, 11))
+    mp_caja(2002, (7, 8), (10, 8))
+
+
+def nivel_objetos():
+    """El jugador y un enemigo."""
+    mp_boton(5003); time.sleep(0.6)
+    mp_boton(7000); time.sleep(0.4)
+    uno(*mp_celda(1, 10), 0.6); time.sleep(0.8)
+    mp_boton(7001); time.sleep(0.4)
+    uno(*mp_celda(19, 10), 0.6); time.sleep(0.8)

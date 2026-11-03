@@ -112,6 +112,9 @@ def traspaso(lengua):
     shutil.rmtree(TRASP, ignore_errors=True)
     os.makedirs(TRASP)
     shutil.copy(os.path.join(V, "descargas", PAQUETE), TRASP)
+    # lo que el vídeo encuentra en MyFiles:Juego (lo copia el guion, sin que se vea): el tileset, la ventana de
+    # saludo y el juego
+    shutil.copytree(os.path.join(V, "descargas", "juego"), os.path.join(TRASP, "juego"))
     for f in ("agente", "agente.info"):
         shutil.copy(os.path.join(V, "agente", f), TRASP)
     if lengua in ("es", "en"):
