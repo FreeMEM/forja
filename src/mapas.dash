@@ -1,0 +1,432 @@
+# El editor de mapas de tiles (docs/MAPAS_DISENO.md). El mapa vive en Dash (tilemap_*: celdas de un word, capas,
+# FORM FMAP); el tileset es un BOB del editor de sprites (un fotograma por tile), que se lee con sp_leer.
+#
+#   m = mp_nuevo(64, 32, 16)        # un mapa vacío de 64 x 32 celdas, tiles de 16, una capa
+#   m = mp_leer(ruta)               # nil si no se puede (mp_error dice por qué)
+#   mp_escribir(m, ruta)
+#   mp_poner(m, capa, x, y, valor) / mp_celda(m, capa, x, y)
+#   mp_deshacer(m) / mp_rehacer(m)
+#
+# Se ve con tilemap_draw sobre dos BOB hechos aquí con los lápices de la pantalla y el zoom: uno para la primera
+# capa que se ve (el color 0, gris del tema) y otro para las demás (el color 0, transparente).
+
+import "sprites.dash"
+
+const MP_MAX_DESHACER = 50
+const MP_MAX_MAPAS = 4         # abiertos a la vez (cada uno usa dos BOB de Dash para verse)
+const MP_BOB = 24              # los BOB de la vista: MP_BOB + 2 * hueco y el siguiente
+
+const MP_LAPIZ = 0
+const MP_CAJA = 1
+const MP_RELLENO = 2
+const MP_GOTAS = 3
+const MP_BORRAR = 4
+
+const MP_ESPEJO_H = 16384
+const MP_ESPEJO_V = 32768
+
+struct Mapa
+    id: Int               # el número del mapa en Dash (tilemap_*), que es también su hueco
+    tileset: Sprite       # leído con sp_leer; nil si no hay o no se pudo leer
+    capa: Int             # la que se edita
+    tile: Int             # el elegido (1 el primero)
+    espejo: Int           # 0, MP_ESPEJO_H, MP_ESPEJO_V o los dos
+    herramienta: Int
+    zoom: Int             # 1, 2 o 4
+    vx: Int               # la celda de arriba a la izquierda de la vista
+    vy: Int
+    rejilla: Bool
+    deshacer: [MpPaso]
+    rehacer: [MpPaso]
+    vista_zoom: Int = 0   # con qué zoom y lápices están hechos los BOB de la vista (0: hay que hacerlos)
+    vista_pens: String = ""
+end
+
+# Un paso de deshacer: las celdas que cambiaron (capa, índice y valor de antes y de después), o el mapa entero
+# (todo: el tamaño o las capas cambiaron; se guarda en un fichero de RAM:)
+struct MpPaso
+    capas: [Int]
+    celdas: [Int]
+    antes: [Int]
+    despues: [Int]
+    todo: String
+end
+
+var mp_error: String = ""
+
+# --- El mapa ---
+
+func _mp_hueco_libre() -> Int
+    i = 0
+    while i < MP_MAX_MAPAS
+        if tilemap_width(i) == 0
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+func _mp_mapa(id: Int) -> Mapa
+    var d: [MpPaso] = []
+    var r: [MpPaso] = []
+    return Mapa(id, nil, 0, 1, 0, MP_LAPIZ, 2, 0, 0, true, d, r)
+end
+
+func mp_nuevo(ancho: Int, alto: Int, tile: Int) -> Mapa
+    id = _mp_hueco_libre()
+    if id < 0
+        mp_error = hueco(tr(150, "Ya hay %1 mapas abiertos: cierra uno."), "#{MP_MAX_MAPAS}")
+        return nil
+    end
+    if not tilemap_create(id, ancho, alto, tile, 1)
+        mp_error = tr(151, "No hay memoria para el mapa.")
+        return nil
+    end
+    tilemap_layer_set(id, 0, tr(152, "fondo"), 0, true)
+    return _mp_mapa(id)
+end
+
+# El cajón de una ruta, con su ":" o "/" del final ("" si no tiene)
+func _mp_cajon(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/" or c == ":"
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
+
+# Lee el tileset del mapa (su nombre es relativo al mapa); false si no hay o no se puede
+func mp_leer_tileset(m: Mapa, cajon: String) -> Bool
+    m.tileset = nil
+    m.vista_zoom = 0
+    n = tilemap_tileset(m.id)
+    if n == ""
+        return false
+    end
+    ruta = n
+    if not str_contains(n, ":")
+        ruta = cajon + n
+    end
+    s = sp_leer(ruta)
+    if s == nil
+        mp_error = hueco(tr(153, "No se puede leer el tileset %1: "), n) + sp_error
+        return false
+    end
+    if s.ancho != tilemap_tile_size(m.id) or s.alto < tilemap_tile_size(m.id)
+        mp_error = hueco2(tr(154, "El tileset %1 tiene fotogramas de %2: no son los tiles de este mapa."), n, "#{s.ancho} x #{s.alto}")
+        return false
+    end
+    m.tileset = s
+    return true
+end
+
+func mp_leer(ruta: String) -> Mapa
+    id = _mp_hueco_libre()
+    if id < 0
+        mp_error = hueco(tr(150, "Ya hay %1 mapas abiertos: cierra uno."), "#{MP_MAX_MAPAS}")
+        return nil
+    end
+    if not tilemap_load(id, ruta)
+        mp_error = tr(155, "No es un mapa de tiles (FORM FMAP), o está cortado.")
+        return nil
+    end
+    m = _mp_mapa(id)
+    mp_error = ""
+    mp_leer_tileset(m, _mp_cajon(ruta))
+    return m
+end
+
+func mp_escribir(m: Mapa, ruta: String) -> Bool
+    if not tilemap_save(m.id, ruta)
+        mp_error = tr(156, "No se puede guardar el mapa.")
+        return false
+    end
+    return true
+end
+
+# Al cerrar su pestaña
+func mp_cerrar(m: Mapa)
+    tilemap_free(m.id)
+    bob_free(MP_BOB + 2 * m.id)
+    bob_free(MP_BOB + 2 * m.id + 1)
+end
+
+# Si es un mapa: por la extensión .fmap o por su cabecera
+func mp_es_mapa(ruta: String) -> Bool
+    if str_ends(str_lower(ruta), ".fmap")
+        return true
+    end
+    t = file_read_text(ruta)
+    return t != nil and t.length >= 12 and t[0:4] == "FORM" and t[8:12] == "FMAP"
+end
+
+func mp_tiles(m: Mapa) -> Int
+    if m.tileset == nil
+        return 0
+    end
+    return m.tileset.fotos.length
+end
+
+func mp_celda(m: Mapa, capa: Int, x: Int, y: Int) -> Int
+    return tilemap_get(m.id, capa, x, y)
+end
+
+# --- Deshacer ---
+
+var _mp_paso: MpPaso = nil      # el paso del trazo en marcha (nil: aún no hay)
+
+func _mp_paso_nuevo() -> MpPaso
+    var a: [Int] = []
+    var b: [Int] = []
+    var c: [Int] = []
+    var d: [Int] = []
+    return MpPaso(a, b, c, d, "")
+end
+
+# Antes de un cambio: empieza un paso (las celdas que se toquen hasta mp_cerrar_paso van en él)
+func mp_apuntar(m: Mapa)
+    _mp_paso = _mp_paso_nuevo()
+end
+
+func mp_cerrar_paso(m: Mapa)
+    if _mp_paso != nil and (_mp_paso.celdas.length > 0 or _mp_paso.todo != "")
+        m.deshacer.push(_mp_paso)
+        if m.deshacer.length > MP_MAX_DESHACER
+            m.deshacer = m.deshacer[1:m.deshacer.length]
+        end
+        m.rehacer = []
+    end
+    _mp_paso = nil
+end
+
+# Pone una celda (y la apunta en el paso en marcha); false si no cambia
+func mp_poner(m: Mapa, capa: Int, x: Int, y: Int, v: Int) -> Bool
+    if x < 0 or y < 0 or x >= tilemap_width(m.id) or y >= tilemap_height(m.id)
+        return false
+    end
+    a = tilemap_get(m.id, capa, x, y)
+    if a == v
+        return false
+    end
+    if _mp_paso != nil
+        _mp_paso.capas.push(capa)
+        _mp_paso.celdas.push(y * tilemap_width(m.id) + x)
+        _mp_paso.antes.push(a)
+        _mp_paso.despues.push(v)
+    end
+    tilemap_set(m.id, capa, x, y, v)
+    return true
+end
+
+# Antes de un cambio de tamaño o de capas: el mapa entero va a un fichero de RAM: (mp_cerrar_paso lo apunta)
+var _mp_ficheros: Int = 0
+
+func mp_apuntar_todo(m: Mapa)
+    _mp_ficheros = _mp_ficheros + 1
+    f = "RAM:forja-mapa-#{_mp_ficheros}.fmap"
+    _mp_paso = _mp_paso_nuevo()
+    if tilemap_save(m.id, f)
+        _mp_paso.todo = f
+    end
+end
+
+# Vuelve al mapa de un fichero: lo de ahora va a otro, para rehacer
+func _mp_volver_todo(m: Mapa, p: MpPaso) -> MpPaso
+    _mp_ficheros = _mp_ficheros + 1
+    f = "RAM:forja-mapa-#{_mp_ficheros}.fmap"
+    otro = _mp_paso_nuevo()
+    if tilemap_save(m.id, f)
+        otro.todo = f
+    end
+    tilemap_load(m.id, p.todo)
+    if m.capa >= tilemap_layers(m.id)
+        m.capa = tilemap_layers(m.id) - 1
+    end
+    return otro
+end
+
+func mp_deshacer(m: Mapa) -> Bool
+    if m.deshacer.length == 0
+        return false
+    end
+    p = m.deshacer.pop()
+    if p.todo != ""
+        m.rehacer.push(_mp_volver_todo(m, p))
+        return true
+    end
+    w = tilemap_width(m.id)
+    i = p.celdas.length - 1
+    while i >= 0
+        tilemap_set(m.id, p.capas[i], p.celdas[i] % w, p.celdas[i] / w, p.antes[i])
+        i = i - 1
+    end
+    m.rehacer.push(p)
+    return true
+end
+
+func mp_rehacer(m: Mapa) -> Bool
+    if m.rehacer.length == 0
+        return false
+    end
+    p = m.rehacer.pop()
+    if p.todo != ""
+        m.deshacer.push(_mp_volver_todo(m, p))
+        return true
+    end
+    w = tilemap_width(m.id)
+    i = 0
+    while i < p.celdas.length
+        tilemap_set(m.id, p.capas[i], p.celdas[i] % w, p.celdas[i] / w, p.despues[i])
+        i = i + 1
+    end
+    m.deshacer.push(p)
+    return true
+end
+
+# --- Herramientas (sin ventana: las pruebas las llaman directamente) ---
+
+# El valor que pone el lápiz: el tile elegido con su espejo
+func mp_valor(m: Mapa) -> Int
+    if m.tile == 0
+        return 0
+    end
+    return m.tile + m.espejo
+end
+
+# Rellena desde x, y las celdas iguales que se tocan por los lados; cuántas cambió
+func mp_rellenar(m: Mapa, x: Int, y: Int, v: Int) -> Int
+    w = tilemap_width(m.id)
+    h = tilemap_height(m.id)
+    if x < 0 or y < 0 or x >= w or y >= h
+        return 0
+    end
+    antes = tilemap_get(m.id, m.capa, x, y)
+    if antes == v
+        return 0
+    end
+    n = 0
+    var pila: [Int] = [y * w + x]
+    while pila.length > 0
+        i = pila.pop()
+        cx = i % w
+        cy = i / w
+        if tilemap_get(m.id, m.capa, cx, cy) == antes
+            mp_poner(m, m.capa, cx, cy, v)
+            n = n + 1
+            if cx > 0
+                pila.push(i - 1)
+            end
+            if cx < w - 1
+                pila.push(i + 1)
+            end
+            if cy > 0
+                pila.push(i - w)
+            end
+            if cy < h - 1
+                pila.push(i + w)
+            end
+        end
+    end
+    return n
+end
+
+# La caja de x1, y1 a x2, y2 (en cualquier orden), rellena de v
+func mp_caja(m: Mapa, x1: Int, y1: Int, x2: Int, y2: Int, v: Int) -> Int
+    if x2 < x1
+        t = x1
+        x1 = x2
+        x2 = t
+    end
+    if y2 < y1
+        t = y1
+        y1 = y2
+        y2 = t
+    end
+    n = 0
+    y = y1
+    while y <= y2
+        x = x1
+        while x <= x2
+            if mp_poner(m, m.capa, x, y, v)
+                n = n + 1
+            end
+            x = x + 1
+        end
+        y = y + 1
+    end
+    return n
+end
+
+# Capas: añadir detrás de la actual, quitar la actual, subir y bajar (con su paso de deshacer)
+func mp_capa_nueva(m: Mapa) -> Bool
+    mp_apuntar_todo(m)
+    n = tilemap_layer_add(m.id)
+    if n < 0
+        _mp_paso = nil
+        mp_error = tr(157, "Un mapa tiene como mucho 8 capas.")
+        return false
+    end
+    tilemap_layer_set(m.id, n, hueco(tr(158, "capa %1"), "#{n + 1}"), 0, true)
+    tilemap_layer_move(m.id, n, m.capa + 1)
+    m.capa = m.capa + 1
+    mp_cerrar_paso(m)
+    return true
+end
+
+func mp_capa_quitar(m: Mapa) -> Bool
+    mp_apuntar_todo(m)
+    if not tilemap_layer_remove(m.id, m.capa)
+        _mp_paso = nil
+        mp_error = tr(159, "Es la única capa.")
+        return false
+    end
+    if m.capa >= tilemap_layers(m.id)
+        m.capa = tilemap_layers(m.id) - 1
+    end
+    mp_cerrar_paso(m)
+    return true
+end
+
+# d -1: hacia atrás (se pinta antes); 1: hacia delante
+func mp_capa_mover(m: Mapa, d: Int) -> Bool
+    a = m.capa + d
+    if a < 0 or a >= tilemap_layers(m.id)
+        return false
+    end
+    mp_apuntar_todo(m)
+    tilemap_layer_move(m.id, m.capa, a)
+    m.capa = a
+    mp_cerrar_paso(m)
+    return true
+end
+
+func mp_capa_ver(m: Mapa, capa: Int)
+    tilemap_layer_set(m.id, capa, tilemap_layer_name(m.id, capa), tilemap_layer_type(m.id, capa), not tilemap_layer_visible(m.id, capa))
+end
+
+# Ancho y alto nuevos (lo que cabe se queda)
+func mp_tamano(m: Mapa, ancho: Int, alto: Int) -> Bool
+    if ancho < 1 or alto < 1 or ancho > 1024 or alto > 1024
+        return false
+    end
+    mp_apuntar_todo(m)
+    if not tilemap_resize(m.id, ancho, alto)
+        _mp_paso = nil
+        mp_error = tr(151, "No hay memoria para el mapa.")
+        return false
+    end
+    mp_cerrar_paso(m)
+    return true
+end
+
+# --- Para las pruebas ---
+
+# "ancho alto tile capas capa tile_elegido espejo herramienta zoom vx vy tiles deshacer rehacer"
+func mp_sonda(m: Mapa) -> String
+    return "#{tilemap_width(m.id)} #{tilemap_height(m.id)} #{tilemap_tile_size(m.id)} #{tilemap_layers(m.id)} #{m.capa} #{m.tile} #{m.espejo} #{m.herramienta} #{m.zoom} #{m.vx} #{m.vy} #{mp_tiles(m)} #{m.deshacer.length} #{m.rehacer.length}"
+end

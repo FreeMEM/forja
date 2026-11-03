@@ -1,0 +1,62 @@
+# Prueba de src/mapas.dash sin ventana: celdas, lápiz, caja, relleno, capas, tamaño, deshacer y rehacer, guardar y
+# leer. tests/mapas_base.sh la ejecuta.
+
+import "../src/mapas.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso
+        fallos = fallos + 1
+    end
+end
+
+Main
+    m = mp_nuevo(20, 10, 16)
+    ver("mapa nuevo de 20 x 10, tiles de 16, una capa", m != nil and tilemap_width(m.id) == 20 and tilemap_layers(m.id) == 1)
+    ver("la capa se llama fondo", tilemap_layer_name(m.id, 0) == "fondo")
+    mp_apuntar(m)
+    m.tile = 3
+    m.espejo = MP_ESPEJO_H
+    ver("poner", mp_poner(m, 0, 2, 1, mp_valor(m)) and mp_celda(m, 0, 2, 1) == 3 + 16384)
+    ver("poner lo mismo no cambia", not mp_poner(m, 0, 2, 1, mp_valor(m)))
+    ver("fuera del mapa no", not mp_poner(m, 0, 20, 0, 1))
+    mp_cerrar_paso(m)
+    mp_apuntar(m)
+    ver("caja de 3 x 2", mp_caja(m, 6, 5, 4, 4, 7) == 6 and mp_celda(m, 0, 5, 5) == 7)
+    mp_cerrar_paso(m)
+    mp_apuntar(m)
+    n = mp_rellenar(m, 0, 0, 1)
+    ver("relleno: todo menos la celda y la caja (#{n})", n == 200 - 1 - 6 and mp_celda(m, 0, 19, 9) == 1 and mp_celda(m, 0, 5, 4) == 7)
+    mp_cerrar_paso(m)
+    ver("tres pasos", m.deshacer.length == 3)
+    ver("deshacer el relleno", mp_deshacer(m) and mp_celda(m, 0, 19, 9) == 0 and mp_celda(m, 0, 2, 1) == 3 + 16384)
+    ver("deshacer la caja", mp_deshacer(m) and mp_celda(m, 0, 5, 5) == 0)
+    ver("rehacer la caja", mp_rehacer(m) and mp_celda(m, 0, 5, 5) == 7)
+    ver("capa nueva detrás de la actual", mp_capa_nueva(m) and tilemap_layers(m.id) == 2 and m.capa == 1 and tilemap_layer_name(m.id, 1) == "capa 2")
+    mp_apuntar(m)
+    mp_poner(m, 1, 0, 0, 9)
+    mp_cerrar_paso(m)
+    ver("bajar la capa", mp_capa_mover(m, -1) and m.capa == 0 and mp_celda(m, 0, 0, 0) == 9 and tilemap_layer_name(m.id, 1) == "fondo")
+    ver("deshacer el movimiento", mp_deshacer(m) and tilemap_layer_name(m.id, 0) == "fondo" and mp_celda(m, 1, 0, 0) == 9)
+    ver("más pequeño", mp_tamano(m, 8, 6) and tilemap_width(m.id) == 8 and mp_celda(m, 0, 5, 5) == 7)
+    ver("deshacer el tamaño", mp_deshacer(m) and tilemap_width(m.id) == 20)
+    mp_capa_ver(m, 1)
+    ver("ocultar una capa", not tilemap_layer_visible(m.id, 1))
+    m.capa = 1
+    ver("quitar la capa", mp_capa_quitar(m) and tilemap_layers(m.id) == 1 and m.capa == 0)
+    ver("la única no se quita", not mp_capa_quitar(m))
+    tilemap_set_tileset(m.id, "tiles.iff")
+    ver("guardar", mp_escribir(m, "RAM:prueba.fmap"))
+    ver("es un mapa", mp_es_mapa("RAM:prueba.fmap"))
+    mp_cerrar(m)
+    m2 = mp_leer("RAM:prueba.fmap")
+    ver("leerlo", m2 != nil and tilemap_width(m2.id) == 20 and mp_celda(m2, 0, 2, 1) == 3 + 16384 and mp_celda(m2, 0, 5, 5) == 7)
+    ver("sin el tileset: lo dice", m2 != nil and m2.tileset == nil and str_contains(mp_error, "tiles.iff"))
+    if fallos == 0
+        Print "TODO BIEN"
+    end
+end
