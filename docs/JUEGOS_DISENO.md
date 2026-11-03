@@ -1,6 +1,6 @@
 # Biblioteca de juegos y editor de escenas: diseño
 
-Estado: propuesta para revisar (2026-11-02). Aún no hay código. Las decisiones que son del usuario están al final.
+Estado: decidido (sección 7). Fase 1 hecha el 2026-11-03: repo `~/Projects/fragua` (sección 8).
 
 Lo pedido: una biblioteca de Dash para hacer juegos, como pygame. Va aparte de Forja y de Dash, con el bucle de
 juego, las físicas y las luces. Y en Forja, un editor de escenas con jerarquía de nodos, como Godot.
@@ -278,3 +278,18 @@ end
    arriesgado: si falla, se cuelga el Amiga.
 5. **Escenas compiladas:** ¿se pide ya a Dash el `import` de `.escena`, o se empieza con el `.dash` que genera
    Forja?
+
+## 8. Fase 1 (hecha, 2026-11-03)
+
+En `~/Projects/fragua` (repo local; falta crearlo en GitHub). API en inglés.
+- **Piezas:** `screen_open` (pantalla propia con doble búfer), `Image` (`image_load`, `image_new`; un BOB pintado con
+  `bob_paste`), `Rect`, `Clock`, entrada (`key`, `axis_x`, `axis_y`, `fire`), `Sprite` y `Group`.
+- **Fondo y rectángulos sucios:** borrar la pantalla entera (320x256, 5 planos) cuesta 37 ms, más de un fotograma, en
+  A1200 y en A500. La pantalla guarda un fondo y cada sprite repone solo donde se pintó en ese búfer.
+- **Dash** (rama `fragua-piezas`): `key_down` (la matriz de `keyboard.device`), `bob_paste` (un fotograma con
+  máscara sin guardar el fondo) y `bob_width`, `bob_height`, `bob_frames`.
+- **Medido** (FS-UAE a velocidad real): imagen de 16x16 con máscara 1,6 ms en A1200 y 3,3 en A500; el Pong gasta 5 ms
+  por fotograma en A1200 y 15 en A500. Tabla entera en el README de Fragua.
+- **Pendiente:** pintar con máscara más rápido programando el blitter (el del sistema hace varias pasadas por plano);
+  probar `key_down` con una tecla de verdad.
+
