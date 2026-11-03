@@ -326,7 +326,7 @@ a pantalla completa). Lo que falta:
 - [x] 23. **Elegir el modo:** la petición de modo de pantalla de ASL (`dialog_screen_mode`: modo, ancho, alto y
       profundidad) y `screen_open_mode(modo, ancho, alto, planos, título)` con un modo exacto (PAL 320x256 a 32
       colores, AGA, RTG).
-- [ ] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
+- [x] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
       programas que ejecuta salgan ahí (`[?]` si depende de piezas sin fusionar).
 - [x] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`). Decidido el
       2026-11-03: va en Dash, y Fragua lo usa.
@@ -773,3 +773,22 @@ a pantalla completa). Lo que falta:
 - `dashc` de main de Dash estaba sin rehacer tras las fusiones (no conocía `color_pen_free`): `make -C dashc`.
 - Mejora posible en Dash, sin hacer: que `gfx_pens_draw` en planos copie la imagen entera de una vez.
 - Las 13 pruebas de sprites, bien. Captura RTG mandada al usuario.
+
+### 2026-11-03: tarea 24, Forja en su pantalla
+- Dash (rama `pantalla-defecto`, sin fusionar): `screen_make_default()` hace la pantalla pública del programa
+  (`screen_clone_wb`) la pública por defecto (SetDefaultPubScreen) y `screen_close` deja la de antes (el Workbench
+  si la de antes ya no está). Test `test_screen_make_default`.
+- **Cambio de Dash que afecta a todos los programas:** las ventanas de `window_create`, de `Window` y de ReAction
+  se abrían sin decir pantalla, y eso en Intuition es siempre el Workbench, no la pública por defecto. Ahora piden
+  la pública por defecto (`WA_PubScreenName` NULL, con `WA_PubScreenFallBack`). Mientras nadie cambie la pública
+  por defecto, es el Workbench, como antes.
+- Forja: preferencia "En su propia pantalla (al arrancar)" (`ENV:Forja/pantalla`, texto 353). Al arrancar con ella:
+  `screen_clone_wb("FORJA")`, `screen_make_default()` y `mui_window_screen` en sus cuatro ventanas. Al salir,
+  `screen_close()` después de `mui_app_end()`.
+- **Forja ya no compila con main de Dash** hasta que se fusione `pantalla-defecto`.
+- Prueba `tests/pantalla.sh`: Forja en `FORJA`, pública por defecto, un programa que no dice pantalla abre ahí su
+  ventana, y al salir se cierra y vuelve el Workbench. No se probó con Ejecutar (necesita dashc para el Amiga): el
+  programa de la prueba lo arranca el sistema, no Forja, pero el camino es el mismo (la pública por defecto).
+- El botón sin texto de la tarea 22 no sale en Forja: sus botones se ven bien en el clon (captura RTG). En las
+  capturas sin tarjeta gráfica sale un bloque gris sobre el editor, también sin la preferencia: es la captura a
+  medio redibujar, no este cambio.

@@ -22,8 +22,10 @@
 # ESTADO (libre, compilando, ejecutando, depurando); ERRORES (los de la última compilación); BUSCAR texto (lo elige
 # y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea.
 #
-# Buscar y cambiar (Amiga-F) e ir a la línea (Amiga-L) en sus ventanas. Preferencias: dashc, Inferencia y si abrir al
-# empezar lo de la última vez (ENVARC:Forja/sesion: el cajón del proyecto y los ficheros, al salir).
+# Buscar y cambiar (Amiga-F) e ir a la línea (Amiga-L) en sus ventanas. Preferencias: dashc, Inferencia, si abrir al
+# empezar lo de la última vez (ENVARC:Forja/sesion: el cajón del proyecto y los ficheros, al salir) y si arrancar en
+# su propia pantalla (ENV:Forja/pantalla: un clon público del Workbench, FORJA, que es la pública por defecto
+# mientras Forja está abierto; los programas que ejecuta salen ahí).
 #
 # Cerrar una pestaña o salir con cambios sin guardar pregunta: Guardar, Descartar o Cancelar.
 #
@@ -103,6 +105,8 @@ const EV_PREF_GUARDAR = 57
 const EV_PREF_USAR = 58
 const EV_PREF_CANCELAR = 59
 const EV_SALIR = 99
+
+const PANTALLA = "FORJA"       # el nombre de su pantalla pública, con la preferencia
 
 const NUEVO = "# Un programa de Dash\n\nMain\n    Print \"Hola, Amiga\"\nend\n"
 
@@ -1168,6 +1172,7 @@ func preferencias_abrir()
     mui_set_text(vp.dashc, env_get("Forja/dashc"))
     mui_set_text(vp.inferencia, env_get("Forja/inferencia"))
     mui_set_value(vp.recordar, recordar_sesion())
+    mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
     mui_window_open(vp.window)
 end
 
@@ -1182,6 +1187,11 @@ func preferencias_aplicar(guardar: Bool)
         env_set("Forja/recordar", "si", guardar)
     else
         env_set("Forja/recordar", "no", guardar)
+    end
+    if mui_get_value(vp.pantalla) != 0
+        env_set("Forja/pantalla", "si", guardar)
+    else
+        env_set("Forja/pantalla", "no", guardar)
     end
     mui_window_close(vp.window)
 end
@@ -1450,6 +1460,14 @@ Main
         vb = Buscar_create()
         vi = IrA_create()
         vp = PrefForja_create()
+        # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
+        # para que los programas que ejecuta salgan en ella
+        if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
+            screen_make_default()
+            for w in [v.window, vb.window, vi.window, vp.window]
+                mui_window_screen(w, PANTALLA)
+            end
+        end
         mui_canvas_on_draw(v.proyecto, dibujar_proyecto)
         mui_canvas_on_draw(v.editor, dibujar_editor)
         mui_canvas_on_draw(v.salida, dibujar_salida)
@@ -1593,5 +1611,6 @@ Main
             end
         end
         mui_app_end()
+        screen_close()
     end
 end

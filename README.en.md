@@ -22,6 +22,10 @@ English or Spanish, following the Locale preferences (the English catalog is in 
 `Forja [file]`, or double-click its icon. Without a file, it opens what was open last time (this can be turned off
 in the preferences).
 
+The preferences can also make Forja start on a screen of its own: a public copy of the Workbench's, named `FORJA`.
+While Forja is open it is the default public screen, so the programs it runs open there. On quitting, the old
+default comes back. It needs a Dash with `screen_make_default`.
+
 - **Editor**: the keyboard goes to the editor when the pointer is over it. Arrows; with Shift they select; Alt: start
   and end of line, page up and down; Ctrl: word by word, start and end of the text. Tab and Shift+Tab indent. Undo
   (Amiga-Z), redo (Amiga-R), cut, copy and paste with the system clipboard.

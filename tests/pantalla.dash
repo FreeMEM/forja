@@ -1,0 +1,109 @@
+# Hace de usuario de Forja con la preferencia de abrir en su propia pantalla (ENV:Forja/pantalla "si"): Forja está
+# en la pantalla pública FORJA, que es la pública por defecto, y un programa que no dice pantalla abre ahí su
+# ventana. Al salir de Forja, la pantalla se cierra y la pública por defecto vuelve a ser el Workbench.
+# Lo arranca tests/pantalla.sh; anota en DH0:Prueba/pantalla.txt.
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/pantalla.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, visto: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + visto + "]")
+        fallos = fallos + 1
+    end
+end
+
+# El nombre de la pantalla pública por defecto
+@native func por_defecto() -> String
+"""
+    static char nombre[MAXPUBSCREENNAME + 1];
+    nombre[0] = 0;
+    GetDefaultPubScreen((UBYTE *)nombre);
+    return (STRPTR)nombre;
+"""
+end
+
+# El título de la pantalla de la ventana activa
+@native func pantalla_activa() -> String
+"""
+    struct Window *w = IntuitionBase->ActiveWindow;
+    if (w && w->WScreen && w->WScreen->Title) return (STRPTR)w->WScreen->Title;
+    return (STRPTR)"";
+"""
+end
+
+# El título de la pantalla de la ventana de este programa
+@native func mi_pantalla() -> String
+"""
+    if (_dash_win && _dash_win->WScreen->Title) return (STRPTR)_dash_win->WScreen->Title;
+    return (STRPTR)"";
+"""
+end
+
+# Si hay una pantalla pública con ese nombre
+@native func hay_publica(nombre: String) -> Bool
+"""
+    struct Screen *s = LockPubScreen((CONST_STRPTR)nombre);
+    if (s) UnlockPubScreen(NULL, s);
+    return s != NULL;
+"""
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_SALIDA") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece", false, "")
+    else
+        ver("Forja está en su pantalla", pantalla_activa() == "FORJA", pantalla_activa())
+        ver("que es la pública por defecto", por_defecto() == "FORJA", por_defecto())
+        if window_create("Programa", 40, 40, 240, 80, 2)
+            ver("un programa que no dice pantalla abre ahí", mi_pantalla() == "FORJA", mi_pantalla())
+            gfx_pen(1)
+            gfx_move(10, 30)
+            gfx_text("en la pantalla de Forja")
+            time_delay(100)
+            window_close(0)
+        else
+            ver("el programa abre su ventana", false, "")
+        end
+        activar()
+        f = str_split(env_get("FORJA_EDITOR"), " ")
+        input_move(Int(f[0]) + 40, Int(f[1]) + 40)
+        time_delay(5)
+        input_key(0x10, AMIGA)
+        n = 0
+        while n < 100 and hay_publica("FORJA")
+            time_delay(10)
+            n = n + 1
+        end
+        ver("al salir, la pantalla se cierra", not hay_publica("FORJA"), "")
+        ver("y la pública por defecto vuelve a ser el Workbench", por_defecto() == "Workbench", por_defecto())
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+end

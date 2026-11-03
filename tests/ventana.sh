@@ -8,6 +8,7 @@
 #   PRUEBA= tests/ventana.sh ...   # sin abrir ningún fichero: la bienvenida, con el logo de Dash
 #   SPRITE=1 tests/ventana.sh ...  # abre en el editor de sprites una nave de ejemplo
 #   ACOPLADO=1 tests/ventana.sh ... # abre en el editor de sprites un sprite acoplado de ejemplo
+#   PANTALLA=1 tests/ventana.sh ... # con la preferencia de abrir Forja en su propia pantalla
 #
 # DASH_DIR: el worktree de Dash 2.0 que compila (./dash y tools/emu_run.py). Forja se cierra sola a los 30
 # segundos. Una captura por cada segundo dado (por defecto 12): captura-12.png...
@@ -84,6 +85,8 @@ PY
   python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/acoplado.iff" "$tmp/acoplado.txt" --frja "1 1 16 6"
   PRUEBA=${PRUEBA-DH0:Prueba/juego/acoplado.iff}
 fi
+# PANTALLA=1: la preferencia ENV:Forja/pantalla
+[ -z "$PANTALLA" ] || printf 'MakeDir >NIL: ENV:Forja\nSetEnv Forja/pantalla si\n' >> "$tmp/sys/S/Startup-Extra"
 prueba=${PRUEBA-DH0:Prueba/juego/main.dash}
 [ -z "$prueba" ] || echo "SetEnv FORJA_PRUEBA $prueba" >> "$tmp/sys/S/Startup-Extra"
 shots=""

@@ -152,7 +152,9 @@
               { "type": "label", "tr": 347, "text": "Inferencia:", "color": [220, 220, 210] },
               { "type": "string", "name": "inferencia", "text": "", "max": 300 },
               { "type": "label", "tr": 348, "text": "Abrir lo de la última vez:", "color": [220, 220, 210] },
-              { "type": "checkbox", "name": "recordar", "checked": true }
+              { "type": "checkbox", "name": "recordar", "checked": true },
+              { "type": "label", "tr": 353, "text": "En su propia pantalla (al arrancar):", "color": [220, 220, 210] },
+              { "type": "checkbox", "name": "pantalla", "checked": false }
             ]
           },
           {
