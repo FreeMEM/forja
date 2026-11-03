@@ -792,3 +792,5 @@ a pantalla completa). Lo que falta:
 - El botón sin texto de la tarea 22 no sale en Forja: sus botones se ven bien en el clon (captura RTG). En las
   capturas sin tarjeta gráfica sale un bloque gris sobre el editor, también sin la preferencia: es la captura a
   medio redibujar, no este cambio.
+- Pruebas: Dash 538/538 sin emulador y 806/806 en el emulador; en Forja, `pantalla`, `teclas`, `ficheros` y
+  `diseno` bien. Captura RTG mandada al usuario.
