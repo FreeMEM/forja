@@ -287,7 +287,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 ### E. Piezas de Dash (builtins nuevos, en el worktree de Dash)
 - [x] 15. **BOB con fotogramas de cualquier ancho:** `bob_frame_width(id, ancho)`, o que `bob_load` lea el ancho
       de `FRJA`. Decide cuál, con su test y su doc. Forja deja de avisar por los fotogramas no cuadrados.
-- [ ] 15b. **Pintar una imagen de lápices de golpe:** `gfx_pens_draw(buffer, ancho, alto, x, y, zoom)` (un byte por
+- [x] 15b. **Pintar una imagen de lápices de golpe:** `gfx_pens_draw(buffer, ancho, alto, x, y, zoom)` (un byte por
       píxel con el lápiz; WriteChunkyPixels o WritePixelArray8, con zoom). La rejilla de 32x32 con píxeles al azar
       tarda 240 ms en un A1200 porque son unos 1000 RectFill desde Dash (tarea 4). Forja lo usaría sin zoom de
       rejilla y en las miniaturas.
@@ -582,3 +582,19 @@ a pantalla completa). Lo que falta:
   emulador: 522/522.
 - Commit 47b5b6f en `forja-sprites` de Dash. Fusionar en main de Dash lo decide el usuario (tarea 19). Hasta
   entonces, Forja sigue avisando de los fotogramas no cuadrados en el código que copia.
+
+### 2026-11-03 — Tarea 15b (Dash: `gfx_pens_draw`)
+- `gfx_pens_draw(buffer, ancho, alto, x, y, zoom)`: un byte por píxel con el lápiz, cada píxel de zoom x zoom.
+- **Primera versión, más lenta:** `WriteChunkyPixels` por fila. En un A1200 con pantalla de planos fue más lenta
+  que los tramos de Forja (16x16 zoom 5: 179 ms frente a 44; 32x32 zoom 4: 363 frente a 172). El sistema pasa a
+  planos píxel a píxel.
+- **Versión buena:** en un bitmap de planos (ECS/AGA), cada fila de la imagen se pasa a planos en C, en una banda
+  de `zoom` líneas, y el blitter la copia (`BltBitMapRastPort`, recortado por la ventana). En RTG,
+  `WriteChunkyPixels`, que ahí es rápido. Sin ninguno de los dos, tramos de RectFill. Sin capa (el RastPort de una
+  pantalla) no escribe fuera del bitmap.
+- **Medido en A1200 (REAL=1, Workbench de 4 colores)**, con píxeles al azar y contando el llenado del búfer desde
+  Dash: 16x16 zoom 5, 21 ms frente a 43; 32x32 zoom 4, 56 frente a 172; 64x64 zoom 2, 117 frente a 662.
+- Test `tests/test_gfx_pens_draw.dash` (zoom 1 y 4, y que no pinte de más): pasa con `--emu`, y directo a hunk en
+  la máquina RTG. Batería sin emulador: 523/523. Commit 29f780a en `forja-sprites` de Dash.
+- **Sin probar:** el camino de RectFill (gráficos anteriores a V40) y pantallas de más de 4 planos en ECS/AGA.
+- Forja lo usará en la rejilla (sin las líneas, que van encima) y en las miniaturas cuando se fusione (tarea 19).
