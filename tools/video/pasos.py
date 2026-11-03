@@ -159,4 +159,78 @@ def guardar_como(ruta):
     agente.tecla(K_S, RAMIGA); time.sleep(1.5)
     agente.tecla(K_X, RAMIGA); time.sleep(0.2)
     agente.escribir(ruta); time.sleep(0.3)
-    agente.tecla(K_RETURN); time.sleep(1.5)
+    agente.tecla(K_RETURN); time.sleep(0.8)          # reparte la ruta en Drawer y File
+    agente.tecla(K_RETURN); time.sleep(1.5)          # y guarda
+
+
+def env(nombre):
+    """Una variable de ENV: del Amiga (las de la sonda de Forja dicen dónde está cada cosa)."""
+    import os
+    f = os.path.expanduser("~/.cache/video-forja/traspaso/env.txt")
+    if os.path.exists(f):
+        os.remove(f)
+    agente.lanzar(f"C:GetEnv {nombre} >Traspaso:env.txt")
+    t = time.time()
+    while time.time() - t < 5:
+        if os.path.exists(f):
+            time.sleep(0.2)
+            return open(f, encoding="latin-1").read().strip()
+        time.sleep(0.1)
+    return ""
+
+
+def campos(nombre):
+    return [int(x) for x in env(nombre).split()]
+
+
+def salida_lineas():
+    """El texto de la salida de Forja (la sonda lo deja en RAM:forja-salida.txt)."""
+    import os
+    f = os.path.expanduser("~/.cache/video-forja/traspaso/salida.txt")
+    if os.path.exists(f):
+        os.remove(f)
+    agente.lanzar("C:Copy RAM:forja-salida.txt Traspaso:salida.txt")
+    t = time.time()
+    while time.time() - t < 5 and not os.path.exists(f):
+        time.sleep(0.1)
+    time.sleep(0.2)
+    return open(f, encoding="latin-1").read().split("\n")
+
+
+def clic_en_salida(texto):
+    """Un clic en la primera línea de la salida que lleva ese texto."""
+    x, y, fila, primera, _ = campos("FORJA_SALIDA")
+    f = forja()
+    for i, l in enumerate(salida_lineas()):
+        if texto in l:
+            uno(f[1] + x + 120, f[2] + y + (i - primera) * fila + fila // 2)
+            return True
+    return False
+
+
+def cursor():
+    """(línea, columna) del cursor en el editor, desde 0 (la primera línea de RAM:forja-sonda.txt)."""
+    import os
+    f = os.path.expanduser("~/.cache/video-forja/traspaso/sonda.txt")
+    if os.path.exists(f):
+        os.remove(f)
+    agente.lanzar("C:Copy RAM:forja-sonda.txt Traspaso:sonda.txt")
+    t = time.time()
+    while time.time() - t < 5 and not os.path.exists(f):
+        time.sleep(0.1)
+    time.sleep(0.2)
+    c = open(f, encoding="latin-1").readline().split()
+    return int(c[0]), int(c[1])
+
+
+def linea_y(i):
+    """La y (en la pantalla) del centro de la línea i del editor (desde 0, con la primera arriba)."""
+    f = forja()
+    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    return f[2] + ey + 20 + 10 * i + 5
+
+
+def margen_x():
+    f = forja()
+    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    return f[1] + ex + 12
