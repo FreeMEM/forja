@@ -7,14 +7,14 @@ import time
 import amiga
 import piloto as p
 
-# Las entradas de cada menú (src/navegador.dashui), con sus separadores: 12 píxeles por entrada y 6 por separador.
+# Las entradas de cada menú de Forja (src/ventana.dashui), con sus separadores: 12 píxeles por entrada y 6 por
+# separador. Van por su sitio, así que valen en las dos lenguas.
 ENTRADAS = {
-    "Project": ["New window", "Close window", "New tab", "Close tab", "---", "Go to address", "---", "About...",
-                "---", "Quit"],
-    "Navigate": ["Back", "Forward", "Reload", "Stop", "---", "Home page", "History"],
-    "Bookmarks": ["Show bookmarks", "Add or remove this page", "---", "Use as home page"],
-    "Tools": ["Cookies", "Downloads", "Search engine...", "---", "Check for updates",
-              "Don't tell me about new versions"],
+    "Proyecto": ["Nuevo", "Nuevo sprite...", "Abrir...", "Guardar", "Guardar como...", "Cerrar pestaña", "---",
+                 "Preferencias...", "---", "Salir"],
+    "Programa": ["Compilar", "Ejecutar", "Depurar", "---", "Preguntar a Inferencia"],
+    "Edición": ["Deshacer", "Rehacer", "---", "Cortar", "Copiar", "Pegar", "---", "Seleccionar todo",
+                "Buscar y cambiar...", "Ir a la línea...", "---", "Diseño o texto (.dashui)", "Vista previa (.dashui)"],
 }
 TITULOS = list(ENTRADAS)
 _fijas = set()

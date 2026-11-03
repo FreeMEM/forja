@@ -113,8 +113,11 @@ def traspaso(lengua):
     os.makedirs(TRASP)
     shutil.copy(os.path.join(V, "descargas", PAQUETE), TRASP)
     # lo que el vídeo encuentra en MyFiles:Juego (lo copia el guion, sin que se vea): el tileset, la ventana de
-    # saludo y el juego
-    shutil.copytree(os.path.join(V, "descargas", "juego"), os.path.join(TRASP, "juego"))
+    # saludo y el juego (en la toma inglesa, con sus textos y comentarios en inglés: descargas/juego_en)
+    juego = os.path.join(V, "descargas", "juego_" + lengua)
+    if not os.path.isdir(juego):
+        juego = os.path.join(V, "descargas", "juego")
+    shutil.copytree(juego, os.path.join(TRASP, "juego"))
     for f in ("agente", "agente.info"):
         shutil.copy(os.path.join(V, "agente", f), TRASP)
     if lengua in ("es", "en"):

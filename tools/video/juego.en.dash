@@ -1,0 +1,173 @@
+# The game in the video: loads (from its drawer: PROGDIR:) the map painted in Forja (nivel.fmap) with its tileset, draws
+# it all and puts the little guy from the sprite editor (muneco.iff) where the "player" object is. He walks on his own:
+# falls onto whatever is solid in the collision layer, jumps at walls and turns back at the edges. A click ends it.
+
+const T = 16                 # the side of a tile
+
+var mapa_x: Int = 0          # the map's corner on screen
+var mapa_y: Int = 0
+var choques: Int = -1        # the collision layer
+
+# Whether the cell at map pixel px, py is solid (outside the map, too)
+func solido(px: Int, py: Int) -> Bool
+    if px < 0 or py < 0 or px >= tilemap_width(0) * T
+        return true
+    end
+    if choques < 0
+        return false
+    end
+    v = tilemap_get(0, choques, px / T, py / T)
+    return v == 1 or v == 2
+end
+
+# The piece of map under a rectangle of map pixels: every tile layer, again. Drawn with its corner at
+# ox, oy (on screen, or in the little guy's own bitmap)
+func repintar_en(px: Int, py: Int, an: Int, al: Int, ox: Int, oy: Int)
+    c0 = px / T
+    f0 = py / T
+    c1 = (px + an - 1) / T
+    f1 = (py + al - 1) / T
+    if c0 < 0
+        c0 = 0
+    end
+    if f0 < 0
+        f0 = 0
+    end
+    gfx_pen(0)
+    gfx_rect(ox + c0 * T, oy + f0 * T, ox + (c1 + 1) * T - 1, oy + (f1 + 1) * T - 1)
+    primera = true
+    l = 0
+    while l < tilemap_layers(0)
+        if tilemap_layer_type(0, l) == 0
+            if primera
+                tilemap_draw(0, l, 1, c0, f0, c1 - c0 + 1, f1 - f0 + 1, ox + c0 * T, oy + f0 * T)
+            else
+                tilemap_draw_masked(0, l, 1, c0, f0, c1 - c0 + 1, f1 - f0 + 1, ox + c0 * T, oy + f0 * T)
+            end
+            primera = false
+        end
+        l = l + 1
+    end
+end
+
+func repintar(px: Int, py: Int, an: Int, al: Int)
+    repintar_en(px, py, an, al, mapa_x, mapa_y)
+end
+
+# The piece of map where the little guy was and is, with him on top, put together in bitmap 3 and copied to
+# the screen in one go: no flicker (erasing and pasting on screen would show the background without him)
+func mover_muneco(ax: Int, ay: Int, x: Int, y: Int, w: Int, h: Int, fotograma: Int)
+    x0 = ax
+    if x < x0
+        x0 = x
+    end
+    y0 = ay
+    if y < y0
+        y0 = y
+    end
+    c0 = x0 / T
+    f0 = y0 / T
+    if c0 < 0
+        c0 = 0
+    end
+    if f0 < 0
+        f0 = 0
+    end
+    ox = -c0 * T
+    oy = -f0 * T
+    bitmap_draw_to(3)
+    repintar_en(c0 * T, f0 * T, 96, 96, ox, oy)
+    bob_paste(2, fotograma, ox + x, oy + y)
+    bitmap_draw_screen()
+    bitmap_blit(3, 0, 0, 96, 96, mapa_x + c0 * T, mapa_y + f0 * T)
+end
+
+Main
+    if not tilemap_load(0, "PROGDIR:nivel.fmap")
+        Print "Cannot load nivel.fmap"
+    elif not bob_load(1, "PROGDIR:" + tilemap_tileset(0))
+        Print "Cannot load the tileset"
+    elif not bob_load(2, "PROGDIR:muneco.iff")
+        Print "Cannot load muneco.iff"
+    elif not screen_open(8, "Game")
+        Print "Cannot open the screen"
+    elif not bitmap_create(3, 96, 96, 8)
+        Print "Out of memory"
+    else
+        bob_load_colors("PROGDIR:" + tilemap_tileset(0), 0)
+        bob_load_colors("PROGDIR:muneco.iff", 16)
+        l = 0
+        while l < tilemap_layers(0)
+            if tilemap_layer_type(0, l) == 1
+                choques = l
+            end
+            l = l + 1
+        end
+        mapa_x = (screen_width() - tilemap_width(0) * T) / 2
+        mapa_y = (screen_height() - tilemap_height(0) * T) / 2
+        gfx_pen(0)
+        gfx_rect(0, 0, screen_width() - 1, screen_height() - 1)
+        repintar(0, 0, tilemap_width(0) * T, tilemap_height(0) * T)
+        # the little guy, where the "player" object is (if none, top left)
+        x = T
+        y = 0
+        o = tilemap_object_find(0, "jugador", 0)
+        if o < 0
+            o = tilemap_object_find(0, "player", 0)
+        end
+        if o >= 0
+            x = tilemap_object_x(0, o)
+            y = tilemap_object_y(0, o)
+        end
+        w = bob_width(2)
+        h = bob_height(2)
+        vx = 2
+        vy = 0
+        paso = 0
+        while not mouse_button(0)
+            ax = x
+            ay = y
+            # falls onto solid ground; standing, jumps at a wall ahead
+            vy = vy + 1
+            if vy > 8
+                vy = 8
+            end
+            ny = y + vy
+            if vy > 0 and (solido(x + 4, ny + h) or solido(x + w - 5, ny + h))
+                ny = ((ny + h) / T) * T - h
+                vy = 0
+                delante = x + w + 1
+                if vx < 0
+                    delante = x - 2
+                end
+                if solido(delante, y + h - 4)
+                    vy = -10
+                end
+            end
+            if vy < 0 and solido(x + w / 2, ny)
+                vy = 0
+                ny = y
+            end
+            y = ny
+            # turns back at the map edges; waits at a wall (on the ground it has already jumped)
+            nx = x + vx
+            if nx < 0 or nx + w > tilemap_width(0) * T
+                vx = -vx
+                nx = x
+            elif vx > 0 and solido(nx + w - 1, y + h - 6)
+                nx = x
+            elif vx < 0 and solido(nx, y + h - 6)
+                nx = x
+            end
+            x = nx
+            if y > tilemap_height(0) * T
+                y = 0
+            end
+            paso = paso + 1
+            wait_vblank()
+            mover_muneco(ax, ay, x, y, w, h, (paso / 8) % bob_frames(2))
+        end
+        bitmap_free(3)
+        screen_close()
+    end
+end

@@ -198,11 +198,12 @@ def salida_lineas():
 
 
 def clic_en_salida(texto):
-    """Un clic en la primera línea de la salida que lleva ese texto."""
+    """Un clic en la última línea de la salida que lleva ese texto."""
     x, y, fila, primera, _ = campos("FORJA_SALIDA")
     f = forja()
-    for i, l in enumerate(salida_lineas()):
-        if texto in l:
+    lineas = salida_lineas()
+    for i in range(len(lineas) - 1, -1, -1):
+        if texto in lineas[i]:
             uno(f[1] + x + 120, f[2] + y + (i - primera) * fila + fila // 2)
             return True
     return False
@@ -445,3 +446,26 @@ def nivel_objetos():
     uno(*mp_celda(1, 10), 0.6); time.sleep(0.8)
     mp_boton(7001); time.sleep(0.4)
     uno(*mp_celda(19, 10), 0.6); time.sleep(0.8)
+
+
+def antena_torcida():
+    """En el segundo fotograma, la antena se tuerce: se borra (color 0) y se pinta inclinada. Así la piel de cebolla
+    tiene algo que enseñar: la antena de antes, en puntos."""
+    letra("0"); letra("l")
+    arrastrar(sp_celda(15, 7), sp_celda(15, 3), 0.4)
+    letra("p")
+    for x, y in ((14, 2), (15, 2), (16, 2), (15, 1)):
+        uno(*sp_celda(x, y), 0.2)
+    letra("6"); letra("l")
+    arrastrar(sp_celda(15, 7), sp_celda(18, 4), 0.5)
+    letra("8"); letra("p")
+    for x, y in ((18, 3), (19, 3), (20, 3), (19, 2)):
+        uno(*sp_celda(x, y), 0.2)
+
+
+def prefs():
+    """La ventana de preferencias de Forja (su título cambia con el idioma; es pequeña y lleva "Forja")."""
+    for w in amiga.ventanas():
+        if "Forja" in w[1] and w[1] != "Forja" and w[4] < 500:
+            return w[1:]
+    return None

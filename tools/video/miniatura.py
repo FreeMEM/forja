@@ -1,8 +1,8 @@
-"""Las miniaturas de YouTube (1280x720): de fondo, el escritorio entero de la toma (Coffin con el panel arriba a la
-derecha), que se funde a la izquierda con el azul noche; ahí, el logo y el lema en Topaz. El panel, ampliado en un
-recuadro cian unido a su sitio en el escritorio: que se vea que es un monitor pintado en el fondo del Workbench.
+"""Las miniaturas de YouTube (1280x720): de fondo, una pantalla entera de la toma (Forja en Coffin), que se funde a la
+izquierda con el negro de Forja; ahí, el logo y el lema en Topaz. Una zona de la captura (x0,y0,x1,y1), ampliada en
+un recuadro naranja unido a su sitio.
 
-    python3 miniatura.py <captura.png> en|es <salida.jpg> [versión]"""
+    python3 miniatura.py <captura.png> en|es <salida.jpg> [versión] [x0,y0,x1,y1]"""
 import sys
 
 import numpy as np
@@ -10,12 +10,11 @@ from PIL import Image, ImageDraw
 
 from montar import BLANCO, FONDO, NARANJA, fuente, logo
 
-LEMA = {"en": ["RESOURCE MONITOR", "ON YOUR BACKDROP"], "es": ["MONITOR DE RECURSOS", "EN EL FONDO DEL WB"]}
-PIE = {"en": "CPU, memory, tasks, disks", "es": "CPU, memoria, tareas, discos"}
-PANEL = (1014, 22, 1280, 264)          # el panel en la captura (RTG, 1280x1024), con un poco de margen
+LEMA = {"en": ["THE DASH IDE", "ON THE AMIGA ITSELF"], "es": ["EL ENTORNO DE DASH", "EN EL PROPIO AMIGA"]}
+PIE = {"en": "Editor, debugger, sprites, maps", "es": "Editor, depurador, sprites, mapas"}
 
 
-def miniatura(captura, lengua, ver):
+def miniatura(captura, lengua, ver, PANEL):
     W, H = 1280, 720
     cap = Image.open(captura).convert("RGB")
     img = Image.new("RGB", (W, H), FONDO)
@@ -24,7 +23,7 @@ def miniatura(captura, lengua, ver):
     ew = round(cap.width * esc)
     ex = W - ew
     img.paste(cap.resize((ew, H), Image.LANCZOS), (ex, 0))
-    # se funde con el azul noche hacia la izquierda
+    # se funde con el negro hacia la izquierda
     a = np.zeros((H, W), np.uint8)
     x0, x1 = ex + 40, ex + 330
     for x in range(W):
@@ -37,7 +36,7 @@ def miniatura(captura, lengua, ver):
     d.rectangle([px0, py0, px1, py1], outline=NARANJA + (255,), width=3)
     # el panel ampliado, con marco y sombra, y unido a su sitio
     zoom = cap.crop(PANEL).resize(((PANEL[2] - PANEL[0]) * 3 // 2, (PANEL[3] - PANEL[1]) * 3 // 2), Image.LANCZOS)
-    zx, zy = 560, 250
+    zx, zy = 470, 230
     d.line([(px0, py1), (zx, zy)], fill=NARANJA + (200,), width=3)
     d.line([(px1, py1), (zx + zoom.width + 12, zy)], fill=NARANJA + (200,), width=3)
     d.rectangle([zx + 14, zy + 14, zx + zoom.width + 26, zy + zoom.height + 26], fill=(0, 0, 0, 150))
@@ -55,7 +54,7 @@ def miniatura(captura, lengua, ver):
         y += 64
     y += 16
     d.rectangle([40, y, 400, y + 8], fill=NARANJA)
-    d.text((40, y + 26), PIE[lengua], font=fuente(30), fill=(190, 200, 225))
+    d.text((40, y + 26), PIE[lengua], font=fuente(30), fill=(180, 176, 168))
     # la versión, en una placa
     fv = fuente(44)
     ancho = int(fv.getlength(ver)) + 40
@@ -66,4 +65,5 @@ def miniatura(captura, lengua, ver):
 
 
 if __name__ == "__main__":
-    miniatura(sys.argv[1], sys.argv[2], sys.argv[4] if len(sys.argv) > 4 else "0.11").save(sys.argv[3], quality=92)
+    zona = tuple(int(v) for v in sys.argv[5].split(",")) if len(sys.argv) > 5 else (400, 200, 700, 440)
+    miniatura(sys.argv[1], sys.argv[2], sys.argv[4] if len(sys.argv) > 4 else "0.1", zona).save(sys.argv[3], quality=92)

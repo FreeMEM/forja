@@ -1,453 +1,494 @@
-"""El guion del vídeo de Trasfondo, en Coffin R65 (Amiberry, RTG a 1280x1024). Se lanza con Coffin recién preparado
-(preparar.py en|es: Trasfondo 0.9 descomprimido en Traspaso, el idioma de Locale de la toma y el agente en marcha).
+"""El guion del vídeo de Forja, en Coffin R65 (Amiberry, RTG a 1280x1024), con la voz clonada. Se lanza con Coffin
+recién preparado (preparar.py en|es: el paquete de Dash 2.2.0 y la carpeta juego en Traspaso, el idioma de Locale de
+la toma y el agente en marcha).
 
     python3 guion.py <carpeta de la toma> en|es
 
-Las dos tomas hacen lo mismo; cambia el idioma del sistema (y así el de Trasfondo y su instalador). Los subtítulos
-van en los dos idiomas: el montaje usa el de la toma.
-
-Lo que no se hace: cambiar el idioma en Locale con Trasfondo en marcha (después no se deja parar: se queda el panel
-congelado, visto en la 0.9.3).
+Cada locución (locuciones_<lengua>.json, generadas en pegaso con locutar.py) suena mientras se hace lo que cuenta; lo
+que tarda más que ella sigue después. Nunca se acelera el vídeo mientras suena una voz (el montaje la pone a su hora
+del vídeo): las esperas se aceleran solo cuando la voz ha acabado, y antes de cada capítulo se espera a que acabe.
+Los pasos (dónde está cada cosa) están medidos en pasos.py.
 """
+import json
 import os
 import sys
-import tempfile
+import threading
 import time
-
-import numpy as np
-from PIL import Image
 
 import agente
 import amiga
+import menu
+import pasos as ps
 import piloto as p
-from amiberry import orden
 from rodaje import Rodaje
 
 CARPETA, L = sys.argv[1], sys.argv[2]
+AQUI = os.path.dirname(os.path.abspath(__file__))
+VOZ = os.path.expanduser(f"~/.cache/video-forja/voz/voz_{L}")
+TEXTO = {lg: json.load(open(os.path.join(AQUI, f"locuciones_{lg}.json"))) for lg in ("en", "es")}
+DURA = json.load(open(os.path.join(VOZ, "duraciones.json")))
+VERSION = "0.1"
+
+F1, F5, F10 = 0x50, 0x54, 0x59
+K_P, K_DERECHA = 0x19, 0x4E
+
+# Los ejemplos, en la lengua de la toma (los de MyFiles:Juego también: preparar.py copia descargas/juego_en)
 ES = L == "es"
+SALUDA, HOLA_AMIGA, ABIERTA, HASTA = (("Hola desde Forja", "Hola, Amiga!", "La ventana se ha abierto", "Hasta luego")
+                                      if ES else
+                                      ("Hello from Forja", "Hello, Amiga!", "The window is open", "See you"))
+VENTANA_UI, BOTON = ("Saludo", "_Di hola") if ES else ("Greeting", "_Say hi")
+HOLA = f'''Window Saludo
+    title "{SALUDA}"
+    width 360
+    height 110
+end
+'''
+HOLA2 = f'''
+Main
+    Saludo.open
+    gfx_pen(1)
+    gfx_text_at(40, 50, "{HOLA_AMIGA}")
+    Print "{ABIERTA}"
+    EventLoop
+        On Close
+            Stop
+        end
+    end
+end'''
+SUMA = '''Main
+    total = 0
+    i = 1
+    while i <= 5
+        total = total + i
+        i = i + 1
+    end
+    Print "Total: #{total}"
+end'''
+
+r = Rodaje(CARPETA, L, VERSION)
+CAPITULOS = ['intro', 'instalar', 'editor', 'errores', 'depurar', 'ventanas', 'sprites', 'mapas', 'juego', 'pantalla', 'cierre']
+DESDE = os.environ.get("DESDE", CAPITULOS[0])     # para probar: empezar en un capítulo (con lo de antes ya hecho)
 
 
-def ultima_version():
-    """La última versión publicada de Trasfondo (la que se bajará la 0.9 al ponerse al día), sin la "v"."""
-    import json
-    import urllib.request
-    rel = json.load(urllib.request.urlopen("https://api.github.com/repos/FreeMEM/trasfondo/releases?per_page=5"))
-    return next(r["tag_name"] for r in rel if r["tag_name"].startswith("v") and not r["prerelease"]).lstrip("v")
+def hacer(clave):
+    return CAPITULOS.index(clave) >= CAPITULOS.index(DESDE)
 
 
-VER = ultima_version()
-
-RAMIGA, CTRL, LALT = 0x80, 0x08, 0x10
-K_RETURN, K_X, K_T = 0x44, 0x32, 0x14
-TRASPASO, RAM_DISK = (38, 250), (27, 45)
-# El panel (arriba a la derecha, en RTG a 1280x1024) y sus partes, medidos en capturas
-PANEL = (1018, 26, 258, 206)
-FECHA, CPU, MEMORIA = (1020, 28, 254, 26), (1020, 56, 254, 36), (1020, 96, 254, 20)
-TAREAS, DISCOS = (1020, 119, 254, 52), (1020, 178, 254, 52)
-PILOTO = (1070, 28, 60, 14)          # el piloto verde y su número, junto a "Trasfondo"
-ZOOM_PANEL = (960, 16, 320, 256)     # el panel con algo de fondo alrededor, en 5:4
-# TrasfondoPrefs: dónde está cada cosa dentro de su ventana. Cambia con el idioma (los textos) y con la versión (la
-# 0.10 trae tres botones de ciclo más): se mide cada vez que la ventana sale con otro tamaño
-PREFS = "Preferencias de Trasfondo" if ES else "Trasfondo Pref"
-P = {}
-_tamano = None
-# Exchange, agrandada hasta y = 300: Trasfondo es el último de la lista; los botones van en un solo gadget
-EX_TRASFONDO, EX_OCULTAR, EX_VER, EX_ACTIVO, EX_BORRAR = (42, 155), (240, 95), (370, 95), (240, 116), (370, 116)
-
-r = Rodaje(CARPETA, L, VER)
-
-
-def esperar_ventana(titulo, tope=20):
-    t = time.time()
-    while time.time() - t < tope:
-        v = amiga.ventana(titulo)
-        if v:
-            return v
-        time.sleep(0.3)
-    raise RuntimeError("no sale la ventana " + titulo)
-
-
-def esperar_sin(titulo, tope=20):
-    t = time.time()
-    while amiga.ventana(titulo) and time.time() - t < tope:
-        time.sleep(0.3)
-
-
-def en(titulo, dx, dy):
-    v = amiga.ventana(titulo)
-    return v[2] + dx, v[3] + dy
-
-
-def doble(x, y, dur=0.9):
-    p.mover_a(x, y, dur); time.sleep(0.3); p.clic(2)
-
-
-def uno(x, y, dur=0.8):
-    p.mover_a(x, y, dur); time.sleep(0.2); p.clic()
-
-
-def arrastrar(desde, hasta, dur=1.4):
-    p.mover_a(*desde)
-    orden("SEND_MOUSE", 0, 0, 1)
-    time.sleep(0.25)
-    p.mover_a(*hasta, dur=dur, botones=1)
-    time.sleep(0.3)
-    orden("SEND_MOUSE", 0, 0, 0)
-    time.sleep(0.4)
+def voz(clave, margen=0.35):
+    """Empieza una locución (su subtítulo y su voz); devuelve cuándo acaba."""
+    return r.hablar(clave, TEXTO["en"][clave], TEXTO["es"][clave], DURA[clave] + margen)
 
 
 def esperar(seg, factor=6):
-    """Una espera: en el vídeo, acelerada."""
+    """Una espera, acelerada en el vídeo (sin voz encima)."""
     r.acelerar(factor)
     time.sleep(seg)
     r.normal()
 
 
-def deprisa(factor=3):
-    """Un trozo de manejo del Workbench que en el vídeo va más rápido (sin aviso de espera: factor < 4)."""
-    r.acelerar(factor)
+class deprisa:
+    """Lo de dentro va acelerado en el vídeo, pero solo desde que acaba la voz que suena (fin)."""
+
+    def __init__(self, fin=0.0, factor=3):
+        self.fin, self.factor = fin, factor
+
+    def __enter__(self):
+        self.hilo = threading.Thread(target=self._luego, daemon=True)
+        self.parar = False
+        self.hilo.start()
+
+    def _luego(self):
+        while r.ahora() < self.fin and not self.parar:
+            time.sleep(0.05)
+        if not self.parar:
+            r.acelerar(self.factor)
+
+    def __exit__(self, *a):
+        if r.ahora() < self.fin:            # lo de dentro acabó antes que la voz: no hay nada que acelerar
+            self.parar = True
+        self.hilo.join()
+        r.normal()
 
 
-def marcar(nombre, zona, dur):
-    r.marcar(nombre, *zona, dur)
+def zona_forja():
+    """Las tres partes de Forja en la pantalla: ficheros, editor y salida (x, y, ancho, alto)."""
+    f = ps.forja()
+    ex, ey, ew, eh = ps.campos("FORJA_EDITOR")
+    sx, sy, fila, _, _ = ps.campos("FORJA_SALIDA")
+    ficheros = (f[1] + 4, f[2] + ey, ex - 10, eh)
+    editor = (f[1] + ex, f[2] + ey, ew, eh)
+    salida = (f[1] + 4, f[2] + sy - 16, f[3] - 8, f[4] - sy + 8)
+    return ficheros, editor, salida
 
 
-def hay_piloto():
-    """¿Sale el piloto verde de versión nueva junto a "Trasfondo"? (por su color, en una captura)"""
-    with tempfile.TemporaryDirectory() as d:
-        f = os.path.join(d, "c.png")
-        orden("SCREENSHOT", f)
-        x, y, an, al = PILOTO
-        a = np.asarray(Image.open(f).convert("RGB")).astype(int)[y:y + al, x:x + an]
-    verde = (np.abs(a - np.array([156, 180, 92])).max(2) < 30).sum()
-    return verde > 12
-
-
-def prefs(cual, dur=0.8):
-    uno(*en(PREFS, *P[cual]), dur)
-
-
-def abrir_prefs():
-    """La abre, la mide si hace falta y la activa (pulsando en su barra de título: los botones de ciclo no hacen
-    caso si la ventana no está activa)."""
-    agente.lanzar("SYS:Prefs/TrasfondoPrefs")
-    v = esperar_ventana(PREFS)
-    time.sleep(1.0)
-    if (v[4], v[5]) != _tamano:
-        medir_prefs()
-    v = amiga.ventana(PREFS)
-    uno(v[2] + v[4] // 2, v[3] + 5, 0.5)
+def raton_en_forja():
+    f = ps.forja()
+    p.mover_a(f[1] + 640, f[2] + 420, 0.5)
     time.sleep(0.3)
 
 
-def medir_prefs():
-    """Los sitios de los gadgets de TrasfondoPrefs, leídos de la ventana (cuesta segundos: en el vídeo, acelerado).
-    Van en este orden: seis casillas de qué se ve, cuántas tareas, tecla, (desde la 0.10: cada cuánto, fondo y
-    color,) oculto, GitHub, estado, Actualizar, Guardar, Usar y Cancelar."""
-    global _tamano
-    r.acelerar(8)
-    v = amiga.ventana(PREFS)
-    g = [x for x in amiga.gadgets(v[0]) if x[2] > 0 and x[3] > 0 and x[1] - v[3] >= 22]
-    rel = lambda x: (x[0] - v[2] + min(x[2] // 2, 14), x[1] - v[3] + x[3] // 2)
-    centro = lambda x: (x[0] - v[2] + x[2] // 2, x[1] - v[3] + x[3] // 2)
-    P.clear()
-    # el orden de las casillas cambia con la versión: 15 gadgets en la 0.9, 18 en la 0.10 (tres ciclos), 21 en la
-    # 0.11 (dos columnas: temperatura y gráficas de la memoria y de la red)
-    if len(g) >= 21:
-        i = dict(tareas=5, discos=6, memgrafica=4, cuantas=9, tecla=11, cada=12, fondo=13, color=14)
-    elif len(g) >= 18:
-        i = dict(tareas=3, discos=4, cuantas=6, tecla=7, cada=8, fondo=9, color=10)
-    else:
-        i = dict(tareas=3, discos=4, cuantas=6, tecla=7)
-    # los ciclos, en su icono de la izquierda: en el 3.2, pulsar en el texto abre la lista y no cambia nada
-    glifo = lambda x: (x[0] - v[2] + 10, x[1] - v[3] + x[3] // 2)
-    for k, n in i.items():
-        P[k] = glifo(g[n]) if k in ("cada", "fondo", "color") else rel(g[n])
-    P.update(estado=(g[-5][0] - v[2], g[-5][1] - v[3], g[-5][2], g[-5][3]),
-             actualizar=centro(g[-4]), guardar=centro(g[-3]), usar=centro(g[-2]), cancelar=centro(g[-1]))
-    print("prefs:", v[4], v[5], P, flush=True)
-    _tamano = (v[4], v[5])
-    r.normal()
+def linea_salida(texto):
+    """El recuadro de la última línea de la salida que lleva ese texto."""
+    x, y, fila, primera, _ = ps.campos("FORJA_SALIDA")
+    f = ps.forja()
+    lineas = ps.salida_lineas()
+    for i in range(len(lineas) - 1, -1, -1):
+        if texto in lineas[i]:
+            return (f[1] + x - 4, f[2] + y + (i - primera) * fila - 2, 760, fila + 4)
+    return None
 
 
-def campo(cual, texto):
-    """Escribe en un campo de TrasfondoPrefs: lo vacía (Amiga-X) y escribe, a ritmo de persona."""
-    prefs(cual)
-    time.sleep(0.3)
-    agente.tecla(K_X, RAMIGA)
-    time.sleep(0.2)
-    agente.escribir(texto)
-    agente.tecla(K_RETURN)
-    time.sleep(0.4)
+def linea_editor(i):
+    f = ps.forja()
+    ex, ey, ew, eh = ps.campos("FORJA_EDITOR")
+    return (f[1] + ex, ps.linea_y(i) - 6, 560, 12)
 
 
-def trabajo():
-    """Algo de trabajo para la CPU: que la gráfica y las tareas tengan algo que enseñar."""
-    agente.lanzar("C:List SYS: ALL >NIL:")
+def columna_x(c):
+    """La x de la columna c del editor (medida: 8 píxeles por letra, la primera a 36 del borde de la zona)."""
+    f = ps.forja()
+    ex, ey, ew, eh = ps.campos("FORJA_EDITOR")
+    return f[1] + ex + 36 + 8 * c + 2
 
 
+def esperar_estado(estado, tope=30):
+    t = time.time()
+    while time.time() - t < tope:
+        if ps.env("FORJA_ESTADO") == estado:
+            return True
+        time.sleep(0.4)
+    return False
+
+
+def preparar_carpeta():
+    """Sin que se vea: la carpeta de trabajo con el tileset, la ventana de saludo y el juego, y la sonda de Forja."""
+    agente.lanzar("C:MakeDir MyFiles:Juego")
+    time.sleep(0.5)
+    agente.lanzar("C:Copy Traspaso:juego/#? MyFiles:Juego/ QUIET")
+    agente.lanzar("C:SetEnv FORJA_SONDA 1")
+    time.sleep(2)
+
+
+if DESDE == CAPITULOS[0]:
+    preparar_carpeta()
+p.mover_a(640, 600, 0.3)
 r.empezar()
 try:
-    time.sleep(1.2)
+    # --- 1. Qué es Forja ---------------------------------------------------------------------------------------------
+    if hacer("intro"):
+        r.capitulo("intro")
+        time.sleep(0.8)
+        fin = voz("intro_1"); r.rasgo("coffin")
+        p.mover_a(700, 520, 2.0)
+        r.hasta(fin)
+        fin = voz("intro_2")
+        r.hasta(fin)
+        fin = voz("intro_3")
+        r.hasta(fin)
+        time.sleep(0.4)
 
-    # --- 1. Instalar -------------------------------------------------------------------------------------------------
-    r.capitulo("instalar")
-    r.decir("Here's Trasfondo 0.9, freshly unpacked from its .lha. Let's install it!",
-            "Aquí está Trasfondo 0.9, recién descomprimido de su .lha. ¡Vamos a instalarlo!")
-    deprisa()
-    doble(*TRASPASO, 1.0)
-    esperar_ventana("Traspaso"); time.sleep(1.0)
-    doble(*en("Traspaso", 55, 34))
-    esperar_ventana("Trasfondo"); time.sleep(0.8)
-    r.normal()
-    r.decir("Inside: the installer, Trasfondo itself, its preferences and the README.",
-            "Dentro: el instalador, el propio Trasfondo, sus preferencias y el LEEME.")
-    v = amiga.ventana("Trasfondo")
-    r.marcar("cajon", v[2] + 10, v[3] + 20, 330, 60, 3)
-    time.sleep(3.2)
-    r.decir("Double-click Instalar: the good old Amiga Installer.",
-            "Doble clic en Instalar: el Installer de toda la vida.")
-    r.rasgo("instalar")
-    doble(*en("Trasfondo", 32, 35))
-    deprisa(4)
-    esperar_ventana("Instalar"); time.sleep(1.5)
-    r.normal()
-    uno(*en("Instalar", 127, 180)); time.sleep(1.2)            # modo de instalación
-    uno(*en("Instalar", 127, 180)); time.sleep(1.8)            # opciones
-    r.decir("Start it with the Workbench every time? Yes: it goes into SYS:WBStartup.",
-            "¿Que arranque solo con el Workbench? Sí: va a SYS:WBStartup.")
-    r.rasgo("wbstartup")
-    time.sleep(3.2)
-    uno(*en("Instalar", 127, 180)); time.sleep(2.0)            # Sí
-    r.decir("Its preferences go to SYS:Prefs. And start it right now? Yes!",
-            "Sus preferencias, a SYS:Prefs. ¿Y lo pone en marcha ya? ¡Sí!")
-    time.sleep(2.5)
-    uno(*en("Instalar", 127, 180)); time.sleep(2.5)            # Sí: en marcha
-    r.decir("There it is, top right. Installed in seconds.",
-            "Ahí está, arriba a la derecha. Instalado en un momento.")
-    marcar("panel", PANEL, 3.5)
-    time.sleep(3.5)
-    uno(*en("Instalar", 248, 197)); time.sleep(1.0)
-    uno(*en("Instalar", 248, 197)); time.sleep(0.8)
-    deprisa()
-    p.cerrar("Trasfondo"); p.cerrar("Traspaso")
-    time.sleep(0.8)
-    r.normal()
-    r.callar()
+    # --- 2. Instalarlo -----------------------------------------------------------------------------------------------
+    if hacer("instalar"):
+        r.capitulo("instalar")
+        fin = voz("instalar_1"); r.rasgo("paquete")
+        ps.shell(); time.sleep(1.0)
+        r.hasta(fin)
+        fin = voz("instalar_2")
+        ps.escribir(f"lha x Traspaso:{ps.PAQUETE} RAM:")
+        r.hasta(fin)
+        esperar(8)
+        time.sleep(1.0)
+        with deprisa():
+            p.cerrar("Shell")
+            ps.abrir_cajon_dash()
+            time.sleep(1.0)
+        fin = voz("instalar_3"); r.rasgo("instalador")
+        ps.doble(*ps.en("Dash", 32, 32))
+        ps.esperar_ventana("Instalar"); time.sleep(1.5)
+        ps.instalar_paso("seguir"); time.sleep(1.5)
+        ps.instalar_paso("seguir"); time.sleep(1.5)
+        ps.instalar_paso("destino"); time.sleep(1.5)
+        r.hasta(fin)
+        ps.instalar_paso("seguir_destino")
+        esperar(4, 4)
+        time.sleep(1.5)
+        ps.instalar_paso("final"); time.sleep(2.0)
+        ps.instalar_paso("final"); time.sleep(1.0)
+        ps.esperar_sin("Instalar")
+        with deprisa():
+            for t in ("Dash", "RAM Disk"):
+                while amiga.ventana(t):
+                    p.cerrar(t); time.sleep(0.4)
+            ps.abrir_cajon_instalado(); time.sleep(1.0)
+        fin = voz("instalar_4"); r.rasgo("cajon")
+        x, y = ps.en("Dash", 275, 35)
+        r.marcar("forja", x - 30, y - 26, 60, 52, 3.2)
+        p.mover_a(x, y + 10, 1.0)
+        r.hasta(fin)
 
-    # --- 2. Qué enseña -----------------------------------------------------------------------------------------------
-    r.capitulo("panel")
-    trabajo()
-    r.decir("Trasfondo is painted on the Workbench backdrop itself: behind your icons and windows.",
-            "Trasfondo va pintado en el propio fondo del Workbench: detrás de los iconos y las ventanas.")
-    r.rasgo("fondo")
-    r.acercar(*ZOOM_PANEL, 34)
-    time.sleep(4.5)
-    r.decir("Date and time, in your system's language.", "La fecha y la hora, en el idioma del sistema.")
-    r.rasgo("fecha")
-    marcar("fecha", FECHA, 3)
-    time.sleep(3.2)
-    r.decir("CPU in use, and its recent history.", "La CPU en uso y su historia reciente.")
-    r.rasgo("cpu")
-    marcar("cpu", CPU, 4)
-    time.sleep(4.2)
-    r.decir("Free Chip and Fast memory.", "La memoria Chip y Fast libre.")
-    r.rasgo("memoria")
-    marcar("memoria", MEMORIA, 3)
-    time.sleep(3.2)
-    trabajo()
-    r.decir("The tasks using the most CPU, measured for real, task by task. No guessing.",
-            "Las tareas que más CPU toman, medidas de verdad, tarea a tarea. Nada de estimar.")
-    r.rasgo("tareas")
-    marcar("tareas", TAREAS, 5)
-    time.sleep(5.5)
-    r.decir("Every mounted disk: how full it is, and its size.",
-            "Cada disco montado: cuánto está lleno y su tamaño.")
-    r.rasgo("discos")
-    marcar("discos", DISCOS, 4)
-    time.sleep(4.5)
-    r.decir("With a network card, it also shows the traffic and the WiFi signal. Any TCP/IP stack.",
-            "Con tarjeta de red, también el tráfico y la señal de la WiFi. Con cualquier pila TCP/IP.")
-    r.rasgo("red")
-    time.sleep(4.5)
-    r.callar()
-    time.sleep(0.5)
-    r.decir("It never gets in the way: icons stay on top, as always.",
-            "No estorba nunca: los iconos quedan por encima, como siempre.")
-    r.rasgo("iconos")
-    arrastrar(RAM_DISK, (1150, 140), 1.6)
-    r.acercar(*ZOOM_PANEL, 5)
-    time.sleep(3.5)
-    arrastrar((1150, 140), RAM_DISK, 1.2)
-    time.sleep(1.0)
-    r.decir("In true colour it's translucent: your wallpaper shows through.",
-            "Con color real es translúcido: se ve el fondo de pantalla a través.")
-    r.rasgo("velo")
-    r.acercar(*ZOOM_PANEL, 5)
-    time.sleep(5)
-    r.callar()
+    # --- 3. El editor ------------------------------------------------------------------------------------------------
+    if hacer("editor"):
+        r.capitulo("editor")
+        if not ps.forja():                                      # (al probar desde aquí puede estar ya abierta)
+            ps.doble(*ps.en("Dash", 275, 35))
+            ps.esperar_ventana("Forja"); time.sleep(0.8)
+            ps.doble(*ps.en("Forja", 32, 35))
+            r.acelerar(4)
+            t0 = time.time()
+            while not ps.forja() and time.time() - t0 < 30:
+                time.sleep(0.3)
+            time.sleep(2.5)
+            r.normal()
+        raton_en_forja()
+        agente.tecla(ps.K_N, ps.RAMIGA); time.sleep(1.5)          # Forja recién instalada empieza sin fichero
+        ficheros, editor, salida = zona_forja()
+        fin = voz("editor_1"); r.rasgo("ficheros")
+        r.marcar("ficheros", *ficheros, 1.5); time.sleep(1.5)
+        r.marcar("editor", *editor, 1.5); time.sleep(1.5)
+        r.marcar("salida", *salida, 1.6)
+        r.hasta(fin)
+        raton_en_forja()
+        fin = voz("editor_2"); r.rasgo("sintaxis")
+        agente.tecla(ps.K_A, ps.RAMIGA); time.sleep(0.4)
+        ps.teclear(HOLA)
+        with deprisa(fin, 6):
+            ps.teclear(HOLA2)
+            time.sleep(0.6)
+            ps.guardar_como("MyFiles:Juego/hola.dash")
+        time.sleep(1.0)
+        fin = voz("editor_3"); r.rasgo("compilar")
+        agente.tecla(ps.K_E, ps.RAMIGA)
+        ps.esperar_ventana(SALUDA, 20)
+        r.hasta(fin)
+        fin = voz("editor_4"); r.rasgo("salida")
+        v = amiga.ventana(SALUDA)
+        r.marcar("ventana", v[2], v[3], v[4], v[5], 2.2); time.sleep(2.2)
+        m = linea_salida(ABIERTA)
+        if m:
+            r.marcar("salida", *m, 2.2)
+        r.hasta(fin)
+        time.sleep(0.5)
+        p.cerrar(SALUDA)
+        time.sleep(1.0)
 
-    # --- 3. Se pone al día solo --------------------------------------------------------------------------------------
-    r.capitulo("actualizar")
-    r.acelerar(8)                                             # el aviso sale un minuto después de arrancar
-    t = time.time()
-    while not hay_piloto() and time.time() - t < 120:
-        time.sleep(1)
-    r.normal()
-    assert hay_piloto(), "no sale el piloto verde"
-    r.decir(f"We installed 0.9 on purpose. See the green light? {VER} is out!",
-            f"Hemos instalado la 0.9 a propósito. ¿Ves el piloto verde? ¡Ha salido la {VER}!")
-    r.acercar(*ZOOM_PANEL, 4.5)
-    marcar("piloto", (PILOTO[0] - 4, PILOTO[1] - 2, PILOTO[2] + 8, PILOTO[3] + 4), 4)
-    time.sleep(4.5)
-    r.decir("It checks GitHub by itself, without slowing anything down. Let's open TrasfondoPrefs...",
-            "Lo mira él solo en GitHub, sin frenar nada. Abrimos TrasfondoPrefs...")
-    r.rasgo("actualiza")
-    abrir_prefs()
-    time.sleep(1.5)
-    v = amiga.ventana(PREFS)
-    e = P["estado"]
-    r.marcar("estado", v[2] + e[0], v[3] + e[1], e[2], e[3], 3)
-    time.sleep(3)
-    r.decir("One click on Update: it downloads it, checks it and restarts with the new one.",
-            "Un clic en Actualizar: la baja, comprueba que llegó entera y vuelve a arrancar con la nueva.")
-    prefs("actualizar")
-    time.sleep(2.5)
-    r.acelerar(4)
-    t = time.time()
-    while hay_piloto() and time.time() - t < 60:              # el piloto se va al arrancar la nueva
-        time.sleep(1)
-    time.sleep(4)
-    r.normal()
-    r.decir(f"Done: Trasfondo {VER}. No Aminet, no unpacking: straight from GitHub!",
-            f"Listo: Trasfondo {VER}. Sin Aminet ni descomprimir nada: ¡directo de GitHub!")
-    v = amiga.ventana(PREFS)
-    r.marcar("estado", v[2] + e[0], v[3] + e[1], e[2], e[3], 3.5)
-    time.sleep(4)
-    prefs("cancelar")
-    esperar_sin(PREFS)
-    r.decir(f"And {VER} uses much less CPU: it only repaints what changed.",
-            f"Y la {VER} gasta mucha menos CPU: solo repinta lo que ha cambiado.")
-    r.rasgo("ligero")
-    r.acercar(*ZOOM_PANEL, 5)
-    marcar("tareas", TAREAS, 4.5)
-    time.sleep(5)
-    r.callar()
+    # --- 4. Los errores ----------------------------------------------------------------------------------------------
+    if hacer("errores"):
+        r.capitulo("errores")
+        f = ps.forja()
+        ex, ey, ew, eh = ps.campos("FORJA_EDITOR")
+        ps.uno(f[1] + ex + ew - 60, ps.linea_y(9)); time.sleep(0.5)
+        agente.tecla(ps.K_RETURN); time.sleep(0.3)
+        ps.teclear(f'gfx_txt_at(40, 75, "{HASTA}")')
+        time.sleep(0.5)
+        agente.tecla(ps.K_S, ps.RAMIGA); time.sleep(1.0)
+        agente.tecla(ps.K_E, ps.RAMIGA)
+        esperar_estado("libre", 15); time.sleep(1.5)
+        fin = voz("errores_1"); r.rasgo("errores")
+        m = linea_salida("Error")
+        if m:
+            r.marcar("error", *m, 3.0)
+        r.hasta(fin)
+        fin = voz("errores_2"); r.rasgo("clic")
+        ps.clic_en_salida("Error"); time.sleep(1.0)
+        r.marcar("linea", *linea_editor(10), 2.4)
+        time.sleep(1.2)
+        ps.uno(columna_x(9), ps.linea_y(10), 0.6); time.sleep(0.4)
+        agente.escribir("e"); time.sleep(0.6)
+        r.hasta(fin)
+        agente.tecla(ps.K_S, ps.RAMIGA); time.sleep(1.0)
+        agente.tecla(ps.K_E, ps.RAMIGA)
+        ps.esperar_ventana(SALUDA, 20)
+        time.sleep(2.5)
+        p.cerrar(SALUDA)
+        time.sleep(1.0)
 
-    # --- 4. A tu gusto -----------------------------------------------------------------------------------------------
-    r.capitulo("prefs")
-    r.decir("TrasfondoPrefs says what you see. Let's take out the tasks and the disks...",
-            "TrasfondoPrefs dice qué se ve. Quitamos las tareas y los discos...")
-    r.rasgo("prefs")
-    abrir_prefs()
-    time.sleep(0.5)
-    prefs("tareas"); time.sleep(0.8)
-    prefs("discos"); time.sleep(1.0)
-    r.decir("...and Use: the panel changes right away, no restart needed.",
-            "...y Usar: el panel cambia al momento, sin reiniciar nada.")
-    r.rasgo("almomento")
-    prefs("usar")
-    esperar_sin(PREFS)
-    r.acercar(*ZOOM_PANEL, 4.5)
-    time.sleep(4.5)
-    r.decir("The tasks again, but only three. And the disks back.",
-            "Vuelven las tareas, pero solo tres. Y los discos otra vez.")
-    abrir_prefs()
-    prefs("tareas"); time.sleep(0.6)
-    prefs("discos"); time.sleep(0.6)
-    campo("cuantas", "3")
-    time.sleep(0.6)
-    if "memgrafica" in P:
-        r.decir(f"New in {VER}: graphs for memory and network too. Here, the memory one.",
-                f"Nuevo en la {VER}: gráficas también de la memoria y de la red. Aquí, la de la memoria.")
-        r.rasgo("memgrafica")
-        prefs("memgrafica"); time.sleep(2.5)
-    r.decir("How often it measures: every 1, 2, 5 or 10 seconds. Less often, less CPU.",
-            "Cada cuánto mide: 1, 2, 5 o 10 segundos. Menos a menudo, menos CPU.")
-    r.rasgo("cada")
-    for _ in range(4):                                        # 2 -> 5 -> 10 -> 1 -> 2: se ven todos y se queda en 2
-        prefs("cada", 0.4); time.sleep(0.9)
-    time.sleep(0.6)
-    r.decir("A solid background instead of the see-through one, in the colour you like...",
-            "Fondo fijo en vez de transparente, del color que quieras...")
-    r.rasgo("color")
-    prefs("fondo"); time.sleep(1.0)
-    for _ in range(5):                                        # azul noche -> negro -> gris -> azul -> verde -> granate
-        prefs("color", 0.3); time.sleep(0.7)
-    time.sleep(0.6)
-    r.decir("And a hotkey to hide it and bring it back.",
-            "Y una tecla rápida para ocultarlo y traerlo.")
-    r.rasgo("tecla")
-    campo("tecla", "ctrl alt t")
-    time.sleep(0.8)
-    r.decir("Save: and it stays that way for good.", "Guardar: y así se queda para siempre.")
-    prefs("guardar")
-    esperar_sin(PREFS)
-    r.acercar(*ZOOM_PANEL, 5)
-    time.sleep(5)
-    trabajo()
-    r.decir("Ctrl-Alt-T: gone... and back, with its history complete: it kept measuring.",
-            "Ctrl-Alt-T: se va... y vuelve, con la historia completa: no ha dejado de medir.")
-    time.sleep(1.2)
-    agente.tecla(K_T, CTRL | LALT)
-    time.sleep(2.5)
-    agente.tecla(K_T, CTRL | LALT)
-    r.acercar(*ZOOM_PANEL, 4)
-    time.sleep(4)
-    r.callar()
+    # --- 5. El depurador ---------------------------------------------------------------------------------------------
+    if hacer("depurar"):
+        r.capitulo("depurar")
+        raton_en_forja()
+        with deprisa(0, 6):
+            agente.tecla(ps.K_N, ps.RAMIGA); time.sleep(1.5)
+            agente.tecla(ps.K_A, ps.RAMIGA); time.sleep(0.4)
+            ps.teclear(SUMA)
+            time.sleep(0.5)
+            ps.guardar_como("MyFiles:Juego/suma.dash")
+        time.sleep(0.8)
+        fin = voz("depurar_1"); r.rasgo("punto")
+        time.sleep(1.5)
+        ps.uno(ps.margen_x(), ps.linea_y(4)); time.sleep(0.5)
+        r.marcar("punto", ps.margen_x() - 10, ps.linea_y(4) - 8, 260, 16, 2.5)
+        r.hasta(fin)
+        fin = voz("depurar_2")
+        agente.tecla(F5)
+        esperar_estado("depurando", 15); time.sleep(1.0)
+        r.rasgo("pila")
+        f = ps.forja()
+        ex, ey, ew, eh = ps.campos("FORJA_EDITOR")
+        r.acercar(f[1], f[2] + 20, 560, 448, 9.0)
+        time.sleep(1.2)
+        r.marcar("variables", f[1] + 6, f[2] + ey, ex - 14, 70, 3.0)
+        r.hasta(fin)
+        fin = voz("depurar_3"); r.rasgo("paso")
+        for _ in range(3):
+            agente.tecla(F10); time.sleep(1.1)
+        ps.uno(ps.margen_x(), ps.linea_y(4), 0.5); time.sleep(0.5)
+        agente.tecla(F5)
+        r.hasta(fin)
+        esperar_estado("libre", 10); time.sleep(0.6)
+        m = linea_salida("Total")
+        if m:
+            r.marcar("total", *m, 2.0)
+        time.sleep(2.0)
 
-    # --- 5. Commodity ------------------------------------------------------------------------------------------------
-    r.capitulo("exchange")
-    r.decir("It's a commodity: it's right there in Exchange, with the others.",
-            "Es una commodity: sale en Exchange, con las demás.")
-    r.rasgo("exchange")
-    deprisa(4)
-    agente.lanzar("SYS:Tools/Commodities/Exchange")
-    esperar_ventana("Exchange"); time.sleep(1.5)
-    v = amiga.ventana("Exchange")
-    arrastrar((v[2] + v[4] - 4, v[3] + v[5] - 4), (v[2] + v[4] - 4, 300), 0.8)   # más alta: se ve la lista
-    time.sleep(0.8)
-    r.normal()
-    uno(*en("Exchange", *EX_TRASFONDO))
-    time.sleep(1.8)
-    r.decir("Hide: the panel goes away, but it keeps measuring.",
-            "Ocultar: se quita el panel, pero sigue midiendo.")
-    uno(*en("Exchange", *EX_OCULTAR)); time.sleep(3.2)
-    r.decir("Show: back again.", "Ver: de vuelta.")
-    uno(*en("Exchange", *EX_VER)); time.sleep(3.2)
-    r.decir("Switched off, it stops measuring too: it costs nothing at all.",
-            "Desactivado, deja también de medir: no gasta nada.")
-    uno(*en("Exchange", *EX_ACTIVO)); time.sleep(3.5)
-    uno(*en("Exchange", *EX_ACTIVO)); time.sleep(2.5)
-    r.decir("And Remove closes it, leaving the backdrop just as it was.",
-            "Y Borrar lo cierra: el fondo queda como estaba.")
-    uno(*en("Exchange", *EX_BORRAR)); time.sleep(4)
-    deprisa()
-    p.cerrar("Exchange")
-    time.sleep(0.8)
-    r.normal()
-    r.callar()
+    # --- 6. Ventanas MUI ---------------------------------------------------------------------------------------------
+    if hacer("ventanas"):
+        r.capitulo("ventanas")
+        fin = voz("ventanas_1"); r.rasgo("dashui")
+        raton_en_forja()
+        ps.abrir("MyFiles:Juego/saludo.dashui")
+        r.hasta(fin)
+        fin = voz("ventanas_2"); r.rasgo("propiedades")
+        f = ps.forja()
+        ps.uno(f[1] + 396, f[2] + 168); time.sleep(1.0)
+        d = ps.env("FORJA_DISENO").split()
+        if not d or d[0] != "7":
+            print("aviso: el árbol no tiene el botón en la fila 7:", d, flush=True)
+        agente.tecla(K_DERECHA); time.sleep(0.6)
+        agente.tecla(ps.K_RETURN); time.sleep(0.8)
+        for _ in range(10):
+            agente.tecla(ps.K_RETROCESO); time.sleep(0.1)
+        agente.escribir(BOTON); time.sleep(0.6)
+        agente.tecla(ps.K_RETURN); time.sleep(1.0)
+        r.hasta(fin)
+        fin = voz("ventanas_3"); r.rasgo("vista")
+        raton_en_forja()
+        agente.tecla(K_P, ps.RAMIGA)
+        ps.esperar_ventana(VENTANA_UI, 15); time.sleep(1.0)
+        v = amiga.ventana(VENTANA_UI)
+        r.marcar("vista", v[2], v[3], v[4], v[5], 3.0)
+        r.acercar(v[2] + v[4] // 2 - 240, v[3] + v[5] // 2 - 192, 480, 384, 4.5)
+        r.hasta(fin)
+        time.sleep(1.5)
+        ps.uno(v[2] + 9, v[3] + 7); time.sleep(1.0)
 
-    # --- 6. Escrito en Dash ------------------------------------------------------------------------------------------
-    r.capitulo("dash")
-    r.decir("It comes back every time the Workbench starts. Or now, by hand...",
-            "Vuelve solo cada vez que arranca el Workbench. O ahora, a mano...")
-    agente.lanzar("SYS:WBStartup/trasfondo")
-    time.sleep(4)
-    trabajo()
-    r.decir("About 500 lines of Dash, compiled to plain 68000 code: no FPU needed.",
-            "Unas 500 líneas de Dash, compiladas a código de 68000: no le hace falta FPU.")
-    r.rasgo("dash")
-    r.acercar(*ZOOM_PANEL, 14)
-    time.sleep(5)
-    r.decir("AGA or a graphics card, English or Spanish, following your system's language.",
-            "En AGA o con tarjeta gráfica, en inglés o en castellano, según el idioma del sistema.")
-    r.rasgo("idiomas")
-    time.sleep(5)
-    r.decir(f"Trasfondo {VER}: free and open source. Enjoy it!",
-            f"Trasfondo {VER}: libre y de código abierto. ¡Que lo disfrutes!")
-    r.rasgo("libre")
-    time.sleep(5)
+    # --- 7. Sprites y BOBs -------------------------------------------------------------------------------------------
+    if hacer("sprites"):
+        r.capitulo("sprites")
+        fin = voz("sprites_1"); r.rasgo("bob")
+        ps.nuevo("b"); time.sleep(2.0)
+        r.hasta(fin)
+        fin = voz("sprites_2"); r.rasgo("herramientas")
+        with deprisa(fin, 8):
+            ps.muneco()
+        time.sleep(0.8)
+        with deprisa(0, 8):
+            ps.letra("d"); time.sleep(0.8)
+            ps.sonrisa()
+            ps.antena_torcida()
+        time.sleep(0.6)
+        fin = voz("sprites_3"); r.rasgo("cebolla")
+        time.sleep(2.6)
+        ps.letra("o"); time.sleep(0.5)
+        x0, y0 = ps.sp_celda(8, 0)
+        r.acercar(x0 - 60, y0 - 20, 560, 448, max(3.0, fin - r.ahora() + 0.5))
+        r.hasta(fin)
+        time.sleep(0.8)
+        ps.letra("o")
+        with deprisa(0, 3):
+            raton_en_forja()
+            ps.guardar_como("MyFiles:Juego/muneco.iff")
+        time.sleep(0.6)
+        fin = voz("sprites_4"); r.rasgo("animar")
+        ps.letra(" "); time.sleep(2.6)
+        ps.letra(" "); time.sleep(0.4)
+        r.rasgo("codigo")
+        ps.letra("c"); time.sleep(0.8)
+        _, _, salida = zona_forja()
+        r.marcar("codigo", *salida, 2.5)
+        r.hasta(fin)
+        time.sleep(1.5)
+
+    # --- 8. Mapas de tiles -------------------------------------------------------------------------------------------
+    if hacer("mapas"):
+        r.capitulo("mapas")
+        fin = voz("mapas_1"); r.rasgo("tileset")
+        ps.nuevo("m")
+        ps.pedir_fichero("MyFiles:Juego/tiles.iff")
+        r.hasta(fin)
+        with deprisa(0, 8):
+            ps.mp_boton(5002); time.sleep(0.6)
+            ps.mp_boton(4000, veces=42, pausa=0.12)            # ancho: de 64 a 22
+            ps.mp_boton(4002, veces=16, pausa=0.12)            # alto: de 32 a 16
+            time.sleep(1.0)
+        fin = voz("mapas_2")
+        with deprisa(fin, 8):
+            ps.nivel_fondo()
+        time.sleep(0.6)
+        fin = voz("mapas_3"); r.rasgo("capas")
+        with deprisa(fin, 8):
+            ps.nivel_delante()
+            r.rasgo("choques")
+            ps.nivel_choques()
+        time.sleep(0.6)
+        fin = voz("mapas_4"); r.rasgo("objetos")
+        ps.nivel_objetos()
+        r.hasta(fin)
+        time.sleep(0.8)
+        with deprisa(0, 3):
+            raton_en_forja()
+            ps.guardar_como("MyFiles:Juego/nivel.fmap")
+        time.sleep(0.5)
+
+    # --- 9. Un juego -------------------------------------------------------------------------------------------------
+    if hacer("juego"):
+        r.capitulo("juego")
+        with deprisa(0, 3):
+            ps.abrir("MyFiles:Juego/juego.dash")
+        time.sleep(0.6)
+        fin = voz("juego_1"); r.rasgo("tilemap")
+        time.sleep(1.5)
+        r.marcar("dibuja", *linea_editor(42), 3.5)        # tilemap_draw (la carga, más abajo, no se ve)
+        time.sleep(4.5)
+        r.marcar("choques", *linea_editor(18), 3.5)       # tilemap_get: la capa de choques
+        r.hasta(fin)
+        raton_en_forja()
+        agente.tecla(ps.K_E, ps.RAMIGA)
+        t0 = time.time()
+        while ps.forja() and time.time() - t0 < 20:        # la pantalla del juego tapa la de Forja
+            time.sleep(0.3)
+        time.sleep(1.0)
+        fin = voz("juego_2"); r.rasgo("juego")
+        r.acercar(400, 320, 480, 384, 11.0)
+        r.hasta(fin)
+        time.sleep(9.0)
+        p.clic(); time.sleep(2.5)
+
+    # --- 10. Preferencias --------------------------------------------------------------------------------------------
+    if hacer("pantalla"):
+        r.capitulo("pantalla")
+        f = ps.forja()
+        menu.elegir(f[1] + 600, f[2] + 300, "Proyecto", "Preferencias...")
+        t0 = time.time()
+        while not ps.prefs() and time.time() - t0 < 10:
+            time.sleep(0.3)
+        time.sleep(0.6)
+        fin = voz("pantalla_1"); r.rasgo("pantalla")
+        v = ps.prefs()
+        r.marcar("pantalla", v[1] + 6, v[2] + 80, v[3] - 12, 24, 3.5)
+        r.acercar(v[1] + v[3] // 2 - 240, v[2] + v[4] // 2 - 192, 480, 384, max(3.0, fin - r.ahora()))
+        r.hasta(fin)
+        time.sleep(0.6)
+        ps.uno(v[1] + v[3] - 33, v[2] + v[4] - 16); time.sleep(1.0)
+
+    # --- 11. Libre ---------------------------------------------------------------------------------------------------
+    if hacer("cierre"):
+        r.capitulo("cierre")
+        fin = voz("cierre_1"); r.rasgo("libre")
+        r.hasta(fin)
+        fin = voz("cierre_2")
+        r.hasta(fin)
+        time.sleep(1.5)
 finally:
     r.acabar()
 print("toma:", round(r.ahora(), 1), "s")

@@ -1,15 +1,16 @@
-"""El montaje del vídeo de Trasfondo: de la toma (toma.json y toma.mkv) a un vídeo de 1920x1080 con aire de demo.
-(Sale del de Tachyon: mismas columnas, rótulos y scroller, con los colores y el logo de Trasfondo.)
+"""El montaje del vídeo de Forja: de la toma (toma.json y toma.mkv) y las locuciones a un vídeo de 1920x1080 con aire
+de demo. (Sale de los de Tachyon y Trasfondo: mismas columnas, rótulos y scroller, con los colores y el logo de Forja.)
 
     python3 montar.py <carpeta de la toma> <salida.mp4> [--prueba SEGUNDOS]
 
 - En el centro, la pantalla del Amiga (RTG, 1280x1024) a escala 1:1, con subtítulos, clics, recuadros y acercamientos.
-- A la izquierda, el logo, el capítulo y la lista de lo que hace Trasfondo: se mueve sola y marca lo que se está viendo.
-- A la derecha, la música que suena (el mod, sus autores y su demo), con su espectro y una bola Boing que bota.
+- A la izquierda, el logo, el capítulo y la lista de lo que hace Forja: se mueve sola y marca lo que se está viendo.
+- A la derecha, la música que suena (el mod y su autor), con su espectro y una bola Boing que bota.
 - Abajo, un scroller de los de siempre con lo que se va viendo; al final, los saludos.
-- Entre capítulos, rótulos azul Workbench 1.3 en Topaz (como el vídeo de Trasfondo). Al final, los créditos.
-- Las esperas de la toma (cargar, arrancar) van aceleradas, con su aviso. La música dura más que el vídeo: se
-  apaga al final de los créditos.
+- Entre capítulos, rótulos azul Workbench 1.3 en Topaz. Al final, los créditos.
+- La voz: cada locución (voz_<lengua>/<clave>.wav) suena a la hora del vídeo en que empezó en la toma (contando los
+  tramos acelerados, que nunca caen en medio de una locución). La música va debajo, más baja mientras se habla, en
+  bucle si el vídeo dura más que ella, y se apaga al final de los créditos.
 """
 import json
 import math
@@ -26,17 +27,20 @@ from textos import TEXTOS
 W, H, FPS = 1920, 1080, 25
 V = os.path.expanduser("~/.cache/video-forja")
 TOPAZ = os.path.expanduser("~/.cache/video-trasfondo/fuentes/TopazPlus_a1200_v1.0.ttf")
-ICONO = os.path.expanduser("~/Projects/webs-freemem/sitios/trasfondo/public/iconos/trasfondo.png")
-MUSICA = os.path.join(V, "musica", "overload.wav")
+ICONO = os.path.expanduser("~/Projects/webs-freemem/sitios/forja/public/icono.png")
+MUSICA = os.path.expanduser("~/.cache/video-inferencia/musica/space_debris.wav")
+VOCES = os.path.join(V, "voz")
 
 AZUL_WB = (0, 85, 170)
-NARANJA = (80, 200, 255)          # el cian de Trasfondo (la gráfica de la CPU del panel): el color de acento
-MARCA = (255, 150, 40)            # recuadros y clics sobre la pantalla del Amiga, que es azul: en ámbar, que se vean
-BLANCO = (232, 238, 246)
-FONDO = (12, 26, 54)              # el azul noche de la web de Trasfondo
-AZUL = (19, 38, 74)
-TENUE = (10, 48, 72)              # fondo del rasgo de ahora en la lista
-GRIS = (120, 128, 150)
+NARANJA = (255, 138, 31)          # la brasa de la web de Forja: el color de acento
+MARCA = (255, 200, 80)            # recuadros y clics sobre la pantalla del Amiga (Forja es negra): brasa clara
+BLANCO = (220, 220, 210)
+FONDO = (14, 14, 18)              # el negro del editor de Forja (el de su web)
+AZUL = (26, 26, 32)
+TENUE = (60, 32, 10)              # fondo del rasgo de ahora en la lista
+GRIS = (154, 154, 168)
+RAYA = (50, 50, 60)               # las rayas finas que separan
+LINEAS = (20, 20, 26)             # las líneas de barrido del fondo
 PX, PY = 320, 0                   # la pantalla del Amiga en el vídeo
 BANDA = 1024                      # la franja del scroller, debajo
 PORTADA, RÓTULO, CIERRE_MIN, CIERRE_MAX = 9.0, 2.8, 14.0, 26.0
@@ -109,13 +113,13 @@ def rotulo(titulo, subtitulo="", numero=""):
 
 
 def logo(ancho):
-    """El logo de Trasfondo: su icono (el del Workbench, en píxeles grandes) y el nombre en Topaz, centrados en
+    """El logo de Forja: su icono (el del Workbench, en píxeles grandes) y el nombre en Topaz, centrados en
     alto, con fondo transparente."""
     ic = Image.open(ICONO).convert("RGBA")
     k = 3                                                                  # el icono, a 3x en píxeles enteros
     ic = ic.resize((ic.width * k, ic.height * k), Image.NEAREST)
     f = fuente(200)
-    texto = "Trasfondo"
+    texto = "Forja"
     x0, y0, x1, y1 = f.getbbox(texto)
     alto = max(ic.height, y1 - y0)
     im = Image.new("RGBA", (ic.width + 60 + x1 - x0, alto), (0, 0, 0, 0))
@@ -162,11 +166,11 @@ def duracion_wav(wav):
 
 # --- Las columnas ---------------------------------------------------------------------------------------------------
 class Montaje:
-    def __init__(self, toma, t, n_cuadros, lista, scroller):
+    def __init__(self, toma, t, n_cuadros, lista, scroller, musica):
         self.toma, self.t, self.lista = toma, t, lista
         self.logo = logo(290)
         self.f22, self.f26, self.f30, self.f32, self.f20 = fuente(22), fuente(26), fuente(30), fuente(32), fuente(20)
-        self.espec = espectro(MUSICA, n_cuadros)
+        self.espec = espectro(musica, n_cuadros)
         self.bolas = [bola_boing(110, k * 2 * math.pi / 16 / 8) for k in range(16)]
         self.scroller = scroller
         self.lado = self._lado_derecho()
@@ -179,11 +183,11 @@ class Montaje:
         d.text((20, y), t["suena"], font=self.f22, fill=NARANJA); y += 40
         d.text((20, y), t["tema"], font=fuente(36), fill=BLANCO); y += 48
         for l in t["autores"]:
-            d.text((20, y), l, font=self.f26, fill=(200, 210, 235)); y += 32
+            d.text((20, y), l, font=self.f26, fill=(210, 205, 195)); y += 32
         d.text((20, y), t["grupo"], font=self.f22, fill=GRIS); y += 44
         for l in t["demo"]:
-            d.text((20, y), l, font=self.f20, fill=(170, 180, 205)); y += 26
-        d.rectangle([20, 924, 300, 925], fill=(50, 56, 75))
+            d.text((20, y), l, font=self.f20, fill=(175, 172, 165)); y += 26
+        d.rectangle([20, 924, 300, 925], fill=RAYA)
         for i, l in enumerate(t["grabado"]):
             d.text((20, 936 + i * 26), l, font=self.f20, fill=GRIS)
         return img
@@ -197,7 +201,7 @@ class Montaje:
         y = 142
         for l in envolver(capitulo, self.f30, 285):
             d.text((20, y), l, font=self.f30, fill=BLANCO); y += 36
-        d.rectangle([20, 236, 300, 237], fill=(50, 56, 75))
+        d.rectangle([20, 236, 300, 237], fill=RAYA)
         img.paste(self.lado, (1600, 0))
         return img
 
@@ -225,9 +229,9 @@ class Montaje:
                 d.rectangle([12, y - 4, 16, y + 26], fill=NARANJA)
                 d.text((26, y), texto, font=self.f22, fill=BLANCO)
             elif i < act:
-                d.text((26, y), texto, font=self.f22, fill=(110, 150, 255))
+                d.text((26, y), texto, font=self.f22, fill=(230, 170, 90))
             else:
-                d.text((26, y), texto, font=self.f22, fill=(70, 76, 95))
+                d.text((26, y), texto, font=self.f22, fill=(80, 80, 92))
         # que se apaguen arriba y abajo
         return d
 
@@ -240,9 +244,9 @@ class Montaje:
             x = x0 + b * 17
             for y in range(y0 - h, y0, 6):                              # a trozos, como un VU de los de antes
                 frac = (y0 - y) / alto
-                col = (int(80 + 16 * frac), int(200 + 8 * frac), int(255 - 127 * frac)) if frac < 0.8 else MARCA
+                col = (255, int(110 + 100 * frac), int(20 + 40 * frac)) if frac < 0.8 else MARCA
                 d.rectangle([x, y, x + 12, y + 3], fill=col)
-        d.rectangle([1620, y0 + 4, 1890, y0 + 5], fill=(50, 56, 75))
+        d.rectangle([1620, y0 + 4, 1890, y0 + 5], fill=RAYA)
         # la bola Boing bota al ritmo (unos 125 pulsos por minuto: un bote cada dos)
         fase = (tv * 125 / 60 / 2) % 1
         yb = 820 - int(200 * (1 - (2 * fase - 1) ** 2))
@@ -259,7 +263,7 @@ class Montaje:
         off = int(tv * VEL_SCROLL)
         trozo = tira.crop((off, 0, off + W, tira.height))
         d = ImageDraw.Draw(img)
-        d.rectangle([0, BANDA, W, H], fill=(6, 14, 30))
+        d.rectangle([0, BANDA, W, H], fill=(8, 8, 10))
         d.line([(0, BANDA), (W, BANDA)], fill=NARANJA, width=2)
         base = BANDA + 8
         for x in range(0, W, 8):
@@ -286,9 +290,9 @@ def tira_scroller(eventos, texto_final, t_total):
         ImageDraw.Draw(trozo).text((0, 0), t, font=f, fill=255)
         mascara.paste(trozo, (x, 0))
     grad = np.zeros((40, 1, 3), np.uint8)
-    for y in range(40):                                               # copper: verde, blanco, cian
+    for y in range(40):                                               # copper: brasa, blanco, amarillo
         s = y / 39
-        c = np.array([96, 208, 128]) * (1 - s) * 2 if s < 0.5 else np.array([80, 200, 255]) * (s - 0.5) * 2
+        c = np.array([255, 110, 20]) * (1 - s) * 2 if s < 0.5 else np.array([255, 200, 80]) * (s - 0.5) * 2
         c = c + np.array([255, 255, 255]) * (1 - abs(s - 0.5) * 2) * 0.6
         grad[y, 0] = np.clip(c, 0, 255)
     color = Image.fromarray(np.repeat(grad, largo, 1))
@@ -450,13 +454,23 @@ def main():
             eventos.append((a_video_t(t), T["scroll"][c]))
     scroller = tira_scroller(eventos, T["saludos"], t_total)
 
+    # la música, en bucle hasta el final (el espectro y la mezcla la leen de aquí)
+    musica = salida + ".musica.wav"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", MUSICA, "-t",
+                    f"{t_total + 2:.2f}", "-c:a", "pcm_s16le", musica], check=True)
+    # las locuciones, en horas del vídeo
+    voces = [(a_video_t(t), os.path.join(VOCES, f"voz_{lengua}", clave + ".wav")) for (t, clave) in toma.get("voces", [])]
+    for (_, f) in voces:
+        if not os.path.exists(f):
+            sys.exit("falta la locución " + f)
+
     n_total = int(t_total * FPS)
-    m = Montaje(toma, T, n_total + FPS, lista, scroller)
+    m = Montaje(toma, T, n_total + FPS, lista, scroller, musica)
     m.lengua = lengua
     m.subs = [(a, b, t) for (a, b, t, _) in subs]
     m.bases = {n: m.fondo(T["capitulos"][clave][0], f"{n + 1:02d} / {len(trozos):02d}")
                for n, (clave, _, _) in enumerate(trozos)}
-    print(f"vídeo: {t_total:.1f} s (música {t_musica:.1f} s, créditos {cierre:.1f} s)", flush=True)
+    print(f"vídeo: {t_total:.1f} s (música {t_musica:.1f} s, créditos {cierre:.1f} s, {len(voces)} locuciones)", flush=True)
     if prueba:
         t_total = min(t_total, prueba)
         n_total = int(t_total * FPS)
@@ -515,20 +529,38 @@ def main():
                 f.write(f"{i}\n{srt_tiempo(a)} --> {srt_tiempo(b)}\n{textos[lg]}\n\n")
     capitulos = [(0.0, T["portada_capitulo"])] + [(p[3], T["capitulos"][p[1]][0]) for p in plan if p[0] == "rotulo"]
     capitulos.append((t_total - cierre, T["creditos_capitulo"]))
+    capitulos = [c for c in capitulos if c[0] < n_total / FPS - 1]        # (con --prueba, el vídeo acaba antes)
     with open(salida + ".capitulos.txt", "w") as f:
         for (a, nombre) in capitulos:
             f.write(f"{int(a) // 60}:{int(a) % 60:02d} {nombre}\n")
     with open(salida + ".ffmeta", "w") as f:
         f.write(";FFMETADATA1\ntitle=" + T["titulo"] + "\n")
         for i, (a, nombre) in enumerate(capitulos):
-            b = capitulos[i + 1][0] if i + 1 < len(capitulos) else t_total
+            b = capitulos[i + 1][0] if i + 1 < len(capitulos) else n_total / FPS
             f.write(f"\n[CHAPTER]\nTIMEBASE=1/1000\nSTART={int(a * 1000)}\nEND={int(b * 1000)}\ntitle={nombre}\n")
     fin = n_total / FPS
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", crudo, "-i", MUSICA, "-i", salida + ".ffmeta",
-                    "-map", "0:v", "-map", "1:a", "-map_metadata", "2", "-map_chapters", "2",
-                    "-af", f"afade=t=in:d=0.5,afade=t=out:st={max(0, fin - 3):.2f}:d=3", "-t", f"{fin:.2f}",
-                    "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", salida], check=True)
+    # el sonido: la música baja (y más baja aún mientras habla la voz) y cada locución a su hora
+    entradas = ["-i", crudo, "-i", musica, "-i", salida + ".ffmeta"]
+    filtro = [f"[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=0.2,"
+              f"afade=t=in:d=0.5,afade=t=out:st={max(0, fin - 3):.2f}:d=3[mus]"]
+    for i, (tv, f) in enumerate(voces):
+        entradas += ["-i", f]
+        ms = int(tv * 1000)
+        filtro.append(f"[{3 + i}:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=1.6,"
+                      f"adelay={ms}|{ms}[v{i}]")
+    if voces:
+        filtro.append("".join(f"[v{i}]" for i in range(len(voces))) +
+                      f"amix=inputs={len(voces)}:normalize=0:dropout_transition=0,asplit[voz][llave]")
+        filtro.append("[mus][llave]sidechaincompress=threshold=0.03:ratio=6:attack=80:release=700[fondo]")
+        filtro.append("[fondo][voz]amix=inputs=2:normalize=0:dropout_transition=0,volume=8dB,alimiter=limit=0.89:level=0,aresample=48000[a]")
+    else:
+        filtro.append("[mus]volume=8dB,aresample=48000[a]")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error"] + entradas +
+                   ["-filter_complex", ";".join(filtro), "-map", "0:v", "-map", "[a]", "-map_metadata", "2",
+                    "-map_chapters", "2", "-t", f"{fin:.2f}", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                    "-movflags", "+faststart", salida], check=True)
     os.remove(crudo)
+    os.remove(musica)
     print(salida, f"{fin:.1f} s")
 
 
@@ -555,7 +587,7 @@ def cuadro_portada(T, fondo, t):
     y = 300 + lg.height + 50
     d.rectangle([200, y, 200 + int(520 * suave((t - 1.2) / 0.8)), y + 10], fill=NARANJA)
     y += 50
-    lineas = [(T["portada"][0], 44, BLANCO)] + [(l, 34, (170, 180, 210)) for l in T["portada"][1:]]
+    lineas = [(T["portada"][0], 44, BLANCO)] + [(l, 34, (180, 176, 168)) for l in T["portada"][1:]]
     for i, (texto, tam, col) in enumerate(lineas):
         a = max(0.0, min(1.0, (t - 2.0 - i * 0.7) / 0.5))
         if a > 0:
@@ -578,7 +610,7 @@ def imagen_portada(T, solo_fondo=False):
     img = Image.new("RGB", (W, H), FONDO)
     d = ImageDraw.Draw(img)
     for y in range(0, BANDA, 4):
-        d.line([(0, y + 3), (W, y + 3)], fill=(15, 31, 62))
+        d.line([(0, y + 3), (W, y + 3)], fill=LINEAS)
     if solo_fondo:
         return img
     lg = logo(1000)
@@ -588,7 +620,7 @@ def imagen_portada(T, solo_fondo=False):
     y += 50
     d.text((200, y), T["portada"][0], font=fuente(44), fill=BLANCO); y += 76
     for l in T["portada"][1:]:
-        d.text((200, y), l, font=fuente(34), fill=(170, 180, 210)); y += 50
+        d.text((200, y), l, font=fuente(34), fill=(180, 176, 168)); y += 50
     bola = bola_boing(300, 0.3)
     img.paste(bola, (W - 520, 320), bola)
     return img
@@ -601,14 +633,14 @@ def imagenes_creditos(T, n):
     fijo = Image.new("RGB", (W, H), FONDO)
     d = ImageDraw.Draw(fijo)
     for y in range(0, BANDA, 4):
-        d.line([(0, y + 3), (W, y + 3)], fill=(15, 31, 62))
+        d.line([(0, y + 3), (W, y + 3)], fill=LINEAS)
     lg = logo(560)
     fijo.paste(lg, ((W - lg.width) // 2, 40), lg)
     tira = Image.new("RGB", (W, len(lineas) * alto_l + BANDA), FONDO)
     dt = ImageDraw.Draw(tira)
     for i, (estilo, texto) in enumerate(lineas):
         f = fuente(44 if estilo == "t" else 34)
-        col = {"t": NARANJA, "n": BLANCO, "s": (160, 170, 200)}[estilo]
+        col = {"t": NARANJA, "n": BLANCO, "s": (165, 162, 155)}[estilo]
         dt.text(((W - f.getlength(texto)) / 2, BANDA * 0.6 + i * alto_l), texto, font=f, fill=col)
     zona = (0, 200, W, BANDA - 10)
     recorrido = tira.height - (zona[3] - zona[1]) - int(BANDA * 0.25)
