@@ -794,3 +794,17 @@ a pantalla completa). Lo que falta:
   medio redibujar, no este cambio.
 - Pruebas: Dash 538/538 sin emulador y 806/806 en el emulador; en Forja, `pantalla`, `teclas`, `ficheros` y
   `diseno` bien. Captura RTG mandada al usuario.
+
+### 2026-11-03: pintar más rápido sin tarjeta gráfica (pedido del usuario)
+- Dash (rama `pens-rapido`, sin fusionar): `gfx_pens_draw` en planos. Medido a velocidad de A1200 (sin memoria
+  Fast, cada píxel tocado cuesta unos microsegundos): la copia del blitter por fila no era lo caro (2 ms para toda
+  la imagen); lo caro era pasar a planos cada píxel ya ampliado. Ahora: una sola copia del blitter (en bandas si no
+  cabe en chip), solo los píxeles de origen pasan a planos, 8 a la vez (las 8 x 8 cifras binarias traspuestas), y
+  el zoom 2 a 4 con una tabla; con más zoom, por tramos. 32x32 a zoom 4: de 50 a 19 ms; a zoom 1: de 23 a 7.
+  Ojo: `tools/emu_run.py` sin `--dash2` compila por gcc, y mide otra cosa.
+- Test `test_gfx_pens_draw` con 37 x 5 a zoom 3 y 13 x 3 a zoom 6, píxel a píxel; el camino de bandas, probado
+  forzando bandas de 2 filas. Batería: sin emulador bien, 806/806 en el emulador.
+- Forja (rama `pintar-rapido`): la regla de `_sp_de_golpe` con los costes nuevos. Dibujo entero, antes y ahora:
+  16x16 al azar 94 a 79 ms; 32x32 al azar 120 a 93; 64x64 al azar 204 a 161; bola de 32x32 90 a 79. Lo que queda
+  es sobre todo el resto del editor (panel, paleta, tira).
+

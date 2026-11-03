@@ -705,10 +705,10 @@ func _sp_tramos(px: [Int], ancho: Int, alto: Int) -> Int
 end
 
 # Si sale más rápido pintar el fotograma de golpe (gfx_pens_draw) que tramo a tramo (un rectángulo cada uno). En
-# un A1200 con el Workbench en planos, un rectángulo cuesta unos 0,22 ms; gfx_pens_draw, por fila, 0,4 ms más 0,29
-# por cada punto de zoom; llenar el buffer, 0,007 por píxel (tests/sprites_dibujo.sh, REAL=1)
+# un A1200 sin memoria Fast y con el Workbench en planos, un rectángulo cuesta unos 0,22 ms; gfx_pens_draw, por fila,
+# 0,15 ms más 0,11 por cada punto de zoom; llenar el buffer, 0,012 por píxel (tests/sprites_dibujo.sh, REAL=1)
 func _sp_de_golpe(tramos: Int, ancho: Int, alto: Int, z: Int) -> Bool
-    return tramos * 220 > alto * (400 + 290 * z) + ancho * alto * 7
+    return tramos * 220 > alto * (150 + 110 * z) + ancho * alto * 12
 end
 
 # La rejilla: de golpe o por tramos (lo que salga más rápido); con zoom grande, líneas del borde entre los píxeles
