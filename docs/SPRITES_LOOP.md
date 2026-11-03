@@ -775,7 +775,7 @@ a pantalla completa). Lo que falta:
 - Las 13 pruebas de sprites, bien. Captura RTG mandada al usuario.
 
 ### 2026-11-03: tarea 24, Forja en su pantalla
-- Dash (rama `pantalla-defecto`, sin fusionar): `screen_make_default()` hace la pantalla pública del programa
+- Dash (PR #87, fusionado en main): `screen_make_default()` hace la pantalla pública del programa
   (`screen_clone_wb`) la pública por defecto (SetDefaultPubScreen) y `screen_close` deja la de antes (el Workbench
   si la de antes ya no está). Test `test_screen_make_default`.
 - **Cambio de Dash que afecta a todos los programas:** las ventanas de `window_create`, de `Window` y de ReAction
@@ -785,7 +785,7 @@ a pantalla completa). Lo que falta:
 - Forja: preferencia "En su propia pantalla (al arrancar)" (`ENV:Forja/pantalla`, texto 353). Al arrancar con ella:
   `screen_clone_wb("FORJA")`, `screen_make_default()` y `mui_window_screen` en sus cuatro ventanas. Al salir,
   `screen_close()` después de `mui_app_end()`.
-- **Forja ya no compila con main de Dash** hasta que se fusione `pantalla-defecto`.
+- Forja necesita el main de Dash con el PR #87 (fusionado el 2026-11-03).
 - Prueba `tests/pantalla.sh`: Forja en `FORJA`, pública por defecto, un programa que no dice pantalla abre ahí su
   ventana, y al salir se cierra y vuelve el Workbench. No se probó con Ejecutar (necesita dashc para el Amiga): el
   programa de la prueba lo arranca el sistema, no Forja, pero el camino es el mismo (la pública por defecto).
