@@ -25,7 +25,7 @@ struct Sprite
     ancho: Int            # de un fotograma
     alto: Int
     planos: Int           # 2^planos colores
-    hardware: Bool        # sprite de hardware: 16 de ancho y 2 planos
+    hardware: Bool        # sprite de hardware: 16 de ancho y 2 planos, o 4 si es acoplado (sp_acoplado)
     paleta: [Int]         # 256 colores 0xRRGGBB (se guardan los 2^planos primeros)
     fotos: [[Int]]
     actual: Int           # el fotograma que se dibuja
@@ -80,6 +80,12 @@ func sp_paleta_inicial(hardware: Bool) -> [Int]
         p[3] = 0x3060C0
     end
     return p
+end
+
+# Un sprite acoplado: una pareja de sprites de hardware que hace uno de 15 colores y el transparente
+# (sprite_load_attached en Dash)
+func sp_acoplado(s: Sprite) -> Bool
+    return s.hardware and s.planos == 4
 end
 
 func sp_vacio(ancho: Int, alto: Int) -> [Int]
@@ -198,8 +204,8 @@ func sp_rehacer(s: Sprite) -> Bool
 end
 
 # --- Ficheros: IFF ILBM ---
-# Los fotogramas van uno al lado del otro. FRJA (texto): "1 tipo ancho velocidad", tipo 1 sprite de hardware, 0
-# BOB. GRAB: el punto de agarre. Se escribe sin comprimir; se lee también ByteRun1 y el plano de máscara.
+# Los fotogramas van uno al lado del otro. FRJA (texto): "1 tipo ancho velocidad", tipo 1 sprite de hardware (con
+# 4 planos, acoplado), 0 BOB. GRAB: el punto de agarre. Se escribe sin comprimir; se lee también ByteRun1 y el plano de máscara.
 
 var sp_error: String = ""     # por qué no se pudo leer o escribir
 
@@ -482,7 +488,7 @@ func sp_leer(ruta: String) -> Sprite
         if Int(partes[3]) > 0
             velocidad = Int(partes[3])
         end
-        hardware = partes[1] == "1" and fw == 16 and planos <= 2
+        hardware = partes[1] == "1" and fw == 16 and planos <= 4
     end
     paleta = sp_paleta_inicial(hardware)
     i = 0
@@ -491,8 +497,10 @@ func sp_leer(ruta: String) -> Sprite
         i = i + 1
     end
     buffer_free(b)
-    if hardware
+    if hardware and planos <= 2
         planos = 2
+    elif hardware
+        planos = 4
     end
     var fotos: [[Int]] = []
     f = 0
@@ -833,7 +841,9 @@ func _sp_dibujar_estado(s: Sprite, x: Int, y: Int, ancho: Int, alto: Int)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     usar_panel(0)
     tipo = "BOB"
-    if s.hardware
+    if sp_acoplado(s)
+        tipo = tr(139, "Sprite acoplado")
+    elif s.hardware
         tipo = tr(87, "Sprite de hardware")
     end
     t = tipo + "  #{s.ancho} x #{s.alto}  " + hueco2(tr(99, "fotograma %1 de %2"), "#{s.actual + 1}", "#{s.fotos.length}") + "  " + hueco(tr(100, "color %1"), "#{s.color}") + "  " + sp_nombre_herramienta(s.herramienta)
@@ -1052,7 +1062,9 @@ func _sp_dibujar_tamano(s: Sprite, x: Int, y: Int, ancho: Int) -> Int
     y = _sp_fila_numero(x, y, ancho, tr(106, "Alto"), "#{s.alto}", SP_A_ALTO_MENOS, SP_A_ALTO_MAS)
     y = _sp_fila_numero(x, y, ancho, tr(107, "Colores"), "#{sp_colores(s)}", SP_A_PLANOS_MENOS, SP_A_PLANOS_MAS)
     tipo = tr(108, "Es un BOB (T)")
-    if s.hardware
+    if sp_acoplado(s)
+        tipo = tr(140, "Sprite acoplado (T)")
+    elif s.hardware
         tipo = tr(109, "Sprite de hardware (T)")
     end
     bh = font_height() + 4
@@ -1692,7 +1704,7 @@ end
 
 func sp_cambiar_tamano(s: Sprite, dw: Int, dh: Int) -> Int
     if s.hardware and dw != 0
-        sp_mensaje = tr(110, "Un sprite de hardware mide 16 de ancho (T lo pasa a BOB).")
+        sp_mensaje = tr(110, "Un sprite de hardware mide 16 de ancho (T cambia el tipo).")
         return SP_TODO
     end
     w = s.ancho + dw
@@ -1706,8 +1718,12 @@ func sp_cambiar_tamano(s: Sprite, dw: Int, dh: Int) -> Int
 end
 
 func sp_cambiar_planos(s: Sprite, d: Int) -> Int
+    if sp_acoplado(s)
+        sp_mensaje = tr(143, "Un sprite acoplado tiene 15 colores y el transparente (T cambia el tipo).")
+        return SP_TODO
+    end
     if s.hardware
-        sp_mensaje = tr(111, "Un sprite de hardware tiene 3 colores y el transparente (T lo pasa a BOB).")
+        sp_mensaje = tr(111, "Un sprite de hardware tiene 3 colores y el transparente (T cambia el tipo).")
         return SP_TODO
     end
     p = s.planos + d
@@ -1719,9 +1735,15 @@ func sp_cambiar_planos(s: Sprite, d: Int) -> Int
     return SP_CAMBIO | SP_TODO
 end
 
-# De BOB a sprite de hardware (16 de ancho, 2 planos: se corta lo que no cabe) o al revés
+# Pasa al tipo siguiente: de BOB a sprite de hardware (16 de ancho, 2 planos: se corta lo que no cabe), de ahí a
+# sprite acoplado (4 planos) y de vuelta a BOB
 func sp_cambiar_tipo(s: Sprite) -> Int
     sp_apuntar(s, -1)
+    if s.hardware and not sp_acoplado(s)
+        _sp_poner_planos(s, 4)
+        sp_mensaje = tr(141, "Ahora es un sprite acoplado: 16 de ancho y 16 colores.")
+        return SP_CAMBIO | SP_TODO
+    end
     if s.hardware
         s.hardware = false
         sp_mensaje = tr(112, "Ahora es un BOB.")
@@ -1982,12 +2004,24 @@ end
 func sp_codigo(s: Sprite, fichero: String) -> String
     n = s.fotos.length
     t = "# " + fichero + ": "
-    if s.hardware
+    if sp_acoplado(s)
+        t = t + hueco(tr(142, "sprite acoplado de 16 x %1"), "#{s.alto}")
+    elif s.hardware
         t = t + hueco(tr(125, "sprite de hardware de 16 x %1"), "#{s.alto}")
     else
         t = t + hueco2(tr(138, "BOB de %1 x %2"), "#{s.ancho}", "#{s.alto}") + ", #{sp_colores(s)} " + tr(126, "colores")
     end
     t = t + ", #{n} " + tr(127, "fotogramas") + ", #{s.velocidad} " + tr(128, "tics por fotograma") + "\n"
+    if sp_acoplado(s)
+        t = t + "if not sprite_load_attached(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
+        t = t + "# " + tr(144, "sus colores, los del fichero (en una pantalla propia del programa)") + "\n"
+        t = t + "sprite_load_colors(0, \"" + fichero + "\")\n"
+        if n > 1
+            t = t + "# " + tr(131, "animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y") + "\n"
+            t = t + "# sprite_frame(0, (cuenta / #{s.velocidad}) % #{n})\n"
+        end
+        return t
+    end
     if s.hardware
         t = t + "if not sprite_load(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
         t = t + "# " + tr(130, "sus colores (de 4 bits, en una pantalla propia del programa)") + "\n"

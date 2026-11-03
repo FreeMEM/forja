@@ -7,6 +7,7 @@
 #   RTG=1 tests/ventana.sh ...   # en AmigaOS 3.2 con tarjeta gráfica de 256 colores (sys32rtg8): se ven los colores
 #   PRUEBA= tests/ventana.sh ...   # sin abrir ningún fichero: la bienvenida, con el logo de Dash
 #   SPRITE=1 tests/ventana.sh ...  # abre en el editor de sprites una nave de ejemplo
+#   ACOPLADO=1 tests/ventana.sh ... # abre en el editor de sprites un sprite acoplado de ejemplo
 #
 # DASH_DIR: el worktree de Dash 2.0 que compila (./dash y tools/emu_run.py). Forja se cierra sola a los 30
 # segundos. Una captura por cada segundo dado (por defecto 12): captura-12.png...
@@ -57,6 +58,31 @@ open(sys.argv[1], "w").write("128 32 4\n" + "\n".join(filas) + "\npaleta " + pal
 PY
   python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/nave.iff" "$tmp/nave.txt" --frja "1 0 32 6"
   PRUEBA=${PRUEBA-DH0:Prueba/juego/nave.iff}
+fi
+# ACOPLADO=1: abre un sprite acoplado de ejemplo (16x16, 15 colores y el transparente, 2 fotogramas)
+if [ -n "$ACOPLADO" ]; then
+  python3 -I - "$tmp/acoplado.txt" <<'PY'
+import math, sys
+filas = []
+for y in range(16):
+    fila = ""
+    for f in range(2):
+        for x in range(16):
+            dx, dy = x - 7.5, y - 7.5
+            r = math.hypot(dx, dy)
+            c = 0
+            if r < 7.5:
+                c = 1 + min(14, int(r * 2))
+            if r < 7.5 and abs(dx) < 1 + f and y > 9:
+                c = 15
+            fila += "%X" % c
+    filas.append(fila)
+pal = " ".join("%02X%02X%02X" % (17 * i, 255 - 12 * i, 64 + 12 * i) for i in range(16))
+pal = "000000 " + pal.split(" ", 1)[1]
+open(sys.argv[1], "w").write("32 16 4\n" + "\n".join(filas) + "\npaleta " + pal + "\n")
+PY
+  python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/acoplado.iff" "$tmp/acoplado.txt" --frja "1 1 16 6"
+  PRUEBA=${PRUEBA-DH0:Prueba/juego/acoplado.iff}
 fi
 prueba=${PRUEBA-DH0:Prueba/juego/main.dash}
 [ -z "$prueba" ] || echo "SetEnv FORJA_PRUEBA $prueba" >> "$tmp/sys/S/Startup-Extra"

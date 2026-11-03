@@ -171,9 +171,9 @@ Es un BOB (T)
 MSG_109 (109//)
 Sprite de hardware (T)
 MSG_110 (110//)
-Un sprite de hardware mide 16 de ancho (T lo pasa a BOB).
+Un sprite de hardware mide 16 de ancho (T cambia el tipo).
 MSG_111 (111//)
-Un sprite de hardware tiene 3 colores y el transparente (T lo pasa a BOB).
+Un sprite de hardware tiene 3 colores y el transparente (T cambia el tipo).
 MSG_112 (112//)
 Ahora es un BOB.
 MSG_113 (113//)
@@ -228,6 +228,18 @@ MSG_137 (137//)
 Tamaño
 MSG_138 (138//)
 BOB de %1 x %2
+MSG_139 (139//)
+Sprite acoplado
+MSG_140 (140//)
+Sprite acoplado (T)
+MSG_141 (141//)
+Ahora es un sprite acoplado: 16 de ancho y 16 colores.
+MSG_142 (142//)
+sprite acoplado de 16 x %1
+MSG_143 (143//)
+Un sprite acoplado tiene 15 colores y el transparente (T cambia el tipo).
+MSG_144 (144//)
+sus colores, los del fichero (en una pantalla propia del programa)
 MSG_300 (300//)
 Forja
 MSG_301 (301//)

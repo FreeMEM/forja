@@ -258,11 +258,11 @@ MSG_109
 Hardware sprite (T)
 ; Sprite de hardware (T)
 MSG_110
-A hardware sprite is 16 pixels wide (T makes it a BOB).
-; Un sprite de hardware mide 16 de ancho (T lo pasa a BOB).
+A hardware sprite is 16 pixels wide (T changes the type).
+; Un sprite de hardware mide 16 de ancho (T cambia el tipo).
 MSG_111
-A hardware sprite has 3 colours and the transparent one (T makes it a BOB).
-; Un sprite de hardware tiene 3 colores y el transparente (T lo pasa a BOB).
+A hardware sprite has 3 colours and the transparent one (T changes the type).
+; Un sprite de hardware tiene 3 colores y el transparente (T cambia el tipo).
 MSG_112
 Now it is a BOB.
 ; Ahora es un BOB.
@@ -344,6 +344,24 @@ Size
 MSG_138
 BOB of %1 x %2
 ; BOB de %1 x %2
+MSG_139
+Attached sprite
+; Sprite acoplado
+MSG_140
+Attached sprite (T)
+; Sprite acoplado (T)
+MSG_141
+Now it is an attached sprite: 16 wide and 16 colours.
+; Ahora es un sprite acoplado: 16 de ancho y 16 colores.
+MSG_142
+attached sprite of 16 x %1
+; sprite acoplado de 16 x %1
+MSG_143
+An attached sprite has 15 colours and the transparent one (T changes the type).
+; Un sprite acoplado tiene 15 colores y el transparente (T cambia el tipo).
+MSG_144
+its colours, the file's (on a screen of the program's own)
+; sus colores, los del fichero (en una pantalla propia del programa)
 MSG_300
 Forja
 ; Forja

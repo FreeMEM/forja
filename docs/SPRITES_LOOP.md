@@ -305,7 +305,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 - [x] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
 - [x] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
-- [ ] 18. **Sprites acoplados** (15 colores, parejas de sprites). El usuario lo quiere ya (2026-11-03).
+- [x] 18. **Sprites acoplados** (15 colores, parejas de sprites). El usuario lo quiso ya (2026-11-03).
 - [ ] 19. Forja usa las piezas que se fusionen. El usuario mandó fusionar el 2026-11-03.
 
 ### F. Mapas de tiles (después de los sprites)
@@ -744,3 +744,12 @@ a pantalla completa). Lo que falta:
 - 3D: PiStorm32 con Pi 4 primero; Fragua 3D aparte. Siguen sin respuesta si tiene un PiStorm32 y los mensajes de Santi.
 - Mapas: IFF `FORM FMAP`, Tiled en la fase 6, tiles cuadrados de 8, 16 y 32, hasta 1.024x1.024 por capa.
 - 25 (doble búfer): en Dash.
+
+### 2026-11-03: tarea 18, sprites acoplados
+- Dash (rama `sprites-acoplados`, d77eb04): `sprite_load_attached(id, fichero)`. Una pareja par e impar de sprites
+  de hardware; los planos 0-1 al par, los 2-3 al impar con el bit de acoplado. Las demás órdenes de sprites tratan
+  la pareja; colores 17-31. Prueba `test_sprite_attached` (datos y bit de acoplado; lo que se ve no se puede
+  comprobar en el emulador: sus capturas copian el bitmap de la pantalla, sin sprites).
+- Forja: un sprite de hardware con 4 planos es acoplado (`sp_acoplado`). T pasa de BOB a sprite, a acoplado y a
+  BOB. FRJA sigue con tipo 1. El código copiado usa `sprite_load_attached` y `sprite_load_colors`. Textos 139-144.
+  `ventana.sh` con ACOPLADO=1 abre uno de ejemplo. Pruebas: sprites_iff y sprites_tamano bien.
