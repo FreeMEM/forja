@@ -1,6 +1,6 @@
 # Editor de mapas de tiles: diseño
 
-Estado: propuesta para revisar (2026-11-03). Aún no hay código. Las decisiones que son del usuario están al final.
+Estado: decidido (2026-11-03). Fase 1 hecha en Dash (rama `mapas`, sin fusionar); ver la sección 7.
 Lo pedido: "alguna herramienta en forja para mapas de juegos". Es el bloque F de `docs/SPRITES_LOOP.md`, y el
 nodo `Mapa` (TileMap) de Fragua (`docs/JUEGOS_DISENO.md`).
 
@@ -93,3 +93,34 @@ Amiga:
    coches)?
 4. **Mapas grandes:** propuesta, hasta 1.024x1.024 tiles por capa (2 MB por capa en words: en un A1200 con poca
    memoria, mejor menos). ¿Hace falta más, o por trozos?
+
+## 7. Fase 1 (hecha, 2026-11-03)
+
+En Dash, rama `mapas`. Los mapas viven en C, por número (8 a la vez), como los BOB:
+- `tilemap_create(id, ancho, alto, tile, capas)`, `tilemap_load` y `tilemap_save` (`FORM FMAP`), `tilemap_free`.
+- `tilemap_get` y `tilemap_set` (el word de la celda: el tile, 0 vacía, más 16384 con espejo H y 32768 con
+  espejo V), `tilemap_width`, `_height`, `_tile_size` y `_layers`.
+- `tilemap_tileset` y `tilemap_set_tileset`; `tilemap_layer_name`, `_type`, `_visible` y `tilemap_layer_set`;
+  `tilemap_layer_add`, `_remove` y `_move`; `tilemap_resize`.
+- `tilemap_draw(id, capa, bob, tx, ty, tw, th, x, y)`: el tile n es el fotograma n - 1 del BOB, con su espejo; las
+  vacías, lápiz 0. `tilemap_draw_masked`: el color 0 y las vacías dejan ver lo de debajo. Se pinta en un bitmap
+  aparte (entrelazado si la pantalla es de planos) y se copia a la ventana de una vez.
+- Test `test_tilemap` (celdas, capas, tamaño, guardar y cargar, pintar con espejos y con máscara).
+
+Medido a velocidad real, pantalla de 320x256 con 5 planos y tiles de 16 (320 tiles):
+
+| | A1200 | A500 |
+|---|---|---|
+| Pantalla entera | 130 ms | 311 ms |
+| Una columna (16 tiles) | 7 ms | 21 ms |
+| Una fila (20 tiles) | 9 ms | 23 ms |
+| Pantalla entera con máscara | 485 ms | 975 ms |
+
+Conclusiones:
+- Una tira del scroll cabe en un fotograma (20 ms) en A1200; en A500 va justa.
+- Pintar la pantalla entera cada fotograma no cabe: hace falta el scroll por hardware (fase 5).
+- La máscara cuesta casi cuatro veces más: las capas de delante, con pocos tiles llenos.
+- Probado y descartado: copiar los tiles con la CPU (tiles de bytes enteros, sin desplazar) fue más lento que el
+  blitter en un A1200 sin memoria Fast (300 ms frente a 170). Los bitmaps entrelazados bajaron de 170 a 130.
+- Para ir más rápido haría falta programar el blitter directamente; queda para la fase 5 si hace falta.
+
