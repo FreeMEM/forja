@@ -1492,7 +1492,7 @@ Main
         while true
             ev = mui_wait_event_signals(dbg_signal())
             if sonda
-                sonda_eventos = sonda_eventos + "#{ev}"
+                sonda_eventos = sonda_eventos + "#{ev}@#{(time_ms() / 100) % 10000}"
                 if ev == EV_EDITOR
                     sonda_eventos = sonda_eventos + ":#{mui_canvas_key(v.editor)}/#{mui_canvas_button(v.editor)}q#{mui_canvas_qualifiers(v.editor)}"
                 elif ev == EV_ARRASTRE

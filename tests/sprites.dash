@@ -64,10 +64,12 @@ end
 # Espera (como mucho 5 s) a que el campo i de la cabecera valga v
 func esperar(i: Int, v: String) -> Bool
     n = 0
-    while n < 10 and cabecera(i) != v
+    c = cabecera(i)
+    while n < 10 and c != v
         n = n + 1
+        c = cabecera(i)
     end
-    return cabecera(i) == v
+    return c == v       # sin volver a leer: la sonda podía estar a medio escribir
 end
 
 func px(f: Int, x: Int, y: Int) -> String

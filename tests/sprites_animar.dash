@@ -56,10 +56,17 @@ end
 # Espera (como mucho 5 s) a que el campo i valga v
 func esperar(i: Int, v: String) -> Bool
     n = 0
-    while n < 10 and cabecera(i) != v
+    vistos = ""
+    c = cabecera(i)
+    while n < 10 and c != v
+        vistos = vistos + c + "@#{(time_ms() / 100) % 10000} "
         n = n + 1
+        c = cabecera(i)
     end
-    return cabecera(i) == v
+    if c != v
+        anotar("visto: " + vistos)
+    end
+    return c == v       # sin volver a leer: con la animación en marcha la sonda se reescribe y podía estar a medio escribir
 end
 
 # Cuántos fotogramas distintos enseña la vista en n miradas (cada medio segundo)
@@ -117,7 +124,14 @@ Main
         ver("+: más rápida (5 tics)", esperar(8, "5"), sonda()[1])
         input_text("-")
         input_text("-")
-        ver("- dos veces: 7 tics", esperar(8, "7"), sonda()[1])
+        siete = esperar(8, "7")
+        ver("- dos veces: 7 tics", siete, sonda()[1])
+        if not siete
+            ev = file_read_text("RAM:forja-eventos.txt")
+            if ev != nil
+                anotar("FALLO: eventos: " + ev)
+            end
+        end
         input_text(" ")
         ver("Espacio la para", esperar(12, "false"), sonda()[1])
         f = cabecera(13)
