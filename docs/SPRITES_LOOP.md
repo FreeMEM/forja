@@ -160,6 +160,9 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
      procesos tuyos, por PID.
 6. **Documentar.** README (es y en), `tests/LEEME.md` y la ayuda de la cabecera de `main.dash` cuando cambie lo
    que ve el usuario.
+6b. **Capturas al usuario** (lo pidió el 2026-11-03): cuando una vuelta cambia algo que se ve (en Forja o en un
+   programa de prueba), saca una captura (`RTG=1`) y mándasela con SendUserFile, con una línea que diga qué es. Si
+   la vuelta no tiene nada visible, cada tres o cuatro vueltas, la del estado del editor.
 7. **Cerrar.** Marca `[x]`, escribe la entrada en la bitácora y haz un commit local `sprites: <tarea> - <resumen>`
    (`dash: ...` en el worktree de Dash).
 8. **Fin.** Sin tareas `[ ]`: resumen final, para el loop y avisa con PushNotification.
@@ -295,7 +298,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
       (otro ObtainBestPen puede cambiarle el color en la pantalla). Un BOB de 256 colores ya pasa del tope, y mover
       una barra R G B pide un lápiz por cada valor. Pedir `color_pen_free(pen)` o `color_pens_reset()` para soltar
       los que ya no se usan (tarea 6).
-- [ ] 15d. **`gfx_rgb8` sin ventana cuelga el programa:** su C es `SetRGB32(&_dash_win->WScreen->ViewPort, ...)`
+- [x] 15d. **`gfx_rgb8` sin ventana cuelga el programa:** su C es `SetRGB32(&_dash_win->WScreen->ViewPort, ...)`
       (`compiler/amiga_builtins.py`). Con `screen_open_custom` y sin ventana, `_dash_win` es NULL. Usar la pantalla
       del programa (`_dash_screen`) si la hay, y no hacer nada si no hay ni ventana ni pantalla. Test con
       `screen_open_custom` + `gfx_rgb8` sin ventana. Mirar si otros builtins tienen el mismo `_dash_win->`.
@@ -615,3 +618,17 @@ a pantalla completa). Lo que falta:
 - Pruebas de pantallas, colores, fuentes, mezclas y RTG con `--emu`: todas bien. Batería sin emulador 524/524. Runtime
   de dashc rehecho. Commit en `forja-sprites` de Dash.
 - Forja (tarea 19): `_sp_preparar_pens` soltará los lápices de la paleta anterior antes de pedir los nuevos.
+
+### 2026-11-03 — Tarea 15d (Dash: pantalla propia sin ventana)
+- Buscando `_dash_win->` en los builtins salieron `gfx_rgb8`, `mouse_x` y `mouse_y`. `gfx_rgb8` pasa a
+  `_dash_set_color8`, hermana de `_dash_set_color` (`gfx_rgb`): pantalla propia, si no la de la ventana.
+  `mouse_x`/`mouse_y` sin ventana dan 0.
+- El test destapó dos fallos más, aislados con programas pequeños en el emulador:
+  - Dibujar (`gfx_pen`, `gfx_pixel`...) en una pantalla propia sin ventana colgaba, porque `_dash_rp` era NULL.
+    Ahora, al abrir una pantalla propia sin ventana (los cuatro sitios que la abren), `_dash_rp` es su RastPort, y
+    al cerrarla vuelve a NULL si apuntaba ahí.
+  - `gfx_pixel_rgb` y `color_pen` miraban la paleta del Workbench, no la de esa pantalla (`_dash_pen_screen`).
+- Test `tests/test_gfx_rgb8_sin_ventana.dash` (rojo exacto con `gfx_pixel_rgb`, ratón 0, y acaba). Batería entera
+  de Dash en el emulador A1200: 783/783; sin emulador 525/525. Runtime de dashc rehecho. Commit 066239f.
+- Captura mandada al usuario: degradado de 32 colores en una pantalla propia sin ventana. Sale corrida unos
+  píxeles a la izquierda (el título se corta); parece el encuadre del emulador, sin comprobar.
