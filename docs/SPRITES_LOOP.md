@@ -291,7 +291,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
       píxel con el lápiz; WriteChunkyPixels o WritePixelArray8, con zoom). La rejilla de 32x32 con píxeles al azar
       tarda 240 ms en un A1200 porque son unos 1000 RectFill desde Dash (tarea 4). Forja lo usaría sin zoom de
       rejilla y en las miniaturas.
-- [ ] 15c. **Soltar lápices:** `color_pen` guarda 128 lápices y, pasado el tope, devuelve uno que suelta en seguida
+- [x] 15c. **Soltar lápices:** `color_pen` guarda 128 lápices y, pasado el tope, devuelve uno que suelta en seguida
       (otro ObtainBestPen puede cambiarle el color en la pantalla). Un BOB de 256 colores ya pasa del tope, y mover
       una barra R G B pide un lápiz por cada valor. Pedir `color_pen_free(pen)` o `color_pens_reset()` para soltar
       los que ya no se usan (tarea 6).
@@ -598,3 +598,20 @@ a pantalla completa). Lo que falta:
   la máquina RTG. Batería sin emulador: 523/523. Commit 29f780a en `forja-sprites` de Dash.
 - **Sin probar:** el camino de RectFill (gráficos anteriores a V40) y pantallas de más de 4 planos en ECS/AGA.
 - Forja lo usará en la rejilla (sin las líneas, que van encima) y en las miniaturas cuando se fusione (tarea 19).
+
+### 2026-11-03 — Tarea 15c (Dash: soltar lápices)
+- `color_pen` cuenta cuántas veces da cada lápiz. `color_pen_free(pen)` resta uno y, al llegar a 0, lo devuelve a
+  la pantalla (ReleasePen). Así el tema de Forja no pierde un color que también use un sprite. El tope de la
+  lista sube de 128 a 512.
+- **Fallo de Dash encontrado y arreglado:** con `color_pen` en una pantalla propia, `screen_close` la cerraba sin
+  soltar sus lápices; al salir, `ReleasePen` iba sobre el ColorMap ya liberado y el programa se colgaba (a veces).
+  Ahora `screen_close` (y abrir otra pantalla RTG encima) los suelta antes, con un enganche
+  (`_dash_screen_closing`) que pone el código de los lápices: va en otra plantilla del runtime, que se emite
+  después.
+- Test `tests/test_color_pen_free.dash`: mismo lápiz para el mismo color, sigue pedido tras soltar una vez, y salir
+  con lápices pedidos en una pantalla cerrada ya no cuelga. **Sin prueba directa:** que el lápiz vuelva a estar
+  libre. Con `PRECISION_IMAGE` la pantalla da antes un lápiz parecido que ya tiene que uno libre, y desde Dash no
+  se ve qué lápices están libres; dos intentos de probarlo llenando la paleta no lo demostraban.
+- Pruebas de pantallas, colores, fuentes, mezclas y RTG con `--emu`: todas bien. Batería sin emulador 524/524. Runtime
+  de dashc rehecho. Commit en `forja-sprites` de Dash.
+- Forja (tarea 19): `_sp_preparar_pens` soltará los lápices de la paleta anterior antes de pedir los nuevos.
