@@ -305,12 +305,11 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 - [x] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
 - [x] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
-- [?] 18. **Sprites acoplados** (15 colores, parejas de sprites): `[?]` antes de empezar. Pregunta al usuario si
-      lo quiere ya, porque cambia el formato y la herramienta.
-- [?] 19. Forja usa las piezas que se fusionen (`[?]` hasta que el usuario las lleve a main de Dash).
+- [ ] 18. **Sprites acoplados** (15 colores, parejas de sprites). El usuario lo quiere ya (2026-11-03).
+- [ ] 19. Forja usa las piezas que se fusionen. El usuario mandó fusionar el 2026-11-03.
 
 ### F. Mapas de tiles (después de los sprites)
-- [?] 20. **Diseño** (hecho en `docs/MAPAS_DISENO.md`; falta que el usuario lo revise y decida lo de su sección 6). Los tiles son un BOB de esta herramienta: fotogramas cuadrados, uno por tile. Formato del
+- [x] 20. **Diseño** (hecho en `docs/MAPAS_DISENO.md`; el usuario aceptó las propuestas de su sección 6 el 2026-11-03). Los tiles son un BOB de esta herramienta: fotogramas cuadrados, uno por tile. Formato del
       mapa (propuesta: texto con cabecera y filas de números, que se lee en Dash sin builtins), capas, tiles
       de 8, 16 o 32, y el builtin que pinta un trozo del mapa rápido (`tilemap_draw`). Escribe aquí el diseño
       y déjalo `[?]` para que el usuario lo vea antes de programar.
@@ -327,10 +326,10 @@ a pantalla completa). Lo que falta:
 - [x] 23. **Elegir el modo:** la petición de modo de pantalla de ASL (`dialog_screen_mode`: modo, ancho, alto y
       profundidad) y `screen_open_mode(modo, ancho, alto, planos, título)` con un modo exacto (PAL 320x256 a 32
       colores, AGA, RTG).
-- [?] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
+- [ ] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
       programas que ejecuta salgan ahí (`[?]` si depende de piezas sin fusionar).
-- [?] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`): `[?]`
-      antes de empezar. Pregunta si va aquí o con las piezas de juegos.
+- [ ] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`). Decidido el
+      2026-11-03: va en Dash, y Fragua lo usa.
 
 ## Bitácora
 
@@ -737,3 +736,11 @@ a pantalla completa). Lo que falta:
   (decidido), `3D_DISENO.md` y `MAPAS_DISENO.md`.
 - **Pendiente del usuario:** fusionar las dos ramas; sprites acoplados (18); escenas forma B; las preguntas del 3D y
   de los mapas; doble búfer (25).
+
+### 2026-11-03: decisiones del usuario
+- Fusionar las dos ramas (`sprites` en Forja y `forja-sprites` en Dash).
+- 18 (sprites acoplados): sí, ya.
+- Escenas: forma B (Forja genera un `.dash`).
+- 3D: PiStorm32 con Pi 4 primero; Fragua 3D aparte. Siguen sin respuesta si tiene un PiStorm32 y los mensajes de Santi.
+- Mapas: IFF `FORM FMAP`, Tiled en la fase 6, tiles cuadrados de 8, 16 y 32, hasta 1.024x1.024 por capa.
+- 25 (doble búfer): en Dash.

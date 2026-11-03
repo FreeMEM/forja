@@ -85,6 +85,8 @@ Amiga:
 
 ## 6. Decisiones para el usuario
 
+**Decidido el 2026-11-03:** las cuatro propuestas (IFF propio, Tiled en la fase 6, tiles cuadrados de 8, 16 y 32, hasta 1.024x1.024 tiles por capa).
+
 1. **Formato:** ¿IFF propio (`FORM FMAP`, propuesto), o texto/JSON aunque cargue más lento?
 2. **Tiled:** ¿importa poder traer mapas hechos en el PC con Tiled? (Propuesta: sí, en la fase 6.)
 3. **Tamaños de tile:** ¿8, 16 y 32 (propuesto), o también rectangulares (16x8, para juegos isométricos o de

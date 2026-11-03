@@ -262,7 +262,7 @@ end
    castellano, se pasan al inglés cuando empiece la fase 1.
 4. **Con modo que se adueña del hardware**, además del modo amigable con el sistema. Si falla, cuelga el Amiga:
    ese modo necesita salir siempre limpio (devolver el sistema) y probarse en el emulador antes de nada.
-5. **Pendiente:** cómo se compilan las escenas. Explicado al usuario el 2026-11-02; falta su respuesta.
+5. **Escenas: forma B** (2026-11-03). Forja escribe un `.dash` normal con la escena, que se compila como siempre. Dash no cambia.
 
 ## Preguntas que se hicieron
 

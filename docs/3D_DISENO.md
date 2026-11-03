@@ -73,6 +73,8 @@ modeler no sale en las fuentes públicas: hacen falta sus mensajes. [6]
 
 ## 6. Decisiones para el usuario
 
+**Decidido el 2026-11-03:** 1 (PiStorm32 con Pi 4 primero) y 2 (Fragua 3D aparte). Sin respuesta todavía: 3 (los mensajes de Santi) y 4 (si tiene un PiStorm32).
+
 1. **Máquina para el 3D:** ¿primero el PiStorm32 con Pi 4 (donde está la aceleración y los juegos de 2026), y
    luego las tarjetas clásicas y Vampire?
 2. **¿Fragua 3D como parte aparte de Fragua** (propuesta), o dentro desde el principio?
