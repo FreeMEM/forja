@@ -84,7 +84,7 @@ Main
         al_sprite()
         t = copiar_codigo(clip_read_text())
         file_write_text("DH0:Prueba/codigo_sprite.txt", t)
-        ver("C copia el código del sprite", str_contains(t, "sprite_load(0, \"nave.iff\")") and str_contains(t, "sprite_color(0, 2,"), t)
+        ver("C copia el código del sprite", str_contains(t, "sprite_load(0, \"nave.iff\")") and str_contains(t, "sprite_load_colors(0, \"nave.iff\")"), t)
         n = 0
         while n < 20 and not str_contains(salida(), "portapapeles")
             time_delay(10)
@@ -101,7 +101,7 @@ Main
         al_sprite()
         t2 = copiar_codigo(t)
         file_write_text("DH0:Prueba/codigo_bob.txt", t2)
-        ver("C copia el código del BOB", str_contains(t2, "bob_load(0, \"bola.iff\")") and str_contains(t2, "gfx_rgb8(15,") and str_contains(t2, "bob_frame"), t2)
+        ver("C copia el código del BOB", str_contains(t2, "bob_load(0, \"bola.iff\")") and str_contains(t2, "bob_load_colors(\"bola.iff\", 0)") and str_contains(t2, "bob_frame") and not str_contains(t2, "bob_load solo"), t2)
         time_delay(50)
     end
     if fallos == 0

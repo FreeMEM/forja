@@ -601,6 +601,9 @@ const SP_REJILLA_DESDE = 6     # con este zoom o más, líneas entre los píxele
 
 var sp_ms_dibujo: Int = 0
 var _sp_pens: [Int] = []       # el lápiz de la pantalla de cada color de la paleta
+var _sp_pedidos: [Int] = []    # los que se pidieron con color_pen (para soltarlos)
+var _sp_buf: Int = 0           # un fotograma en lápices, un byte por píxel, para gfx_pens_draw
+var _sp_buf_largo: Int = 0
 var _sp_zx: Int = 0            # la esquina de la zona
 var _sp_zy: Int = 0
 var _sp_gx: Int = 0            # la esquina de la rejilla
@@ -610,14 +613,23 @@ var sp_con_tira: Bool = true   # si cupo la tira de fotogramas
 var sp_mensaje: String = ""    # un aviso para la barra de estado (con un sprite, la salida está oculta)
 var sp_mensaje_tipo: Int = 0   # 0 normal, 1 error, 2 bien
 
-# Los lápices de la pantalla de cada color; el 0 (transparente) es un gris del tema, distinto del negro
+# Los lápices de la pantalla de cada color; el 0 (transparente) es un gris del tema, distinto del negro. Los de
+# la vez anterior se sueltan después de pedir los nuevos: los que repiten color no cambian de lápiz
 func _sp_preparar_pens(s: Sprite)
-    _sp_pens = []
+    antes = _sp_pedidos
+    _sp_pedidos = []
     i = 0
     while i < sp_colores(s)
         c = s.paleta[i]
-        _sp_pens.push(color_pen((c >> 16) & 255, (c >> 8) & 255, c & 255))
+        _sp_pedidos.push(color_pen((c >> 16) & 255, (c >> 8) & 255, c & 255))
         i = i + 1
+    end
+    for p in antes
+        color_pen_free(p)
+    end
+    _sp_pens = []
+    for p in _sp_pedidos
+        _sp_pens.push(p)
     end
     _sp_pens[0] = tema.fondo_linea
 end
@@ -645,45 +657,107 @@ func sp_geometria() -> String
     return "#{_sp_gx - _sp_zx} #{_sp_gy - _sp_zy} #{_sp_z}"
 end
 
-# La rejilla: cada fila por tramos del mismo color; con zoom grande, un hueco de 1 píxel entre filas y líneas
-# verticales encima
+# El fotograma f en _sp_buf, con el lápiz de cada píxel
+func _sp_llenar_buf(s: Sprite, f: Int)
+    n = s.ancho * s.alto
+    if n > _sp_buf_largo
+        if _sp_buf != 0
+            buffer_free(_sp_buf)
+        end
+        _sp_buf = buffer_alloc(n)
+        _sp_buf_largo = n
+        if _sp_buf == 0
+            _sp_buf_largo = 0
+        end
+    end
+    if _sp_buf == 0
+        return
+    end
+    px = s.fotos[f]
+    pens = _sp_pens
+    buf = _sp_buf
+    i = 0
+    while i < n
+        buffer_set_byte(buf, i, pens[px[i]])
+        i = i + 1
+    end
+end
+
+# Los tramos (seguidos del mismo color en una fila) de un fotograma, contados en una de cada cuatro filas y
+# multiplicados por cuatro: basta para elegir cómo pintarlo, y cuesta poco
+func _sp_tramos(px: [Int], ancho: Int, alto: Int) -> Int
+    t = 0
+    y = 0
+    while y < alto
+        i = y * ancho
+        fin = i + ancho
+        c = -1
+        while i < fin
+            if px[i] != c
+                c = px[i]
+                t = t + 1
+            end
+            i = i + 1
+        end
+        y = y + 4
+    end
+    return t * alto / ((alto + 3) / 4)
+end
+
+# Si sale más rápido pintar el fotograma de golpe (gfx_pens_draw) que tramo a tramo (un rectángulo cada uno). En
+# un A1200 con el Workbench en planos, un rectángulo cuesta unos 0,22 ms; gfx_pens_draw, por fila, 0,4 ms más 0,29
+# por cada punto de zoom; llenar el buffer, 0,007 por píxel (tests/sprites_dibujo.sh, REAL=1)
+func _sp_de_golpe(tramos: Int, ancho: Int, alto: Int, z: Int) -> Bool
+    return tramos * 220 > alto * (400 + 290 * z) + ancho * alto * 7
+end
+
+# La rejilla: de golpe o por tramos (lo que salga más rápido); con zoom grande, líneas del borde entre los píxeles
 func _sp_dibujar_rejilla(s: Sprite)
     px = s.fotos[s.actual]
     pens = _sp_pens
     z = _sp_z
+    ancho = s.ancho
+    gx = _sp_gx
     hueco = 0
     if z >= SP_REJILLA_DESDE
         hueco = 1
         gfx_pen(tema.borde)
-        gfx_rect(_sp_gx - 1, _sp_gy - 1, _sp_gx + s.ancho * z - 1, _sp_gy + s.alto * z - 1)
+        gfx_rect(gx - 1, _sp_gy - 1, gx + ancho * z - 1, _sp_gy + s.alto * z - 1)
     end
-    ancho = s.ancho
-    gx = _sp_gx
-    puesto = -1
-    y = 0
-    i = 0
-    while y < s.alto
-        fy = _sp_gy + y * z
-        fy2 = fy + z - 1 - hueco
-        fin = i + ancho
-        x = 0
-        while i < fin
-            c = px[i]
-            i2 = i + 1
-            while i2 < fin and px[i2] == c
-                i2 = i2 + 1
+    golpe = false
+    if _sp_de_golpe(_sp_tramos(px, ancho, s.alto), ancho, s.alto, z)
+        _sp_llenar_buf(s, s.actual)
+        golpe = _sp_buf != 0
+    end
+    if golpe
+        gfx_pens_draw(_sp_buf, ancho, s.alto, gx, _sp_gy, z)
+    else
+        puesto = -1
+        y = 0
+        i = 0
+        while y < s.alto
+            fy = _sp_gy + y * z
+            fy2 = fy + z - 1 - hueco
+            fin = i + ancho
+            x = 0
+            while i < fin
+                c = px[i]
+                i2 = i + 1
+                while i2 < fin and px[i2] == c
+                    i2 = i2 + 1
+                end
+                p = pens[c]
+                if p != puesto
+                    gfx_pen(p)
+                    puesto = p
+                end
+                x2 = x + i2 - i
+                gfx_rect(gx + x * z, fy, gx + x2 * z - 1 - hueco, fy2)
+                x = x2
+                i = i2
             end
-            p = pens[c]
-            if p != puesto
-                gfx_pen(p)
-                puesto = p
-            end
-            x2 = x + i2 - i
-            gfx_rect(gx + x * z, fy, gx + x2 * z - 1 - hueco, fy2)
-            x = x2
-            i = i2
+            y = y + 1
         end
-        y = y + 1
     end
     if hueco == 1
         gfx_pen(tema.borde)
@@ -692,6 +766,16 @@ func _sp_dibujar_rejilla(s: Sprite)
             lx = gx + x * z - 1
             gfx_rect(lx, _sp_gy, lx, _sp_gy + s.alto * z - 2)
             x = x + 1
+        end
+        # de golpe no deja el hueco de debajo de cada fila
+        if golpe
+            y = 1
+            while y <= s.alto
+                ly = _sp_gy + y * z - 1
+                gfx_rect(gx, ly, gx + ancho * z - 1, ly)
+                y = y + 1
+            end
+            gfx_rect(gx + ancho * z - 1, _sp_gy, gx + ancho * z - 1, _sp_gy + s.alto * z - 1)
         end
     end
     # la piel de cebolla: el fotograma anterior, como un punto en las celdas vacías
@@ -754,6 +838,13 @@ end
 # Un fotograma en pequeño: cada píxel de e x e en la pantalla, tomando uno de cada k (para los muy altos)
 func _sp_miniatura(s: Sprite, f: Int, x: Int, y: Int, e: Int, k: Int)
     px = s.fotos[f]
+    if k == 1 and _sp_de_golpe(_sp_tramos(px, s.ancho, s.alto), s.ancho, s.alto, e)
+        _sp_llenar_buf(s, f)
+        if _sp_buf != 0
+            gfx_pens_draw(_sp_buf, s.ancho, s.alto, x, y, e)
+            return
+        end
+    end
     pens = _sp_pens
     puesto = -1
     fy = 0
@@ -2012,8 +2103,12 @@ func sp_codigo(s: Sprite, fichero: String) -> String
         t = t + hueco2(tr(138, "BOB de %1 x %2"), "#{s.ancho}", "#{s.alto}") + ", #{sp_colores(s)} " + tr(126, "colores")
     end
     t = t + ", #{n} " + tr(127, "fotogramas") + ", #{s.velocidad} " + tr(128, "tics por fotograma") + "\n"
-    if sp_acoplado(s)
-        t = t + "if not sprite_load_attached(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
+    if s.hardware
+        orden = "sprite_load"
+        if sp_acoplado(s)
+            orden = "sprite_load_attached"
+        end
+        t = t + "if not " + orden + "(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
         t = t + "# " + tr(144, "sus colores, los del fichero (en una pantalla propia del programa)") + "\n"
         t = t + "sprite_load_colors(0, \"" + fichero + "\")\n"
         if n > 1
@@ -2022,33 +2117,10 @@ func sp_codigo(s: Sprite, fichero: String) -> String
         end
         return t
     end
-    if s.hardware
-        t = t + "if not sprite_load(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
-        t = t + "# " + tr(130, "sus colores (de 4 bits, en una pantalla propia del programa)") + "\n"
-        i = 1
-        while i < 4
-            c = s.paleta[i]
-            t = t + "sprite_color(0, #{i - 1}, #{((c >> 16) & 255) / 17}, #{((c >> 8) & 255) / 17}, #{(c & 255) / 17})\n"
-            i = i + 1
-        end
-        if n > 1
-            t = t + "# " + tr(131, "animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y") + "\n"
-            t = t + "# sprite_frame(0, (cuenta / #{s.velocidad}) % #{n})\n"
-        end
-        return t
-    end
     t = t + "if not bob_load(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
-    t = t + "# " + tr(132, "sus colores en la paleta de la pantalla (el 0 es el transparente)") + "\n"
-    i = 1
-    while i < sp_colores(s)
-        c = s.paleta[i]
-        t = t + "gfx_rgb8(#{i}, #{(c >> 16) & 255}, #{(c >> 8) & 255}, #{c & 255})\n"
-        i = i + 1
-    end
+    t = t + "# " + tr(145, "sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)") + "\n"
+    t = t + "bob_load_colors(\"" + fichero + "\", 0)\n"
     if n > 1
-        if s.ancho != s.alto
-            t = t + "# " + hueco2(tr(133, "OJO: bob_load solo separa fotogramas cuadrados, y estos miden %1 x %2"), "#{s.ancho}", "#{s.alto}") + "\n"
-        end
         t = t + "# " + tr(131, "animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y") + "\n"
         t = t + "# bob_frame(0, (cuenta / #{s.velocidad}) % #{n}), bob_pos(0, x, y), bob_draw(0)\n"
     end

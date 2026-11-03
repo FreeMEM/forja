@@ -306,7 +306,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 - [x] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
 - [x] 18. **Sprites acoplados** (15 colores, parejas de sprites). El usuario lo quiso ya (2026-11-03).
-- [ ] 19. Forja usa las piezas que se fusionen. El usuario mandó fusionar el 2026-11-03.
+- [x] 19. Forja usa las piezas que se fusionen. El usuario mandó fusionar el 2026-11-03.
 
 ### F. Mapas de tiles (después de los sprites)
 - [x] 20. **Diseño** (hecho en `docs/MAPAS_DISENO.md`; el usuario aceptó las propuestas de su sección 6 el 2026-11-03). Los tiles son un BOB de esta herramienta: fotogramas cuadrados, uno por tile. Formato del
@@ -759,3 +759,17 @@ a pantalla completa). Lo que falta:
   ChangeScreenBuffer, V39). Se dibuja en el búfer escondido; screen_flip lo enseña y espera a que el otro deje de
   verse. screen_close vuelve al bitmap de la pantalla. Falso sin pantalla propia, en una pública o antes de 3.0.
   Pruebas `test_screen_double_buffer` y `_shot` (captura: se ve el búfer enseñado). Batería 537/537 y 804/804.
+
+### 2026-11-03: tarea 19, Forja usa las piezas de Dash
+- Código copiado: el sprite (normal o acoplado) toma sus colores con `sprite_load_colors`; el BOB, con
+  `bob_load_colors(fichero, 0)`. Ya no avisa de los fotogramas no cuadrados: `bob_load` toma el ancho de FRJA.
+  Textos 130, 132 y 133 fuera; 145 nuevo. `sprites_codigo.sh` usa una bola de fotogramas de 16 x 32.
+- Lápices: `_sp_preparar_pens` pide los nuevos y suelta los de la vez anterior (`color_pen_free`).
+- Rejilla y miniaturas con `gfx_pens_draw` cuando sale más rápido. Medido en el emulador a velocidad de A1200:
+  en el Workbench de planos, `gfx_pens_draw` copia fila a fila (0,4 ms más 0,29 por punto de zoom, cada fila) y un
+  rectángulo cuesta 0,22 ms. Así que se cuentan los tramos (una de cada cuatro filas) y se elige. Tiempos del
+  dibujo entero, antes y ahora, en la misma tanda: 16x16 al azar 152 a 94 ms; 32x32 al azar 259 a 120; 64x64 al
+  azar 876 a 204; bola de 32x32, 87 a 90.
+- `dashc` de main de Dash estaba sin rehacer tras las fusiones (no conocía `color_pen_free`): `make -C dashc`.
+- Mejora posible en Dash, sin hacer: que `gfx_pens_draw` en planos copie la imagen entera de una vez.
+- Las 13 pruebas de sprites, bien. Captura RTG mandada al usuario.

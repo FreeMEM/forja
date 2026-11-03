@@ -24,7 +24,7 @@ f = ["".join("%X" % ((x + y) % 16 if (x % 32 - 16) ** 2 + (y - 16) ** 2 < 200 el
 open(d + "/bola.txt", "w").write("64 32 4\n" + "\n".join(f) + "\npaleta " + " ".join("%06X" % (i * 0x101010) for i in range(16)) + "\n")
 PY
 python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/nave.iff" "$tmp/nave.txt" --frja "1 1 16 6"
-python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/bola.iff" "$tmp/bola.txt" --frja "1 0 32 4"
+python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/bola.iff" "$tmp/bola.txt" --frja "1 0 16 4"
 "$dash/dash" "$aqui/tests/sprites_codigo.dash" -o "$tmp/sys/Prueba/SpritesCodigo"
 {
   echo "SetEnv FORJA_SONDA 1"
@@ -33,8 +33,8 @@ python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/bola.iff" "$tmp/
 } >> "$tmp/sys/S/Startup-Extra"
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-240} --system "$tmp/sys" --keep "$tmp/disco" "$tmp/Forja" > /dev/null || true
 iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/sprites_codigo.txt" 2>/dev/null || echo "FALLO: no hay registro"
-# cada código, dentro de un programa con su pantalla y una ventana en ella (gfx_rgb8 sin ventana cuelga el programa:
-# es de Dash, tarea 15d de docs/SPRITES_LOOP.md), compilado y ejecutado con los IFF
+# cada código, dentro de un programa con su pantalla y una ventana en ella, compilado y ejecutado con los IFF. La
+# bola tiene fotogramas de 16 x 32: bob_load toma el ancho de FRJA
 python3 -I - "$tmp" <<'PY'
 import sys
 d = sys.argv[1]

@@ -210,14 +210,8 @@ MSG_128 (128//)
 tics por fotograma
 MSG_129 (129//)
 No se puede cargar 
-MSG_130 (130//)
-sus colores (de 4 bits, en una pantalla propia del programa)
 MSG_131 (131//)
 animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y
-MSG_132 (132//)
-sus colores en la paleta de la pantalla (el 0 es el transparente)
-MSG_133 (133//)
-OJO: bob_load solo separa fotogramas cuadrados, y estos miden %1 x %2
 MSG_134 (134//)
 Guarda el sprite primero: el código lleva el nombre de su fichero.
 MSG_135 (135//)
@@ -240,6 +234,8 @@ MSG_143 (143//)
 Un sprite acoplado tiene 15 colores y el transparente (T cambia el tipo).
 MSG_144 (144//)
 sus colores, los del fichero (en una pantalla propia del programa)
+MSG_145 (145//)
+sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)
 MSG_300 (300//)
 Forja
 MSG_301 (301//)

@@ -317,18 +317,9 @@ ticks per frame
 MSG_129
 Cannot load 
 ; No se puede cargar 
-MSG_130
-its colours (4 bits, on a screen of the program's own)
-; sus colores (de 4 bits, en una pantalla propia del programa)
 MSG_131
 to animate it: at each wait_vblank(), count = count + 1 and
 ; animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y
-MSG_132
-its colours in the screen's palette (0 is the transparent one)
-; sus colores en la paleta de la pantalla (el 0 es el transparente)
-MSG_133
-NOTE: bob_load only splits square frames, and these are %1 x %2
-; OJO: bob_load solo separa fotogramas cuadrados, y estos miden %1 x %2
 MSG_134
 Save the sprite first: the code carries the name of its file.
 ; Guarda el sprite primero: el código lleva el nombre de su fichero.
@@ -362,6 +353,9 @@ An attached sprite has 15 colours and the transparent one (T changes the type).
 MSG_144
 its colours, the file's (on a screen of the program's own)
 ; sus colores, los del fichero (en una pantalla propia del programa)
+MSG_145
+its colours, the file's, in the screen's palette (colour 0, the transparent one, is the background)
+; sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)
 MSG_300
 Forja
 ; Forja
