@@ -11,9 +11,10 @@ English or Spanish, following the Locale preferences (the English catalog is in 
 
 ## Requirements
 
-- AmigaOS 3.0 or later, with a 68020 or better, and MUI 5.
-- dashc, the Dash 2.0 compiler for the Amiga (`make amiga` in Dash's `dashc/`), with its `.drt` files next to it.
-  Forja looks for it in `ENV:Forja/dashc`, or as `dashc` in the command path.
+- AmigaOS 3.0 or later, with a 68020 or better, and MUI 3.8 or 5.
+- Dash 2.2 or later for the Amiga: the `dash-X.Y.Z-amiga.lha` package from
+  [Dash](https://github.com/FreeMEM/dash/releases) has the `dash` command and Forja too, and its installer sets
+  everything up. Forja looks for the compiler in `ENV:Forja/dashc`, or as `dash` in the command path.
 - For the Inferencia button, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
 - Syntax colours look better with more than 4 colours on the screen.
 
@@ -78,7 +79,7 @@ Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO 
 
 ## Build
 
-With Dash 2.0: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.1`. The tests run in the
+With Dash 2.2: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.1`. The tests run in the
 emulator: [tests/LEEME.md](tests/LEEME.md) (in Spanish).
 
 Written in Dash. MIT license.

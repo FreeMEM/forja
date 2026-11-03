@@ -11,9 +11,10 @@ castellano o en inglés, según el idioma de las Preferencias de Locale (el cat�
 
 ## Qué necesita
 
-- AmigaOS 3.0 o mejor, con un 68020 o mejor, y MUI 5.
-- dashc, el compilador de Dash 2.0 para el Amiga (`make amiga` en `dashc/` de Dash), con sus ficheros `.drt` al
-  lado. Forja lo busca en `ENV:Forja/dashc`, o como `dashc` en el camino de órdenes.
+- AmigaOS 3.0 o mejor, con un 68020 o mejor, y MUI 3.8 o 5.
+- Dash 2.2 o posterior para el Amiga: el paquete `dash-X.Y.Z-amiga.lha` de
+  [Dash](https://github.com/FreeMEM/dash/releases) trae la orden `dash` y también Forja, y su instalador lo deja
+  todo listo. Forja busca el compilador en `ENV:Forja/dashc`, o como `dash` en el camino de órdenes.
 - Para el botón Inferencia, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
 - Los colores de la sintaxis se ven mejor con más de 4 colores en la pantalla.
 
@@ -78,7 +79,7 @@ Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, 
 
 ## Compilar
 
-Con Dash 2.0: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.1`. Las pruebas, en el
+Con Dash 2.2: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.1`. Las pruebas, en el
 emulador: [tests/LEEME.md](tests/LEEME.md).
 
 Escrito en Dash. Licencia MIT.

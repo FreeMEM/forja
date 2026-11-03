@@ -5,6 +5,7 @@
 #
 #   CATALOGOS=1 tests/ventana.sh ...   # con build/Catalogs (tools/catalogos.py catalog): sale en inglés
 #   RTG=1 tests/ventana.sh ...   # en AmigaOS 3.2 con tarjeta gráfica de 256 colores (sys32rtg8): se ven los colores
+#   SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 ...   # con otro sistema RTG (este, con MUI 3.8, el de CoffinOS)
 #   PRUEBA= tests/ventana.sh ...   # sin abrir ningún fichero: la bienvenida, con el logo de Dash
 #   SPRITE=1 tests/ventana.sh ...  # abre en el editor de sprites una nave de ejemplo
 #   ACOPLADO=1 tests/ventana.sh ... # abre en el editor de sprites un sprite acoplado de ejemplo
@@ -22,7 +23,7 @@ trap 'rm -rf "$tmp"' EXIT
 # el sistema con MUI y las fuentes del Workbench (Helvetica)
 maquina=""
 if [ -n "$RTG" ]; then
-  cp -r "$HOME/.cache/dash-emu/sys32rtg8" "$tmp/sys"
+  cp -r "${SISTEMA:-$HOME/.cache/dash-emu/sys32rtg8}" "$tmp/sys"
   export DASH_EMU_SYS_32_RTG="$tmp/sys"
   export DASH_KICKSTART_32="${DASH_KICKSTART_32:-$HOME/Descargas/Telegram Desktop/Kickstart v3.2.3 A1200.47.115_Pack_noSCSI.rom}"
   maquina="--machine rtg"
