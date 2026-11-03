@@ -1,0 +1,149 @@
+# Hace de usuario del editor de mapas en Forja con nivel.fmap (40 x 20, dos capas, tiles de 16, el tileset de
+# tests/ventana.sh): elige tiles, pinta, espejo, borra, arrastra el lápiz, caja, relleno y deshacer, cuentagotas,
+# una capa nueva, el ancho, el zoom y el desplazamiento, y guarda (Amiga-S). tests/mapas_forja.sh mira el fichero.
+# Lo arranca tests/mapas_forja.sh; anota en DH0:Prueba/mapas_forja.txt.
+
+const AMIGA = 8
+const DERECHA = 0x4E
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/mapas_forja.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func sonda() -> [String]
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+func cabecera(i: Int) -> String
+    return str_split(sonda()[1], " ")[i]
+end
+
+# La celda x, y de la capa que se edita
+func celda(x: Int, y: Int) -> String
+    return str_split(sonda()[y + 2], ",")[x]
+end
+
+# El centro de la celda x, y del mapa en la pantalla (con la vista y el zoom de ahora)
+func cx(x: Int) -> Int
+    return campo("FORJA_EDITOR", 0) + campo("FORJA_MAPA", 0) + (x - Int(cabecera(9))) * campo("FORJA_MAPA", 2) + campo("FORJA_MAPA", 2) / 2
+end
+
+func cy(y: Int) -> Int
+    return campo("FORJA_EDITOR", 1) + campo("FORJA_MAPA", 1) + (y - Int(cabecera(10))) * campo("FORJA_MAPA", 2) + campo("FORJA_MAPA", 2) / 2
+end
+
+# Un clic en el botón de esa acción del panel (FORJA_MAPA_BOTONES: "acción,x,y ...")
+func boton(accion: Int) -> Bool
+    for b in str_split(str_trim(env_get("FORJA_MAPA_BOTONES")), " ")
+        p = str_split(b, ",")
+        if p.length == 3 and Int(p[0]) == accion
+            input_click(campo("FORJA_EDITOR", 0) + Int(p[1]), campo("FORJA_EDITOR", 1) + Int(p[2]), 0)
+            time_delay(10)
+            return true
+        end
+    end
+    anotar("(no hay botón #{accion}: " + env_get("FORJA_MAPA_BOTONES") + ")")
+    return false
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_MAPA_BOTONES") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja aparece con el mapa", false, "")
+    else
+        input_move(cx(5), cy(5))
+        ver("nivel.fmap: 40 x 20, tiles de 16, 2 capas, 6 tiles, zoom 2", str_starts(sonda()[1], "40 20 16 2 0 1 0 0 2 0 0 6 0 0"), sonda()[1])
+        boton(1003)
+        ver("el tile 3 del panel", cabecera(5) == "3", sonda()[1])
+        input_click(cx(1), cy(1), 0)
+        ver("pintar la celda 1, 1", celda(1, 1) == "3", sonda()[3])
+        input_text("h")
+        input_click(cx(2), cy(1), 0)
+        ver("H: con espejo", celda(2, 1) == "16387", sonda()[3])
+        input_text("h")
+        input_text("e")
+        input_click(cx(1), cy(1), 0)
+        ver("E: borrar", celda(1, 1) == "0" and cabecera(7) == "4", sonda()[3])
+        input_text("p")
+        boton(1002)
+        input_drag(cx(0), cy(3), cx(4), cy(3))
+        ver("arrastrar el lápiz: una fila de tiles 2", celda(0, 3) == "2" and celda(2, 3) == "2" and celda(4, 3) == "2" and celda(5, 3) == "0", sonda()[5])
+        input_text("b")
+        input_drag(cx(6), cy(2), cx(8), cy(4))
+        ver("B: una caja de 3 x 3", celda(6, 2) == "2" and celda(7, 3) == "2" and celda(8, 4) == "2" and celda(9, 4) == "0", sonda()[5])
+        input_text("f")
+        boton(1004)
+        input_click(cx(12), cy(0), 0)
+        ver("F: el relleno llena el cielo", celda(12, 0) == "4" and celda(1, 1) == "4" and celda(19, 8) == "3" and celda(7, 3) == "2", sonda()[2])
+        input_key(0x31, AMIGA)
+        ver("deshacer el relleno de una vez", celda(12, 0) == "0" and celda(1, 1) == "0", sonda()[2])
+        input_text("k")
+        input_click(cx(19), cy(8), 0)
+        ver("K: el cuentagotas coge el ladrillo", cabecera(5) == "3", sonda()[1])
+        boton(5001)
+        ver("la página Capas", cabecera(14) == "1", sonda()[1])
+        boton(6200)
+        ver("una capa nueva, la segunda", cabecera(3) == "3" and cabecera(4) == "1", sonda()[1])
+        boton(5002)
+        boton(4001)
+        ver("el ancho, uno más", cabecera(0) == "41", sonda()[1])
+        boton(4004)
+        ver("zoom 1", cabecera(8) == "1", sonda()[1])
+        input_move(cx(5), cy(5))
+        input_key(DERECHA, 0)
+        ver("la flecha mueve la vista", cabecera(9) == "1", sonda()[1])
+        input_key(0x21, AMIGA)
+        time_delay(50)
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 20 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    if input_active_title() == "Cambios sin guardar"
+        input_key(0x22, 0)
+    end
+end

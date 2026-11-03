@@ -426,7 +426,943 @@ end
 
 # --- Para las pruebas ---
 
-# "ancho alto tile capas capa tile_elegido espejo herramienta zoom vx vy tiles deshacer rehacer"
+# "ancho alto tile capas capa tile_elegido espejo herramienta zoom vx vy tiles deshacer rehacer página", y una
+# línea por fila de la capa que se edita, con las celdas separadas por comas
 func mp_sonda(m: Mapa) -> String
-    return "#{tilemap_width(m.id)} #{tilemap_height(m.id)} #{tilemap_tile_size(m.id)} #{tilemap_layers(m.id)} #{m.capa} #{m.tile} #{m.espejo} #{m.herramienta} #{m.zoom} #{m.vx} #{m.vy} #{mp_tiles(m)} #{m.deshacer.length} #{m.rehacer.length}"
+    t = "#{tilemap_width(m.id)} #{tilemap_height(m.id)} #{tilemap_tile_size(m.id)} #{tilemap_layers(m.id)} #{m.capa} #{m.tile} #{m.espejo} #{m.herramienta} #{m.zoom} #{m.vx} #{m.vy} #{mp_tiles(m)} #{m.deshacer.length} #{m.rehacer.length} #{mp_pagina}"
+    y = 0
+    while y < tilemap_height(m.id)
+        f = ""
+        x = 0
+        while x < tilemap_width(m.id)
+            if x > 0
+                f = f + ","
+            end
+            f = f + "#{tilemap_get(m.id, m.capa, x, y)}"
+            x = x + 1
+        end
+        t = t + "\n" + f
+        y = y + 1
+    end
+    return t
+end
+
+# --- Dibujar ---
+# mp_dibujar pinta la zona entera: la vista del mapa, el panel de la derecha (páginas Tiles, Capas y Mapa) y la barra
+# de estado. Las coordenadas de los clics van desde la esquina de la zona, como en el editor de sprites.
+
+const MP_A_TILE = 1000          # + el número del tile (1 el primero)
+const MP_A_HERR = 3000          # + la herramienta
+const MP_A_ESPEJO_H = 3100
+const MP_A_ESPEJO_V = 3101
+const MP_A_ANCHO_MENOS = 4000
+const MP_A_ANCHO_MAS = 4001
+const MP_A_ALTO_MENOS = 4002
+const MP_A_ALTO_MAS = 4003
+const MP_A_ZOOM_MENOS = 4004
+const MP_A_ZOOM_MAS = 4005
+const MP_A_REJILLA = 4006
+const MP_A_TILESET = 4007       # elegir el tileset: lo hace main.dash, con la petición de ficheros
+const MP_A_CODIGO = 4008
+const MP_A_PAGINA = 5000        # + la página
+const MP_A_CAPA = 6000          # + la capa: elegirla
+const MP_A_CAPA_VER = 6100      # + la capa: verla u ocultarla
+const MP_A_CAPA_NUEVA = 6200
+const MP_A_CAPA_QUITAR = 6201
+const MP_A_CAPA_SUBIR = 6202
+const MP_A_CAPA_BAJAR = 6203
+
+const MP_PAG_TILES = 0
+const MP_PAG_CAPAS = 1
+const MP_PAG_MAPA = 2
+var mp_pagina: Int = 0
+
+var mp_mensaje: String = ""
+var mp_mensaje_tipo: Int = 0
+var mp_ms_dibujo: Int = 0
+var _mp_zx: Int = 0             # la esquina de la zona
+var _mp_zy: Int = 0
+var _mp_gx: Int = 0             # la esquina de la vista y lo que mide
+var _mp_gy: Int = 0
+var _mp_gw: Int = 0
+var _mp_gh: Int = 0
+var _mp_cols: Int = 0           # las celdas que caben en la vista
+var _mp_filas: Int = 0
+var _mp_cx: Int = -1            # la celda bajo el ratón en el último clic o arrastre
+var _mp_cy: Int = -1
+var _mp_pens: [Int] = []        # el lápiz de cada color del tileset
+var _mp_pedidos: [Int] = []
+var _mp_buf: Int = 0            # un tile en lápices, para gfx_pens_draw
+var _mp_buf_largo: Int = 0
+
+var _mp_bx1: [Int] = []
+var _mp_by1: [Int] = []
+var _mp_bx2: [Int] = []
+var _mp_by2: [Int] = []
+var _mp_bacc: [Int] = []
+
+func _mp_boton(x1: Int, y1: Int, x2: Int, y2: Int, accion: Int)
+    _mp_bx1.push(x1)
+    _mp_by1.push(y1)
+    _mp_bx2.push(x2)
+    _mp_by2.push(y2)
+    _mp_bacc.push(accion)
+end
+
+func _mp_boton_en(ax: Int, ay: Int) -> Int
+    i = 0
+    while i < _mp_bacc.length
+        if ax >= _mp_bx1[i] and ax <= _mp_bx2[i] and ay >= _mp_by1[i] and ay <= _mp_by2[i]
+            return _mp_bacc[i]
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Para las pruebas: "acción,x,y" del centro de cada botón, desde la esquina de la zona
+func mp_botones() -> String
+    t = ""
+    i = 0
+    while i < _mp_bacc.length
+        t = t + "#{_mp_bacc[i]},#{(_mp_bx1[i] + _mp_bx2[i]) / 2 - _mp_zx},#{(_mp_by1[i] + _mp_by2[i]) / 2 - _mp_zy} "
+        i = i + 1
+    end
+    return t
+end
+
+# Para las pruebas: "x y lado columnas filas" de la vista, desde la esquina de la zona
+func mp_geometria(m: Mapa) -> String
+    return "#{_mp_gx - _mp_zx} #{_mp_gy - _mp_zy} #{mp_lado(m)} #{_mp_cols} #{_mp_filas}"
+end
+
+func _mp_boton_texto(x1: Int, y1: Int, x2: Int, y2: Int, texto: String, encendido: Bool, accion: Int)
+    gfx_pen(tema.fondo_linea)
+    if encendido
+        gfx_pen(tema.seleccion)
+    end
+    gfx_rect(x1, y1, x2, y2)
+    gfx_pen(tema.texto)
+    w = font_text_width(texto)
+    gfx_text_at(x1 + (x2 - x1 + 1 - w) / 2, y1 + (y2 - y1 + 1 - font_height()) / 2 + font_baseline(), texto)
+    _mp_boton(x1, y1, x2, y2, accion)
+end
+
+func _mp_titulo(x: Int, y: Int, texto: String) -> Int
+    usar_panel(2)
+    gfx_pen(tema.tenue)
+    gfx_text_at(x, y + font_baseline(), texto)
+    font_style(0)
+    return y + font_height() + 3
+end
+
+# El lado de una celda en la pantalla
+func mp_lado(m: Mapa) -> Int
+    return tilemap_tile_size(m.id) * m.zoom
+end
+
+# Los lápices de los colores del tileset (se sueltan los de antes después de pedir los nuevos)
+func _mp_preparar_pens(m: Mapa)
+    antes = _mp_pedidos
+    _mp_pedidos = []
+    if m.tileset != nil
+        i = 0
+        while i < sp_colores(m.tileset)
+            c = m.tileset.paleta[i]
+            _mp_pedidos.push(color_pen((c >> 16) & 255, (c >> 8) & 255, c & 255))
+            i = i + 1
+        end
+    end
+    for p in antes
+        color_pen_free(p)
+    end
+    _mp_pens = []
+    for p in _mp_pedidos
+        _mp_pens.push(p)
+    end
+end
+
+# Un tile del tileset en _mp_buf, con los lápices; el color 0, con el lápiz cero
+func _mp_llenar_buf(m: Mapa, f: Int, cero: Int)
+    ts = tilemap_tile_size(m.id)
+    n = ts * ts
+    if n > _mp_buf_largo
+        if _mp_buf != 0
+            buffer_free(_mp_buf)
+        end
+        _mp_buf = buffer_alloc(n)
+        _mp_buf_largo = n
+    end
+    px = m.tileset.fotos[f]
+    w = m.tileset.ancho
+    pens = _mp_pens
+    i = 0
+    y = 0
+    while y < ts
+        j = y * w
+        fin = j + ts
+        while j < fin
+            c = px[j]
+            if c == 0
+                buffer_set_byte(_mp_buf, i, cero)
+            else
+                buffer_set_byte(_mp_buf, i, pens[c])
+            end
+            i = i + 1
+            j = j + 1
+        end
+        y = y + 1
+    end
+end
+
+# Los dos BOB de la vista: cada tile del tileset, ampliado al zoom y con los lápices de la pantalla. El primero,
+# con el color 0 del tema (para la primera capa); el segundo, con el color 0 transparente (para las demás)
+func _mp_preparar_vista(m: Mapa)
+    if m.tileset == nil
+        return
+    end
+    clave = "#{m.zoom}:"
+    for p in _mp_pens
+        clave = clave + "#{p},"
+    end
+    clave = clave + "#{tema.fondo_linea}"
+    if m.vista_zoom == m.zoom and m.vista_pens == clave
+        return
+    end
+    ts = tilemap_tile_size(m.id)
+    z = m.zoom
+    n = mp_tiles(m)
+    planos = rtg_get_depth()
+    if planos > 8
+        planos = 8
+    end
+    k = 0
+    while k < 2
+        b = MP_BOB + 2 * m.id + k
+        bob_free(b)
+        if bob_create(b, n * ts * z, ts * z, planos)
+            cero = tema.fondo_linea
+            if k == 1
+                cero = 0
+            end
+            bitmap_draw_to(b)
+            f = 0
+            while f < n
+                _mp_llenar_buf(m, f, cero)
+                gfx_pens_draw(_mp_buf, ts, ts, f * ts * z, 0, z)
+                f = f + 1
+            end
+            bitmap_draw_screen()
+        end
+        k = k + 1
+    end
+    m.vista_zoom = m.zoom
+    m.vista_pens = clave
+end
+
+# Las capas que se ven, de una celda o de un rectángulo de celdas (en celdas de la vista)
+func _mp_pintar_celdas(m: Mapa, c0: Int, f0: Int, cols: Int, filas: Int)
+    lado = mp_lado(m)
+    x = _mp_gx + c0 * lado
+    y = _mp_gy + f0 * lado
+    gfx_pen(tema.fondo_linea)
+    gfx_rect(x, y, x + cols * lado - 1, y + filas * lado - 1)
+    primera = true
+    l = 0
+    while l < tilemap_layers(m.id)
+        if tilemap_layer_visible(m.id, l)
+            if m.tileset == nil
+                _mp_pintar_sin_tileset(m, l, c0, f0, cols, filas)
+            elif primera
+                tilemap_draw(m.id, l, MP_BOB + 2 * m.id, m.vx + c0, m.vy + f0, cols, filas, x, y)
+            else
+                tilemap_draw_masked(m.id, l, MP_BOB + 2 * m.id + 1, m.vx + c0, m.vy + f0, cols, filas, x, y)
+            end
+            primera = false
+        end
+        l = l + 1
+    end
+    if m.rejilla and lado >= 8
+        gfx_pen(tema.borde)
+        c = 0
+        while c <= cols
+            if c0 + c > 0
+                gfx_rect(x + c * lado - 1, y, x + c * lado - 1, y + filas * lado - 1)
+            end
+            c = c + 1
+        end
+        f = 0
+        while f <= filas
+            if f0 + f > 0
+                gfx_rect(x, y + f * lado - 1, x + cols * lado - 1, y + f * lado - 1)
+            end
+            f = f + 1
+        end
+    end
+end
+
+# Sin tileset: cada celda llena, un cuadro del color del texto tenue
+func _mp_pintar_sin_tileset(m: Mapa, l: Int, c0: Int, f0: Int, cols: Int, filas: Int)
+    lado = mp_lado(m)
+    gfx_pen(tema.tenue)
+    f = 0
+    while f < filas
+        c = 0
+        while c < cols
+            if tilemap_get(m.id, l, m.vx + c0 + c, m.vy + f0 + f) != 0
+                x = _mp_gx + (c0 + c) * lado
+                y = _mp_gy + (f0 + f) * lado
+                gfx_rect(x + 1, y + 1, x + lado - 2, y + lado - 2)
+            end
+            c = c + 1
+        end
+        f = f + 1
+    end
+end
+
+# La caja que se arrastra, como un marco
+var _mp_figura: Bool = false
+var _mp_ix: Int = 0
+var _mp_iy: Int = 0
+
+func _mp_dibujar_vista(m: Mapa)
+    _mp_pintar_celdas(m, 0, 0, _mp_cols, _mp_filas)
+    if _mp_figura
+        lado = mp_lado(m)
+        x1 = _mp_ix
+        x2 = _mp_cx
+        if x2 < x1
+            x1 = _mp_cx
+            x2 = _mp_ix
+        end
+        y1 = _mp_iy
+        y2 = _mp_cy
+        if y2 < y1
+            y1 = _mp_cy
+            y2 = _mp_iy
+        end
+        ax = _mp_gx + (x1 - m.vx) * lado
+        ay = _mp_gy + (y1 - m.vy) * lado
+        bx = _mp_gx + (x2 - m.vx + 1) * lado - 1
+        by = _mp_gy + (y2 - m.vy + 1) * lado - 1
+        gfx_pen(tema.cursor)
+        gfx_rect(ax, ay, bx, ay)
+        gfx_rect(ax, by, bx, by)
+        gfx_rect(ax, ay, ax, by)
+        gfx_rect(bx, ay, bx, by)
+    end
+end
+
+# Solo una celda (al pintar con el lápiz): x, y, ancho y alto de su zona, desde la esquina de la zona
+var mp_tocados: [Int] = []      # las celdas (y * ancho + x) que cambió el último evento
+var mp_celda_sola: Int = -1     # con mui_canvas_update: dibujar solo esta celda
+
+func mp_zona_celda(m: Mapa, i: Int) -> [Int]
+    w = tilemap_width(m.id)
+    lado = mp_lado(m)
+    return [_mp_gx - _mp_zx + (i % w - m.vx) * lado, _mp_gy - _mp_zy + (i / w - m.vy) * lado, lado, lado]
+end
+
+func mp_dibujar_celda(m: Mapa, i: Int)
+    w = tilemap_width(m.id)
+    c = i % w - m.vx
+    f = i / w - m.vy
+    if c >= 0 and f >= 0 and c < _mp_cols and f < _mp_filas
+        _mp_pintar_celdas(m, c, f, 1, 1)
+    end
+end
+
+func mp_nombre_herramienta(h: Int) -> String
+    nombres = [tr(160, "Lápiz"), tr(161, "Caja"), tr(162, "Relleno"), tr(163, "Gotas"), tr(164, "Borrar")]
+    return nombres[h]
+end
+
+func _mp_texto_tile(v: Int) -> String
+    t = "#{v & 16383}"
+    if (v & MP_ESPEJO_H) != 0
+        t = t + " H"
+    end
+    if (v & MP_ESPEJO_V) != 0
+        t = t + " V"
+    end
+    return t
+end
+
+func _mp_dibujar_estado(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_panel(0)
+    t = mp_mensaje
+    gfx_pen(tema.texto)
+    if mp_mensaje_tipo == 1
+        gfx_pen(tema.error)
+    elif mp_mensaje_tipo == 2
+        gfx_pen(tema.bien)
+    end
+    if t == ""
+        gfx_pen(tema.tenue)
+        t = hueco2(tr(165, "Mapa %1, tiles de %2"), "#{tilemap_width(m.id)} x #{tilemap_height(m.id)}", "#{tilemap_tile_size(m.id)}")
+        t = t + "  " + hueco2(tr(166, "capa %1: %2"), "#{m.capa + 1}/#{tilemap_layers(m.id)}", tilemap_layer_name(m.id, m.capa))
+        t = t + "  " + hueco(tr(167, "tile %1"), _mp_texto_tile(mp_valor(m)))
+        if _mp_cx >= 0
+            t = t + "  " + "#{_mp_cx}, #{_mp_cy}"
+        end
+        t = t + "  " + mp_nombre_herramienta(m.herramienta)
+    end
+    gfx_text_at(x + 6, y + (alto - font_height()) / 2 + font_baseline(), t)
+end
+
+# Una fila "nombre  [-] valor [+]"; devuelve la y de debajo
+func _mp_fila_numero(x: Int, y: Int, ancho: Int, nombre: String, valor: String, menos: Int, mas: Int) -> Int
+    bh = font_height() + 2
+    bw = bh + 4
+    gfx_pen(tema.tenue)
+    gfx_text_at(x, y + 1 + font_baseline(), nombre)
+    _mp_boton_texto(x + ancho - 2 * bw - 40, y, x + ancho - bw - 41, y + bh - 1, "-", false, menos)
+    gfx_pen(tema.texto)
+    gfx_text_at(x + ancho - bw - 36, y + 1 + font_baseline(), valor)
+    _mp_boton_texto(x + ancho - bw, y, x + ancho - 1, y + bh - 1, "+", false, mas)
+    return y + bh + 2
+end
+
+# Herramientas, espejos y el tileset para elegir el tile
+func _mp_dibujar_tiles(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int)
+    usar_panel(0)
+    bw = (ancho - 4) / 3
+    bh = font_height() + 4
+    h = 0
+    while h < 5
+        bx = x + (h % 3) * (bw + 2)
+        by = y + (h / 3) * (bh + 2)
+        _mp_boton_texto(bx, by, bx + bw - 1, by + bh - 1, mp_nombre_herramienta(h), h == m.herramienta, MP_A_HERR + h)
+        h = h + 1
+    end
+    y = y + 2 * (bh + 2) + 2
+    bw2 = (ancho - 2) / 2
+    _mp_boton_texto(x, y, x + bw2 - 1, y + bh - 1, tr(168, "Espejo H"), (m.espejo & MP_ESPEJO_H) != 0, MP_A_ESPEJO_H)
+    _mp_boton_texto(x + bw2 + 2, y, x + ancho - 1, y + bh - 1, tr(169, "Espejo V"), (m.espejo & MP_ESPEJO_V) != 0, MP_A_ESPEJO_V)
+    y = y + bh + 6
+    y = _mp_titulo(x, y, tr(170, "TILES"))
+    usar_panel(0)
+    if m.tileset == nil
+        gfx_pen(tema.tenue)
+        gfx_text_at(x, y + font_baseline(), tr(171, "Sin tileset (página Mapa)"))
+        return
+    end
+    ts = tilemap_tile_size(m.id)
+    e = 1
+    if (ts * 2 + 2) * 4 <= ancho
+        e = 2
+    end
+    paso = ts * e + 2
+    por_fila = ancho / paso
+    if por_fila < 1
+        por_fila = 1
+    end
+    n = mp_tiles(m)
+    i = 0
+    while i < n
+        tx = x + (i % por_fila) * paso
+        ty = y + (i / por_fila) * paso
+        if ty + paso > y + alto
+            return
+        end
+        if i + 1 == m.tile
+            gfx_pen(tema.acento)
+            gfx_rect(tx - 1, ty - 1, tx + ts * e, ty + ts * e)
+        end
+        _mp_llenar_buf(m, i, tema.fondo_linea)
+        gfx_pens_draw(_mp_buf, ts, ts, tx, ty, e)
+        _mp_boton(tx, ty, tx + ts * e - 1, ty + ts * e - 1, MP_A_TILE + i + 1)
+        i = i + 1
+    end
+end
+
+# La lista de capas (la de abajo es la de delante) y sus botones
+func _mp_dibujar_capas(m: Mapa, x: Int, y: Int, ancho: Int)
+    y = _mp_titulo(x, y, tr(172, "CAPAS"))
+    usar_panel(0)
+    bh = font_height() + 4
+    ojo = font_text_width("oo") + 6
+    l = 0
+    while l < tilemap_layers(m.id)
+        v = "--"
+        if tilemap_layer_visible(m.id, l)
+            v = "oo"
+        end
+        _mp_boton_texto(x, y, x + ojo - 1, y + bh - 1, v, false, MP_A_CAPA_VER + l)
+        _mp_boton_texto(x + ojo + 2, y, x + ancho - 1, y + bh - 1, "#{l + 1} " + tilemap_layer_name(m.id, l), l == m.capa, MP_A_CAPA + l)
+        y = y + bh + 2
+        l = l + 1
+    end
+    y = y + 4
+    bw = (ancho - 2) / 2
+    _mp_boton_texto(x, y, x + bw - 1, y + bh - 1, tr(173, "Nueva"), false, MP_A_CAPA_NUEVA)
+    _mp_boton_texto(x + bw + 2, y, x + ancho - 1, y + bh - 1, tr(174, "Quitar"), false, MP_A_CAPA_QUITAR)
+    y = y + bh + 2
+    _mp_boton_texto(x, y, x + bw - 1, y + bh - 1, tr(175, "Atrás"), false, MP_A_CAPA_SUBIR)
+    _mp_boton_texto(x + bw + 2, y, x + ancho - 1, y + bh - 1, tr(176, "Delante"), false, MP_A_CAPA_BAJAR)
+end
+
+# Tamaño, zoom, rejilla, tileset y el código
+func _mp_dibujar_mapa(m: Mapa, x: Int, y: Int, ancho: Int)
+    y = _mp_titulo(x, y, tr(177, "MAPA"))
+    usar_panel(0)
+    y = _mp_fila_numero(x, y, ancho, tr(178, "Ancho"), "#{tilemap_width(m.id)}", MP_A_ANCHO_MENOS, MP_A_ANCHO_MAS)
+    y = _mp_fila_numero(x, y, ancho, tr(179, "Alto"), "#{tilemap_height(m.id)}", MP_A_ALTO_MENOS, MP_A_ALTO_MAS)
+    y = _mp_fila_numero(x, y, ancho, tr(180, "Zoom"), "#{m.zoom}", MP_A_ZOOM_MENOS, MP_A_ZOOM_MAS)
+    gfx_pen(tema.tenue)
+    gfx_text_at(x, y + 1 + font_baseline(), hueco(tr(181, "Tiles de %1"), "#{tilemap_tile_size(m.id)}"))
+    y = y + font_height() + 6
+    bh = font_height() + 4
+    _mp_boton_texto(x, y, x + ancho - 1, y + bh - 1, tr(182, "Rejilla (G)"), m.rejilla, MP_A_REJILLA)
+    y = y + bh + 6
+    y = _mp_titulo(x, y, tr(183, "TILESET"))
+    usar_panel(0)
+    n = tilemap_tileset(m.id)
+    if n == ""
+        n = tr(184, "(ninguno)")
+    end
+    gfx_pen(tema.texto)
+    gfx_text_at(x, y + font_baseline(), n)
+    y = y + font_height() + 4
+    _mp_boton_texto(x, y, x + ancho - 1, y + bh - 1, tr(185, "Elegir tileset..."), false, MP_A_TILESET)
+    y = y + bh + 6
+    _mp_boton_texto(x, y, x + ancho - 1, y + bh - 1, tr(186, "Copiar el código (C)"), false, MP_A_CODIGO)
+end
+
+func _mp_dibujar_panel(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_panel(0)
+    nombres = [tr(187, "Tiles"), tr(188, "Capas"), tr(189, "Mapa")]
+    bh = font_height() + 4
+    bw = (ancho - 12) / nombres.length
+    i = 0
+    while i < nombres.length
+        bx = x + 6 + i * bw
+        _mp_boton_texto(bx, y + 4, bx + bw - 2, y + 4 + bh - 1, nombres[i], i == mp_pagina, MP_A_PAGINA + i)
+        i = i + 1
+    end
+    y2 = y + 4 + bh + 6
+    if mp_pagina == MP_PAG_CAPAS
+        _mp_dibujar_capas(m, x + 6, y2, ancho - 12)
+    elif mp_pagina == MP_PAG_MAPA
+        _mp_dibujar_mapa(m, x + 6, y2, ancho - 12)
+    else
+        _mp_dibujar_tiles(m, x + 6, y2, ancho - 12, y + alto - y2 - 4)
+    end
+end
+
+# Que la vista no se salga del mapa
+func _mp_ajustar_vista(m: Mapa)
+    if m.vx > tilemap_width(m.id) - _mp_cols
+        m.vx = tilemap_width(m.id) - _mp_cols
+    end
+    if m.vy > tilemap_height(m.id) - _mp_filas
+        m.vy = tilemap_height(m.id) - _mp_filas
+    end
+    if m.vx < 0
+        m.vx = 0
+    end
+    if m.vy < 0
+        m.vy = 0
+    end
+end
+
+# x, y, ancho, alto: la zona bajo las pestañas; arriba: el alto de las pestañas (para la esquina de la zona)
+func mp_dibujar(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
+    t0 = time_ms()
+    _mp_zx = x
+    _mp_zy = y - arriba
+    _mp_preparar_pens(m)
+    _mp_preparar_vista(m)
+    _mp_bx1 = []
+    _mp_by1 = []
+    _mp_bx2 = []
+    _mp_by2 = []
+    _mp_bacc = []
+    gfx_pen(tema.fondo)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_panel(0)
+    estado_alto = font_height() + 6
+    panel = sp_panel_ancho(ancho)
+    _mp_dibujar_panel(m, x + ancho - panel, y, panel, alto)
+    _mp_gx = x + 4
+    _mp_gy = y + 4
+    _mp_gw = ancho - panel - 8
+    _mp_gh = alto - estado_alto - 8
+    lado = mp_lado(m)
+    _mp_cols = _mp_gw / lado
+    _mp_filas = _mp_gh / lado
+    if _mp_cols > tilemap_width(m.id)
+        _mp_cols = tilemap_width(m.id)
+    end
+    if _mp_filas > tilemap_height(m.id)
+        _mp_filas = tilemap_height(m.id)
+    end
+    _mp_ajustar_vista(m)
+    _mp_dibujar_vista(m)
+    _mp_dibujar_estado(m, x, y + alto - estado_alto, ancho - panel, estado_alto)
+    mp_ms_dibujo = time_ms() - t0
+end
+
+# --- Ratón y teclado ---
+# Devuelven, sumado, lo que hay que hacer (las mismas banderas que el editor de sprites): SP_CAMBIO (el mapa
+# cambió), SP_TODO (redibujar todo), SP_CELDAS (solo las celdas de mp_tocados), SP_CODIGO (copiar el código) y
+# MP_TILESET (pedir el tileset con la petición de ficheros).
+
+const MP_TILESET = 32
+
+var _mp_trazando: Bool = false
+var _mp_valor_trazo: Int = 0
+
+# La celda del mapa bajo x, y (desde la esquina de la zona): en _mp_cx, _mp_cy; false si no está en la vista
+func _mp_celda(m: Mapa, x: Int, y: Int) -> Bool
+    ax = x + _mp_zx - _mp_gx
+    ay = y + _mp_zy - _mp_gy
+    lado = mp_lado(m)
+    if ax < 0 or ay < 0 or ax >= _mp_cols * lado or ay >= _mp_filas * lado
+        return false
+    end
+    _mp_cx = m.vx + ax / lado
+    _mp_cy = m.vy + ay / lado
+    return true
+end
+
+func _mp_tocar(m: Mapa, x: Int, y: Int, v: Int)
+    if mp_poner(m, m.capa, x, y, v)
+        mp_tocados.push(y * tilemap_width(m.id) + x)
+    end
+end
+
+# Del último punto del trazo al nuevo, sin saltarse celdas
+func _mp_linea(m: Mapa, x1: Int, y1: Int, x2: Int, y2: Int, v: Int)
+    dx = x2 - x1
+    dy = y2 - y1
+    n = dx
+    if n < 0
+        n = -n
+    end
+    ny = dy
+    if ny < 0
+        ny = -ny
+    end
+    if ny > n
+        n = ny
+    end
+    if n == 0
+        _mp_tocar(m, x2, y2, v)
+        return
+    end
+    i = 1
+    while i <= n
+        _mp_tocar(m, x1 + (dx * i + n / 2) / n, y1 + (dy * i + n / 2) / n, v)
+        i = i + 1
+    end
+end
+
+func _mp_accion(m: Mapa, a: Int, teclas: Int) -> Int
+    paso = 1
+    if (teclas & SP_Q_MAYUS) != 0
+        paso = 10
+    end
+    if a >= MP_A_TILE and a < MP_A_TILE + 1000
+        m.tile = a - MP_A_TILE
+        if m.herramienta == MP_BORRAR or m.herramienta == MP_GOTAS
+            m.herramienta = MP_LAPIZ
+        end
+        return SP_TODO
+    elif a >= MP_A_HERR and a < MP_A_HERR + 5
+        m.herramienta = a - MP_A_HERR
+        return SP_TODO
+    elif a == MP_A_ESPEJO_H
+        m.espejo = m.espejo ^ MP_ESPEJO_H
+        return SP_TODO
+    elif a == MP_A_ESPEJO_V
+        m.espejo = m.espejo ^ MP_ESPEJO_V
+        return SP_TODO
+    elif a >= MP_A_PAGINA and a < MP_A_PAGINA + 3
+        mp_pagina = a - MP_A_PAGINA
+        return SP_TODO
+    elif a >= MP_A_CAPA_VER and a < MP_A_CAPA_VER + 8
+        mp_capa_ver(m, a - MP_A_CAPA_VER)
+        return SP_TODO | SP_CAMBIO
+    elif a >= MP_A_CAPA and a < MP_A_CAPA + 8
+        m.capa = a - MP_A_CAPA
+        return SP_TODO
+    elif a == MP_A_CAPA_NUEVA
+        if mp_capa_nueva(m)
+            return SP_TODO | SP_CAMBIO
+        end
+    elif a == MP_A_CAPA_QUITAR
+        if mp_capa_quitar(m)
+            return SP_TODO | SP_CAMBIO
+        end
+    elif a == MP_A_CAPA_SUBIR
+        if mp_capa_mover(m, -1)
+            return SP_TODO | SP_CAMBIO
+        end
+        return 0
+    elif a == MP_A_CAPA_BAJAR
+        if mp_capa_mover(m, 1)
+            return SP_TODO | SP_CAMBIO
+        end
+        return 0
+    elif a == MP_A_ANCHO_MENOS or a == MP_A_ANCHO_MAS or a == MP_A_ALTO_MENOS or a == MP_A_ALTO_MAS
+        w = tilemap_width(m.id)
+        h = tilemap_height(m.id)
+        if a == MP_A_ANCHO_MENOS
+            w = w - paso
+        elif a == MP_A_ANCHO_MAS
+            w = w + paso
+        elif a == MP_A_ALTO_MENOS
+            h = h - paso
+        else
+            h = h + paso
+        end
+        if mp_tamano(m, w, h)
+            return SP_TODO | SP_CAMBIO
+        end
+        return 0
+    elif a == MP_A_ZOOM_MENOS or a == MP_A_ZOOM_MAS
+        return mp_zoom(m, a == MP_A_ZOOM_MAS)
+    elif a == MP_A_REJILLA
+        m.rejilla = not m.rejilla
+        return SP_TODO
+    elif a == MP_A_TILESET
+        return MP_TILESET
+    elif a == MP_A_CODIGO
+        return SP_CODIGO
+    end
+    if mp_error != ""
+        mp_mensaje = mp_error
+        mp_mensaje_tipo = 1
+        mp_error = ""
+        return SP_TODO
+    end
+    return 0
+end
+
+# El zoom: 1, 2 o 4
+func mp_zoom(m: Mapa, mas: Bool) -> Int
+    z = m.zoom
+    if mas and z < 4
+        z = z * 2
+    elif not mas and z > 1
+        z = z / 2
+    end
+    if z == m.zoom
+        return 0
+    end
+    m.zoom = z
+    return SP_TODO
+end
+
+func mp_clic(m: Mapa, x: Int, y: Int, teclas: Int) -> Int
+    mp_mensaje = ""
+    mp_tocados = []
+    _mp_trazando = false
+    _mp_figura = false
+    if not _mp_celda(m, x, y)
+        a = _mp_boton_en(x + _mp_zx, y + _mp_zy)
+        if a < 0
+            return 0
+        end
+        return _mp_accion(m, a, teclas)
+    end
+    h = m.herramienta
+    if (teclas & SP_Q_ALT) != 0
+        h = MP_BORRAR
+    elif (teclas & SP_Q_CTRL) != 0
+        h = MP_GOTAS
+    end
+    if h == MP_GOTAS
+        v = tilemap_get(m.id, m.capa, _mp_cx, _mp_cy)
+        m.tile = v & 16383
+        m.espejo = v & (MP_ESPEJO_H + MP_ESPEJO_V)
+        return SP_TODO
+    end
+    v = mp_valor(m)
+    if h == MP_BORRAR
+        v = 0
+    end
+    if h == MP_RELLENO
+        mp_apuntar(m)
+        n = mp_rellenar(m, _mp_cx, _mp_cy, v)
+        mp_cerrar_paso(m)
+        if n > 0
+            return SP_TODO | SP_CAMBIO
+        end
+        return SP_TODO
+    end
+    if h == MP_CAJA
+        _mp_figura = true
+        _mp_ix = _mp_cx
+        _mp_iy = _mp_cy
+        _mp_valor_trazo = v
+        return SP_TODO
+    end
+    # lápiz o borrar: el trazo sigue en mp_arrastrar
+    mp_apuntar(m)
+    _mp_trazando = true
+    _mp_valor_trazo = v
+    _mp_tocar(m, _mp_cx, _mp_cy, v)
+    if mp_tocados.length > 0
+        return SP_CELDAS | SP_CAMBIO
+    end
+    return SP_TODO
+end
+
+func mp_arrastrar(m: Mapa, x: Int, y: Int, soltado: Bool) -> Int
+    mp_tocados = []
+    ux = _mp_cx
+    uy = _mp_cy
+    dentro = _mp_celda(m, x, y)
+    if _mp_figura
+        if soltado
+            _mp_figura = false
+            mp_apuntar(m)
+            n = mp_caja(m, _mp_ix, _mp_iy, _mp_cx, _mp_cy, _mp_valor_trazo)
+            mp_cerrar_paso(m)
+            if n > 0
+                return SP_TODO | SP_CAMBIO
+            end
+        end
+        return SP_TODO
+    end
+    if not _mp_trazando
+        return 0
+    end
+    if dentro
+        _mp_linea(m, ux, uy, _mp_cx, _mp_cy, _mp_valor_trazo)
+    end
+    if soltado
+        _mp_trazando = false
+        mp_cerrar_paso(m)
+    end
+    if mp_tocados.length > 0
+        return SP_CELDAS | SP_CAMBIO
+    end
+    return 0
+end
+
+# La rueda: arriba y abajo (con Mayúsculas, a los lados)
+func mp_rueda(m: Mapa, rueda: Int, teclas: Int) -> Int
+    if (teclas & SP_Q_MAYUS) != 0
+        return mp_mover_vista(m, -rueda * 2, 0)
+    end
+    return mp_mover_vista(m, 0, -rueda * 2)
+end
+
+func mp_mover_vista(m: Mapa, dx: Int, dy: Int) -> Int
+    ax = m.vx
+    ay = m.vy
+    m.vx = m.vx + dx
+    m.vy = m.vy + dy
+    _mp_ajustar_vista(m)
+    if m.vx == ax and m.vy == ay
+        return 0
+    end
+    return SP_TODO
+end
+
+func mp_tecla(m: Mapa, codigo: Int, teclas: Int, letra: String) -> Int
+    mp_mensaje = ""
+    paso = 1
+    if (teclas & SP_Q_MAYUS) != 0
+        paso = _mp_cols - 1
+        if paso < 1
+            paso = 1
+        end
+    end
+    if codigo == SP_T_DERECHA
+        return mp_mover_vista(m, paso, 0)
+    elif codigo == SP_T_IZQUIERDA
+        return mp_mover_vista(m, -paso, 0)
+    elif codigo == SP_T_ABAJO
+        if (teclas & SP_Q_MAYUS) != 0
+            paso = _mp_filas - 1
+        end
+        return mp_mover_vista(m, 0, paso)
+    elif codigo == SP_T_ARRIBA
+        if (teclas & SP_Q_MAYUS) != 0
+            paso = _mp_filas - 1
+        end
+        return mp_mover_vista(m, 0, -paso)
+    end
+    l = str_lower(letra)
+    if letra.length != 1
+        return 0
+    end
+    h = str_find("pbfke", l)
+    if h >= 0
+        m.herramienta = h
+        return SP_TODO
+    end
+    if l == "+"
+        return mp_zoom(m, true)
+    elif l == "-"
+        return mp_zoom(m, false)
+    elif l == "g"
+        m.rejilla = not m.rejilla
+        return SP_TODO
+    elif l == "h"
+        m.espejo = m.espejo ^ MP_ESPEJO_H
+        return SP_TODO
+    elif l == "v"
+        m.espejo = m.espejo ^ MP_ESPEJO_V
+        return SP_TODO
+    elif l == "c"
+        return SP_CODIGO
+    elif l == "." or l == ","
+        n = mp_tiles(m)
+        if n == 0
+            return 0
+        end
+        t = m.tile + 1
+        if l == ","
+            t = m.tile - 1
+        end
+        if t < 1
+            t = n
+        elif t > n
+            t = 1
+        end
+        m.tile = t
+        return SP_TODO
+    end
+    return 0
+end
+
+# --- El código para usarlo en un programa ---
+
+# Las líneas de Dash que cargan el mapa y su tileset y pintan la primera pantalla (fichero: el nombre del mapa)
+func mp_codigo(m: Mapa, fichero: String) -> String
+    ts = tilemap_tile_size(m.id)
+    t = "# " + fichero + ": " + hueco2(tr(190, "mapa de %1 tiles de %2"), "#{tilemap_width(m.id)} x #{tilemap_height(m.id)}", "#{ts}")
+    t = t + ", #{tilemap_layers(m.id)} " + tr(191, "capas") + "\n"
+    tileset = tilemap_tileset(m.id)
+    t = t + "if not tilemap_load(0, \"" + fichero + "\")\n    Print \"" + tr(129, "No se puede cargar ") + fichero + "\"\nend\n"
+    if tileset != ""
+        t = t + "if not bob_load(1, \"" + tileset + "\")\n    Print \"" + tr(129, "No se puede cargar ") + tileset + "\"\nend\n"
+        t = t + "# " + tr(192, "los colores del tileset, en la paleta de la pantalla") + "\n"
+        t = t + "bob_load_colors(\"" + tileset + "\", 0)\n"
+    end
+    t = t + "# " + hueco(tr(193, "pintar la pantalla (aquí, 320 x 256 de tiles de %1): la capa 0 y las demás encima"), "#{ts}") + "\n"
+    t = t + "tilemap_draw(0, 0, 1, 0, 0, #{320 / ts}, #{256 / ts}, 0, 0)\n"
+    l = 1
+    while l < tilemap_layers(m.id)
+        t = t + "tilemap_draw_masked(0, #{l}, 1, 0, 0, #{320 / ts}, #{256 / ts}, 0, 0)\n"
+        l = l + 1
+    end
+    return t
+end
+
+# El tileset, por su nombre solo si está en el cajón del mapa (al guardar o al elegirlo)
+func mp_tileset_relativo(m: Mapa, cajon: String)
+    n = tilemap_tileset(m.id)
+    if cajon != "" and str_lower(_mp_cajon(n)) == str_lower(cajon)
+        tilemap_set_tileset(m.id, n[cajon.length:])
+    end
 end

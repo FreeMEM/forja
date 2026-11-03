@@ -132,8 +132,6 @@ MSG_88 (88//)
 Nuevo sprite
 MSG_89 (89//)
 ¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter.
-MSG_90 (90//)
-_Sprite|_BOB|_Cancelar
 MSG_91 (91//)
 Para compilar, abre el .dash del programa.
 MSG_92 (92//)
@@ -236,6 +234,106 @@ MSG_144 (144//)
 sus colores, los del fichero (en una pantalla propia del programa)
 MSG_145 (145//)
 sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)
+MSG_150 (150//)
+Ya hay %1 mapas abiertos: cierra uno.
+MSG_151 (151//)
+No hay memoria para el mapa.
+MSG_152 (152//)
+fondo
+MSG_153 (153//)
+No se puede leer el tileset %1: 
+MSG_154 (154//)
+El tileset %1 tiene fotogramas de %2: no son los tiles de este mapa.
+MSG_155 (155//)
+No es un mapa de tiles (FORM FMAP), o está cortado.
+MSG_156 (156//)
+No se puede guardar el mapa.
+MSG_157 (157//)
+Un mapa tiene como mucho 8 capas.
+MSG_158 (158//)
+capa %1
+MSG_159 (159//)
+Es la única capa.
+MSG_160 (160//)
+Lápiz
+MSG_161 (161//)
+Caja
+MSG_162 (162//)
+Relleno
+MSG_163 (163//)
+Gotas
+MSG_164 (164//)
+Borrar
+MSG_165 (165//)
+Mapa %1, tiles de %2
+MSG_166 (166//)
+capa %1: %2
+MSG_167 (167//)
+tile %1
+MSG_168 (168//)
+Espejo H
+MSG_169 (169//)
+Espejo V
+MSG_170 (170//)
+TILES
+MSG_171 (171//)
+Sin tileset (página Mapa)
+MSG_172 (172//)
+CAPAS
+MSG_173 (173//)
+Nueva
+MSG_174 (174//)
+Quitar
+MSG_175 (175//)
+Atrás
+MSG_176 (176//)
+Delante
+MSG_177 (177//)
+MAPA
+MSG_178 (178//)
+Ancho
+MSG_179 (179//)
+Alto
+MSG_180 (180//)
+Zoom
+MSG_181 (181//)
+Tiles de %1
+MSG_182 (182//)
+Rejilla (G)
+MSG_183 (183//)
+TILESET
+MSG_184 (184//)
+(ninguno)
+MSG_185 (185//)
+Elegir tileset...
+MSG_186 (186//)
+Copiar el código (C)
+MSG_187 (187//)
+Tiles
+MSG_188 (188//)
+Capas
+MSG_189 (189//)
+Mapa
+MSG_190 (190//)
+mapa de %1 tiles de %2
+MSG_191 (191//)
+capas
+MSG_192 (192//)
+los colores del tileset, en la paleta de la pantalla
+MSG_193 (193//)
+pintar la pantalla (aquí, 320 x 256 de tiles de %1): la capa 0 y las demás encima
+MSG_194 (194//)
+Un mapa de tiles: una rejilla de tiles de un tileset (un BOB con un fotograma por tile).
+MSG_195 (195//)
+_Sprite|_BOB|_Mapa|_Cancelar
+MSG_196 (196//)
+Guarda el mapa primero: el código lleva el nombre de su fichero.
+MSG_197 (197//)
+Tileset del mapa
+MSG_198 (198//)
+Los fotogramas de %1 miden %2: los tiles del mapa son de otro tamaño (8, 16 o 32).
+MSG_199 (199//)
+Tileset: %1
 MSG_300 (300//)
 Forja
 MSG_301 (301//)

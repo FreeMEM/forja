@@ -9,6 +9,7 @@
 #   SPRITE=1 tests/ventana.sh ...  # abre en el editor de sprites una nave de ejemplo
 #   ACOPLADO=1 tests/ventana.sh ... # abre en el editor de sprites un sprite acoplado de ejemplo
 #   PANTALLA=1 tests/ventana.sh ... # con la preferencia de abrir Forja en su propia pantalla
+#   MAPA=1 tests/ventana.sh ...     # abre en el editor de mapas un mapa de ejemplo, con su tileset
 #
 # DASH_DIR: el worktree de Dash 2.0 que compila (./dash y tools/emu_run.py). Forja se cierra sola a los 30
 # segundos. Una captura por cada segundo dado (por defecto 12): captura-12.png...
@@ -84,6 +85,14 @@ open(sys.argv[1], "w").write("32 16 4\n" + "\n".join(filas) + "\npaleta " + pal 
 PY
   python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/acoplado.iff" "$tmp/acoplado.txt" --frja "1 1 16 6"
   PRUEBA=${PRUEBA-DH0:Prueba/juego/acoplado.iff}
+fi
+# MAPA=1: un tileset de 6 tiles de 16 (hierba, tierra, ladrillo, agua, nube y una moneda) y un mapa de 40 x 20
+# con dos capas que los usa (tests/fmap.py)
+if [ -n "$MAPA" ]; then
+  python3 -I "$aqui/tests/mapa_ejemplo.py" "$tmp/tiles.txt" "$tmp/capas.txt"
+  python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/tiles.iff" "$tmp/tiles.txt" --frja "1 0 16 6"
+  python3 -I "$aqui/tests/fmap.py" escribir "$tmp/sys/Prueba/juego/nivel.fmap" 40 20 16 tiles.iff $(cat "$tmp/capas.txt")
+  PRUEBA=${PRUEBA-DH0:Prueba/juego/nivel.fmap}
 fi
 # PANTALLA=1: la preferencia ENV:Forja/pantalla
 [ -z "$PANTALLA" ] || printf 'MakeDir >NIL: ENV:Forja\nSetEnv Forja/pantalla si\n' >> "$tmp/sys/S/Startup-Extra"

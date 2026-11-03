@@ -12,6 +12,7 @@ import "tema.dash"
 import "sintaxis.dash"
 import "diseno.dash"
 import "sprites.dash"
+import "mapas.dash"
 
 const ALTO_PESTANAS = 18
 const MARGEN_TEXTO = 6
@@ -64,6 +65,7 @@ struct Documento
     diseno: Bool          # un .dashui que se ve con el editor de ventanas (Amiga-D: como texto)
     puntos: [Int]         # las líneas (desde 1) con punto de parada
     sprite: Sprite        # un sprite o un BOB (sprites.dash); nil en los de texto
+    mapa: Mapa = nil      # un mapa de tiles (mapas.dash); nil en los demás
 end
 
 var documentos: [Documento] = []
@@ -136,6 +138,15 @@ func ed_abrir_sprite(nombre: String, ruta: String, s: Sprite)
     var d2: [Cambio] = []
     var pp: [Int] = []
     documentos.push(Documento(nombre, ruta, [""], 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, s))
+    activo = documentos.length - 1
+end
+
+# Una pestaña con el editor de mapas
+func ed_abrir_mapa(nombre: String, ruta: String, m: Mapa)
+    var d1: [Cambio] = []
+    var d2: [Cambio] = []
+    var pp: [Int] = []
+    documentos.push(Documento(nombre, ruta, [""], 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, nil, m))
     activo = documentos.length - 1
 end
 
@@ -360,6 +371,9 @@ func ed_cambiar_todo(d: Documento, t: String, nuevo: String, mayus: Bool) -> Int
 end
 
 func ed_cerrar(i: Int)
+    if documentos[i].mapa != nil
+        mp_cerrar(documentos[i].mapa)
+    end
     documentos.remove(i)
     if activo >= documentos.length
         activo = documentos.length - 1
@@ -1206,6 +1220,20 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         ed_zona_alto = alto
         sp_dibujar(d.sprite, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
         ed_ms_dibujo = sp_ms_dibujo
+        return
+    end
+    if d != nil and d.mapa != nil
+        if mui_canvas_updating() and mp_celda_sola >= 0
+            mp_dibujar_celda(d.mapa, mp_celda_sola)
+            return
+        end
+        _dibujar_pestanas(x, y, ancho)
+        ed_zona_x = x
+        ed_zona_y = y
+        ed_zona_ancho = ancho
+        ed_zona_alto = alto
+        mp_dibujar(d.mapa, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
+        ed_ms_dibujo = mp_ms_dibujo
         return
     end
     if d != nil and d.diseno

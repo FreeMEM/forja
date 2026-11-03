@@ -163,6 +163,12 @@ func avisar(texto: String, tipo: Int)
         if abierta
             mui_canvas_redraw(v.editor)
         end
+    elif d != nil and d.mapa != nil
+        mp_mensaje = texto
+        mp_mensaje_tipo = tipo
+        if abierta
+            mui_canvas_redraw(v.editor)
+        end
     end
 end
 
@@ -176,13 +182,14 @@ func ajustar_paneles()
             o.sprite.reproduciendo = false
         end
     end
-    ocultar = d != nil and d.sprite != nil
+    ocultar = d != nil and (d.sprite != nil or d.mapa != nil)
     if ocultar != _salida_oculta
         _salida_oculta = ocultar
         mui_set_visible(v.salida, not ocultar)
         mui_set_visible(v.balance_salida, not ocultar)
         mui_set_visible(v.barra, not ocultar)
         sp_mensaje = ""
+        mp_mensaje = ""
     end
 end
 
@@ -207,6 +214,19 @@ func abrir(ruta: String) -> Bool
         return true
     end
     l = str_lower(ruta)
+    if not str_ends(l, ".dash") and not str_ends(l, ".dashui") and mp_es_mapa(ruta)
+        m = mp_leer(ruta)
+        if m == nil
+            avisar(mp_error, 1)
+            return false
+        end
+        ed_abrir_mapa(nombre_de(ruta), ruta, m)
+        if mp_error != ""
+            avisar(mp_error, 1)
+            mp_error = ""
+        end
+        return true
+    end
     if not str_ends(l, ".dash") and not str_ends(l, ".dashui") and sp_es_ilbm(ruta)
         s = sp_leer(ruta)
         if s == nil
@@ -231,6 +251,12 @@ func guardar_en(d: Documento, ruta: String) -> Bool
             avisar(sp_error, 1)
             return false
         end
+    elif d.mapa != nil
+        mp_tileset_relativo(d.mapa, cajon_de(ruta))
+        if not mp_escribir(d.mapa, ruta)
+            avisar(mp_error, 1)
+            return false
+        end
     elif not file_write_text(ruta, ed_texto_disco(d))
         avisar(tr(2, "No se puede escribir ") + ruta, 1)
         return false
@@ -250,6 +276,8 @@ func guardar_como(d: Documento) -> Bool
     patron = "#?.(dash|dashui)"
     if d.sprite != nil
         patron = SP_PATRON
+    elif d.mapa != nil
+        patron = "#?.fmap"
     end
     if not file_save_dialog("Guardar " + d.nombre, patron)
         return false
@@ -280,14 +308,23 @@ func proyecto(ev: Int) -> Bool
     if ev == EV_NUEVO
         ed_abrir_texto("sin nombre.dash", "", NUEVO)
     elif ev == EV_NUEVO_SPRITE
-        r = mui_request(v.window, tr(88, "Nuevo sprite"), tr(89, "¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter."), tr(90, "_Sprite|_BOB|_Cancelar"))
+        r = mui_request(v.window, tr(88, "Nuevo sprite"), tr(89, "¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter.") + "\n" + tr(194, "Un mapa de tiles: una rejilla de tiles de un tileset (un BOB con un fotograma por tile)."), tr(195, "_Sprite|_BOB|_Mapa|_Cancelar"))
         if r == 1
             ed_abrir_sprite("sin nombre.iff", "", sp_nuevo(true))
         elif r == 2
             ed_abrir_sprite("sin nombre.iff", "", sp_nuevo(false))
+        elif r == 3
+            m = mp_nuevo(64, 32, 16)
+            if m == nil
+                avisar(mp_error, 1)
+            else
+                ed_abrir_mapa("sin nombre.fmap", "", m)
+                ajustar_paneles()
+                elegir_tileset(ed_actual())
+            end
         end
     elif ev == EV_ABRIR
-        if file_open_dialog("Abrir", "#?.(dash|dashui|iff|ilbm|lbm|brush|bob|spr)")
+        if file_open_dialog("Abrir", "#?.(dash|dashui|iff|ilbm|lbm|brush|bob|spr|fmap)")
             ruta = file_fullpath()
             if abrir(ruta) and cajon_de(ruta) != proyecto_cajon
                 proyecto_leer(cajon_de(ruta))
@@ -397,7 +434,7 @@ func compilar(y_ejecutar: Bool)
         return
     end
     d = ed_actual()
-    if d != nil and d.sprite != nil
+    if d != nil and (d.sprite != nil or d.mapa != nil)
         d = programa_abierto()
         if d == nil
             avisar(tr(91, "Para compilar, abre el .dash del programa."), 1)
@@ -439,7 +476,7 @@ end
 func programa_abierto() -> Documento
     var otro: Documento = nil
     for o in documentos
-        if o.sprite == nil and str_ends(str_lower(o.nombre), ".dash")
+        if o.sprite == nil and o.mapa == nil and str_ends(str_lower(o.nombre), ".dash")
             if str_lower(o.nombre) == "main.dash"
                 return o
             end
@@ -828,6 +865,8 @@ func escribir_sonda()
         end
         if d.sprite != nil
             sonda_fichero("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + sp_sonda(d.sprite))
+        elif d.mapa != nil
+            sonda_fichero("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + mp_sonda(d.mapa))
         else
             sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
         end
@@ -840,6 +879,15 @@ end
 func edicion(ev: Int)
     d = ed_actual()
     if d == nil
+        return
+    end
+    if d.mapa != nil
+        if ev == EV_DESHACER and mp_deshacer(d.mapa)
+            d.cambiado = true
+        elif ev == EV_REHACER and mp_rehacer(d.mapa)
+            d.cambiado = true
+        end
+        redibujar()
         return
     end
     if d.sprite != nil
@@ -924,6 +972,77 @@ func alternar_punto(d: Documento, n: Int)
     redibujar()
 end
 
+# Lo que pide el editor de mapas tras un clic, una tecla o un arrastre (SP_CAMBIO, SP_TODO, SP_CELDAS, SP_CODIGO y
+# MP_TILESET)
+func mp_resultado(d: Documento, r: Int)
+    if (r & SP_CAMBIO) != 0
+        d.cambiado = true
+    end
+    if (r & MP_TILESET) != 0
+        elegir_tileset(d)
+        return
+    end
+    if (r & SP_CODIGO) != 0
+        if d.ruta == ""
+            avisar(tr(196, "Guarda el mapa primero: el código lleva el nombre de su fichero."), 1)
+            return
+        end
+        if clip_write_text(latin1_to_utf8(mp_codigo(d.mapa, d.nombre)))
+            avisar(tr(135, "El código para cargarlo está en el portapapeles (Amiga-V en el .dash)."), 2)
+        else
+            avisar(tr(136, "No se puede escribir en el portapapeles."), 1)
+        end
+        return
+    end
+    if (r & SP_TODO) != 0
+        redibujar()
+    elif (r & SP_CELDAS) != 0
+        for i in mp_tocados
+            z = mp_zona_celda(d.mapa, i)
+            mp_celda_sola = i
+            mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
+        end
+        mp_celda_sola = -1
+        escribir_sonda()
+    end
+end
+
+# El tileset del mapa, con la petición de ficheros. Un mapa nuevo y sin tocar toma el lado de sus tiles; si no, el
+# tileset tiene que tener tiles del lado del mapa
+func elegir_tileset(d: Documento)
+    m = d.mapa
+    if not file_open_dialog(tr(197, "Tileset del mapa"), SP_PATRON)
+        return
+    end
+    ruta = file_fullpath()
+    s = sp_leer(ruta)
+    if s == nil
+        avisar(sp_error, 1)
+        return
+    end
+    ts = tilemap_tile_size(m.id)
+    if s.ancho != ts
+        if (s.ancho == 8 or s.ancho == 16 or s.ancho == 32) and d.ruta == "" and m.deshacer.length == 0
+            tilemap_create(m.id, tilemap_width(m.id), tilemap_height(m.id), s.ancho, 1)
+            tilemap_layer_set(m.id, 0, tr(152, "fondo"), 0, true)
+        else
+            avisar(hueco2(tr(198, "Los fotogramas de %1 miden %2: los tiles del mapa son de otro tamaño (8, 16 o 32)."), nombre_de(ruta), "#{s.ancho}"), 1)
+            return
+        end
+    end
+    tilemap_set_tileset(m.id, ruta)
+    if d.ruta != ""
+        mp_tileset_relativo(m, cajon_de(d.ruta))
+    end
+    if mp_leer_tileset(m, cajon_de(d.ruta))
+        d.cambiado = true
+        avisar(hueco(tr(199, "Tileset: %1"), tilemap_tileset(m.id)), 2)
+    else
+        avisar(mp_error, 1)
+    end
+    redibujar()
+end
+
 # Lo que pide el editor de sprites tras un clic o un arrastre (SP_CAMBIO, SP_TODO, SP_CELDAS)
 func sp_resultado(d: Documento, r: Int)
     if (r & SP_CAMBIO) != 0
@@ -994,6 +1113,8 @@ func en_editor() -> Int
     teclas = mui_canvas_qualifiers(v.editor)
     if rueda != 0 and d.sprite != nil
         sp_resultado(d, sp_ir_fotograma(d.sprite, -rueda))
+    elif rueda != 0 and d.mapa != nil
+        mp_resultado(d, mp_rueda(d.mapa, rueda, teclas))
     elif rueda != 0
         d.primera = d.primera - rueda * 3
         maximo = d.lineas.length - ed_visibles
@@ -1007,6 +1128,15 @@ func en_editor() -> Int
     elif mui_canvas_button(v.editor) == 1 and ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor)) >= 0
         activo = ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
+    elif d.mapa != nil
+        if mui_canvas_button(v.editor) == 1
+            mp_resultado(d, mp_clic(d.mapa, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), teclas))
+        elif mui_canvas_key(v.editor) >= 0 and (teclas & Q_AMIGA) != 0
+            return atajo(mui_canvas_char(v.editor))
+        elif mui_canvas_key(v.editor) >= 0
+            mp_resultado(d, mp_tecla(d.mapa, mui_canvas_key(v.editor), teclas, mui_canvas_char(v.editor)))
+        end
+        return 0
     elif d.sprite != nil
         if mui_canvas_button(v.editor) == 1
             sp_resultado(d, sp_clic(d.sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), teclas))
@@ -1108,6 +1238,14 @@ func publicar_sonda()
             env_set("FORJA_SPRITE", sp_geometria(), false)
             env_set("FORJA_SPRITE_PANEL", sp_geometria_panel(), false)
             env_set("FORJA_SPRITE_BOTONES", sp_botones(), false)
+        end
+    end
+    if d != nil and d.mapa != nil
+        g = mp_geometria(d.mapa) + "|" + mp_botones()
+        if g != sonda_sprite
+            sonda_sprite = g
+            env_set("FORJA_MAPA", mp_geometria(d.mapa), false)
+            env_set("FORJA_MAPA_BOTONES", mp_botones(), false)
         end
     end
     t = ed_pestanas_ventana()
@@ -1246,7 +1384,7 @@ func boton_inferencia()
     if d == nil
         return
     end
-    if d.sprite != nil
+    if d.sprite != nil or d.mapa != nil
         avisar(tr(92, "Inferencia lee texto: un sprite no se le puede mandar."), 1)
         return
     end
@@ -1583,6 +1721,8 @@ Main
                 dv_cerrar_vista()
             elif ev >= EV_CORTAR and ev <= EV_VISTA
                 edicion(ev)
+            elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().mapa != nil
+                mp_resultado(ed_actual(), mp_arrastrar(ed_actual().mapa, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
             elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().sprite != nil
                 sp_resultado(ed_actual(), sp_arrastrar(ed_actual().sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
             elif ev == EV_ARRASTRE
