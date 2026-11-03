@@ -303,7 +303,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
       del programa (`_dash_screen`) si la hay, y no hacer nada si no hay ni ventana ni pantalla. Test con
       `screen_open_custom` + `gfx_rgb8` sin ventana. Mirar si otros builtins tienen el mismo `_dash_win->`.
 - [x] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
-- [ ] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
+- [x] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
 - [ ] 18. **Sprites acoplados** (15 colores, parejas de sprites): `[?]` antes de empezar. Pregunta al usuario si
       lo quiere ya, porque cambia el formato y la herramienta.
@@ -644,3 +644,15 @@ a pantalla completa). Lo que falta:
 - Batería sin emulador 526/526; tests de sprites con `--emu` bien; runtime de dashc rehecho. Commit de53d5d.
 - Forja (tarea 19): el código que copia con C usará `sprite_rgb8` con los colores de 8 bits del editor (y en
   `sprite_color`, los de 4 bits para ECS).
+
+### 2026-11-03 — Tarea 17 (Dash: colores del fichero)
+- `sprite_load_colors(id, fichero)`: los colores 1-3 del CMAP como colores del sprite, con 8 bits (como
+  `sprite_rgb8`); falso si el fichero no tiene CMAP o el sprite no existe. `bob_load_colors(fichero, desde)`: todos
+  los colores del CMAP en la paleta de la pantalla (la propia, o la de la ventana) desde el color `desde`; da
+  cuántos puso (0 si no es un IFF). Con un lector de CMAP propio (`_dash_cmap_read`), en `GRAPHICS_RUNTIME`, sin
+  depender del runtime de bitmaps.
+- Test `tests/test_load_colors.dash`: un IFF escrito a mano con 4 colores; los colores 1 y 11 (con `desde` 8) se
+  leen con `gfx_pixel_rgb`; un fichero que no es IFF da 0 y falso. Del sprite solo se ve que corre (los colores
+  17-31 no se leen en el emulador, como en la tarea 16). Batería sin emulador bien; runtime de dashc rehecho.
+- Con esto, el código que copia Forja (C) queda en dos líneas por sprite: `sprite_load` y `sprite_load_colors`
+  (o `bob_load` y `bob_load_colors`), cuando se fusione (tarea 19).
