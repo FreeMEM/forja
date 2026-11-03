@@ -755,7 +755,7 @@ a pantalla completa). Lo que falta:
   `ventana.sh` con ACOPLADO=1 abre uno de ejemplo. Pruebas: sprites_iff y sprites_tamano bien.
 
 ### 2026-11-03: tarea 25, doble búfer
-- Dash (rama `doble-bufer`, sin fusionar): `screen_double_buffer()` y `screen_flip()` (AllocScreenBuffer y
+- Dash (PR #86, fusionado en main): `screen_double_buffer()` y `screen_flip()` (AllocScreenBuffer y
   ChangeScreenBuffer, V39). Se dibuja en el búfer escondido; screen_flip lo enseña y espera a que el otro deje de
   verse. screen_close vuelve al bitmap de la pantalla. Falso sin pantalla propia, en una pública o antes de 3.0.
   Pruebas `test_screen_double_buffer` y `_shot` (captura: se ve el búfer enseñado). Batería 537/537 y 804/804.
