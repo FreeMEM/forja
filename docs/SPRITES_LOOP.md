@@ -319,7 +319,7 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 Hoy hay `screen_open` (modo del Workbench con `SA_LikeWorkbench`, solo para ventanas de Intuition),
 `screen_open_custom`, `rtg_open_screen` y `mui_window_own_screen` (copia la pública, pero solo para una ventana MUI
 a pantalla completa). Lo que falta:
-- [ ] 21. **Clon del Workbench, público.** Una pantalla igual que la del Workbench (modo, tamaño, profundidad,
+- [x] 21. **Clon del Workbench, público.** Una pantalla igual que la del Workbench (modo, tamaño, profundidad,
       colores, lápices y fuente), pública y con nombre. `screen_clone_wb(nombre)` o con opciones; que Intuition
       la cierre bien cuando aún tiene ventanas de otros (esperar o avisar). Test y doc.
 - [ ] 22. **Ventanas MUI normales en una pantalla pública:** `mui_window_screen(win, nombre)` (o
@@ -671,3 +671,16 @@ a pantalla completa). Lo que falta:
     cifras del coste son estimaciones a medir en la fase 1.
   - Seis fases y cuatro decisiones para el usuario. Queda `[?]`.
 - Lo que queda sin `[?]` es el bloque G (pantallas propias).
+
+### 2026-11-03 — Tarea 21 (Dash: clon público del Workbench)
+- `screen_clone_wb(nombre)`: `SA_LikeWorkbench` (modo, tamaño, profundidad, lápices y fuente), `SA_PubName`,
+  lápices compartidos y `PubScreenStatus(scr, 0)`: pública. Falso si no se abre, si el nombre ya existe o si el
+  programa ya tiene pantalla. Sin ventana, se dibuja en ella (como en la tarea 15d). `screen_visitors()`: las
+  ventanas de otros programas en ella (`psn_VisitorCount`).
+- `screen_close` con una pantalla pública: primero la hace privada (para que no entren más), esperando a que se
+  cierren las ventanas de otros. Si al cabo de un minuto siguen abiertas, la deja abierta: cerrarla debajo de ellas
+  colgaría el Amiga.
+- Test `tests/test_screen_clone_wb.dash`: el clon mide lo mismo que el Workbench; una consola `CON:.../SCREEN
+  nombre` abierta por nombre cuenta como visita y, al cerrarla, la pantalla se cierra. Lo de "nombre ya usado" no
+  queda probado aparte: la segunda llamada da falso porque el programa ya tiene pantalla. Captura mandada al
+  usuario. Batería sin emulador y tests de pantallas bien; runtime de dashc rehecho.
