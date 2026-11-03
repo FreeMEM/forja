@@ -305,12 +305,12 @@ Pedido: "también vamos a crear juegos en 3D con minigl". Hay movimiento en el g
 - [x] 16. **Colores de 8 bits para sprites en AGA:** `sprite_rgb8(id, i, r, g, b)` (SetRGB32).
 - [x] 17. **Colores del fichero:** `sprite_load_colors(id, fichero)` y `bob_load_colors(fichero, desde)` toman el
       CMAP. Así el código que genera Forja se queda en una línea.
-- [ ] 18. **Sprites acoplados** (15 colores, parejas de sprites): `[?]` antes de empezar. Pregunta al usuario si
+- [?] 18. **Sprites acoplados** (15 colores, parejas de sprites): `[?]` antes de empezar. Pregunta al usuario si
       lo quiere ya, porque cambia el formato y la herramienta.
-- [ ] 19. Forja usa las piezas que se fusionen (`[?]` hasta que el usuario las lleve a main de Dash).
+- [?] 19. Forja usa las piezas que se fusionen (`[?]` hasta que el usuario las lleve a main de Dash).
 
 ### F. Mapas de tiles (después de los sprites)
-- [ ] 20. **Diseño.** Los tiles son un BOB de esta herramienta: fotogramas cuadrados, uno por tile. Formato del
+- [?] 20. **Diseño** (hecho en `docs/MAPAS_DISENO.md`; falta que el usuario lo revise y decida lo de su sección 6). Los tiles son un BOB de esta herramienta: fotogramas cuadrados, uno por tile. Formato del
       mapa (propuesta: texto con cabecera y filas de números, que se lee en Dash sin builtins), capas, tiles
       de 8, 16 o 32, y el builtin que pinta un trozo del mapa rápido (`tilemap_draw`). Escribe aquí el diseño
       y déjalo `[?]` para que el usuario lo vea antes de programar.
@@ -656,3 +656,18 @@ a pantalla completa). Lo que falta:
   17-31 no se leen en el emulador, como en la tarea 16). Batería sin emulador bien; runtime de dashc rehecho.
 - Con esto, el código que copia Forja (C) queda en dos líneas por sprite: `sprite_load` y `sprite_load_colors`
   (o `bob_load` y `bob_load_colors`), cuando se fusione (tarea 19).
+
+### 2026-11-03 — Tareas 18, 19 y 20
+- 18 (sprites acoplados) y 19 (que Forja use las piezas de Dash) quedan `[?]`: la 18 pide decidir si se quieren ya;
+  la 19, que el usuario fusione la rama `forja-sprites` de Dash.
+- 20: `docs/MAPAS_DISENO.md`.
+  - El tileset es un BOB del editor de sprites (fotogramas cuadrados; `bob_load` ya sabe su ancho).
+  - El mapa, en un IFF propio `FORM FMAP` (MHDR, TSET, LAYR, OBJS). No en texto: 32.768 números con `str_split`
+    tardan segundos en un 68000. Tiled por JSON, más adelante.
+  - El editor, como el de sprites: zoom, desplazamiento, panel en páginas (tiles, capas, mapa, objetos), lápiz,
+    caja, relleno, cuentagotas, borrar, selección, espejo, capas de choques y de objetos, tiles animados,
+    deshacer y "Código".
+  - En el juego: scroll por hardware pintando solo las tiras nuevas, y `tilemap_draw` en C con el blitter. Las
+    cifras del coste son estimaciones a medir en la fase 1.
+  - Seis fases y cuatro decisiones para el usuario. Queda `[?]`.
+- Lo que queda sin `[?]` es el bloque G (pantallas propias).
