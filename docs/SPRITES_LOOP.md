@@ -327,9 +327,9 @@ a pantalla completa). Lo que falta:
 - [x] 23. **Elegir el modo:** la petición de modo de pantalla de ASL (`dialog_screen_mode`: modo, ancho, alto y
       profundidad) y `screen_open_mode(modo, ancho, alto, planos, título)` con un modo exacto (PAL 320x256 a 32
       colores, AGA, RTG).
-- [ ] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
+- [?] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
       programas que ejecuta salgan ahí (`[?]` si depende de piezas sin fusionar).
-- [ ] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`): `[?]`
+- [?] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`): `[?]`
       antes de empezar. Pregunta si va aquí o con las piezas de juegos.
 
 ## Bitácora
@@ -714,3 +714,26 @@ a pantalla completa). Lo que falta:
   que puede que el emulador esté en ECS. Si es así, lo de "exacto en AGA" de `sprite_rgb8` (tarea 16) tampoco se
   ha visto.
 - Batería sin emulador bien; runtime de dashc rehecho.
+
+### 2026-11-03 — Fin del loop (no quedan tareas sin `[?]`)
+- **24** queda `[?]`: Forja en un clon público necesita `screen_clone_wb` y `mui_window_screen`, que solo están en
+  la rama `forja-sprites` de Dash. Forja se compila con main de Dash. Al hacerla, mirar el botón sin texto de MUI
+  en el clon (tarea 22).
+- **25** queda `[?]`: preguntar si el doble búfer va aquí o con las piezas de juegos (Fragua).
+
+**Resumen.**
+- **Forja, rama `sprites`** (worktree `~/Projects/forja-sprites`): el editor de sprites y BOBs entero (tareas 1 a
+  14). Abre y guarda IFF ILBM (también pinceles de DPaint con ByteRun1); rejilla con zoom; lápiz, línea, caja,
+  relleno, cuentagotas y agarre; paleta con barras R G B; tamaño, colores y tipo; fotogramas con tira, copiar y
+  pegar, espejos y desplazar; piel de cebolla; vista animada; código para usarlo; catálogo inglés, README con
+  capturas. 13 pruebas en el emulador (`tests/sprites_todas.sh`), todas bien. Sin fusionar en main.
+- **Dash, rama `forja-sprites`** (worktree `.worktrees/forja-sprites`): `bob_frame_width` y FRJA en `bob_load`,
+  `gfx_pens_draw`, `color_pen_free`, `sprite_rgb8`, `sprite_load_colors`, `bob_load_colors`, `screen_clone_wb`,
+  `screen_visitors`, `mui_window_screen`, `dialog_screen_mode` y `screen_open_mode`. Fallos arreglados:
+  `gfx_rgb8`, dibujar y los colores en una pantalla propia sin ventana, y `screen_close` con lápices pedidos.
+  Batería 530/530 sin emulador y 783/783 en el emulador (antes de las tres últimas tareas, que pasaron sus pruebas).
+  Sin fusionar en main (que tiene cambios sin commit de otra sesión).
+- **Diseños para revisar:** `docs/JUEGOS_DISENO.md` (Fragua; decididas 1 a 4, falta la 5), `HERRAMIENTAS_DISENO.md`
+  (decidido), `3D_DISENO.md` y `MAPAS_DISENO.md`.
+- **Pendiente del usuario:** fusionar las dos ramas; sprites acoplados (18); escenas forma B; las preguntas del 3D y
+  de los mapas; doble búfer (25).
