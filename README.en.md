@@ -61,6 +61,11 @@ default comes back. It needs a Dash with `screen_make_default`.
   - Layers (Layers page): choose, show or hide, new, remove, back and front. Map (Map page): width, height, zoom,
     grid (G) and tileset.
   - The arrows and the wheel move the view (with Shift, a screen at a time); + and - change the zoom.
+  - Collisions: on the Layers page a layer becomes a collision layer; on it you paint solid, platform, ladder or
+    harm, shown on top as a pattern of colours. The game reads it with `tilemap_get`.
+  - Objects (Objects page): a click puts one of the chosen kind (player, enemy, coin, door, other) or chooses the
+    one there; dragging moves it and Del removes it. They can have a sprite. The game finds them with
+    `tilemap_object_find`.
   - Amiga-Z and Amiga-R undo and redo; C copies the Dash lines that load and draw it.
 
   ![The map editor with a 40 x 20 level](docs/img/mapas.png)

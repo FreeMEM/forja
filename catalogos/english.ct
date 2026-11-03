@@ -503,6 +503,72 @@ The frames of %1 are %2 wide: the map's tiles are another size (8, 16 or 32).
 MSG_199
 Tileset: %1
 ; Tileset: %1
+MSG_200
+Solid
+; Sólido
+MSG_201
+Platform
+; Plataforma
+MSG_202
+Ladder
+; Escalera
+MSG_203
+Harm
+; Daño
+MSG_204
+player
+; jugador
+MSG_205
+enemy
+; enemigo
+MSG_206
+coin
+; moneda
+MSG_207
+door
+; puerta
+MSG_208
+other
+; otro
+MSG_209
+A map has 256 objects at most.
+; Un mapa tiene como mucho 256 objetos.
+MSG_210
+COLLISIONS
+; CHOQUES
+MSG_211
+It has tiles
+; Es de tiles
+MSG_212
+It has collisions (*)
+; Es de choques (*)
+MSG_213
+PUT
+; PONER
+MSG_214
+CHOSEN
+; ELEGIDO
+MSG_215
+None: click on one
+; Ninguno: clic en uno
+MSG_216
+Sprite: %1
+; Sprite: %1
+MSG_217
+Sprite...
+; Sprite...
+MSG_218
+Objects
+; Objetos
+MSG_219
+layer %1 has collisions: it is not drawn; tilemap_get(0, %1, x, y) says what is in cell x, y (1 solid, 2 platform, 3 ladder, 4 harm)
+; la capa %1 es de choques: no se pinta; tilemap_get(0, %1, x, y) dice qué hay en la celda x, y (1 sólido, 2 plataforma, 3 escalera, 4 daño)
+MSG_220
+%1 objects: tilemap_object_find finds the ones of a kind; x and y in pixels of the map
+; %1 objetos: tilemap_object_find busca los de una clase; x e y en píxeles del mapa
+MSG_221
+The object's sprite
+; Sprite del objeto
 MSG_300
 Forja
 ; Forja

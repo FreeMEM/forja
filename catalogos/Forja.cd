@@ -334,6 +334,50 @@ MSG_198 (198//)
 Los fotogramas de %1 miden %2: los tiles del mapa son de otro tamaño (8, 16 o 32).
 MSG_199 (199//)
 Tileset: %1
+MSG_200 (200//)
+Sólido
+MSG_201 (201//)
+Plataforma
+MSG_202 (202//)
+Escalera
+MSG_203 (203//)
+Daño
+MSG_204 (204//)
+jugador
+MSG_205 (205//)
+enemigo
+MSG_206 (206//)
+moneda
+MSG_207 (207//)
+puerta
+MSG_208 (208//)
+otro
+MSG_209 (209//)
+Un mapa tiene como mucho 256 objetos.
+MSG_210 (210//)
+CHOQUES
+MSG_211 (211//)
+Es de tiles
+MSG_212 (212//)
+Es de choques (*)
+MSG_213 (213//)
+PONER
+MSG_214 (214//)
+ELEGIDO
+MSG_215 (215//)
+Ninguno: clic en uno
+MSG_216 (216//)
+Sprite: %1
+MSG_217 (217//)
+Sprite...
+MSG_218 (218//)
+Objetos
+MSG_219 (219//)
+la capa %1 es de choques: no se pinta; tilemap_get(0, %1, x, y) dice qué hay en la celda x, y (1 sólido, 2 plataforma, 3 escalera, 4 daño)
+MSG_220 (220//)
+%1 objetos: tilemap_object_find busca los de una clase; x e y en píxeles del mapa
+MSG_221 (221//)
+Sprite del objeto
 MSG_300 (300//)
 Forja
 MSG_301 (301//)

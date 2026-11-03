@@ -1,6 +1,7 @@
 # Hace de usuario del editor de mapas en Forja con nivel.fmap (40 x 20, dos capas, tiles de 16, el tileset de
 # tests/mapa_ejemplo.py; en 640 x 256 empieza con zoom 1): elige tiles, pinta, espejo, borra, arrastra el lápiz, caja, relleno y deshacer, cuentagotas,
-# una capa nueva, el ancho, el zoom y el desplazamiento, y guarda (Amiga-S). tests/mapas_forja.sh mira el fichero.
+# una capa nueva, el ancho, el zoom y el desplazamiento; la capa nueva pasa a choques y se pinta en ella; pone dos
+# objetos y arrastra uno; y guarda (Amiga-S). tests/mapas_forja.sh mira el fichero.
 # Lo arranca tests/mapas_forja.sh; anota en DH0:Prueba/mapas_forja.txt.
 
 const AMIGA = 8
@@ -149,6 +150,25 @@ Main
         input_move(cx(2), cy(1))
         input_key(DERECHA, 0)
         ver("la flecha mueve la vista", cabecera(9) == "1", sonda()[1])
+        # fase 3: la capa nueva (la segunda) pasa a choques; se pinta una escalera
+        boton(5001)
+        boton(6204)
+        ver("la capa nueva es de choques", cabecera(15) == "1", sonda()[1])
+        boton(5000)
+        boton(2003)
+        input_text("p")
+        input_click(cx(3), cy(1), 0)
+        ver("una escalera en la capa de choques", cabecera(16) == "3" and celda(3, 1) == "3", sonda()[1] + " / " + sonda()[3])
+        # objetos: un enemigo en 5, 2, que se arrastra a 7, 2, y un jugador en 2, 0
+        boton(5003)
+        boton(7001)
+        input_click(cx(5), cy(2), 0)
+        ver("un objeto puesto y elegido", cabecera(17) == "1" and cabecera(18) == "0", sonda()[1])
+        input_drag(cx(5), cy(2), cx(7), cy(2))
+        quieto()
+        boton(7000)
+        input_click(cx(2), cy(0), 0)
+        ver("otro objeto", cabecera(17) == "2" and cabecera(18) == "1", sonda()[1])
         input_key(0x21, AMIGA)
         time_delay(50)
         time_delay(100)

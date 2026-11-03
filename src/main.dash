@@ -253,7 +253,7 @@ func guardar_en(d: Documento, ruta: String) -> Bool
             return false
         end
     elif d.mapa != nil
-        mp_tileset_relativo(d.mapa, cajon_de(ruta))
+        mp_tileset_relativo(d.mapa, mp_cajon_de(ruta))
         if not mp_escribir(d.mapa, ruta)
             avisar(mp_error, 1)
             return false
@@ -983,6 +983,13 @@ func mp_resultado(d: Documento, r: Int)
         elegir_tileset(d)
         return
     end
+    if (r & MP_SPRITE) != 0
+        if file_open_dialog(tr(221, "Sprite del objeto"), SP_PATRON) and mp_objeto_sprite(d.mapa, file_fullpath(), mp_cajon_de(d.ruta))
+            d.cambiado = true
+        end
+        redibujar()
+        return
+    end
     if (r & SP_CODIGO) != 0
         if d.ruta == ""
             avisar(tr(196, "Guarda el mapa primero: el código lleva el nombre de su fichero."), 1)
@@ -1033,9 +1040,9 @@ func elegir_tileset(d: Documento)
     end
     tilemap_set_tileset(m.id, ruta)
     if d.ruta != ""
-        mp_tileset_relativo(m, cajon_de(d.ruta))
+        mp_tileset_relativo(m, mp_cajon_de(d.ruta))
     end
-    if mp_leer_tileset(m, cajon_de(d.ruta))
+    if mp_leer_tileset(m, mp_cajon_de(d.ruta))
         d.cambiado = true
         avisar(hueco(tr(199, "Tileset: %1"), tilemap_tileset(m.id)), 2)
     else

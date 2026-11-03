@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """El mapa de ejemplo de las pruebas del editor de mapas: un tileset de 6 tiles de 16 (hierba, tierra, ladrillo,
-agua, nube y una moneda) y un mapa de 40 x 20 con dos capas (fondo y delante) que los usa.
+agua, nube y una moneda) y un mapa de 40 x 20 que los usa, con dos capas (fondo y delante), una de choques (el suelo
+sólido, los ladrillos plataforma y el agua daño) y unos objetos (el jugador, dos enemigos y una puerta).
 
     python3 tests/mapa_ejemplo.py tiles.txt capas.txt
 
@@ -46,4 +47,7 @@ for y in range(20):
         if y == 7 and 18 <= x < 22:
             d = 6
         delante.append(d)
-open(sys.argv[2], "w").write("fondo:" + ",".join(map(str, fondo)) + " delante:" + ",".join(map(str, delante)))
+choques = [1 if v in (1, 2) else (2 if v == 3 else (4 if v == 4 else 0)) for v in fondo]
+objetos = " @32,192,jugador @160,192,enemigo @400,144,enemigo @592,160,puerta"
+open(sys.argv[2], "w").write("fondo:" + ",".join(map(str, fondo)) + " delante:" + ",".join(map(str, delante)) +
+                             " choques!:" + ",".join(map(str, choques)) + objetos)

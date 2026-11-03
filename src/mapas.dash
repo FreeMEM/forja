@@ -40,6 +40,32 @@ struct Mapa
     rehacer: [MpPaso]
     vista_zoom: Int = 0   # con qué zoom y lápices están hechos los BOB de la vista (0: hay que hacerlos)
     vista_pens: String = ""
+    choque: Int = 1       # el tipo de choque que se pinta en una capa de choques (MP_SOLIDO...)
+    clase: String = ""    # la clase de los objetos que se ponen ("" hasta el primer dibujo: la primera de mp_clases)
+    objeto: Int = -1      # el objeto elegido
+end
+
+# Las capas de choques (tipo 1): cada celda dice qué es para el juego. Se pintan encima con una trama de colores
+const MP_TIPO_TILES = 0
+const MP_TIPO_CHOQUES = 1
+const MP_SOLIDO = 1
+const MP_PLATAFORMA = 2      # se cruza desde abajo
+const MP_ESCALERA = 3
+const MP_DANO = 4
+const MP_BOB_CHOQUES = 22    # el BOB de las tramas, de los cuatro tipos (uno para todos los mapas)
+
+func mp_nombre_choque(c: Int) -> String
+    nombres = [tr(200, "Sólido"), tr(201, "Plataforma"), tr(202, "Escalera"), tr(203, "Daño")]
+    return nombres[c - 1]
+end
+
+# Las clases de objeto que ofrece el editor (el juego busca los suyos por este texto: tilemap_object_find)
+func mp_clases() -> [String]
+    return [tr(204, "jugador"), tr(205, "enemigo"), tr(206, "moneda"), tr(207, "puerta"), tr(208, "otro")]
+end
+
+func mp_es_choques(m: Mapa, capa: Int) -> Bool
+    return tilemap_layer_type(m.id, capa) == MP_TIPO_CHOQUES
 end
 
 # Un paso de deshacer: las celdas que cambiaron (capa, índice y valor de antes y de después), o el mapa entero
@@ -88,7 +114,7 @@ func mp_nuevo(ancho: Int, alto: Int, tile: Int) -> Mapa
 end
 
 # El cajón de una ruta, con su ":" o "/" del final ("" si no tiene)
-func _mp_cajon(ruta: String) -> String
+func mp_cajon_de(ruta: String) -> String
     i = ruta.length - 1
     while i >= 0
         c = ruta[i:i + 1]
@@ -137,7 +163,7 @@ func mp_leer(ruta: String) -> Mapa
     end
     m = _mp_mapa(id)
     mp_error = ""
-    mp_leer_tileset(m, _mp_cajon(ruta))
+    mp_leer_tileset(m, mp_cajon_de(ruta))
     return m
 end
 
@@ -290,8 +316,11 @@ end
 
 # --- Herramientas (sin ventana: las pruebas las llaman directamente) ---
 
-# El valor que pone el lápiz: el tile elegido con su espejo
+# El valor que pone el lápiz: el tile elegido con su espejo (en una capa de choques, el tipo de choque)
 func mp_valor(m: Mapa) -> Int
+    if mp_es_choques(m, m.capa)
+        return m.choque
+    end
     if m.tile == 0
         return 0
     end
@@ -405,6 +434,17 @@ func mp_capa_mover(m: Mapa, d: Int) -> Bool
     return true
 end
 
+# La capa actual pasa de tiles a choques y al revés (con su paso de deshacer)
+func mp_capa_tipo(m: Mapa)
+    mp_apuntar_todo(m)
+    t = MP_TIPO_CHOQUES
+    if mp_es_choques(m, m.capa)
+        t = MP_TIPO_TILES
+    end
+    tilemap_layer_set(m.id, m.capa, tilemap_layer_name(m.id, m.capa), t, tilemap_layer_visible(m.id, m.capa))
+    mp_cerrar_paso(m)
+end
+
 func mp_capa_ver(m: Mapa, capa: Int)
     tilemap_layer_set(m.id, capa, tilemap_layer_name(m.id, capa), tilemap_layer_type(m.id, capa), not tilemap_layer_visible(m.id, capa))
 end
@@ -424,12 +464,72 @@ func mp_tamano(m: Mapa, ancho: Int, alto: Int) -> Bool
     return true
 end
 
+# --- Objetos (puntos del mapa en píxeles, con su clase; tilemap_object_* de Dash) ---
+
+# El objeto que tiene el píxel px, py del mapa (cada uno ocupa una celda desde su esquina); -1 si ninguno. El de
+# más arriba es el último
+func mp_objeto_en(m: Mapa, px: Int, py: Int) -> Int
+    ts = tilemap_tile_size(m.id)
+    i = tilemap_objects(m.id) - 1
+    while i >= 0
+        ox = tilemap_object_x(m.id, i)
+        oy = tilemap_object_y(m.id, i)
+        if px >= ox and py >= oy and px < ox + ts and py < oy + ts
+            return i
+        end
+        i = i - 1
+    end
+    return -1
+end
+
+# Un objeto de la clase elegida en la celda cx, cy (con su paso de deshacer): queda elegido
+func mp_objeto_poner(m: Mapa, cx: Int, cy: Int) -> Bool
+    ts = tilemap_tile_size(m.id)
+    mp_apuntar_todo(m)
+    i = tilemap_object_add(m.id, cx * ts, cy * ts, m.clase)
+    if i < 0
+        _mp_paso = nil
+        mp_error = tr(209, "Un mapa tiene como mucho 256 objetos.")
+        return false
+    end
+    mp_cerrar_paso(m)
+    m.objeto = i
+    return true
+end
+
+func mp_objeto_quitar(m: Mapa) -> Bool
+    if m.objeto < 0 or m.objeto >= tilemap_objects(m.id)
+        return false
+    end
+    mp_apuntar_todo(m)
+    tilemap_object_remove(m.id, m.objeto)
+    mp_cerrar_paso(m)
+    m.objeto = -1
+    return true
+end
+
+# El sprite del objeto elegido (su fichero, relativo al mapa si está en su cajón)
+func mp_objeto_sprite(m: Mapa, ruta: String, cajon: String) -> Bool
+    i = m.objeto
+    if i < 0 or i >= tilemap_objects(m.id)
+        return false
+    end
+    n = ruta
+    if cajon != "" and str_lower(mp_cajon_de(ruta)) == str_lower(cajon)
+        n = ruta[cajon.length:]
+    end
+    mp_apuntar_todo(m)
+    tilemap_object_set(m.id, i, tilemap_object_kind(m.id, i), tilemap_object_name(m.id, i), n)
+    mp_cerrar_paso(m)
+    return true
+end
+
 # --- Para las pruebas ---
 
-# "ancho alto tile capas capa tile_elegido espejo herramienta zoom vx vy tiles deshacer rehacer página", y una
-# línea por fila de la capa que se edita, con las celdas separadas por comas
+# "ancho alto tile capas capa tile_elegido espejo herramienta zoom vx vy tiles deshacer rehacer página tipo_capa
+# choque objetos objeto_elegido", y una línea por fila de la capa que se edita, con las celdas separadas por comas
 func mp_sonda(m: Mapa) -> String
-    t = "#{tilemap_width(m.id)} #{tilemap_height(m.id)} #{tilemap_tile_size(m.id)} #{tilemap_layers(m.id)} #{m.capa} #{m.tile} #{m.espejo} #{m.herramienta} #{m.zoom} #{m.vx} #{m.vy} #{mp_tiles(m)} #{m.deshacer.length} #{m.rehacer.length} #{mp_pagina}"
+    t = "#{tilemap_width(m.id)} #{tilemap_height(m.id)} #{tilemap_tile_size(m.id)} #{tilemap_layers(m.id)} #{m.capa} #{m.tile} #{m.espejo} #{m.herramienta} #{m.zoom} #{m.vx} #{m.vy} #{mp_tiles(m)} #{m.deshacer.length} #{m.rehacer.length} #{mp_pagina} #{tilemap_layer_type(m.id, m.capa)} #{m.choque} #{tilemap_objects(m.id)} #{m.objeto}"
     y = 0
     while y < tilemap_height(m.id)
         f = ""
@@ -472,9 +572,16 @@ const MP_A_CAPA_QUITAR = 6201
 const MP_A_CAPA_SUBIR = 6202
 const MP_A_CAPA_BAJAR = 6203
 
+const MP_A_CHOQUE = 2000        # + el tipo de choque
+const MP_A_CAPA_TIPO = 6204
+const MP_A_CLASE = 7000         # + la clase de objeto (en mp_clases)
+const MP_A_OBJ_QUITAR = 7100
+const MP_A_OBJ_SPRITE = 7101    # elegir el sprite del objeto: lo hace main.dash
+
 const MP_PAG_TILES = 0
 const MP_PAG_CAPAS = 1
 const MP_PAG_MAPA = 2
+const MP_PAG_OBJETOS = 3
 var mp_pagina: Int = 0
 
 var mp_mensaje: String = ""
@@ -660,6 +767,159 @@ func _mp_preparar_vista(m: Mapa)
     m.vista_pens = clave
 end
 
+# El BOB de las tramas de choques: un fotograma por tipo, del lado de una celda, con el borde de arriba y de la
+# izquierda y un píxel de cada cuatro del color del tipo; el resto, transparente
+var _mp_choques_clave: String = ""
+var _mp_pens_choques: [Int] = []
+
+func _mp_preparar_choques(m: Mapa)
+    if _mp_pens_choques.length == 0
+        _mp_pens_choques = [color_pen(230, 60, 50), color_pen(240, 200, 40), color_pen(60, 200, 80), color_pen(220, 60, 220)]
+    end
+    ts = tilemap_tile_size(m.id)
+    clave = "#{ts} #{m.zoom}"
+    if clave == _mp_choques_clave
+        return
+    end
+    planos = rtg_get_depth()
+    if planos > 8
+        planos = 8
+    end
+    bob_free(MP_BOB_CHOQUES)
+    if not bob_create(MP_BOB_CHOQUES, 4 * ts * m.zoom, ts * m.zoom, planos)
+        return
+    end
+    n = ts * ts
+    if n > _mp_buf_largo
+        if _mp_buf != 0
+            buffer_free(_mp_buf)
+        end
+        _mp_buf = buffer_alloc(n)
+        _mp_buf_largo = n
+    end
+    bitmap_draw_to(MP_BOB_CHOQUES)
+    t = 0
+    while t < 4
+        i = 0
+        while i < n
+            c = 0
+            if ((i % ts) % 2 == 0 and (i / ts) % 2 == 0) or i % ts == 0 or i / ts == 0
+                c = _mp_pens_choques[t]
+            end
+            buffer_set_byte(_mp_buf, i, c)
+            i = i + 1
+        end
+        gfx_pens_draw(_mp_buf, ts, ts, t * ts * m.zoom, 0, m.zoom)
+        t = t + 1
+    end
+    bitmap_draw_screen()
+    _mp_choques_clave = clave
+end
+
+# Los sprites de los objetos, leídos una vez (su ruta, el sprite y sus lápices)
+var _mp_spr_rutas: [String] = []
+var _mp_spr: [Sprite] = []
+var _mp_spr_pens: [[Int]] = []
+
+func _mp_sprite_objeto(ruta: String) -> Int
+    i = 0
+    while i < _mp_spr_rutas.length
+        if _mp_spr_rutas[i] == ruta
+            return i
+        end
+        i = i + 1
+    end
+    s = sp_leer(ruta)
+    var pens: [Int] = []
+    if s != nil
+        c = 0
+        while c < sp_colores(s)
+            pens.push(color_pen((s.paleta[c] >> 16) & 255, (s.paleta[c] >> 8) & 255, s.paleta[c] & 255))
+            c = c + 1
+        end
+    end
+    _mp_spr_rutas.push(ruta)
+    _mp_spr.push(s)
+    _mp_spr_pens.push(pens)
+    return _mp_spr.length - 1
+end
+
+var mp_cajon: String = ""        # el cajón del mapa que se dibuja (para los sprites de los objetos)
+
+# Un objeto en x, y de la ventana: el primer fotograma de su sprite (sin el color 0), o un marco con su inicial
+func _mp_pintar_objeto(m: Mapa, i: Int, x: Int, y: Int)
+    lado = mp_lado(m)
+    z = m.zoom
+    n = tilemap_object_sprite(m.id, i)
+    hecho = false
+    if n != ""
+        ruta = n
+        if not str_contains(n, ":")
+            ruta = mp_cajon + n
+        end
+        k = _mp_sprite_objeto(ruta)
+        s = _mp_spr[k]
+        if s != nil
+            pens = _mp_spr_pens[k]
+            px = s.fotos[0]
+            fy = 0
+            while fy < s.alto
+                fx = 0
+                while fx < s.ancho
+                    c = px[fy * s.ancho + fx]
+                    e = fx + 1
+                    while e < s.ancho and px[fy * s.ancho + e] == c
+                        e = e + 1
+                    end
+                    if c != 0
+                        gfx_pen(pens[c])
+                        gfx_rect(x + fx * z, y + fy * z, x + e * z - 1, y + fy * z + z - 1)
+                    end
+                    fx = e
+                end
+                fy = fy + 1
+            end
+            hecho = true
+        end
+    end
+    if not hecho
+        gfx_pen(tema.acento)
+        gfx_rect(x + 1, y + 1, x + lado - 2, y + 1)
+        gfx_rect(x + 1, y + lado - 2, x + lado - 2, y + lado - 2)
+        gfx_rect(x + 1, y + 1, x + 1, y + lado - 2)
+        gfx_rect(x + lado - 2, y + 1, x + lado - 2, y + lado - 2)
+        k = tilemap_object_kind(m.id, i)
+        if k != "" and lado >= 10
+            usar_panel(0)
+            gfx_pen(tema.texto)
+            l = str_upper(k[0:1])
+            gfx_text_at(x + (lado - font_text_width(l)) / 2, y + (lado - font_height()) / 2 + font_baseline(), l)
+        end
+    end
+    if i == m.objeto
+        gfx_pen(tema.cursor)
+        gfx_rect(x, y, x + lado - 1, y)
+        gfx_rect(x, y + lado - 1, x + lado - 1, y + lado - 1)
+        gfx_rect(x, y, x, y + lado - 1)
+        gfx_rect(x + lado - 1, y, x + lado - 1, y + lado - 1)
+    end
+end
+
+# Los objetos cuya celda está en el rectángulo de celdas de la vista
+func _mp_pintar_objetos(m: Mapa, c0: Int, f0: Int, cols: Int, filas: Int)
+    ts = tilemap_tile_size(m.id)
+    lado = mp_lado(m)
+    i = 0
+    while i < tilemap_objects(m.id)
+        c = tilemap_object_x(m.id, i) / ts - m.vx
+        f = tilemap_object_y(m.id, i) / ts - m.vy
+        if c >= c0 and f >= f0 and c < c0 + cols and f < f0 + filas
+            _mp_pintar_objeto(m, i, _mp_gx + c * lado, _mp_gy + f * lado)
+        end
+        i = i + 1
+    end
+end
+
 # Las capas que se ven, de una celda o de un rectángulo de celdas (en celdas de la vista)
 func _mp_pintar_celdas(m: Mapa, c0: Int, f0: Int, cols: Int, filas: Int)
     lado = mp_lado(m)
@@ -670,7 +930,9 @@ func _mp_pintar_celdas(m: Mapa, c0: Int, f0: Int, cols: Int, filas: Int)
     primera = true
     l = 0
     while l < tilemap_layers(m.id)
-        if tilemap_layer_visible(m.id, l)
+        if tilemap_layer_visible(m.id, l) and mp_es_choques(m, l)
+            tilemap_draw_masked(m.id, l, MP_BOB_CHOQUES, m.vx + c0, m.vy + f0, cols, filas, x, y)
+        elif tilemap_layer_visible(m.id, l)
             if m.tileset == nil
                 _mp_pintar_sin_tileset(m, l, c0, f0, cols, filas)
             elif primera
@@ -682,6 +944,7 @@ func _mp_pintar_celdas(m: Mapa, c0: Int, f0: Int, cols: Int, filas: Int)
         end
         l = l + 1
     end
+    _mp_pintar_objetos(m, c0, f0, cols, filas)
     if m.rejilla and lado >= 8
         gfx_pen(tema.borde)
         c = 0
@@ -842,6 +1105,22 @@ func _mp_dibujar_tiles(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int)
     _mp_boton_texto(x, y, x + bw2 - 1, y + bh - 1, tr(168, "Espejo H"), (m.espejo & MP_ESPEJO_H) != 0, MP_A_ESPEJO_H)
     _mp_boton_texto(x + bw2 + 2, y, x + ancho - 1, y + bh - 1, tr(169, "Espejo V"), (m.espejo & MP_ESPEJO_V) != 0, MP_A_ESPEJO_V)
     y = y + bh + 6
+    if mp_es_choques(m, m.capa)
+        y = _mp_titulo(x, y, tr(210, "CHOQUES"))
+        usar_panel(0)
+        c = 1
+        while c <= 4
+            _mp_boton_texto(x + bh + 2, y, x + ancho - 1, y + bh - 1, mp_nombre_choque(c), c == m.choque, MP_A_CHOQUE + c)
+            if _mp_pens_choques.length == 4
+                gfx_pen(_mp_pens_choques[c - 1])
+                gfx_rect(x, y, x + bh - 1, y + bh - 1)
+            end
+            _mp_boton(x, y, x + bh - 1, y + bh - 1, MP_A_CHOQUE + c)
+            y = y + bh + 2
+            c = c + 1
+        end
+        return
+    end
     y = _mp_titulo(x, y, tr(170, "TILES"))
     usar_panel(0)
     if m.tileset == nil
@@ -891,7 +1170,11 @@ func _mp_dibujar_capas(m: Mapa, x: Int, y: Int, ancho: Int)
             v = "oo"
         end
         _mp_boton_texto(x, y, x + ojo - 1, y + bh - 1, v, false, MP_A_CAPA_VER + l)
-        _mp_boton_texto(x + ojo + 2, y, x + ancho - 1, y + bh - 1, "#{l + 1} " + tilemap_layer_name(m.id, l), l == m.capa, MP_A_CAPA + l)
+        nombre = "#{l + 1} " + tilemap_layer_name(m.id, l)
+        if mp_es_choques(m, l)
+            nombre = nombre + " *"
+        end
+        _mp_boton_texto(x + ojo + 2, y, x + ancho - 1, y + bh - 1, nombre, l == m.capa, MP_A_CAPA + l)
         y = y + bh + 2
         l = l + 1
     end
@@ -902,6 +1185,54 @@ func _mp_dibujar_capas(m: Mapa, x: Int, y: Int, ancho: Int)
     y = y + bh + 2
     _mp_boton_texto(x, y, x + bw - 1, y + bh - 1, tr(175, "Atrás"), false, MP_A_CAPA_SUBIR)
     _mp_boton_texto(x + bw + 2, y, x + ancho - 1, y + bh - 1, tr(176, "Delante"), false, MP_A_CAPA_BAJAR)
+    y = y + bh + 6
+    tipo = tr(211, "Es de tiles")
+    if mp_es_choques(m, m.capa)
+        tipo = tr(212, "Es de choques (*)")
+    end
+    _mp_boton_texto(x, y, x + ancho - 1, y + bh - 1, tipo, false, MP_A_CAPA_TIPO)
+end
+
+# Las clases para poner objetos y el objeto elegido
+func _mp_dibujar_objetos(m: Mapa, x: Int, y: Int, ancho: Int)
+    y = _mp_titulo(x, y, tr(213, "PONER"))
+    usar_panel(0)
+    bh = font_height() + 4
+    bw = (ancho - 2) / 2
+    clases = mp_clases()
+    i = 0
+    while i < clases.length
+        bx = x + (i % 2) * (bw + 2)
+        _mp_boton_texto(bx, y, bx + bw - 1, y + bh - 1, clases[i], clases[i] == m.clase, MP_A_CLASE + i)
+        if i % 2 == 1
+            y = y + bh + 2
+        end
+        i = i + 1
+    end
+    if clases.length % 2 == 1
+        y = y + bh + 2
+    end
+    y = y + 4
+    y = _mp_titulo(x, y, tr(214, "ELEGIDO"))
+    usar_panel(0)
+    gfx_pen(tema.texto)
+    if m.objeto < 0 or m.objeto >= tilemap_objects(m.id)
+        gfx_pen(tema.tenue)
+        gfx_text_at(x, y + font_baseline(), tr(215, "Ninguno: clic en uno"))
+        return
+    end
+    i = m.objeto
+    gfx_text_at(x, y + font_baseline(), "#{i + 1}: " + tilemap_object_kind(m.id, i) + " (#{tilemap_object_x(m.id, i)}, #{tilemap_object_y(m.id, i)})")
+    y = y + font_height() + 2
+    n = tilemap_object_sprite(m.id, i)
+    if n == ""
+        n = tr(184, "(ninguno)")
+    end
+    gfx_pen(tema.tenue)
+    gfx_text_at(x, y + font_baseline(), hueco(tr(216, "Sprite: %1"), n))
+    y = y + font_height() + 4
+    _mp_boton_texto(x, y, x + bw - 1, y + bh - 1, tr(217, "Sprite..."), false, MP_A_OBJ_SPRITE)
+    _mp_boton_texto(x + bw + 2, y, x + ancho - 1, y + bh - 1, tr(174, "Quitar"), false, MP_A_OBJ_QUITAR)
 end
 
 # Tamaño, zoom, rejilla, tileset y el código
@@ -935,7 +1266,7 @@ func _mp_dibujar_panel(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     usar_panel(0)
-    nombres = [tr(187, "Tiles"), tr(188, "Capas"), tr(189, "Mapa")]
+    nombres = [tr(187, "Tiles"), tr(188, "Capas"), tr(189, "Mapa"), tr(218, "Objetos")]
     bh = font_height() + 4
     bw = (ancho - 12) / nombres.length
     i = 0
@@ -949,6 +1280,8 @@ func _mp_dibujar_panel(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int)
         _mp_dibujar_capas(m, x + 6, y2, ancho - 12)
     elif mp_pagina == MP_PAG_MAPA
         _mp_dibujar_mapa(m, x + 6, y2, ancho - 12)
+    elif mp_pagina == MP_PAG_OBJETOS
+        _mp_dibujar_objetos(m, x + 6, y2, ancho - 12)
     else
         _mp_dibujar_tiles(m, x + 6, y2, ancho - 12, y + alto - y2 - 4)
     end
@@ -983,6 +1316,10 @@ func mp_dibujar(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
     end
     _mp_preparar_pens(m)
     _mp_preparar_vista(m)
+    _mp_preparar_choques(m)
+    if m.clase == ""
+        m.clase = mp_clases()[0]
+    end
     _mp_bx1 = []
     _mp_by1 = []
     _mp_bx2 = []
@@ -1019,6 +1356,10 @@ end
 # MP_TILESET (pedir el tileset con la petición de ficheros).
 
 const MP_TILESET = 32
+const MP_SPRITE = 64            # pedir el sprite del objeto elegido con la petición de ficheros
+
+var _mp_moviendo: Bool = false  # arrastrando un objeto
+var _mp_movido: Bool = false
 
 var _mp_trazando: Bool = false
 var _mp_valor_trazo: Int = 0
@@ -1088,7 +1429,29 @@ func _mp_accion(m: Mapa, a: Int, teclas: Int) -> Int
     elif a == MP_A_ESPEJO_V
         m.espejo = m.espejo ^ MP_ESPEJO_V
         return SP_TODO
-    elif a >= MP_A_PAGINA and a < MP_A_PAGINA + 3
+    elif a >= MP_A_CHOQUE and a < MP_A_CHOQUE + 5
+        m.choque = a - MP_A_CHOQUE
+        if m.herramienta == MP_BORRAR or m.herramienta == MP_GOTAS
+            m.herramienta = MP_LAPIZ
+        end
+        return SP_TODO
+    elif a == MP_A_CAPA_TIPO
+        mp_capa_tipo(m)
+        return SP_TODO | SP_CAMBIO
+    elif a >= MP_A_CLASE and a < MP_A_CLASE + 100
+        m.clase = mp_clases()[a - MP_A_CLASE]
+        return SP_TODO
+    elif a == MP_A_OBJ_QUITAR
+        if mp_objeto_quitar(m)
+            return SP_TODO | SP_CAMBIO
+        end
+        return 0
+    elif a == MP_A_OBJ_SPRITE
+        if m.objeto >= 0
+            return MP_SPRITE
+        end
+        return 0
+    elif a >= MP_A_PAGINA and a < MP_A_PAGINA + 4
         mp_pagina = a - MP_A_PAGINA
         return SP_TODO
     elif a >= MP_A_CAPA_VER and a < MP_A_CAPA_VER + 8
@@ -1177,11 +1540,37 @@ func mp_clic(m: Mapa, x: Int, y: Int, teclas: Int) -> Int
         end
         return _mp_accion(m, a, teclas)
     end
+    if mp_pagina == MP_PAG_OBJETOS
+        # en la página de objetos, un clic elige el objeto (y arrastrando se mueve) o pone uno nuevo
+        ts = tilemap_tile_size(m.id)
+        lado = mp_lado(m)
+        px = m.vx * ts + (x + _mp_zx - _mp_gx) * ts / lado
+        py = m.vy * ts + (y + _mp_zy - _mp_gy) * ts / lado
+        i = mp_objeto_en(m, px, py)
+        if i >= 0
+            m.objeto = i
+            mp_apuntar_todo(m)
+            _mp_moviendo = true
+            _mp_movido = false
+            return SP_TODO
+        end
+        if mp_objeto_poner(m, _mp_cx, _mp_cy)
+            return SP_TODO | SP_CAMBIO
+        end
+        return _mp_accion(m, -1, 0)
+    end
     h = m.herramienta
     if (teclas & SP_Q_ALT) != 0
         h = MP_BORRAR
     elif (teclas & SP_Q_CTRL) != 0
         h = MP_GOTAS
+    end
+    if h == MP_GOTAS and mp_es_choques(m, m.capa)
+        v = tilemap_get(m.id, m.capa, _mp_cx, _mp_cy)
+        if v >= 1 and v <= 4
+            m.choque = v
+        end
+        return SP_TODO
     end
     if h == MP_GOTAS
         v = tilemap_get(m.id, m.capa, _mp_cx, _mp_cy)
@@ -1225,6 +1614,22 @@ func mp_arrastrar(m: Mapa, x: Int, y: Int, soltado: Bool) -> Int
     ux = _mp_cx
     uy = _mp_cy
     dentro = _mp_celda(m, x, y)
+    if _mp_moviendo
+        ts = tilemap_tile_size(m.id)
+        if dentro and (tilemap_object_x(m.id, m.objeto) != _mp_cx * ts or tilemap_object_y(m.id, m.objeto) != _mp_cy * ts)
+            tilemap_object_move(m.id, m.objeto, _mp_cx * ts, _mp_cy * ts)
+            _mp_movido = true
+        end
+        if soltado
+            _mp_moviendo = false
+            if _mp_movido
+                mp_cerrar_paso(m)
+                return SP_TODO | SP_CAMBIO
+            end
+            _mp_paso = nil
+        end
+        return SP_TODO
+    end
     if _mp_figura
         if soltado
             _mp_figura = false
@@ -1297,6 +1702,12 @@ func mp_tecla(m: Mapa, codigo: Int, teclas: Int, letra: String) -> Int
         end
         return mp_mover_vista(m, 0, -paso)
     end
+    if codigo == SP_T_SUPRIMIR and mp_pagina == MP_PAG_OBJETOS
+        if mp_objeto_quitar(m)
+            return SP_TODO | SP_CAMBIO
+        end
+        return 0
+    end
     l = str_lower(letra)
     if letra.length != 1
         return 0
@@ -1359,8 +1770,26 @@ func mp_codigo(m: Mapa, fichero: String) -> String
     t = t + "tilemap_draw(0, 0, 1, 0, 0, #{320 / ts}, #{256 / ts}, 0, 0)\n"
     l = 1
     while l < tilemap_layers(m.id)
-        t = t + "tilemap_draw_masked(0, #{l}, 1, 0, 0, #{320 / ts}, #{256 / ts}, 0, 0)\n"
+        if mp_es_choques(m, l)
+            t = t + "# " + hueco(tr(219, "la capa %1 es de choques: no se pinta; tilemap_get(0, %1, x, y) dice qué hay en la celda x, y (1 sólido, 2 plataforma, 3 escalera, 4 daño)"), "#{l}") + "\n"
+        else
+            t = t + "tilemap_draw_masked(0, #{l}, 1, 0, 0, #{320 / ts}, #{256 / ts}, 0, 0)\n"
+        end
         l = l + 1
+    end
+    if tilemap_objects(m.id) > 0
+        t = t + "# " + hueco(tr(220, "%1 objetos: tilemap_object_find busca los de una clase; x e y en píxeles del mapa"), "#{tilemap_objects(m.id)}") + "\n"
+        vistas = ""
+        i = 0
+        while i < tilemap_objects(m.id)
+            k = tilemap_object_kind(m.id, i)
+            if not str_contains(vistas, "|" + k + "|")
+                vistas = vistas + "|" + k + "|"
+                t = t + "o = tilemap_object_find(0, \"" + k + "\", 0)\n"
+                t = t + "while o >= 0\n    # " + k + ": tilemap_object_x(0, o), tilemap_object_y(0, o)\n    o = tilemap_object_find(0, \"" + k + "\", o + 1)\nend\n"
+            end
+            i = i + 1
+        end
     end
     return t
 end
@@ -1368,7 +1797,7 @@ end
 # El tileset, por su nombre solo si está en el cajón del mapa (al guardar o al elegirlo)
 func mp_tileset_relativo(m: Mapa, cajon: String)
     n = tilemap_tileset(m.id)
-    if cajon != "" and str_lower(_mp_cajon(n)) == str_lower(cajon)
+    if cajon != "" and str_lower(mp_cajon_de(n)) == str_lower(cajon)
         tilemap_set_tileset(m.id, n[cajon.length:])
     end
 end

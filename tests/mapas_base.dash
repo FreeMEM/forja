@@ -49,12 +49,29 @@ Main
     m.capa = 1
     ver("quitar la capa", mp_capa_quitar(m) and tilemap_layers(m.id) == 1 and m.capa == 0)
     ver("la única no se quita", not mp_capa_quitar(m))
+    mp_capa_tipo(m)
+    ver("la capa pasa a choques", mp_es_choques(m, 0))
+    m.choque = MP_ESCALERA
+    mp_apuntar(m)
+    ver("en una capa de choques se pinta el tipo", mp_poner(m, 0, 3, 3, mp_valor(m)) and mp_celda(m, 0, 3, 3) == 3)
+    mp_cerrar_paso(m)
+    ver("deshacer la celda y el tipo de capa", mp_deshacer(m) and mp_deshacer(m) and not mp_es_choques(m, 0))
+    m.clase = "moneda"
+    ver("un objeto en la celda 2, 3", mp_objeto_poner(m, 2, 3) and tilemap_objects(m.id) == 1 and tilemap_object_x(m.id, 0) == 32 and tilemap_object_y(m.id, 0) == 48 and m.objeto == 0)
+    ver("está en su celda", mp_objeto_en(m, 40, 50) == 0 and mp_objeto_en(m, 47, 63) == 0 and mp_objeto_en(m, 48, 50) == -1 and mp_objeto_en(m, 31, 50) == -1)
+    m.clase = "jugador"
+    mp_objeto_poner(m, 0, 0)
+    ver("otro, el elegido", tilemap_objects(m.id) == 2 and m.objeto == 1)
+    ver("su sprite, relativo al mapa", mp_objeto_sprite(m, "RAM:nave.iff", "RAM:") and tilemap_object_sprite(m.id, 1) == "nave.iff")
+    ver("quitarlo", mp_objeto_quitar(m) and tilemap_objects(m.id) == 1)
+    ver("deshacer: vuelve", mp_deshacer(m) and tilemap_objects(m.id) == 2 and tilemap_object_kind(m.id, 1) == "jugador")
     tilemap_set_tileset(m.id, "tiles.iff")
     ver("guardar", mp_escribir(m, "RAM:prueba.fmap"))
     ver("es un mapa", mp_es_mapa("RAM:prueba.fmap"))
     mp_cerrar(m)
     m2 = mp_leer("RAM:prueba.fmap")
     ver("leerlo", m2 != nil and tilemap_width(m2.id) == 20 and mp_celda(m2, 0, 2, 1) == 3 + 16384 and mp_celda(m2, 0, 5, 5) == 7)
+    ver("con sus objetos", m2 != nil and tilemap_objects(m2.id) == 2 and tilemap_object_sprite(m2.id, 1) == "nave.iff")
     ver("sin el tileset: lo dice", m2 != nil and m2.tileset == nil and str_contains(mp_error, "tiles.iff"))
     if fallos == 0
         Print "TODO BIEN"

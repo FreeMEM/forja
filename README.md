@@ -61,6 +61,11 @@ ejecuta salen ahí. Al salir, vuelve a serlo la de antes. Necesita un Dash con `
   - Capas (página Capas): elegir, ver u ocultar, nueva, quitar, atrás y delante. Mapa (página Mapa): ancho, alto,
     zoom, rejilla (G) y tileset.
   - Las flechas y la rueda mueven la vista (con Mayúsculas, de pantalla en pantalla); + y - cambian el zoom.
+  - Choques: en la página Capas, una capa pasa a ser de choques; en ella se pinta sólido, plataforma, escalera o
+    daño, que se ven encima como una trama de colores. El juego lo lee con `tilemap_get`.
+  - Objetos (página Objetos): un clic pone uno de la clase elegida (jugador, enemigo, moneda, puerta, otro) o elige
+    el que hay; arrastrando se mueve y Supr lo quita. Pueden llevar un sprite. El juego los busca con
+    `tilemap_object_find`.
   - Amiga-Z y Amiga-R deshacen y rehacen; C copia las líneas de Dash que lo cargan y lo pintan.
 
   ![El editor de mapas con un nivel de 40 x 20](docs/img/mapas.png)

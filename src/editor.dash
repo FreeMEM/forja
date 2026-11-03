@@ -1232,6 +1232,7 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         ed_zona_y = y
         ed_zona_ancho = ancho
         ed_zona_alto = alto
+        mp_cajon = mp_cajon_de(d.ruta)
         mp_dibujar(d.mapa, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
         ed_ms_dibujo = mp_ms_dibujo
         return

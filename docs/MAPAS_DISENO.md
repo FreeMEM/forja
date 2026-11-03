@@ -136,6 +136,21 @@ que un fotograma del BOB (el editor tiene zoom haciendo un BOB mayor) y las celd
 - Deshacer: las celdas tocadas; los cambios de tamaño o de capas guardan el mapa entero en `RAM:`.
 - Pruebas: `mapas_base` y `mapas_forja` (con `tests/fmap.py`, que también escribe mapas para las pruebas).
 
-Pendiente para la fase 3 en adelante: las capas de choques y de objetos, la selección y los bloques de tiles,
-los tiles animados, y elegir el zoom de la vista sin depender del alto de la pantalla.
+Pendiente: la selección y los bloques de tiles, los tiles animados, y elegir el zoom de la vista sin depender del
+alto de la pantalla.
+
+## 9. Fase 3 (hecha, 2026-11-03)
+
+- **Choques:** una capa de tipo 1 (`tilemap_layer_type`). Sus celdas: 1 sólido, 2 plataforma (se cruza desde
+  abajo), 3 escalera, 4 daño. En el editor, la página Capas cambia el tipo de la capa elegida; en una capa de
+  choques, la página Tiles ofrece los cuatro tipos. Se pintan encima con `tilemap_draw_masked` y un BOB de tramas
+  (el borde y un píxel de cada cuatro del color del tipo). No se guardan aparte: es una capa más del FMAP.
+- **Objetos:** del mapa entero, no de una capa. En Dash (rama `mapas-objetos`): el trozo `OBJS` y
+  `tilemap_object_add`, `_remove`, `_move`, `_set`, `_find`, `_x`, `_y`, `_kind`, `_name` y `_sprite` (hasta 256,
+  en píxeles). En el editor, la página Objetos: la clase (jugador, enemigo, moneda, puerta, otro), un clic pone o
+  elige, arrastrar mueve (de celda en celda), Supr quita, y "Sprite..." le da un sprite, que se ve con su primer
+  fotograma; sin sprite, un marco con la inicial de la clase.
+- Deshacer de los objetos y del tipo de capa: el mapa entero, como los cambios de tamaño.
+- "Código" añade cómo leer los choques y un bucle por cada clase de objeto con `tilemap_object_find`.
+- Pruebas: `mapas_base` y `mapas_forja` ampliadas; `tests/fmap.py` lee y escribe objetos y capas de choques.
 
