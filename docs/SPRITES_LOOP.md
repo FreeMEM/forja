@@ -328,7 +328,7 @@ a pantalla completa). Lo que falta:
       colores, AGA, RTG).
 - [ ] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
       programas que ejecuta salgan ahí (`[?]` si depende de piezas sin fusionar).
-- [ ] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`). Decidido el
+- [x] 25. **Doble búfer de pantalla** para juegos y demos (`AllocScreenBuffer`/`ChangeScreenBuffer`). Decidido el
       2026-11-03: va en Dash, y Fragua lo usa.
 
 ## Bitácora
@@ -753,3 +753,9 @@ a pantalla completa). Lo que falta:
 - Forja: un sprite de hardware con 4 planos es acoplado (`sp_acoplado`). T pasa de BOB a sprite, a acoplado y a
   BOB. FRJA sigue con tipo 1. El código copiado usa `sprite_load_attached` y `sprite_load_colors`. Textos 139-144.
   `ventana.sh` con ACOPLADO=1 abre uno de ejemplo. Pruebas: sprites_iff y sprites_tamano bien.
+
+### 2026-11-03: tarea 25, doble búfer
+- Dash (rama `doble-bufer`, sin fusionar): `screen_double_buffer()` y `screen_flip()` (AllocScreenBuffer y
+  ChangeScreenBuffer, V39). Se dibuja en el búfer escondido; screen_flip lo enseña y espera a que el otro deje de
+  verse. screen_close vuelve al bitmap de la pantalla. Falso sin pantalla propia, en una pública o antes de 3.0.
+  Pruebas `test_screen_double_buffer` y `_shot` (captura: se ve el búfer enseñado). Batería 537/537 y 804/804.
