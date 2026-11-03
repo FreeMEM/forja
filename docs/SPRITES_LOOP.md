@@ -324,7 +324,7 @@ a pantalla completa). Lo que falta:
       la cierre bien cuando aún tiene ventanas de otros (esperar o avisar). Test y doc.
 - [x] 22. **Ventanas MUI normales en una pantalla pública:** `mui_window_screen(win, nombre)` (o
       `mui_app_screen(nombre)` para toda la aplicación). Prueba: una aplicación MUI con dos ventanas en el clon.
-- [ ] 23. **Elegir el modo:** la petición de modo de pantalla de ASL (`dialog_screen_mode`: modo, ancho, alto y
+- [x] 23. **Elegir el modo:** la petición de modo de pantalla de ASL (`dialog_screen_mode`: modo, ancho, alto y
       profundidad) y `screen_open_mode(modo, ancho, alto, planos, título)` con un modo exacto (PAL 320x256 a 32
       colores, AGA, RTG).
 - [ ] 24. **Forja en su pantalla:** preferencia para abrir Forja en un clon público del Workbench, y que los
@@ -697,3 +697,20 @@ a pantalla completa). Lo que falta:
 - **Visto en la captura, sin mirar:** el botón "_Aceptar" de la primera ventana sale sin texto en el clon. Puede
   ser de los lápices del clon con MUI o de MUI sin preferencias en este sistema. Pendiente para la tarea 24, que
   pondrá Forja (MUI) en su pantalla.
+
+### 2026-11-03 — Tarea 23 (Dash: elegir el modo de pantalla)
+- `dialog_screen_mode(título)`: la petición de modo de pantalla de ASL, empezando en el modo del Workbench, con
+  ancho, alto y profundidad. Cierto si se eligió. `screen_mode_id()`, `_width()`, `_height()` y `_depth()` dan lo
+  elegido (una función `_dash_screen_mode_get`, porque el analizador no admite builtins que sean solo una
+  variable). `screen_open_mode(modo, ancho, alto, planos, título)`: `SA_DisplayID` exacto; falso si
+  `ModeNotAvailable` o si no se abre.
+- **Error mío corregido:** escribí que 0x29000 era PAL de baja resolución. Es la de alta (`PAL_MONITOR_ID` 0x21000
+  + `HIRES_KEY` 0x8000); la de baja es 0x21000. Con 0x29000 y 5 planos no abría y parecía un fallo.
+- Test `tests/test_screen_mode.dash`: PAL baja resolución 320x256 con 5 planos abre (y mide eso); un modo que no
+  existe da falso. **La petición no está en el runner:** espera al usuario. Las teclas de una tarea de
+  `task_start` no le llegan, y Return no es su OK. Comprobada a mano con otro programa (por Startup-Extra) que hace
+  clic en OK: cierto, modo 0x29000, 640x200x2. Captura de la petición mandada al usuario.
+- **Pregunta abierta:** esta máquina A1200 del emulador no da más de 4 planos en alta resolución. AGA da 8, así
+  que puede que el emulador esté en ECS. Si es así, lo de "exacto en AGA" de `sprite_rgb8` (tarea 16) tampoco se
+  ha visto.
+- Batería sin emulador bien; runtime de dashc rehecho.
