@@ -1,5 +1,5 @@
 # Hace de usuario del editor de mapas en Forja con nivel.fmap (40 x 20, dos capas, tiles de 16, el tileset de
-# tests/ventana.sh): elige tiles, pinta, espejo, borra, arrastra el lápiz, caja, relleno y deshacer, cuentagotas,
+# tests/mapa_ejemplo.py; en 640 x 256 empieza con zoom 1): elige tiles, pinta, espejo, borra, arrastra el lápiz, caja, relleno y deshacer, cuentagotas,
 # una capa nueva, el ancho, el zoom y el desplazamiento, y guarda (Amiga-S). tests/mapas_forja.sh mira el fichero.
 # Lo arranca tests/mapas_forja.sh; anota en DH0:Prueba/mapas_forja.txt.
 
@@ -51,6 +51,21 @@ func cabecera(i: Int) -> String
     return str_split(sonda()[1], " ")[i]
 end
 
+# Espera a que Forja haya hecho lo último (la sonda deja de cambiar) y la devuelve
+func quieto() -> [String]
+    a = sonda()
+    n = 0
+    while n < 20
+        b = sonda()
+        if b.length == a.length and b[1] == a[1] and (b.length < 3 or b[2] == a[2])
+            return b
+        end
+        a = b
+        n = n + 1
+    end
+    return a
+end
+
 # La celda x, y de la capa que se edita
 func celda(x: Int, y: Int) -> String
     return str_split(sonda()[y + 2], ",")[x]
@@ -67,6 +82,7 @@ end
 
 # Un clic en el botón de esa acción del panel (FORJA_MAPA_BOTONES: "acción,x,y ...")
 func boton(accion: Int) -> Bool
+    quieto()
     for b in str_split(str_trim(env_get("FORJA_MAPA_BOTONES")), " ")
         p = str_split(b, ",")
         if p.length == 3 and Int(p[0]) == accion
@@ -89,9 +105,10 @@ Main
         ver("la ventana de Forja aparece con el mapa", false, "")
     else
         input_move(cx(5), cy(5))
-        ver("nivel.fmap: 40 x 20, tiles de 16, 2 capas, 6 tiles, zoom 2", str_starts(sonda()[1], "40 20 16 2 0 1 0 0 2 0 0 6 0 0"), sonda()[1])
+        ver("nivel.fmap: 40 x 20, tiles de 16, 2 capas, 6 tiles, zoom 1", str_starts(sonda()[1], "40 20 16 2 0 1 0 0 1 0 0 6 0 0"), sonda()[1])
         boton(1003)
         ver("el tile 3 del panel", cabecera(5) == "3", sonda()[1])
+        anotar("(dibujo: " + env_get("FORJA_DIBUJO") + " ms)")
         input_click(cx(1), cy(1), 0)
         ver("pintar la celda 1, 1", celda(1, 1) == "3", sonda()[3])
         input_text("h")
@@ -104,6 +121,7 @@ Main
         input_text("p")
         boton(1002)
         input_drag(cx(0), cy(3), cx(4), cy(3))
+        anotar("(dibujo: " + env_get("FORJA_DIBUJO") + " ms)")
         ver("arrastrar el lápiz: una fila de tiles 2", celda(0, 3) == "2" and celda(2, 3) == "2" and celda(4, 3) == "2" and celda(5, 3) == "0", sonda()[5])
         input_text("b")
         input_drag(cx(6), cy(2), cx(8), cy(4))
@@ -111,12 +129,14 @@ Main
         input_text("f")
         boton(1004)
         input_click(cx(12), cy(0), 0)
+        quieto()
         ver("F: el relleno llena el cielo", celda(12, 0) == "4" and celda(1, 1) == "4" and celda(19, 8) == "3" and celda(7, 3) == "2", sonda()[2])
         input_key(0x31, AMIGA)
         ver("deshacer el relleno de una vez", celda(12, 0) == "0" and celda(1, 1) == "0", sonda()[2])
+        quieto()
         input_text("k")
-        input_click(cx(19), cy(8), 0)
-        ver("K: el cuentagotas coge el ladrillo", cabecera(5) == "3", sonda()[1])
+        input_click(cx(7), cy(3), 0)
+        ver("K: el cuentagotas coge el tile de la caja", cabecera(5) == "2" and cabecera(7) == "3", sonda()[1])
         boton(5001)
         ver("la página Capas", cabecera(14) == "1", sonda()[1])
         boton(6200)
@@ -124,9 +144,9 @@ Main
         boton(5002)
         boton(4001)
         ver("el ancho, uno más", cabecera(0) == "41", sonda()[1])
-        boton(4004)
-        ver("zoom 1", cabecera(8) == "1", sonda()[1])
-        input_move(cx(5), cy(5))
+        boton(4005)
+        ver("zoom 2", cabecera(8) == "2", sonda()[1])
+        input_move(cx(2), cy(1))
         input_key(DERECHA, 0)
         ver("la flecha mueve la vista", cabecera(9) == "1", sonda()[1])
         input_key(0x21, AMIGA)
@@ -135,6 +155,11 @@ Main
     end
     if fallos == 0
         anotar("TODO BIEN")
+    else
+        e = file_read_text("RAM:forja-eventos.txt")
+        if e != nil
+            anotar("eventos: " + e)
+        end
     end
     activar()
     input_key(0x10, AMIGA)

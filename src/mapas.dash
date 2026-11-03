@@ -32,7 +32,7 @@ struct Mapa
     tile: Int             # el elegido (1 el primero)
     espejo: Int           # 0, MP_ESPEJO_H, MP_ESPEJO_V o los dos
     herramienta: Int
-    zoom: Int             # 1, 2 o 4
+    zoom: Int             # 1, 2 o 4 (0: aún no se ha dibujado; el primer dibujo elige 2 si caben 8 filas, si no 1)
     vx: Int               # la celda de arriba a la izquierda de la vista
     vy: Int
     rejilla: Bool
@@ -70,7 +70,7 @@ end
 func _mp_mapa(id: Int) -> Mapa
     var d: [MpPaso] = []
     var r: [MpPaso] = []
-    return Mapa(id, nil, 0, 1, 0, MP_LAPIZ, 2, 0, 0, true, d, r)
+    return Mapa(id, nil, 0, 1, 0, MP_LAPIZ, 0, 0, 0, true, d, r)
 end
 
 func mp_nuevo(ancho: Int, alto: Int, tile: Int) -> Mapa
@@ -975,6 +975,12 @@ func mp_dibujar(m: Mapa, x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
     t0 = time_ms()
     _mp_zx = x
     _mp_zy = y - arriba
+    if m.zoom == 0
+        m.zoom = 2
+        if (alto - font_height() - 14) / (tilemap_tile_size(m.id) * 2) < 8
+            m.zoom = 1
+        end
+    end
     _mp_preparar_pens(m)
     _mp_preparar_vista(m)
     _mp_bx1 = []
