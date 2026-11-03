@@ -29,7 +29,8 @@
 #
 # Cerrar una pestaña o salir con cambios sin guardar pregunta: Guardar, Descartar o Cancelar.
 #
-# Las imágenes IFF ILBM se abren en el editor de sprites (sprites.dash); Amiga-B crea un sprite de hardware o un BOB.
+# Las imágenes IFF ILBM se abren en el editor de sprites (sprites.dash); Amiga-B crea un sprite de hardware, un BOB
+# o un mapa de tiles. Los .fmap (IFF FORM FMAP) se abren en el editor de mapas (mapas.dash).
 #
 # Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar. Con ENV:FORJA_SONDA, para un programa que
 # hace de usuario (tests/teclas.dash, tests/ficheros.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y

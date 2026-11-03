@@ -53,6 +53,17 @@ default comes back. It needs a Dash with `screen_make_default`.
   - C copies to the clipboard the Dash lines that load it, with its colours and how to animate it.
 
   ![The sprite editor with a 4-frame ship](docs/img/sprites-en.png)
+- **Tile maps**: `.fmap` files (IFF `FORM FMAP`) open in the map editor, and Amiga-B also makes a new map. The
+  tileset is a BOB from the sprite editor, with one frame a tile of 8, 16 or 32; the map keeps its name. Dash's
+  `tilemap_load` and `tilemap_draw` load and draw them.
+  - Tools: P pencil, B box, F fill, K pick, E erase. Alt + click erases; Ctrl + click picks the tile. H and V
+    mirror the tile; comma and full stop change the tile. In the panel, the Tiles page chooses the tile.
+  - Layers (Layers page): choose, show or hide, new, remove, back and front. Map (Map page): width, height, zoom,
+    grid (G) and tileset.
+  - The arrows and the wheel move the view (with Shift, a screen at a time); + and - change the zoom.
+  - Amiga-Z and Amiga-R undo and redo; C copies the Dash lines that load and draw it.
+
+  ![The map editor with a 40 x 20 level](docs/img/mapas.png)
 
 ### ARexx
 

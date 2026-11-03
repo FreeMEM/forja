@@ -52,6 +52,12 @@ sprite (compila el `.dash` abierto) y prueba Inferencia; `iff.py` comprueba el f
 con 16x16, 32x32 y 64x64 (píxeles casi al azar, lo peor) y una bola de 32x32 (como un sprite de verdad).
 `REAL=1` para los tiempos de un A1200; `RTG=1` para ver los colores en las capturas.
 
+Editor de mapas (`docs/MAPAS_DISENO.md`): `tests/mapas_base.sh <Dash>` prueba `src/mapas.dash` sin ventana
+(celdas, caja, relleno, capas, tamaño, deshacer, guardar y leer). `tests/mapas_forja.sh <Dash>`: `tests/mapas_forja.dash`
+elige tiles, pinta, pone espejo, borra, arrastra el lápiz, hace una caja y un relleno, deshace, usa el cuentagotas,
+crea una capa, cambia el ancho y el zoom, mueve la vista y guarda; `tests/fmap.py` mira el fichero guardado.
+`tests/mapa_ejemplo.py` hace el tileset y el mapa de ejemplo; `MAPA=1 tests/ventana.sh ...` lo abre para capturas.
+
 `tests/pantalla.sh <worktree de Dash>`: `tests/pantalla.dash` arranca Forja con la preferencia de su propia
 pantalla y comprueba que Forja está en `FORJA`, que es la pública por defecto, que un programa que no dice pantalla
 abre ahí su ventana, y que al salir la pantalla se cierra y vuelve el Workbench. Necesita un Dash con

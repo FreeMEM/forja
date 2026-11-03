@@ -124,3 +124,18 @@ Conclusiones:
   blitter en un A1200 sin memoria Fast (300 ms frente a 170). Los bitmaps entrelazados bajaron de 170 a 130.
 - Para ir más rápido haría falta programar el blitter directamente; queda para la fase 5 si hace falta.
 
+## 8. Fase 2 (hecha, 2026-11-03)
+
+El editor en Forja (`src/mapas.dash`). Lo de la fase 1 cambió un poco para él: en `tilemap_draw` cada celda mide lo
+que un fotograma del BOB (el editor tiene zoom haciendo un BOB mayor) y las celdas vacías dejan ver lo de debajo.
+- Abre y guarda `.fmap`; Amiga-B crea un mapa (y pide el tileset: un mapa nuevo toma el lado de sus tiles).
+- Vista con zoom 1, 2 o 4 (el primero, 2 si caben 8 filas; si no, 1), rejilla, flechas y rueda. Hasta 4 mapas
+  abiertos a la vez: cada uno usa dos BOB de Dash para verse (con los lápices de la pantalla: uno con el color 0
+  del tema para la primera capa, otro con el color 0 transparente para las demás).
+- Panel: Tiles (herramientas, espejos, el tileset), Capas y Mapa (ancho, alto, zoom, rejilla, tileset, código).
+- Deshacer: las celdas tocadas; los cambios de tamaño o de capas guardan el mapa entero en `RAM:`.
+- Pruebas: `mapas_base` y `mapas_forja` (con `tests/fmap.py`, que también escribe mapas para las pruebas).
+
+Pendiente para la fase 3 en adelante: las capas de choques y de objetos, la selección y los bloques de tiles,
+los tiles animados, y elegir el zoom de la vista sin depender del alto de la pantalla.
+

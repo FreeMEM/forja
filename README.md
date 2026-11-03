@@ -53,6 +53,17 @@ ejecuta salen ahí. Al salir, vuelve a serlo la de antes. Necesita un Dash con `
   - C copia al portapapeles las líneas de Dash que lo cargan, con sus colores y cómo animarlo.
 
   ![El editor de sprites con una nave de 4 fotogramas](docs/img/sprites.png)
+- **Mapas de tiles**: los ficheros `.fmap` (IFF `FORM FMAP`) se abren en el editor de mapas, y Amiga-B también
+  crea un mapa nuevo. El tileset es un BOB del editor de sprites, con un fotograma por tile de 8, 16 o 32; el mapa
+  guarda su nombre. `tilemap_load` y `tilemap_draw` de Dash los cargan y los pintan.
+  - Herramientas: P lápiz, B caja, F relleno, K cuentagotas, E borrar. Alt + clic borra; Ctrl + clic coge el tile.
+    H y V ponen el tile en espejo; la coma y el punto cambian de tile. En el panel, la página Tiles elige el tile.
+  - Capas (página Capas): elegir, ver u ocultar, nueva, quitar, atrás y delante. Mapa (página Mapa): ancho, alto,
+    zoom, rejilla (G) y tileset.
+  - Las flechas y la rueda mueven la vista (con Mayúsculas, de pantalla en pantalla); + y - cambian el zoom.
+  - Amiga-Z y Amiga-R deshacen y rehacen; C copia las líneas de Dash que lo cargan y lo pintan.
+
+  ![El editor de mapas con un nivel de 40 x 20](docs/img/mapas.png)
 
 ### ARexx
 
