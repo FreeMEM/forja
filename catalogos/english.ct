@@ -354,154 +354,154 @@ MSG_145
 its colours, the file's, in the screen's palette (colour 0, the transparent one, is the background)
 ; sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)
 MSG_150
-
+There are already %1 maps open: close one.
 ; Ya hay %1 mapas abiertos: cierra uno.
 MSG_151
-
+There is no memory for the map.
 ; No hay memoria para el mapa.
 MSG_152
-
+background
 ; fondo
 MSG_153
-
+Cannot read the tileset %1: 
 ; No se puede leer el tileset %1: 
 MSG_154
-
+The tileset %1 has frames of %2: they are not this map's tiles.
 ; El tileset %1 tiene fotogramas de %2: no son los tiles de este mapa.
 MSG_155
-
+It is not a tile map (FORM FMAP), or it is cut short.
 ; No es un mapa de tiles (FORM FMAP), o está cortado.
 MSG_156
-
+Cannot save the map.
 ; No se puede guardar el mapa.
 MSG_157
-
+A map has 8 layers at most.
 ; Un mapa tiene como mucho 8 capas.
 MSG_158
-
+layer %1
 ; capa %1
 MSG_159
-
+It is the only layer.
 ; Es la única capa.
 MSG_160
-
+Pencil
 ; Lápiz
 MSG_161
-
+Box
 ; Caja
 MSG_162
-
+Fill
 ; Relleno
 MSG_163
-
+Pick
 ; Gotas
 MSG_164
-
+Erase
 ; Borrar
 MSG_165
-
+Map %1, tiles of %2
 ; Mapa %1, tiles de %2
 MSG_166
-
+layer %1: %2
 ; capa %1: %2
 MSG_167
-
+tile %1
 ; tile %1
 MSG_168
-
+Mirror H
 ; Espejo H
 MSG_169
-
+Mirror V
 ; Espejo V
 MSG_170
-
+TILES
 ; TILES
 MSG_171
-
+No tileset (Map page)
 ; Sin tileset (página Mapa)
 MSG_172
-
+LAYERS
 ; CAPAS
 MSG_173
-
+New
 ; Nueva
 MSG_174
-
+Remove
 ; Quitar
 MSG_175
-
+Back
 ; Atrás
 MSG_176
-
+Front
 ; Delante
 MSG_177
-
+MAP
 ; MAPA
 MSG_178
-
+Width
 ; Ancho
 MSG_179
-
+Height
 ; Alto
 MSG_180
-
+Zoom
 ; Zoom
 MSG_181
-
+Tiles of %1
 ; Tiles de %1
 MSG_182
-
+Grid (G)
 ; Rejilla (G)
 MSG_183
-
+TILESET
 ; TILESET
 MSG_184
-
+(none)
 ; (ninguno)
 MSG_185
-
+Choose tileset...
 ; Elegir tileset...
 MSG_186
-
+Copy the code (C)
 ; Copiar el código (C)
 MSG_187
-
+Tiles
 ; Tiles
 MSG_188
-
+Layers
 ; Capas
 MSG_189
-
+Map
 ; Mapa
 MSG_190
-
+map of %1 tiles of %2
 ; mapa de %1 tiles de %2
 MSG_191
-
+layers
 ; capas
 MSG_192
-
+the tileset's colours, in the screen's palette
 ; los colores del tileset, en la paleta de la pantalla
 MSG_193
-
+draw the screen (here, 320 x 256 of tiles of %1): layer 0 and the others on top
 ; pintar la pantalla (aquí, 320 x 256 de tiles de %1): la capa 0 y las demás encima
 MSG_194
-
+A tile map: a grid of tiles from a tileset (a BOB with one frame a tile).
 ; Un mapa de tiles: una rejilla de tiles de un tileset (un BOB con un fotograma por tile).
 MSG_195
-
+_Sprite|_BOB|_Map|_Cancel
 ; _Sprite|_BOB|_Mapa|_Cancelar
 MSG_196
-
+Save the map first: the code has its file name.
 ; Guarda el mapa primero: el código lleva el nombre de su fichero.
 MSG_197
-
+The map's tileset
 ; Tileset del mapa
 MSG_198
-
+The frames of %1 are %2 wide: the map's tiles are another size (8, 16 or 32).
 ; Los fotogramas de %1 miden %2: los tiles del mapa son de otro tamaño (8, 16 o 32).
 MSG_199
-
+Tileset: %1
 ; Tileset: %1
 MSG_300
 Forja
