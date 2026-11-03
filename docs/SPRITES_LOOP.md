@@ -322,7 +322,7 @@ a pantalla completa). Lo que falta:
 - [x] 21. **Clon del Workbench, público.** Una pantalla igual que la del Workbench (modo, tamaño, profundidad,
       colores, lápices y fuente), pública y con nombre. `screen_clone_wb(nombre)` o con opciones; que Intuition
       la cierre bien cuando aún tiene ventanas de otros (esperar o avisar). Test y doc.
-- [ ] 22. **Ventanas MUI normales en una pantalla pública:** `mui_window_screen(win, nombre)` (o
+- [x] 22. **Ventanas MUI normales en una pantalla pública:** `mui_window_screen(win, nombre)` (o
       `mui_app_screen(nombre)` para toda la aplicación). Prueba: una aplicación MUI con dos ventanas en el clon.
 - [ ] 23. **Elegir el modo:** la petición de modo de pantalla de ASL (`dialog_screen_mode`: modo, ancho, alto y
       profundidad) y `screen_open_mode(modo, ancho, alto, planos, título)` con un modo exacto (PAL 320x256 a 32
@@ -684,3 +684,16 @@ a pantalla completa). Lo que falta:
   nombre` abierta por nombre cuenta como visita y, al cerrarla, la pantalla se cierra. Lo de "nombre ya usado" no
   queda probado aparte: la segunda llamada da falso porque el programa ya tiene pantalla. Captura mandada al
   usuario. Batería sin emulador y tests de pantallas bien; runtime de dashc rehecho.
+
+### 2026-11-03 — Tarea 22 (Dash: ventanas MUI en una pantalla pública)
+- `mui_window_screen(ventana, nombre)`: `MUIA_Window_PublicScreen` antes de abrir. MUI guarda el puntero al
+  nombre, así que se guarda una copia (8 nombres). Falso si no hay pantalla pública con ese nombre: la ventana se
+  queda en la de siempre. No se hizo `mui_app_screen`: con una por ventana basta, y Forja pondrá la suya.
+- `screen_visitors()` cuenta lo que cuenta Intuition: ventanas y bloqueos (MUI bloquea la pantalla además de
+  abrir la ventana: dos ventanas dieron 4). Descripciones corregidas.
+- Test `tests/test_mui_window_screen.dash` (con MUI): dos ventanas en el clon, en la misma pantalla, con visitas
+  mientras están abiertas y 0 al cerrarlas; un nombre sin pantalla da falso. Las 11 pruebas de pantallas con
+  `--emu` y la batería sin emulador, bien. Captura mandada al usuario.
+- **Visto en la captura, sin mirar:** el botón "_Aceptar" de la primera ventana sale sin texto en el clon. Puede
+  ser de los lápices del clon con MUI o de MUI sin preferencias en este sistema. Pendiente para la tarea 24, que
+  pondrá Forja (MUI) en su pantalla.
