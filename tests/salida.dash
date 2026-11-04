@@ -1,0 +1,168 @@
+# Hace de usuario de Forja en el emulador: ejecuta un programa que escribe 60 líneas y prueba la salida (incidencias
+# 2 y 3): se ve lo último, la barra la sube, un clic elige una línea y Amiga-C la copia, arrastrando se eligen
+# varias, y abre las preferencias (con sus botones Elegir...). Lo arranca tests/salida.sh; anota en
+# DH0:Prueba/salida.txt.
+
+const ESPERA_DECIMAS = 1800      # 3 minutos: dashc en un 68020
+const AMIGA = 8
+const CTRL = 2
+const ARRIBA = 0x4C
+const ABAJO = 0x4D
+const RETURN = 0x44
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/salida.txt", registro)
+end
+
+func fallo(texto: String)
+    anotar("FALLO: " + texto)
+    fallos = fallos + 1
+end
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        fallo(paso)
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func leer(fichero: String) -> String
+    t = file_read_text(fichero)
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text(fichero)
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# Espera a que la salida tenga ese texto
+func esperar_salida(texto: String) -> Bool
+    n = 0
+    while n < ESPERA_DECIMAS
+        if str_contains(leer("RAM:forja-salida.txt"), texto)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    fallo("la salida no llega a \"" + texto + "\": [" + leer("RAM:forja-salida.txt") + "]")
+    return false
+end
+
+
+# El índice de la línea de la salida que es exactamente ese texto (-1 si no está)
+func linea_de(texto: String) -> Int
+    lineas = str_split(leer("RAM:forja-salida.txt"), "\n")
+    i = 0
+    while i < lineas.length
+        if lineas[i] == texto
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+func y_de_linea(i: Int) -> Int
+    fila = campo("FORJA_SALIDA", 2)
+    return campo("FORJA_SALIDA", 1) + (i - campo("FORJA_SALIDA", 3)) * fila + fila / 2
+end
+
+Main
+    n = 0
+    while n < ESPERA_DECIMAS and not (env_get("FORJA_SALIDA") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= ESPERA_DECIMAS
+        fallo("la ventana de Forja no aparece")
+    else
+        al_editor()
+        input_key(0x20, AMIGA)
+        for l in ["Main", "i = 0", "while i < 60", "Print i", "i = i + 1", "end", "end"]
+            input_text(l)
+            input_key(RETURN, 0)
+        end
+        input_key(0x21, AMIGA)
+        time_delay(20)
+        input_key(0x12, AMIGA)
+        if esperar_salida("acabó con código")
+            time_delay(20)
+            total = campo("FORJA_SALIDA", 4)
+            primera = campo("FORJA_SALIDA", 3)
+            anotar("salida: #{total} líneas, se ve desde la #{primera}")
+            ver("se ve lo último de la salida", total > 60 and primera > 0)
+            # un clic en la primera línea que se ve y Amiga-C (en 640x256 la salida es pequeña)
+            lineas = str_split(leer("RAM:forja-salida.txt"), "\n")
+            i = primera
+            input_click(campo("FORJA_SALIDA", 0) + 40, y_de_linea(i), 0)
+            time_delay(10)
+            input_key(0x33, AMIGA)
+            time_delay(10)
+            c = clip_read_text()
+            ver("Amiga-C copia la línea elegida [" + c + "]", c == latin1_to_utf8(lineas[i] + "\n"))
+            # arrastrando de esa a la siguiente
+            input_drag(campo("FORJA_SALIDA", 0) + 40, y_de_linea(i), campo("FORJA_SALIDA", 0) + 40, y_de_linea(i + 1))
+            time_delay(10)
+            input_key(0x33, AMIGA)
+            time_delay(10)
+            c = clip_read_text()
+            ver("arrastrando se copian dos líneas [" + c + "]", c == latin1_to_utf8(lineas[i] + "\n" + lineas[i + 1] + "\n"))
+            # un clic arriba en la barra de la salida (a la derecha del todo): sube una página
+            xb = campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) + 8
+            input_click(xb, campo("FORJA_SALIDA", 1) + 4, 0)
+            time_delay(20)
+            despues = campo("FORJA_SALIDA", 3)
+            anotar("tras la barra se ve desde la #{despues}")
+            ver("la barra sube la salida", despues < primera)
+            # en el editor, Amiga-C vuelve a ser del editor: no copia la salida
+            al_editor()
+            input_click(campo("FORJA_EDITOR", 0) + 60, campo("FORJA_EDITOR", 1) + 25, 0)
+            input_key(0x20, AMIGA)
+            input_key(0x33, AMIGA)
+            time_delay(10)
+            c = clip_read_text()
+            ver("tras un clic en el editor, Amiga-C copia el editor", str_contains(c, "while i < 60"))
+            # las preferencias (las abre la sonda: ENV:FORJA_PREFERENCIAS), con su compilador
+            env_set("FORJA_PREFERENCIAS", "1", false)
+            input_click(campo("FORJA_EDITOR", 0) + 60, campo("FORJA_EDITOR", 1) + 25, 0)
+            time_delay(40)
+            ver("se abren las preferencias", str_contains(input_active_title(), "Forja") and input_active_title() != "Forja")
+            anotar("ventana: " + input_active_title())
+        end
+        time_delay(100)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+end

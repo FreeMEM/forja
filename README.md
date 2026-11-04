@@ -14,7 +14,8 @@ castellano o en inglés, según el idioma de las Preferencias de Locale (el cat�
 - AmigaOS 3.0 o mejor, con un 68020 o mejor, y MUI 3.8 o 5.
 - Dash 2.2 o posterior para el Amiga: el paquete `dash-X.Y.Z-amiga.lha` de
   [Dash](https://github.com/FreeMEM/dash/releases) trae la orden `dash` y también Forja, y su instalador lo deja
-  todo listo. Forja busca el compilador en `ENV:Forja/dashc`, o como `dash` en el camino de órdenes.
+  todo listo. Forja busca el compilador en `ENV:Forja/dashc` (en Preferencias, con un botón para elegirlo), si no en
+  `DASH:dash` y si no como `dash` en el camino de órdenes.
 - Para el botón Inferencia, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
 - Los colores de la sintaxis se ven mejor con más de 4 colores en la pantalla.
 
@@ -31,9 +32,11 @@ ejecuta salen ahí. Al salir, vuelve a serlo la de antes. Necesita un Dash con `
   de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Tab y Mayúsculas+Tab
   sangran. Deshacer (Amiga-Z), rehacer (Amiga-R), cortar, copiar y pegar con el portapapeles del sistema.
 - **Ficheros**: pestañas; Amiga-N, Amiga-O, Amiga-S, Amiga-W. El panel de la izquierda abre los ficheros del cajón
-  con un clic. Al cerrar con cambios, pregunta.
+  con un clic; la rueda y su barra lo mueven. Al cerrar con cambios, pregunta.
 - **Buscar y cambiar** (Amiga-F) e **ir a la línea** (Amiga-L).
-- **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea.
+- **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea. La salida
+  guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
+  Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...".
 - **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen; F5 seguir, F10 paso, F6 entrar, F7
   salir. A la izquierda, la pila y las variables.
 - **Ventanas `.dashui`**: se abren en el editor de ventanas (Amiga-D cambia a texto). El árbol de objetos y sus

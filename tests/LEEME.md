@@ -23,6 +23,11 @@ programa (Amiga-E: compila con dashc y lo ejecuta; su salida debe tener "Naves: 
 (Amiga-K) y hace clic en el error de la salida: el cursor debe ir a su línea. dashc para el Amiga sale de
 `make amiga` en `dashc/` de Dash.
 
+`tests/salida.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/salida.dash` ejecuta un programa que escribe 60
+líneas y prueba la salida: se ve lo último, su barra la sube, un clic elige una línea y Amiga-C la copia, arrastrando
+se eligen varias, un clic en el editor devuelve Amiga-C al editor; y abre las preferencias (con `ENV:FORJA_PREFERENCIAS`,
+que solo mira la sonda).
+
 `tests/rexx.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/rexx.dash` maneja Forja por su puerto ARexx
 (ABRIR, ABIERTO, SELECCION, CAMBIAR, TEXTO, GUARDAR, COMPILAR, ERRORES, EJECUTAR). La prueba con Inferencia a la vez
 está en el repo de Inferencia: `FORJA=~/Projects/forja PERMISO=Si tests/usuario.sh <worktree> tests/juntos.dash`.

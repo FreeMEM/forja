@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja-sprites/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -378,6 +378,12 @@ MSG_220 (220//)
 %1 objetos: tilemap_object_find busca los de una clase; x e y en píxeles del mapa
 MSG_221 (221//)
 Sprite del objeto
+MSG_222 (222//)
+Guardar la salida
+MSG_223 (223//)
+El compilador de Dash
+MSG_224 (224//)
+Inferencia
 MSG_300 (300//)
 Forja
 MSG_301 (301//)
@@ -471,7 +477,7 @@ _Ir
 MSG_345 (345//)
 Preferencias de Forja
 MSG_346 (346//)
-dashc:
+Compilador (dash):
 MSG_347 (347//)
 Inferencia:
 MSG_348 (348//)
@@ -486,3 +492,11 @@ MSG_352 (352//)
 Nuevo sprite...
 MSG_353 (353//)
 En su propia pantalla (al arrancar):
+MSG_354 (354//)
+Copiar la salida
+MSG_355 (355//)
+Guardar la salida...
+MSG_356 (356//)
+Elegir...
+MSG_357 (357//)
+Elegir...

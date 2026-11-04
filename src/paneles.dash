@@ -10,6 +10,8 @@ var proyecto_fila: Int = 14
 var proyecto_y0: Int = 0                # la y de la primera fila, desde la esquina de la zona
 var proyecto_zona_x: Int = 0
 var proyecto_zona_y: Int = 0
+var proyecto_desde: Int = 0             # la primera entrada que se ve (la barra y la rueda la mueven)
+var proyecto_caben: Int = 1             # las que caben a la vez
 # Al depurar, el panel del proyecto enseña la pila y las variables (estas líneas)
 var depuracion_lineas: [String] = []
 var depuracion_tipos: [Int] = []      # 0 título, 1 normal, 2 la de ahora
@@ -23,6 +25,10 @@ var salida_y0: Int = 0            # la y de la primera fila, desde la esquina de
 var salida_fila: Int = 10
 var salida_zona_x: Int = 0
 var salida_zona_y: Int = 0
+var salida_atras: Int = 0         # cuántas líneas se ha subido desde el final (0: se ve lo último)
+var salida_caben: Int = 1         # las líneas que caben a la vez
+var salida_sel_a: Int = -1        # las líneas elegidas (arrastrando en la salida), de a a b; -1 sin elegir
+var salida_sel_b: Int = -1
 
 func ruta_unir(cajon: String, nombre: String) -> String
     if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
@@ -50,6 +56,7 @@ end
 func proyecto_leer(cajon: String)
     proyecto_cajon = cajon
     proyecto_ficheros = []
+    proyecto_desde = 0
     if cajon != "" and not str_ends(cajon, ":")
         proyecto_ficheros.push("/")
     end
@@ -68,6 +75,9 @@ end
 
 func salida_anadir(texto: String, tipo: Int)
     for l in str_split(texto, "\n")
+        if salida_atras > 0
+            salida_atras = salida_atras + 1     # quien ha subido a mirar algo lo sigue viendo
+        end
         salida_lineas.push(l)
         salida_tipos.push(tipo)
         salida_rutas.push("")
@@ -86,6 +96,9 @@ func salida_error_dashc(l: String) -> Bool
     sitio = str_split(l[0:p], ":")
     if sitio.length < 3
         return false
+    end
+    if salida_atras > 0
+        salida_atras = salida_atras + 1
     end
     col = Int(sitio[sitio.length - 1])
     num = Int(sitio[sitio.length - 2])
@@ -108,6 +121,66 @@ func salida_en(y: Int) -> Int
         return -1
     end
     return i
+end
+
+# La primera línea que se ve si se sube "atras" líneas desde el final (sin pasarse por ningún lado)
+func salida_atras_valido(atras: Int) -> Int
+    maximo = salida_lineas.length - salida_caben
+    if maximo < 0
+        maximo = 0
+    end
+    if atras > maximo
+        return maximo
+    end
+    if atras < 0
+        return 0
+    end
+    return atras
+end
+
+# La salida, desde la línea "desde" (la barra): cuánto queda por debajo
+func salida_ir_a(desde: Int)
+    salida_atras = salida_atras_valido(salida_lineas.length - salida_caben - desde)
+end
+
+# El texto de las líneas elegidas, o de toda la salida si no hay nada elegido
+func salida_texto(solo_elegidas: Bool) -> String
+    a = 0
+    b = salida_lineas.length - 1
+    if solo_elegidas and salida_sel_a >= 0
+        a = salida_sel_a
+        b = salida_sel_b
+        if b < a
+            a = salida_sel_b
+            b = salida_sel_a
+        end
+    end
+    t = ""
+    i = a
+    while i <= b and i < salida_lineas.length
+        t = t + salida_lineas[i] + "\n"
+        i = i + 1
+    end
+    return t
+end
+
+func salida_hay_seleccion() -> Bool
+    return salida_sel_a >= 0
+end
+
+# La entrada del proyecto que se ve primero, sin pasarse
+func proyecto_desde_valido(desde: Int) -> Int
+    maximo = proyecto_ficheros.length - proyecto_caben
+    if maximo < 0
+        maximo = 0
+    end
+    if desde > maximo
+        return maximo
+    end
+    if desde < 0
+        return 0
+    end
+    return desde
 end
 
 func _titulo(x: Int, y: Int, ancho: Int, texto: String)
@@ -139,8 +212,16 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_y0 = TITULO_ALTO + 4
     proyecto_zona_x = x
     proyecto_zona_y = y
+    proyecto_caben = (alto - TITULO_ALTO - 4) / fila
+    if proyecto_caben < 1
+        proyecto_caben = 1
+    end
+    proyecto_desde = proyecto_desde_valido(proyecto_desde)
     fy = y + TITULO_ALTO + 4
-    for f in proyecto_ficheros
+    k = proyecto_desde
+    while k < proyecto_ficheros.length
+        f = proyecto_ficheros[k]
+        k = k + 1
         if fy + fila > y + alto
             break
         end
@@ -185,7 +266,7 @@ func proyecto_en(y: Int) -> Int
     if y < proyecto_y0
         return -1
     end
-    i = (y - proyecto_y0) / proyecto_fila
+    i = proyecto_desde + (y - proyecto_y0) / proyecto_fila
     if i >= proyecto_ficheros.length
         return -1
     end
@@ -201,7 +282,12 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     usar_codigo()
     fila = alto_letra + 2
     cabe = (alto - TITULO_ALTO - 4) / fila
-    desde = salida_lineas.length - cabe
+    if cabe < 1
+        cabe = 1
+    end
+    salida_caben = cabe
+    salida_atras = salida_atras_valido(salida_atras)
+    desde = salida_lineas.length - cabe - salida_atras
     if desde < 0
         desde = 0
     end
@@ -211,8 +297,18 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     salida_zona_x = x
     salida_zona_y = y
     fy = y + TITULO_ALTO + 3
+    sa = salida_sel_a
+    sb = salida_sel_b
+    if sb < sa
+        sa = salida_sel_b
+        sb = salida_sel_a
+    end
     i = desde
-    while i < salida_lineas.length
+    while i < salida_lineas.length and i < desde + cabe
+        if sa >= 0 and i >= sa and i <= sb
+            gfx_pen(tema.seleccion)
+            gfx_rect(x, fy, x + ancho - 1, fy + fila - 1)
+        end
         gfx_pen(tema.texto)
         if salida_tipos[i] == 1
             gfx_pen(tema.error)

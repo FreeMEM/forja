@@ -1,4 +1,4 @@
-## version $VER: Forja.catalog 1.0 (03.11.2026)
+## version $VER: Forja.catalog 1.0 (04.11.2026)
 ## language english
 ## codeset 0
 ;
@@ -569,6 +569,15 @@ MSG_220
 MSG_221
 The object's sprite
 ; Sprite del objeto
+MSG_222
+Save the output
+; Guardar la salida
+MSG_223
+The Dash compiler
+; El compilador de Dash
+MSG_224
+Inferencia
+; Inferencia
 MSG_300
 Forja
 ; Forja
@@ -708,8 +717,8 @@ MSG_345
 Forja preferences
 ; Preferencias de Forja
 MSG_346
-dashc:
-; dashc:
+Compiler (dash):
+; Compilador (dash):
 MSG_347
 Inferencia:
 ; Inferencia:
@@ -731,3 +740,15 @@ New sprite...
 MSG_353
 On a screen of its own (at start):
 ; En su propia pantalla (al arrancar):
+MSG_354
+Copy the output
+; Copiar la salida
+MSG_355
+Save the output...
+; Guardar la salida...
+MSG_356
+Choose...
+; Elegir...
+MSG_357
+Choose...
+; Elegir...

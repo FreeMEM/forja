@@ -14,7 +14,8 @@ English or Spanish, following the Locale preferences (the English catalog is in 
 - AmigaOS 3.0 or later, with a 68020 or better, and MUI 3.8 or 5.
 - Dash 2.2 or later for the Amiga: the `dash-X.Y.Z-amiga.lha` package from
   [Dash](https://github.com/FreeMEM/dash/releases) has the `dash` command and Forja too, and its installer sets
-  everything up. Forja looks for the compiler in `ENV:Forja/dashc`, or as `dash` in the command path.
+  everything up. Forja looks for the compiler in `ENV:Forja/dashc` (in the preferences, with a button to choose it),
+  then `DASH:dash`, then as `dash` in the command path.
 - For the Inferencia button, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
 - Syntax colours look better with more than 4 colours on the screen.
 
@@ -30,10 +31,12 @@ default comes back. It needs a Dash with `screen_make_default`.
 - **Editor**: the keyboard goes to the editor when the pointer is over it. Arrows; with Shift they select; Alt: start
   and end of line, page up and down; Ctrl: word by word, start and end of the text. Tab and Shift+Tab indent. Undo
   (Amiga-Z), redo (Amiga-R), cut, copy and paste with the system clipboard.
-- **Files**: tabs; Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click. It
-  asks when closing with unsaved changes.
+- **Files**: tabs; Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click; the
+  wheel and its scroll bar move it. It asks when closing with unsaved changes.
 - **Find and replace** (Amiga-F) and **go to line** (Amiga-L).
-- **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line.
+- **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line. The
+  output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
+  several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
 - **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin; F5 continue, F10 step over, F6 step into,
   F7 step out. On the left, the call stack and the variables.
 - **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;

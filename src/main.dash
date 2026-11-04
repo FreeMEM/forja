@@ -41,6 +41,7 @@
 # editando mensaje").
 
 @catalog "Forja.catalog" 1 "español"
+@version "Forja 0.1"
 
 import "tema.dash"
 import "editor.dash"
@@ -64,6 +65,13 @@ const EV_ARRASTRE = 5
 const EV_PROYECTO = 6
 const EV_TIC = 7
 const EV_SALIDA = 8
+const EV_BARRA_SALIDA = 9
+const EV_BARRA_PROYECTO = 18
+const EV_ARRASTRE_SALIDA = 20
+const EV_COPIAR_SALIDA = 21
+const EV_GUARDAR_SALIDA = 22
+const EV_ELEGIR_DASHC = 61
+const EV_ELEGIR_INFERENCIA = 62
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
 
@@ -138,6 +146,13 @@ var ejecutar_despues: Bool = false
 var depurar_despues: Bool = false
 var salida_vista: Int = 0          # lo que ya se enseñó de dbg_output()
 var tic_armado: Bool = false       # el temporizador (solo hay uno) está en marcha
+var salida_foco: Bool = false      # el último clic fue en la salida: Amiga-C copia sus líneas elegidas
+var barra_salida_total: Int = -1   # lo último que se dio a las barras de la salida y del proyecto
+var barra_salida_caben: Int = -1
+var barra_salida_valor: Int = -1
+var barra_proyecto_total: Int = -1
+var barra_proyecto_caben: Int = -1
+var barra_proyecto_valor: Int = -1
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -189,6 +204,7 @@ func ajustar_paneles()
         mui_set_visible(v.salida, not ocultar)
         mui_set_visible(v.balance_salida, not ocultar)
         mui_set_visible(v.barra, not ocultar)
+        mui_set_visible(v.barra_salida, not ocultar)
         sp_mensaje = ""
         mp_mensaje = ""
     end
@@ -371,11 +387,13 @@ end
 
 # --- Compilar y ejecutar ---
 
-# El compilador: ENV:Forja/dashc, o la orden dash del camino de órdenes (la pone el instalador de Dash 2.0.1;
-# la 2.0.0 la llamaba dashc)
+# El compilador: ENV:Forja/dashc (lo escribe el instalador de Dash), o DASH:dash, o la orden dash del camino de
+# órdenes
 func dashc() -> String
     c = env_get("Forja/dashc")
-    if c == ""
+    if c == "" and file_exists("DASH:dash")
+        c = "DASH:dash"            # el cajón que deja el instalador de Dash
+    elif c == ""
         c = "dash"
     end
     return c
@@ -761,10 +779,21 @@ end
 
 # Un clic en un error de la salida: a su fichero y su línea
 func en_salida()
+    rueda = mui_canvas_wheel(v.salida)
+    if rueda != 0
+        salida_atras = salida_atras_valido(salida_atras + rueda * 3)
+        mui_canvas_redraw(v.salida)
+        return
+    end
     if mui_canvas_button(v.salida) != 1
         return
     end
+    salida_foco = true
     i = salida_en(mui_canvas_mouse_y(v.salida))
+    # un clic elige esa línea (arrastrando, varias): Amiga-C la copia
+    salida_sel_a = i
+    salida_sel_b = i
+    mui_canvas_redraw(v.salida)
     if i < 0 or salida_rutas[i] == ""
         return
     end
@@ -782,8 +811,49 @@ func en_salida()
     end
 end
 
+# Arrastrando en la salida se eligen varias líneas
+func arrastrar_salida()
+    if salida_sel_a < 0 or mui_canvas_drag(v.salida) != 1
+        return
+    end
+    y = mui_canvas_mouse_y(v.salida)
+    i = salida_en(y)
+    if i < 0 and y >= salida_y0
+        i = salida_lineas.length - 1
+    elif i < 0
+        i = salida_desde
+    end
+    if i != salida_sel_b
+        salida_sel_b = i
+        mui_canvas_redraw(v.salida)
+    end
+end
+
+# La salida al portapapeles: las líneas elegidas, o toda si no hay ninguna
+func copiar_salida(solo_elegidas: Bool)
+    clip_write_text(latin1_to_utf8(salida_texto(solo_elegidas)))
+end
+
+func guardar_salida()
+    if not file_save_dialog(tr(222, "Guardar la salida"), "#?.txt")
+        return
+    end
+    ruta = file_fullpath()
+    if file_write_text(ruta, salida_texto(false))
+        avisar(tr(3, "Guardado: ") + ruta, 2)
+    else
+        avisar(tr(2, "No se puede escribir ") + ruta, 1)
+    end
+end
+
 # Un clic en el panel del proyecto: un fichero se abre; un cajón se enseña
 func en_proyecto()
+    rueda = mui_canvas_wheel(v.proyecto)
+    if rueda != 0 and depuracion_lineas.length == 0
+        proyecto_desde = proyecto_desde_valido(proyecto_desde - rueda * 3)
+        mui_canvas_redraw(v.proyecto)
+        return
+    end
     if mui_canvas_button(v.proyecto) != 1
         return
     end
@@ -803,6 +873,40 @@ func en_proyecto()
         return
     end
     mui_canvas_redraw(v.proyecto)
+end
+
+# Las barras de la salida y del proyecto siguen a lo que se ve
+func ajustar_barras_paneles()
+    caben = salida_caben
+    total = salida_lineas.length
+    if total < caben
+        total = caben
+    end
+    if total != barra_salida_total or caben != barra_salida_caben
+        barra_salida_total = total
+        barra_salida_caben = caben
+        mui_set_range(v.barra_salida, total, caben)
+        barra_salida_valor = -1
+    end
+    if salida_desde != barra_salida_valor
+        barra_salida_valor = salida_desde
+        mui_set_value(v.barra_salida, salida_desde)
+    end
+    caben = proyecto_caben
+    total = proyecto_ficheros.length
+    if total < caben
+        total = caben
+    end
+    if total != barra_proyecto_total or caben != barra_proyecto_caben
+        barra_proyecto_total = total
+        barra_proyecto_caben = caben
+        mui_set_range(v.barra_proyecto, total, caben)
+        barra_proyecto_valor = -1
+    end
+    if proyecto_desde != barra_proyecto_valor
+        barra_proyecto_valor = proyecto_desde
+        mui_set_value(v.barra_proyecto, proyecto_desde)
+    end
 end
 
 # La barra sigue al editor
@@ -878,6 +982,10 @@ end
 
 # Las órdenes del menú Edición (también con Amiga sobre el editor)
 func edicion(ev: Int)
+    if ev == EV_COPIAR and salida_foco and salida_hay_seleccion()
+        copiar_salida(true)
+        return
+    end
     d = ed_actual()
     if d == nil
         return
@@ -1113,6 +1221,10 @@ end
 
 # Lo que pasa sobre el editor: un clic, la rueda o una tecla. Devuelve otro evento si es un atajo.
 func en_editor() -> Int
+    # un clic o una tecla en el editor (no un atajo con Amiga) le devuelven el foco
+    if mui_canvas_button(v.editor) != 0 or (mui_canvas_key(v.editor) >= 0 and (mui_canvas_qualifiers(v.editor) & Q_AMIGA) == 0)
+        salida_foco = false
+    end
     d = ed_actual()
     if d == nil
         return 0
@@ -1315,7 +1427,7 @@ end
 # --- Preferencias, y lo que se abre al empezar ---
 
 func preferencias_abrir()
-    mui_set_text(vp.dashc, env_get("Forja/dashc"))
+    mui_set_text(vp.dashc, dashc())
     mui_set_text(vp.inferencia, env_get("Forja/inferencia"))
     mui_set_value(vp.recordar, recordar_sesion())
     mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
@@ -1622,6 +1734,7 @@ Main
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
         mui_canvas_on_input(v.proyecto, EV_PROYECTO)
         mui_canvas_on_input(v.salida, EV_SALIDA)
+        mui_canvas_on_drag(v.salida, EV_ARRASTRE_SALIDA)
         mui_canvas_take_tab(v.editor, true)
         # lo que aún no hace nada, apagado
         mui_app_rexx(app, orden_rexx)
@@ -1713,6 +1826,34 @@ Main
                 mui_window_close(vp.window)
             elif ev == EV_SALIDA
                 en_salida()
+            elif ev == EV_ARRASTRE_SALIDA
+                arrastrar_salida()
+            elif ev == EV_COPIAR_SALIDA
+                copiar_salida(salida_hay_seleccion())
+            elif ev == EV_GUARDAR_SALIDA
+                guardar_salida()
+            elif ev == EV_BARRA_SALIDA
+                desde = mui_get_value(v.barra_salida)
+                if desde != salida_desde
+                    salida_ir_a(desde)
+                    barra_salida_valor = desde
+                    mui_canvas_redraw(v.salida)
+                end
+            elif ev == EV_BARRA_PROYECTO
+                desde = mui_get_value(v.barra_proyecto)
+                if desde != proyecto_desde
+                    proyecto_desde = proyecto_desde_valido(desde)
+                    barra_proyecto_valor = desde
+                    mui_canvas_redraw(v.proyecto)
+                end
+            elif ev == EV_ELEGIR_DASHC
+                if file_open_dialog(tr(223, "El compilador de Dash"), "#?")
+                    mui_set_text(vp.dashc, file_fullpath())
+                end
+            elif ev == EV_ELEGIR_INFERENCIA
+                if file_open_dialog(tr(224, "Inferencia"), "#?")
+                    mui_set_text(vp.inferencia, file_fullpath())
+                end
             elif ev == EV_INFERENCIA
                 boton_inferencia()
             elif ev == EV_DEPURAR
@@ -1747,6 +1888,7 @@ Main
                 end
             end
             ajustar_barra()
+            ajustar_barras_paneles()
             if ed_actual() == nil and not tic_armado
                 armar_tic(500, EV_TIC)
             end
@@ -1756,6 +1898,11 @@ Main
             end
             if sonda
                 publicar_sonda()
+                # para las pruebas: abre las preferencias (la simulación del menú no llega a ellas)
+                if env_get("FORJA_PREFERENCIAS") != ""
+                    env_set("FORJA_PREFERENCIAS", "", false)
+                    preferencias_abrir()
+                end
             end
         end
         mui_app_end()

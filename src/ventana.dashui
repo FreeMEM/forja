@@ -31,6 +31,9 @@
             { "tr": 311, "label": "Ejecutar", "key": "E", "event": 11 },
             { "tr": 312, "label": "Depurar", "key": "G", "event": 12 },
             { "separator": true },
+            { "tr": 354, "label": "Copiar la salida", "event": 21 },
+            { "tr": 355, "label": "Guardar la salida...", "event": 22 },
+            { "separator": true },
             { "tr": 313, "label": "Preguntar a Inferencia", "key": "I", "event": 19 }
           ]
         },
@@ -75,14 +78,26 @@
             "type": "hgroup",
             "weight": 300,
             "children": [
-              { "type": "canvas", "name": "proyecto", "min_width": 100, "min_height": 80, "weight": 25 },
+              {
+                "type": "hgroup", "weight": 25,
+                "children": [
+                  { "type": "canvas", "name": "proyecto", "min_width": 100, "min_height": 80 },
+                  { "type": "scrollbar", "name": "barra_proyecto", "vertical": true, "change": 18 }
+                ]
+              },
               { "type": "balance" },
               { "type": "canvas", "name": "editor", "min_width": 240, "min_height": 80, "weight": 100 },
               { "type": "scrollbar", "name": "barra", "vertical": true, "change": 3 }
             ]
           },
           { "type": "balance", "name": "balance_salida" },
-          { "type": "canvas", "name": "salida", "min_width": 240, "min_height": 44, "weight": 60 }
+          {
+            "type": "hgroup", "weight": 60,
+            "children": [
+              { "type": "canvas", "name": "salida", "min_width": 240, "min_height": 44 },
+              { "type": "scrollbar", "name": "barra_salida", "vertical": true, "change": 9 }
+            ]
+          }
         ]
       }
     },
@@ -138,23 +153,42 @@
       "name": "PrefForja",
       "tr": 345, "title": "Preferencias de Forja",
       "id": 5,
+      "size": [70, 20],
       "close": 59,
       "background": [20, 20, 24],
       "root": {
         "type": "vgroup",
         "children": [
           {
-            "type": "columns",
-            "columns": 2,
+            "type": "hgroup",
             "children": [
-              { "type": "label", "tr": 346, "text": "dashc:", "color": [220, 220, 210] },
-              { "type": "string", "name": "dashc", "text": "", "max": 300 },
-              { "type": "label", "tr": 347, "text": "Inferencia:", "color": [220, 220, 210] },
-              { "type": "string", "name": "inferencia", "text": "", "max": 300 },
-              { "type": "label", "tr": 348, "text": "Abrir lo de la última vez:", "color": [220, 220, 210] },
-              { "type": "checkbox", "name": "recordar", "checked": true },
-              { "type": "label", "tr": 353, "text": "En su propia pantalla (al arrancar):", "color": [220, 220, 210] },
-              { "type": "checkbox", "name": "pantalla", "checked": false }
+              { "type": "label", "tr": 346, "text": "Compilador (dash):", "color": [220, 220, 210], "weight": 0 },
+              { "type": "string", "name": "dashc", "text": "", "max": 300, "weight": 100 },
+              { "type": "button", "name": "elegir_dashc", "tr": 356, "label": "Elegir...", "event": 61, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "label", "tr": 347, "text": "Inferencia:", "color": [220, 220, 210], "weight": 0 },
+              { "type": "string", "name": "inferencia", "text": "", "max": 300, "weight": 100 },
+              { "type": "button", "name": "elegir_inferencia", "tr": 357, "label": "Elegir...", "event": 62, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              {
+                "type": "columns",
+                "columns": 2,
+                "children": [
+                  { "type": "label", "tr": 348, "text": "Abrir lo de la última vez:", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "recordar", "checked": true },
+                  { "type": "label", "tr": 353, "text": "En su propia pantalla (al arrancar):", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "pantalla", "checked": false }
+                ]
+              },
+              { "type": "space" }
             ]
           },
           {
