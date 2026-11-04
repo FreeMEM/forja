@@ -90,8 +90,8 @@ MSG_29
 Forja 
 ; Forja 
 MSG_30
-, with Dash 2.2.
-; , con Dash 2.2.
+, with Dash 2.3.
+; , con Dash 2.3.
 MSG_31
 Ready.
 ; Listo.
@@ -768,8 +768,8 @@ MSG_357
 Choose...
 ; Elegir...
 MSG_358
-Git
-; Git
+Git (alpha)
+; Git (alfa)
 MSG_359
 Status
 ; Estado

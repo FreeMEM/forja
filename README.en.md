@@ -12,8 +12,8 @@ English or Spanish, following the Locale preferences (the English catalog is in 
 ## Requirements
 
 - AmigaOS 3.0 or later, with a 68020 or better, and MUI 3.8 or 5.
-- Dash 2.2 or later for the Amiga: the `dash-X.Y.Z-amiga.lha` package from
-  [Dash](https://github.com/FreeMEM/dash/releases) has the `dash` command and Forja too, and its installer sets
+- Dash 2.3.1 or later for the Amiga: the `dash-X.Y.Z-amiga.lha` package from
+  [Dash](https://github.com/FreeMEM/dash/releases) has the `dash` command and also Forja and dashgit, and its installer sets
   everything up. Forja looks for the compiler in `ENV:Forja/dashc` (in the preferences, with a button to choose it),
   then `DASH:dash`, then as `dash` in the command path.
 - For the Inferencia button, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
@@ -78,8 +78,9 @@ default comes back. It needs a Dash with `screen_make_default`.
 
 ### Git
 
-The Git menu runs [dashgit](https://github.com/FreeMEM/dashgit) in the project drawer: status, differences, history,
-add the new files, commit the changes (it asks for the message), pull (fast-forward only) and push. It saves
+The Git menu runs [dashgit](https://github.com/FreeMEM/dashgit) in the project drawer. **dashgit is in alpha**:
+there is still a lot to test, so keep a copy of what matters. The menu has status, differences, history,
+add the new files, commit the changes (it asks for the message), pull (which merges if needed) and push. It saves
 what is unsaved first, and what dashgit writes goes to the output. The `.git` drawer is hidden in the project panel.
 
 ### ARexx
@@ -91,7 +92,7 @@ Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO 
 
 ## Build
 
-With Dash 2.2: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.2`. The tests run in the
+With Dash 2.3.1: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.3`. The tests run in the
 emulator: [tests/LEEME.md](tests/LEEME.md) (in Spanish).
 
 Written in Dash. MIT license.

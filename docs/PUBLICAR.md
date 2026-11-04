@@ -19,4 +19,4 @@ Inferencia y Forja funcionan en FS-UAE con todas sus pruebas. Publicarlas lo dec
 7. **Opcional**: iconos con más colores (NewIcons o los de 3.5+), y un instalador con Installer como el de Trasfondo.
 
 Los paquetes salen con `python3 tools/paquete.py VERSIÓN [DASH_DIR]` en cada repo: `build/inferencia-0.1.lha` (unos
-145 KB) y `build/forja-0.2.lha` (unos 135 KB).
+145 KB) y `build/forja-0.3.lha` (unos 220 KB).

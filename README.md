@@ -12,8 +12,8 @@ castellano o en inglés, según el idioma de las Preferencias de Locale (el cat�
 ## Qué necesita
 
 - AmigaOS 3.0 o mejor, con un 68020 o mejor, y MUI 3.8 o 5.
-- Dash 2.2 o posterior para el Amiga: el paquete `dash-X.Y.Z-amiga.lha` de
-  [Dash](https://github.com/FreeMEM/dash/releases) trae la orden `dash` y también Forja, y su instalador lo deja
+- Dash 2.3.1 o posterior para el Amiga: el paquete `dash-X.Y.Z-amiga.lha` de
+  [Dash](https://github.com/FreeMEM/dash/releases) trae la orden `dash` y también Forja y dashgit, y su instalador lo deja
   todo listo. Forja busca el compilador en `ENV:Forja/dashc` (en Preferencias, con un botón para elegirlo), si no en
   `DASH:dash` y si no como `dash` en el camino de órdenes.
 - Para el botón Inferencia, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
@@ -78,9 +78,10 @@ ejecuta salen ahí. Al salir, vuelve a serlo la de antes. Necesita un Dash con `
 
 ### Git
 
-El menú Git usa [dashgit](https://github.com/FreeMEM/dashgit) en el cajón del proyecto: estado, diferencias,
-historial, añadir los ficheros nuevos, confirmar los cambios (pide el mensaje), traer del servidor (pull, solo
-avance rápido) y subir (push). Antes guarda lo que haya sin guardar, y lo que escribe dashgit sale en la salida.
+El menú Git usa [dashgit](https://github.com/FreeMEM/dashgit) en el cajón del proyecto. **dashgit está en alfa**:
+aún hay mucho que probar, así que ten copia de lo importante. El menú tiene estado, diferencias,
+historial, añadir los ficheros nuevos, confirmar los cambios (pide el mensaje), traer del servidor (pull, que
+fusiona si hace falta) y subir (push). Antes guarda lo que haya sin guardar, y lo que escribe dashgit sale en la salida.
 El cajón `.git` no se ve en el panel del proyecto.
 
 ### ARexx
@@ -92,7 +93,7 @@ mientras sigue) y `SALIDA` (el texto de la salida).
 
 ## Compilar
 
-Con Dash 2.2: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.2`. Las pruebas, en el
+Con Dash 2.3.1: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.3`. Las pruebas, en el
 emulador: [tests/LEEME.md](tests/LEEME.md).
 
 Escrito en Dash. Licencia MIT.

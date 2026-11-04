@@ -38,7 +38,7 @@
           ]
         },
         {
-          "tr": 358, "title": "Git",
+          "tr": 358, "title": "Git (alfa)",
           "items": [
             { "tr": 359, "label": "Estado", "event": 63 },
             { "tr": 360, "label": "Diferencias", "event": 64 },

@@ -41,14 +41,14 @@
 # editando mensaje").
 
 @catalog "Forja.catalog" 1 "español"
-@version "Forja 0.2"
+@version "Forja 0.3"
 
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
 import "ventana.dashui"
 
-const VERSION = "0.2"
+const VERSION = "0.3"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
@@ -1835,7 +1835,7 @@ Main
         elif not sesion_abrir()
             proyecto_leer(cajon_de(ruta))     # sin fichero: la bienvenida, con el logo de Dash
         end
-        salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.2."), 0)
+        salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.3."), 0)
         salida_anadir(tr(31, "Listo."), 2)
 
         ajustar_paneles()
