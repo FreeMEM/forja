@@ -82,7 +82,7 @@ Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO 
 
 ## Build
 
-With Dash 2.2: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.1`. The tests run in the
+With Dash 2.2: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.2`. The tests run in the
 emulator: [tests/LEEME.md](tests/LEEME.md) (in Spanish).
 
 Written in Dash. MIT license.

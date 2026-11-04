@@ -82,7 +82,7 @@ Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, 
 
 ## Compilar
 
-Con Dash 2.2: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.1`. Las pruebas, en el
+Con Dash 2.2: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.2`. Las pruebas, en el
 emulador: [tests/LEEME.md](tests/LEEME.md).
 
 Escrito en Dash. Licencia MIT.

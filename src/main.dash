@@ -41,14 +41,14 @@
 # editando mensaje").
 
 @catalog "Forja.catalog" 1 "español"
-@version "Forja 0.1"
+@version "Forja 0.2"
 
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
 import "ventana.dashui"
 
-const VERSION = "0.1"
+const VERSION = "0.2"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
