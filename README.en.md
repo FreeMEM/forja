@@ -17,6 +17,8 @@ English or Spanish, following the Locale preferences (the English catalog is in 
   everything up. Forja looks for the compiler in `ENV:Forja/dashc` (in the preferences, with a button to choose it),
   then `DASH:dash`, then as `dash` in the command path.
 - For the Inferencia button, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
+- For the Git menu, [dashgit](https://github.com/FreeMEM/dashgit): Forja looks for it in `ENV:Forja/dashgit`, then
+  `DASH:dashgit`, then as `dashgit` in the command path. To pull and push over https, AmiSSL and a TCP/IP stack.
 - Syntax colours look better with more than 4 colours on the screen.
 
 ## Use
@@ -74,11 +76,18 @@ default comes back. It needs a Dash with `screen_make_default`.
 
   ![The map editor with a 40 x 20 level](docs/img/mapas.png)
 
+### Git
+
+The Git menu runs [dashgit](https://github.com/FreeMEM/dashgit) in the project drawer: status, differences, history,
+add the new files, commit the changes (it asks for the message), pull (fast-forward only) and push. It saves
+what is unsaved first, and what dashgit writes goes to the output. The `.git` drawer is hidden in the project panel.
+
 ### ARexx
 
 Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO file` (text), `SELECCION`
 (selection), `CAMBIAR file from to text` (change lines), `GUARDAR [file]` (save), `COMPILAR` (build), `EJECUTAR`
-(run), `ESTADO` (state), `ERRORES` (errors), `BUSCAR text` (find), `CAMBIARTODO find replace`, `IRA line` (go to).
+(run), `ESTADO` (state), `ERRORES` (errors), `BUSCAR text` (find), `CAMBIARTODO find replace`, `IRA line` (go to),
+`GIT dashgit command` (without waiting: `ESTADO` says `git` while it runs) and `SALIDA` (the output text).
 
 ## Build
 

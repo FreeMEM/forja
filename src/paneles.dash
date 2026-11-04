@@ -65,7 +65,9 @@ func proyecto_leer(cajon: String)
     while i < n
         nombre = dir_entry_name(i)
         if dir_entry_is_dir(i)
-            proyecto_ficheros.push(nombre + "/")
+            if nombre != ".git"
+                proyecto_ficheros.push(nombre + "/")
+            end
         elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui") or sp_extension(nombre)
             proyecto_ficheros.push(nombre)
         end

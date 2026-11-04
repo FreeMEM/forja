@@ -38,6 +38,20 @@
           ]
         },
         {
+          "tr": 358, "title": "Git",
+          "items": [
+            { "tr": 359, "label": "Estado", "event": 63 },
+            { "tr": 360, "label": "Diferencias", "event": 64 },
+            { "tr": 361, "label": "Historial", "event": 65 },
+            { "separator": true },
+            { "tr": 362, "label": "Añadir los ficheros nuevos", "event": 66 },
+            { "tr": 363, "label": "Confirmar los cambios...", "event": 67 },
+            { "separator": true },
+            { "tr": 364, "label": "Traer del servidor (pull)", "event": 68 },
+            { "tr": 365, "label": "Subir al servidor (push)", "event": 69 }
+          ]
+        },
+        {
           "tr": 314, "title": "Edición",
           "items": [
             { "tr": 315, "label": "Deshacer", "key": "Z", "event": 43 },
@@ -146,6 +160,22 @@
           { "type": "label", "tr": 343, "text": "Línea:", "color": [220, 220, 210] },
           { "type": "string", "name": "linea", "text": "", "max": 8, "ack": 55 },
           { "type": "button", "name": "ir", "tr": 344, "label": "_Ir", "event": 55, "background": [44, 44, 52], "color": [220, 220, 210] }
+        ]
+      }
+    },
+    {
+      "name": "GitMensaje",
+      "tr": 366, "title": "Confirmar los cambios (Forja)",
+      "id": 6,
+      "size": [50, 8],
+      "close": 71,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "hgroup",
+        "children": [
+          { "type": "label", "tr": 367, "text": "Mensaje:", "color": [220, 220, 210], "weight": 0 },
+          { "type": "string", "name": "mensaje", "text": "", "max": 300, "ack": 70, "weight": 100 },
+          { "type": "button", "name": "confirmar", "tr": 368, "label": "_Confirmar", "event": 70, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
         ]
       }
     },

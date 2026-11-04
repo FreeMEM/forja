@@ -72,6 +72,16 @@ const EV_COPIAR_SALIDA = 21
 const EV_GUARDAR_SALIDA = 22
 const EV_ELEGIR_DASHC = 61
 const EV_ELEGIR_INFERENCIA = 62
+const EV_GIT_ESTADO = 63
+const EV_GIT_DIFERENCIAS = 64
+const EV_GIT_HISTORIAL = 65
+const EV_GIT_ANADIR = 66
+const EV_GIT_CONFIRMAR = 67
+const EV_GIT_TRAER = 68
+const EV_GIT_SUBIR = 69
+const EV_GIT_MENSAJE = 70
+const EV_GIT_CERRAR = 71
+const ESPERA_GIT = 600000      # diez minutos como mucho para una orden de git (clonar o traer por la red)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
 
@@ -79,6 +89,7 @@ const NADA = 0
 const COMPILANDO = 1
 const EJECUTANDO = 2
 const DEPURANDO = 3
+const GIT = 4
 # Teclas de función sobre el editor
 const T_F5 = 0x54
 const T_F6 = 0x55
@@ -123,6 +134,7 @@ var v: Principal = nil
 var vb: Buscar = nil
 var vi: IrA = nil
 var vp: PrefForja = nil
+var vg: GitMensaje = nil
 var app: Int = 0
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
 var inferencia_espera: Int = 0      # tics esperando a que arranque Inferencia
@@ -399,6 +411,47 @@ func dashc() -> String
     return c
 end
 
+func dashgit() -> String
+    c = env_get("Forja/dashgit")
+    if c == "" and file_exists("DASH:dashgit")
+        c = "DASH:dashgit"
+    elif c == ""
+        c = "dashgit"
+    end
+    return c
+end
+
+# Una orden de dashgit en el cajón del proyecto, sin esperar; lo que escriba sale en la salida al acabar
+func git(orden: String)
+    if tarea != NADA
+        return
+    end
+    if proyecto_cajon == ""
+        avisar(tr(225, "Abre antes un fichero del proyecto."), 1)
+        return
+    end
+    for o in documentos
+        if o.cambiado and o.ruta != ""
+            guardar_en(o, o.ruta)
+        end
+    end
+    redibujar()
+    avisar("git " + orden, 0)
+    tarea_run = run_start(dashgit() + " -C \"" + proyecto_cajon + "\" " + orden, ESPERA_GIT)
+    if tarea_run == 0
+        avisar(tr(226, "No se puede ejecutar ") + dashgit() + tr(227, ". Pon su ruta en ENV:Forja/dashgit."), 1)
+        return
+    end
+    tarea_inicio = time_ms()
+    poner_tarea(GIT)
+    armar_tic(TIC_MS, EV_TIC)
+end
+
+# Un texto entre comillas para el Shell del Amiga (las comillas de dentro van como *")
+func entre_comillas(t: String) -> String
+    return "\"" + str_replace(str_replace(t, "*", "**"), "\"", "*\"") + "\""
+end
+
 # "main.dash" -> "main"
 func ejecutable_de(ruta: String) -> String
     if str_ends(str_lower(ruta), ".dash")
@@ -414,7 +467,7 @@ end
 func poner_tarea(t: Int)
     tarea = t
     mui_set_enabled(v.compilar, t == NADA)
-    mui_set_enabled(v.ejecutar, t != COMPILANDO)
+    mui_set_enabled(v.ejecutar, t == NADA or t == EJECUTANDO)
     mui_set_enabled(v.depurar, t == NADA)
     # al depurar, los botones del depurador en lugar de los de siempre (todos no caben: primero se ocultan unos y
     # luego se enseñan los otros)
@@ -439,7 +492,7 @@ func poner_tarea(t: Int)
         mui_set_text(v.ejecutar, tr(8, "Ejecutar"))
     end
     if sonda
-        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
+        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando", "git"]
         env_set("FORJA_ESTADO", nombres[t], false)
     end
 end
@@ -558,6 +611,21 @@ func tic()
     rc = run_rc()
     tarea_run = 0
     ms = time_ms() - tarea_inicio
+    if tarea == GIT
+        if str_trim(texto) != ""
+            salida_anadir(str_trim(texto), 0)
+        end
+        if rc == 0
+            avisar(tr(228, "Git: hecho en ") + segundos(ms) + ".", 2)
+        else
+            avisar(hueco(tr(229, "Git acabó con código %1."), "#{rc}"), 1)
+        end
+        poner_tarea(NADA)
+        # traer o cambiar de rama puede cambiar los ficheros
+        proyecto_leer(proyecto_cajon)
+        redibujar()
+        return
+    end
     if tarea == COMPILANDO
         errores = 0
         errores_ultimos = ""
@@ -1700,10 +1768,26 @@ func orden_rexx(linea: String) -> String
         redibujar()
         return ""
     elif orden == "ESTADO"
-        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
+        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando", "git"]
         return nombres[tarea]
     elif orden == "ERRORES"
         return errores_ultimos
+    elif orden == "GIT"
+        # GIT orden de dashgit (status, add -A, commit -a -m "...", pull, push...): sin esperar; ESTADO da "git"
+        # mientras sigue, y SALIDA lo que escribió
+        if tarea != NADA
+            mui_rexx_fail(5)
+            return ""
+        end
+        resto = str_trim(linea[3:])
+        if resto == ""
+            mui_rexx_fail(10)
+            return ""
+        end
+        git(resto)
+        return ""
+    elif orden == "SALIDA"
+        return salida_texto(false)
     end
     mui_rexx_fail(10)
     return ""
@@ -1718,11 +1802,12 @@ Main
         vb = Buscar_create()
         vi = IrA_create()
         vp = PrefForja_create()
+        vg = GitMensaje_create()
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
             screen_make_default()
-            for w in [v.window, vb.window, vi.window, vp.window]
+            for w in [v.window, vb.window, vi.window, vp.window, vg.window]
                 mui_window_screen(w, PANTALLA)
             end
         end
@@ -1818,6 +1903,30 @@ Main
                 mui_window_close(vi.window)
             elif ev == EV_IRA_CERRAR
                 mui_window_close(vi.window)
+            elif ev == EV_GIT_ESTADO
+                git("status")
+            elif ev == EV_GIT_DIFERENCIAS
+                git("diff")
+            elif ev == EV_GIT_HISTORIAL
+                git("log --oneline -n 30")
+            elif ev == EV_GIT_ANADIR
+                git("add -A")
+            elif ev == EV_GIT_CONFIRMAR
+                mui_set_text(vg.mensaje, "")
+                mui_window_open(vg.window)
+                mui_set_active(vg.window, vg.mensaje)
+            elif ev == EV_GIT_MENSAJE
+                m = str_trim(mui_get_text(vg.mensaje))
+                if m != ""
+                    mui_window_close(vg.window)
+                    git("commit -a -m " + entre_comillas(m))
+                end
+            elif ev == EV_GIT_CERRAR
+                mui_window_close(vg.window)
+            elif ev == EV_GIT_TRAER
+                git("pull")
+            elif ev == EV_GIT_SUBIR
+                git("push")
             elif ev == EV_PREFERENCIAS
                 preferencias_abrir()
             elif ev == EV_PREF_GUARDAR or ev == EV_PREF_USAR

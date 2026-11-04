@@ -1,0 +1,92 @@
+# Maneja dashgit desde Forja por su puerto ARexx (FORJA.1): GIT init, config, add, commit, status, diff, log y push
+# a un servidor git del PC. Lo arranca tests/git.sh; anota en DH0:Prueba/git.txt.
+
+const FORJA = "FORJA.1"
+const MAIN = "DH0:Prueba/juego/main.dash"
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/git.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func esperar_libre()
+    n = 0
+    time_delay(10)
+    while n < 3000 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+end
+
+# Una orden de git por Forja; lo que añadió a la salida
+func git(orden: String) -> String
+    antes = rexx("SALIDA").length
+    rexx("GIT " + orden)
+    esperar_libre()
+    s = rexx("SALIDA")
+    if s.length > antes
+        return s[antes:]
+    end
+    return ""
+end
+
+Main
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("el puerto contesta", n < 600, "")
+    rexx("ABRIR \"" + MAIN + "\" 1")
+    s = git("init")
+    ver("init", str_contains(s, "Repositorio vac"), s)
+    git("config user.name Forja")
+    git("config user.email forja@amiga")
+    git("config remote.origin.url " + env_get("SERVIDOR"))
+    s = git("status -s")
+    ver("status con ficheros nuevos", str_contains(s, "?? main.dash"), s)
+    git("add -A")
+    s = git("commit -m primero")
+    ver("commit", str_contains(s, "(primer commit)") and str_contains(s, "primero"), s)
+    rexx("CAMBIAR " + MAIN + " 1 0 \"# cambiado desde Forja\"")
+    rexx("GUARDAR " + MAIN)
+    s = git("status")
+    ver("status ve el cambio", str_contains(s, "main.dash"), s)
+    s = git("diff")
+    ver("diff", str_contains(s, "+# cambiado desde Forja"), s)
+    s = git("commit -a -m \"segundo, con espacios\"")
+    ver("commit -a con comillas", str_contains(s, "segundo, con espacios"), s)
+    s = git("log --oneline")
+    ver("log", str_contains(s, "segundo, con espacios") and str_contains(s, "primero"), s)
+    ver("ESTADO libre al acabar", rexx("ESTADO") == "libre", rexx("ESTADO"))
+    s = git("push origin main")
+    ver("push", str_contains(s, "main -> main"), s)
+    s = git("cosa-mala")
+    ver("una orden mala sale en la salida", str_contains(s, "orden desconocida"), s)
+    git("log --oneline")
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    # con ESPERA=segundos, Forja sigue abierta un rato (para las capturas)
+    espera = Int(env_get("ESPERA"))
+    if espera > 0
+        time_delay(espera * 50)
+    end
+    rexx("QUIT")
+end

@@ -108,3 +108,7 @@ un BOB y sale descartando. `tests/sprites_todas.sh <worktree de Dash>` pasa toda
 Con la sonda, Forja apunta también los eventos que recibe en `RAM:forja-eventos.txt` (número de evento, y en los del
 editor la tecla, el botón y los calificadores; en los de arrastre, su estado). Si la prueba tiene abierto un fichero
 de la sonda cuando Forja lo escribe, AmigaDOS no deja escribirlo: Forja reintenta (`sonda_fichero`).
+
+`tests/git.sh <worktree de Dash> [cajón de dashgit]`: `tests/git.dash` maneja dashgit desde Forja por ARexx (`GIT` y
+`SALIDA`): init, config, status, add, commit, diff, commit -a con un mensaje con comillas, log y push a un servidor
+git del PC (`tests/servidor_git.py` de dashgit). Necesita dashgit (por defecto `~/Projects/dashgit`).
