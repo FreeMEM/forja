@@ -578,6 +578,21 @@ The Dash compiler
 MSG_224
 Inferencia
 ; Inferencia
+MSG_225
+Open a file of the project first.
+; Abre antes un fichero del proyecto.
+MSG_226
+Cannot run 
+; No se puede ejecutar 
+MSG_227
+. Set its path in ENV:Forja/dashgit.
+; . Pon su ruta en ENV:Forja/dashgit.
+MSG_228
+Git: done in 
+; Git: hecho en 
+MSG_229
+Git ended with code %1.
+; Git acabó con código %1.
 MSG_300
 Forja
 ; Forja
@@ -752,3 +767,36 @@ Choose...
 MSG_357
 Choose...
 ; Elegir...
+MSG_358
+Git
+; Git
+MSG_359
+Status
+; Estado
+MSG_360
+Differences
+; Diferencias
+MSG_361
+History
+; Historial
+MSG_362
+Add the new files
+; Añadir los ficheros nuevos
+MSG_363
+Commit the changes...
+; Confirmar los cambios...
+MSG_364
+Get from the server (pull)
+; Traer del servidor (pull)
+MSG_365
+Send to the server (push)
+; Subir al servidor (push)
+MSG_366
+Commit the changes (Forja)
+; Confirmar los cambios (Forja)
+MSG_367
+Message:
+; Mensaje:
+MSG_368
+_Commit
+; _Confirmar

@@ -17,6 +17,8 @@ castellano o en inglés, según el idioma de las Preferencias de Locale (el cat�
   todo listo. Forja busca el compilador en `ENV:Forja/dashc` (en Preferencias, con un botón para elegirlo), si no en
   `DASH:dash` y si no como `dash` en el camino de órdenes.
 - Para el botón Inferencia, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
+- Para el menú Git, [dashgit](https://github.com/FreeMEM/dashgit): Forja lo busca en `ENV:Forja/dashgit`, si no en
+  `DASH:dashgit` y si no como `dashgit` en el camino de órdenes. Para traer y subir por https, AmiSSL y una pila TCP/IP.
 - Los colores de la sintaxis se ven mejor con más de 4 colores en la pantalla.
 
 ## Uso
@@ -74,11 +76,19 @@ ejecuta salen ahí. Al salir, vuelve a serlo la de antes. Necesita un Dash con `
 
   ![El editor de mapas con un nivel de 40 x 20](docs/img/mapas.png)
 
+### Git
+
+El menú Git usa [dashgit](https://github.com/FreeMEM/dashgit) en el cajón del proyecto: estado, diferencias,
+historial, añadir los ficheros nuevos, confirmar los cambios (pide el mensaje), traer del servidor (pull, solo
+avance rápido) y subir (push). Antes guarda lo que haya sin guardar, y lo que escribe dashgit sale en la salida.
+El cajón `.git` no se ve en el panel del proyecto.
+
 ### ARexx
 
 Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, `SELECCION`,
 `CAMBIAR fichero desde hasta texto`, `GUARDAR [fichero]`, `COMPILAR`, `EJECUTAR`, `ESTADO`, `ERRORES`,
-`BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea`.
+`BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea`, `GIT orden de dashgit` (sin esperar: `ESTADO` da `git`
+mientras sigue) y `SALIDA` (el texto de la salida).
 
 ## Compilar
 
