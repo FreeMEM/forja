@@ -35,8 +35,9 @@ def miniatura(captura, lengua, ver, PANEL):
     px1, py1 = ex + PANEL[2] * esc - 2, PANEL[3] * esc
     d.rectangle([px0, py0, px1, py1], outline=NARANJA + (255,), width=3)
     # el panel ampliado, con marco y sombra, y unido a su sitio
-    zoom = cap.crop(PANEL).resize(((PANEL[2] - PANEL[0]) * 3 // 2, (PANEL[3] - PANEL[1]) * 3 // 2), Image.LANCZOS)
-    zx, zy = 470, 230
+    k = min(1.5, 430 / (PANEL[3] - PANEL[1]))                          # que quepa debajo del logo
+    zoom = cap.crop(PANEL).resize((round((PANEL[2] - PANEL[0]) * k), round((PANEL[3] - PANEL[1]) * k)), Image.LANCZOS)
+    zx, zy = 790, 250
     d.line([(px0, py1), (zx, zy)], fill=NARANJA + (200,), width=3)
     d.line([(px1, py1), (zx + zoom.width + 12, zy)], fill=NARANJA + (200,), width=3)
     d.rectangle([zx + 14, zy + 14, zx + zoom.width + 26, zy + zoom.height + 26], fill=(0, 0, 0, 150))
