@@ -130,6 +130,9 @@ Main
         # Amiga-W con cambios pregunta: Cancelar (Esc) la deja; Descartar (D) la cierra sin guardar
         input_key(0x11, AMIGA)
         ver("Amiga-W con cambios pregunta", esperar_peticion())
+        # la petición tarda un momento en tomar las teclas: un Esc antes se pierde, la petición sigue abierta (y
+        # activar() la deja detrás de Forja, que no responde mientras tanto)
+        time_delay(25)
         input_key(0x45, 0)
         time_delay(25)
         activar()
@@ -143,6 +146,10 @@ Main
             input_key(0x22, 0)
         else
             anotar("la segunda Amiga-W no pregunta; activa: " + input_active_title())
+            ev = file_read_text("RAM:forja-eventos.txt")
+            if ev != nil
+                anotar("eventos: " + ev)
+            end
         end
         time_delay(25)
         activar()

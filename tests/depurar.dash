@@ -96,6 +96,12 @@ Main
         input_key(0x24, AMIGA)
         e = esperar_parada("3 20 ")
         ver("para en el punto de la línea 20", str_starts(e, "3 20 Main"), e)
+        if not str_starts(e, "3 20 Main")
+            sal = file_read_text("RAM:forja-salida.txt")
+            if sal != nil
+                anotar("la salida: " + sal)
+            end
+        end
         vs = variables()
         ver("pila y variables (j = 0, total = 2)", str_contains(vs, "PILA|Main  20|") and str_contains(vs, "j = 0|") and str_contains(vs, "total = 2|"), vs)
         # para la captura: parado en la 20
