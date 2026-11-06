@@ -13,8 +13,10 @@ import "sintaxis.dash"
 import "diseno.dash"
 import "sprites.dash"
 import "mapas.dash"
+import "codigo.dash"
 
 const ALTO_PESTANAS = 18
+const LISTA_FILAS = 8      # las filas de la lista para completar
 const MARGEN_TEXTO = 6
 const SANGRIA = 4
 const MAX_DESHACER = 300
@@ -66,6 +68,7 @@ struct Documento
     puntos: [Int]         # las líneas (desde 1) con punto de parada
     sprite: Sprite        # un sprite o un BOB (sprites.dash); nil en los de texto
     mapa: Mapa = nil      # un mapa de tiles (mapas.dash); nil en los demás
+    version: Int = 0      # sube con cada cambio del texto (codigo.dash vuelve a leerlo si cambió)
 end
 
 var documentos: [Documento] = []
@@ -81,6 +84,18 @@ var ed_zona_ancho: Int = 0
 var ed_zona_alto: Int = 0
 var ed_solo_linea: Int = -1    # con mui_canvas_update: dibujar solo esta línea
 var ed_ms_dibujo: Int = 0      # lo que tardó el último dibujo entero
+# Lo que va encima del texto: la lista para completar y la ayuda de los argumentos (desde la esquina de la zona;
+# alto 0 si no se ve)
+var ed_lista_x: Int = 0
+var ed_lista_y: Int = 0
+var ed_lista_ancho: Int = 0
+var ed_lista_alto: Int = 0
+var ed_lista_filas: Int = LISTA_FILAS
+var ed_ayuda_x: Int = 0
+var ed_ayuda_y: Int = 0
+var ed_ayuda_ancho: Int = 0
+var ed_ayuda_alto: Int = 0
+var _ayuda_lineas: [String] = []    # la descripción, partida en líneas
 # Las pestañas que se ven: de dónde a dónde, desde la esquina de la zona
 var _pestana_x1: [Int] = []
 var _pestana_x2: [Int] = []
@@ -512,6 +527,7 @@ end
 # --- Cambios con deshacer ---
 
 func _apuntar(d: Documento, c: Cambio)
+    d.version = d.version + 1
     d.rehacer.clear()
     if d.deshacer.length > 0 and c.seguido
         u = d.deshacer[d.deshacer.length - 1]
@@ -711,6 +727,7 @@ func _aplicar(d: Documento, c: Cambio, al_reves: Bool)
     end
     d.al = -1
     d.cambiado = true
+    d.version = d.version + 1
 end
 
 func ed_deshacer(d: Documento) -> Bool
@@ -741,6 +758,20 @@ func ed_rehacer(d: Documento) -> Bool
         d.deshacer.push(c)
     end
     return true
+end
+
+# Cambia lo escrito desde la columna desde hasta el cursor por palabra (lo elegido en la lista para completar)
+func ed_completar(d: Documento, desde: Int, palabra: String)
+    if desde > d.cc
+        return
+    end
+    d.al = d.cl
+    d.ac = desde
+    if desde == d.cc
+        d.al = -1
+    end
+    ed_escribir(d, palabra)
+    ed_seguir_cursor(d)
 end
 
 func ed_seleccionar_todo(d: Documento)
@@ -1300,4 +1331,307 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         n = n + 1
     end
     ed_ms_dibujo = time_ms() - t0
+    ed_capas_geometria(d)
+    _dibujar_capas(d, x, y)
+end
+
+# --- La lista para completar y la ayuda de los argumentos ---
+
+# Parte un texto en líneas de como mucho ancho letras (por los espacios), hasta max líneas
+func _partir(t: String, ancho: Int, max: Int) -> [String]
+    var r: [String] = []
+    while t != "" and r.length < max
+        if t.length <= ancho
+            r.push(t)
+            return r
+        end
+        corte = ancho
+        while corte > ancho / 2 and str_code(t, corte) != 32
+            corte = corte - 1
+        end
+        if str_code(t, corte) != 32
+            corte = ancho
+        end
+        if r.length == max - 1
+            r.push(t[0:ancho - 3] + "...")
+            return r
+        end
+        r.push(t[0:corte])
+        t = str_trim(t[corte:])
+    end
+    return r
+end
+
+func ed_texto_ayuda() -> String
+    t = ay_cabeza
+    i = 0
+    for p in ay_params
+        if i > 0
+            t = t + ", "
+        end
+        t = t + p
+        i = i + 1
+    end
+    return t + ay_cola
+end
+
+# Dónde van la lista y la ayuda (ed_lista_*, ed_ayuda_*), desde la esquina de la zona; alto 0 si no se ven
+func ed_capas_geometria(d: Documento)
+    ed_lista_alto = 0
+    ed_ayuda_alto = 0
+    if d == nil or d.sprite != nil or d.mapa != nil or d.diseno
+        return
+    end
+    fila = ed_fila_y(d, d.cl)
+    if fila < 0
+        return
+    end
+    tx = ed_margen + 2
+    maximo = ed_columnas - 2
+    if maximo < 10
+        maximo = 10
+    end
+    if ay_visible and ay_linea == d.cl
+        t = ed_texto_ayuda()
+        cols = t.length
+        if cols > maximo
+            cols = maximo
+        end
+        _ayuda_lineas = []
+        if ay_nota != ""
+            ancho_nota = cols
+            if ancho_nota < 40
+                ancho_nota = 40
+            end
+            if ancho_nota > maximo
+                ancho_nota = maximo
+            end
+            _ayuda_lineas = _partir(ay_nota, ancho_nota, 3)
+            for l in _ayuda_lineas
+                if l.length > cols
+                    cols = l.length
+                end
+            end
+        end
+        ed_ayuda_ancho = cols * ancho_letra + 8
+        ed_ayuda_alto = (1 + _ayuda_lineas.length) * ed_alto_fila + 4
+        ed_ayuda_x = tx + (d.cc - d.izquierda - ay_cabeza.length) * ancho_letra - 4
+        ed_ayuda_y = fila - ed_ayuda_alto - 1
+        if ed_ayuda_y < ALTO_PESTANAS + 2
+            ed_ayuda_y = fila + ed_alto_fila + 1
+        end
+    end
+    if ac_visible and ac_linea == d.cl
+        filas = ac_nombres.length
+        if filas > LISTA_FILAS
+            filas = LISTA_FILAS
+        end
+        ed_lista_filas = filas
+        largo = 14
+        i = 0
+        while i < ac_nombres.length
+            if ac_nombres[i].length > largo
+                largo = ac_nombres[i].length
+            end
+            i = i + 1
+        end
+        cols = largo + 4
+        f = ac_firma(ac_sel)
+        if f.length + 1 > cols
+            cols = f.length + 1
+        end
+        if cols > 48
+            cols = 48
+        end
+        if cols > maximo
+            cols = maximo
+        end
+        ed_lista_ancho = cols * ancho_letra + 8
+        ed_lista_x = tx + (ac_col - d.izquierda - 2) * ancho_letra - 4
+        # debajo de la línea si cabe; si no, donde haya más sitio (encima, si la ayuda no está ahí), con menos filas
+        abajo = fila + ed_alto_fila + 1
+        if ed_ayuda_alto > 0 and ed_ayuda_y > fila
+            abajo = ed_ayuda_y + ed_ayuda_alto + 1
+        end
+        sitio_abajo = ed_zona_alto - abajo - 1
+        sitio_arriba = fila - 1 - (ALTO_PESTANAS + 2)
+        if ed_ayuda_alto > 0 and ed_ayuda_y < fila
+            sitio_arriba = 0
+        end
+        arriba = false
+        if (filas + 1) * ed_alto_fila + 6 > sitio_abajo and sitio_arriba > sitio_abajo
+            arriba = true
+            sitio_abajo = sitio_arriba
+        end
+        caben = (sitio_abajo - 6) / ed_alto_fila - 1
+        if caben < 1
+            caben = 1
+        end
+        if filas > caben
+            filas = caben
+        end
+        ed_lista_filas = filas
+        ed_lista_alto = (filas + 1) * ed_alto_fila + 6
+        ed_lista_y = abajo
+        if arriba
+            ed_lista_y = fila - ed_lista_alto - 1
+        end
+        ac_seguir(filas)
+    end
+    # dentro de la zona por la derecha y la izquierda
+    if ed_lista_alto > 0
+        if ed_lista_x + ed_lista_ancho > ed_zona_ancho - 2
+            ed_lista_x = ed_zona_ancho - 2 - ed_lista_ancho
+        end
+        if ed_lista_x < ed_margen
+            ed_lista_x = ed_margen
+        end
+    end
+    if ed_ayuda_alto > 0
+        if ed_ayuda_x + ed_ayuda_ancho > ed_zona_ancho - 2
+            ed_ayuda_x = ed_zona_ancho - 2 - ed_ayuda_ancho
+        end
+        if ed_ayuda_x < ed_margen
+            ed_ayuda_x = ed_margen
+        end
+    end
+end
+
+# Las y (desde la esquina de la zona) de arriba y de abajo de lo que hay encima del texto; -1, -1 si nada
+var ed_capas_y1: Int = -1
+var ed_capas_y2: Int = -1
+
+func ed_capas_rango()
+    ed_capas_y1 = -1
+    ed_capas_y2 = -1
+    if ed_lista_alto > 0
+        ed_capas_y1 = ed_lista_y
+        ed_capas_y2 = ed_lista_y + ed_lista_alto
+    end
+    if ed_ayuda_alto > 0
+        if ed_capas_y1 < 0 or ed_ayuda_y < ed_capas_y1
+            ed_capas_y1 = ed_ayuda_y
+        end
+        if ed_ayuda_y + ed_ayuda_alto > ed_capas_y2
+            ed_capas_y2 = ed_ayuda_y + ed_ayuda_alto
+        end
+    end
+end
+
+# El color de una clase de símbolo (codigo.dash) y su letra
+func _color_clase(c: Int) -> Int
+    if c == CX_FUNC or c == CX_METODO or c == CX_BUILTIN
+        return tema.sintaxis[S_LLAMADA]
+    elif c == CX_STRUCT or c == CX_TIPO or c == CX_ENUM
+        return tema.sintaxis[S_TIPO]
+    elif c == CX_CONST or c == CX_VALOR
+        return tema.sintaxis[S_CONSTANTE]
+    elif c == CX_CLAVE
+        return tema.sintaxis[S_CLAVE]
+    end
+    return tema.sintaxis[S_NUMERO]
+end
+
+func _letra_clase(c: Int) -> String
+    var letras: [String] = ["?", "f", "S", "k", "v", "E", "c", "m", "e", "l", "p", "t", "b", "m"]
+    if c < 0 or c >= letras.length
+        return "?"
+    end
+    return letras[c]
+end
+
+# Lo que quedó pintado encima del texto en el último dibujo (las y desde la esquina de la zona; -1 si nada): lo que
+# hay que volver a pintar para quitarlo
+var ed_pintado_y1: Int = -1
+var ed_pintado_y2: Int = -1
+
+func _dibujar_capas(d: Documento, x: Int, y: Int)
+    ed_capas_rango()
+    ed_pintado_y1 = ed_capas_y1
+    ed_pintado_y2 = ed_capas_y2
+    if ed_ayuda_alto > 0
+        ax = x + ed_ayuda_x
+        ay = y + ed_ayuda_y
+        gfx_pen(tema.fondo_panel)
+        gfx_rect(ax, ay, ax + ed_ayuda_ancho - 1, ay + ed_ayuda_alto - 1)
+        gfx_pen(tema.acento)
+        gfx_box(ax, ay, ax + ed_ayuda_ancho - 1, ay + ed_ayuda_alto - 1)
+        base = ay + 3 + base_letra
+        tx = ax + 4
+        limite = ax + ed_ayuda_ancho - 4
+        gfx_pen(tema.texto)
+        gfx_text_at(tx, base, ay_cabeza)
+        tx = tx + ay_cabeza.length * ancho_letra
+        i = 0
+        for p in ay_params
+            if i > 0
+                gfx_pen(tema.tenue)
+                gfx_text_at(tx, base, ", ")
+                tx = tx + 2 * ancho_letra
+            end
+            if i == ay_arg
+                gfx_pen(tema.sintaxis[S_LLAMADA])
+            else
+                gfx_pen(tema.texto)
+            end
+            if tx + p.length * ancho_letra <= limite
+                gfx_text_at(tx, base, p)
+            end
+            tx = tx + p.length * ancho_letra
+            i = i + 1
+        end
+        gfx_pen(tema.tenue)
+        if tx + ay_cola.length * ancho_letra <= limite
+            gfx_text_at(tx, base, ay_cola)
+        end
+        for l in _ayuda_lineas
+            base = base + ed_alto_fila
+            gfx_text_at(ax + 4, base, l)
+        end
+    end
+    if ed_lista_alto > 0
+        lx = x + ed_lista_x
+        ly = y + ed_lista_y
+        gfx_pen(tema.fondo_panel)
+        gfx_rect(lx, ly, lx + ed_lista_ancho - 1, ly + ed_lista_alto - 1)
+        gfx_pen(tema.acento)
+        gfx_box(lx, ly, lx + ed_lista_ancho - 1, ly + ed_lista_alto - 1)
+        cols = (ed_lista_ancho - 8) / ancho_letra
+        fy = ly + 2
+        i = ac_primera
+        while i < ac_nombres.length and i < ac_primera + ed_lista_filas
+            if i == ac_sel
+                gfx_pen(tema.seleccion)
+                gfx_rect(lx + 2, fy, lx + ed_lista_ancho - 3, fy + ed_alto_fila - 1)
+            end
+            c = ac_clase(i)
+            gfx_pen(_color_clase(c))
+            gfx_text_at(lx + 4, fy + 1 + base_letra, _letra_clase(c))
+            gfx_pen(tema.texto)
+            n = ac_nombres[i]
+            if n.length > cols - 2
+                n = n[0:cols - 2]
+            end
+            gfx_text_at(lx + 4 + 2 * ancho_letra, fy + 1 + base_letra, n)
+            fy = fy + ed_alto_fila
+            i = i + 1
+        end
+        # la barra, si hay más de las que caben
+        if ac_nombres.length > ed_lista_filas
+            alto_barra = ed_lista_filas * ed_alto_fila
+            b1 = ly + 2 + alto_barra * ac_primera / ac_nombres.length
+            b2 = ly + 2 + alto_barra * (ac_primera + ed_lista_filas) / ac_nombres.length
+            gfx_pen(tema.tenue)
+            gfx_rect(lx + ed_lista_ancho - 4, b1, lx + ed_lista_ancho - 3, b2 - 1)
+        end
+        # la firma de la elegida
+        gfx_pen(tema.borde)
+        gfx_line(lx + 2, fy + 1, lx + ed_lista_ancho - 3, fy + 1)
+        f = ac_firma(ac_sel)
+        if f.length > cols
+            f = f[0:cols - 3] + "..."
+        end
+        gfx_pen(tema.tenue)
+        gfx_text_at(lx + 4, fy + 3 + base_letra, f)
+    end
 end

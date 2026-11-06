@@ -29,6 +29,11 @@
 #
 # Cerrar una pestaña o salir con cambios sin guardar pregunta: Guardar, Descartar o Cancelar.
 #
+# Completar (codigo.dash): desde dos letras, una lista bajo el cursor con las palabras de Dash y los nombres del
+# proyecto; flechas, Tab o Return, Esc; Ctrl+Espacio la saca antes. "(" tras una función, la ayuda de sus argumentos.
+# Amiga-J o Ctrl+clic: ir a la definición; Amiga-U: volver; Amiga-H: dónde se usa (en la salida). Los símbolos se
+# leen al abrir o cambiar de fichero y tras REPOSO_MS sin escribir. Preferencia ENV:Forja/completar ("no" la apaga).
+#
 # Las imágenes IFF ILBM se abren en el editor de sprites (sprites.dash); Amiga-B crea un sprite de hardware, un BOB
 # o un mapa de tiles. Los .fmap (IFF FORM FMAP) se abren en el editor de mapas (mapas.dash).
 #
@@ -38,7 +43,8 @@
 # alto de fila"), ENV:FORJA_SALIDA lo de la salida ("x y alto_de_fila primera_vista total"; el texto en
 # RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
 # tras cada cambio, "línea columna nombre" y el texto; ENV:FORJA_DISENO, lo del editor de ventanas ("fila propiedad
-# editando mensaje").
+# editando mensaje"); ENV:FORJA_COMPLETAR, la lista ("elegida nombre nombre...", "" si no se ve); ENV:FORJA_AYUDA, la
+# ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen".
 
 @catalog "Forja.catalog" 1 "español"
 @version "Forja 0.3"
@@ -81,6 +87,10 @@ const EV_GIT_TRAER = 68
 const EV_GIT_SUBIR = 69
 const EV_GIT_MENSAJE = 70
 const EV_GIT_CERRAR = 71
+const EV_DEFINICION = 72
+const EV_VOLVER = 73
+const EV_REFERENCIAS = 74
+const EV_COMPLETAR = 75
 const ESPERA_GIT = 600000      # diez minutos como mucho para una orden de git (clonar o traer por la red)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
@@ -96,6 +106,9 @@ const T_F6 = 0x55
 const T_F7 = 0x56
 const T_F9 = 0x58
 const T_F10 = 0x59
+const T_ESPACIO = 0x40
+const REPOSO_MS = 1200        # sin escribir este tiempo, se vuelven a leer los símbolos del fichero
+const LINEAS_TIC = 60         # las líneas que se leen en cada tic (unos 30 ms en un A1200)
 const EV_NUEVO = 30
 const EV_ABRIR = 31
 const EV_GUARDAR = 32
@@ -165,6 +178,17 @@ var barra_salida_valor: Int = -1
 var barra_proyecto_total: Int = -1
 var barra_proyecto_caben: Int = -1
 var barra_proyecto_valor: Int = -1
+var completar_activo: Bool = true  # la lista para completar y la ayuda de los argumentos (preferencia)
+var indice_de: String = ""         # de qué fichero son los símbolos de codigo.dash, y de qué versión
+var indice_version: Int = -1
+var ultimo_cambio: Int = 0         # cuándo se escribió por última vez (time_ms)
+var historial_rutas: [String] = [] # de dónde se fue a una definición (Volver)
+var historial_lineas: [Int] = []
+var historial_cols: [Int] = []
+var linea_escrita: Int = -1        # la línea donde se escribió por última vez
+var lineas_antes: Int = -1         # cuántas líneas había entonces
+var sonda_completar: String = "-"
+var sonda_ayuda: String = "-"
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -568,6 +592,7 @@ end
 
 func tic()
     tic_armado = false
+    indice_en_reposo()
     d = ed_actual()
     if d != nil and d.sprite != nil and sp_avanzar(d.sprite)
         z = sp_zona_vista()
@@ -742,6 +767,10 @@ end
 
 func al_parar()
     salida_programa()
+    # la ventana del programa se queda el teclado al abrirse: Forja delante otra vez, para que F5, F10... lleguen
+    if abierta and mui_window_active(v.window) == 0
+        mui_window_activate(v.window)
+    end
     ruta = dbg_file()
     n = dbg_line()
     ed_dbg_ruta = ruta
@@ -867,14 +896,15 @@ func en_salida()
     end
     ruta = salida_rutas[i]
     # una ruta relativa es del cajón del fichero activo
-    if str_find(ruta, ":") < 0
+    if str_find(ruta, ":") < 0 and not str_starts(ruta, "*")
         d = ed_actual()
         if d != nil
             ruta = ruta_unir(cajon_de(d.ruta), ruta)
         end
     end
-    if abrir(ruta)
+    if abrir_sitio(ruta)
         ed_ir_a(salida_num[i], salida_col[i])
+        cerrar_capas()
         redibujar()
     end
 end
@@ -1002,6 +1032,303 @@ func redibujar()
     escribir_sonda()
 end
 
+# --- Los símbolos del código (codigo.dash): completar, ayuda de argumentos, ir a la definición ---
+
+# El nombre de un documento para codigo.dash: su ruta, o "*nombre" si aún no se ha guardado
+func clave_de(d: Documento) -> String
+    if d.ruta != ""
+        return d.ruta
+    end
+    return "*" + d.nombre
+end
+
+func es_codigo(d: Documento) -> Bool
+    return d != nil and d.sprite == nil and d.mapa == nil and not d.diseno
+end
+
+# Los símbolos al día: los de los ficheros abiertos (con lo que tienen sin guardar) y lo que importa el activo
+func indice_al_dia()
+    d = ed_actual()
+    if not es_codigo(d)
+        return
+    end
+    cx_empezar()
+    for o in documentos
+        if o.sprite == nil and o.mapa == nil
+            cx_fichero(clave_de(o), o.lineas, o.version)
+        end
+    end
+    # (sin requesters: buscar lo importado en DASH: no debe pedir que se inserte ese volumen si no existe)
+    dos_requesters(false)
+    cx_preparar(clave_de(d), cajon_de(dashc()))
+    dos_requesters(true)
+    bi_preparar()
+    indice_de = clave_de(d)
+    indice_version = d.version
+end
+
+# Antes de completar: los del fichero activo (aunque sean de unas letras antes); con al_dia, de ahora mismo
+func indice_si_hace_falta(al_dia: Bool)
+    d = ed_actual()
+    if not es_codigo(d)
+        return
+    end
+    if indice_de != clave_de(d) or (al_dia and indice_version != d.version)
+        indice_al_dia()
+    end
+end
+
+# Desde tic(): tras un rato sin escribir, los símbolos del fichero activo se vuelven a leer
+func indice_en_reposo()
+    d = ed_actual()
+    if not completar_activo or not es_codigo(d) or (indice_de == clave_de(d) and indice_version == d.version)
+        return
+    end
+    if time_ms() - ultimo_cambio < REPOSO_MS
+        if not tic_armado
+            armar_tic(REPOSO_MS, EV_TIC)
+        end
+        return
+    end
+    if indice_de != clave_de(d)
+        indice_al_dia()
+        return
+    end
+    # el mismo fichero: se lee a trozos de LINEAS_TIC líneas, un trozo por tic, para que el editor siga respondiendo
+    if cx_leer_paso(clave_de(d), d.lineas, d.version, LINEAS_TIC)
+        dos_requesters(false)
+        cx_preparar(clave_de(d), cajon_de(dashc()))
+        dos_requesters(true)
+        indice_version = d.version
+    elif not tic_armado
+        armar_tic(20, EV_TIC)
+    end
+end
+
+func cerrar_capas()
+    ac_cerrar()
+    ay_cerrar()
+    cx_locales_olvidar()
+end
+
+# Redibuja tras una tecla: solo la línea del cursor (solo_linea) si no hay ni hubo nada encima del texto (la lista o
+# la ayuda, antes en y1 a y2); si lo hay, todo (un dibujo entero cuesta poco más que las filas que tapan)
+func redibujar_tras_tecla(solo_linea: Bool, y1: Int, y2: Int)
+    d = ed_actual()
+    ed_capas_geometria(d)
+    ed_capas_rango()
+    if solo_linea and d != nil and y1 < 0 and ed_capas_y1 < 0
+        redibujar_linea(d.cl)
+    else
+        redibujar()
+    end
+end
+
+# Antes de que una tecla llegue al editor: la lista para completar se queda con las flechas, Tab, Return y Esc;
+# Ctrl + Espacio la saca. true si la tecla era para ella (y ya se ha redibujado).
+func completar_tecla(d: Documento, codigo: Int, teclas: Int) -> Bool
+    y1 = ed_pintado_y1
+    y2 = ed_pintado_y2
+    sin_teclas = (teclas & (Q_MAYUS | Q_ALT | Q_CTRL)) == 0
+    if codigo == T_ESPACIO and (teclas & Q_CTRL) != 0
+        completar_ahora()
+        return true
+    end
+    if ac_visible and ac_linea == d.cl
+        if (codigo == T_ARRIBA or codigo == T_ABAJO) and sin_teclas
+            if codigo == T_ARRIBA
+                ac_mover(-1, ed_lista_filas)
+            else
+                ac_mover(1, ed_lista_filas)
+            end
+            redibujar_tras_tecla(true, y1, y2)
+            return true
+        end
+        if (codigo == T_TAB or codigo == T_RETURN or codigo == T_ENTER) and sin_teclas
+            palabra = ac_elegida()
+            ac_cerrar()
+            if palabra != "" and palabra != ac_prefijo
+                ed_completar(d, ac_col, palabra)
+                ultimo_cambio = time_ms()
+                if ay_visible
+                    ay_calcular(d.lineas, d.cl, d.cc, d.version)
+                end
+                redibujar_tras_tecla(true, y1, y2)
+                return true
+            end
+            # ya está escrita entera: la tecla hace lo de siempre
+            return false
+        end
+        if codigo == T_ESC
+            ac_cerrar()
+            redibujar_tras_tecla(true, y1, y2)
+            return true
+        end
+    end
+    if ay_visible and codigo == T_ESC
+        ay_cerrar()
+        redibujar_tras_tecla(true, y1, y2)
+        return true
+    end
+    return false
+end
+
+# Ctrl + Espacio (o el menú): la lista para completar, aunque haya menos letras
+func completar_ahora()
+    d = ed_actual()
+    if not es_codigo(d)
+        return
+    end
+    y1 = ed_pintado_y1
+    y2 = ed_pintado_y2
+    indice_si_hace_falta(true)
+    ac_calcular(d.lineas, d.cl, d.cc, d.version, true)
+    redibujar_tras_tecla(true, y1, y2)
+end
+
+func _letra_de_nombre(letra: String) -> Bool
+    if letra == ""
+        return false
+    end
+    c = str_code(letra, 0)
+    return (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95 or c >= 192
+end
+
+# Tras una tecla que cambió el editor: la lista se filtra (o sale, o se cierra) y la ayuda sigue al cursor
+var ms_completar: Int = 0         # lo que tardó la última lista (para la sonda)
+
+func completar_despues(d: Documento, codigo: Int, letra: String)
+    t0 = time_ms()
+    if _letra_de_nombre(letra) or letra == "." or letra == "@" or (codigo == T_RETROCESO and ac_visible)
+        indice_si_hace_falta(false)
+        ac_calcular(d.lineas, d.cl, d.cc, d.version, false)
+    else
+        ac_cerrar()
+    end
+    ms_completar = time_ms() - t0
+    if letra == "(" or letra == ","
+        indice_si_hace_falta(false)
+        ay_calcular(d.lineas, d.cl, d.cc, d.version)
+    elif ay_visible
+        if d.cl != ay_linea
+            ay_cerrar()
+        else
+            ay_calcular(d.lineas, d.cl, d.cc, d.version)
+        end
+    end
+end
+
+# Abre (o va a) el fichero de un sitio: una ruta o "*nombre" (uno sin guardar); false si no puede
+func abrir_sitio(ruta: String) -> Bool
+    if str_starts(ruta, "*")
+        i = 0
+        for o in documentos
+            if o.ruta == "" and "*" + o.nombre == ruta
+                activo = i
+                return true
+            end
+            i = i + 1
+        end
+        return false
+    end
+    if not abrir(ruta)
+        return false
+    end
+    d = ed_actual()
+    if d != nil and d.diseno
+        # a una línea de un .dashui: como texto
+        d.diseno = false
+    end
+    return true
+end
+
+func ir_a_sitio(ruta: String, linea: Int, col: Int)
+    if abrir_sitio(ruta)
+        ed_ir_a(linea, col)
+    end
+    cerrar_capas()
+    redibujar()
+end
+
+# Amiga-J o Ctrl + clic: a donde se define el nombre del cursor
+func ir_definicion()
+    d = ed_actual()
+    if not es_codigo(d)
+        return
+    end
+    indice_si_hace_falta(true)
+    r = cx_definicion(d.lineas, clave_de(d), d.cl, d.cc, d.version)
+    if r == 0
+        if cx_def_nombre == ""
+            avisar(tr(230, "No hay un nombre en el cursor."), 1)
+        else
+            avisar(hueco(tr(231, "No sé dónde se define %1."), cx_def_nombre), 1)
+        end
+        return
+    end
+    if r == 2
+        avisar(hueco(tr(232, "%1 es de Dash: "), cx_def_nombre) + cx_def_info, 0)
+        return
+    end
+    historial_rutas.push(clave_de(d))
+    historial_lineas.push(d.cl + 1)
+    historial_cols.push(d.cc + 1)
+    if historial_rutas.length > 50
+        historial_rutas.remove(0)
+        historial_lineas.remove(0)
+        historial_cols.remove(0)
+    end
+    ir_a_sitio(cx_def_ruta, cx_def_linea, cx_def_col)
+end
+
+# Amiga-U: a donde se estaba antes de ir a la definición
+func volver()
+    if historial_rutas.length == 0
+        avisar(tr(233, "No hay a dónde volver."), 1)
+        return
+    end
+    r = historial_rutas.pop()
+    l = historial_lineas.pop()
+    c = historial_cols.pop()
+    ir_a_sitio(r, l, c)
+end
+
+# Amiga-H: dónde se usa el nombre del cursor (en el fichero, lo que importa y los .dash del proyecto), en la salida
+func referencias()
+    d = ed_actual()
+    if not es_codigo(d)
+        return
+    end
+    indice_si_hace_falta(true)
+    var otros: [String] = []
+    for f in proyecto_ficheros
+        if str_ends(str_lower(f), ".dash")
+            otros.push(ruta_unir(proyecto_cajon, f))
+        end
+    end
+    dos_requesters(false)
+    hay = cx_referencias(d.lineas, clave_de(d), d.cl, d.cc, d.version, otros)
+    dos_requesters(true)
+    if not hay
+        avisar(tr(230, "No hay un nombre en el cursor."), 1)
+        return
+    end
+    n = cx_ref_lineas.length
+    salida_anadir(hueco2(tr(234, "Dónde se usa %1: %2 sitios (clic en uno para ir)."), cx_def_nombre, "#{n}"), 2)
+    i = 0
+    while i < n
+        r = cx_ref_rutas[i]
+        nombre = nombre_de(r)
+        if str_starts(r, "*")
+            nombre = r[1:]
+        end
+        salida_anadir_sitio(nombre + ":#{cx_ref_lineas[i]}: " + cx_ref_textos[i], r, cx_ref_lineas[i], cx_ref_cols[i])
+        i = i + 1
+    end
+    salida_atras = 0
+    mui_canvas_redraw(v.salida)
+end
+
 func redibujar_linea(n: Int)
     d = ed_actual()
     if d == nil
@@ -1045,11 +1372,34 @@ func escribir_sonda()
         end
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
         env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
+        c = ""
+        if ac_visible
+            c = "#{ac_sel}"
+            i = 0
+            while i < ac_nombres.length and i < 12
+                c = c + " " + ac_nombres[i]
+                i = i + 1
+            end
+        end
+        env_set("FORJA_VISTA", "#{d.primera} #{ed_alto_fila} #{ed_margen} #{ms_completar}", false)
+        if c != sonda_completar
+            sonda_completar = c
+            env_set("FORJA_COMPLETAR", c, false)
+        end
+        a = ""
+        if ay_visible
+            a = "#{ay_arg} " + ed_texto_ayuda()
+        end
+        if a != sonda_ayuda
+            sonda_ayuda = a
+            env_set("FORJA_AYUDA", a, false)
+        end
     end
 end
 
 # Las órdenes del menú Edición (también con Amiga sobre el editor)
 func edicion(ev: Int)
+    cerrar_capas()
     if ev == EV_COPIAR and salida_foco and salida_hay_seleccion()
         copiar_salida(true)
         return
@@ -1272,10 +1622,28 @@ func rehacer_vista()
     end
 end
 
+# F5 (depurar o seguir), F10 (paso), F6 (entrar) y F7 (salir): su evento, o 0. Valen con el puntero sobre el
+# editor, el proyecto o la salida.
+func tecla_depurador(codigo: Int) -> Int
+    if codigo == T_F5
+        if tarea == DEPURANDO
+            return EV_SEGUIR
+        end
+        return EV_DEPURAR
+    elif codigo == T_F10
+        return EV_PASO
+    elif codigo == T_F6
+        return EV_ENTRAR
+    elif codigo == T_F7
+        return EV_SALIR_FUNCION
+    end
+    return 0
+end
+
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p", "f", "l", "g", "b"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA, EV_BUSCAR, EV_IRA, EV_DEPURAR, EV_NUEVO_SPRITE]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p", "f", "l", "g", "b", "j", "u", "h"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA, EV_BUSCAR, EV_IRA, EV_DEPURAR, EV_NUEVO_SPRITE, EV_DEFINICION, EV_VOLVER, EV_REFERENCIAS]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -1299,6 +1667,10 @@ func en_editor() -> Int
     end
     rueda = mui_canvas_wheel(v.editor)
     teclas = mui_canvas_qualifiers(v.editor)
+    if rueda != 0 or mui_canvas_button(v.editor) != 0
+        # la lista para completar y la ayuda se cierran (lo que sigue lo redibuja todo)
+        cerrar_capas()
+    end
     if rueda != 0 and d.sprite != nil
         sp_resultado(d, sp_ir_fotograma(d.sprite, -rueda))
     elif rueda != 0 and d.mapa != nil
@@ -1340,6 +1712,12 @@ func en_editor() -> Int
     elif mui_canvas_button(v.editor) == 1 and mui_canvas_mouse_x(v.editor) < ed_margen - 4 and mui_canvas_mouse_y(v.editor) >= ALTO_PESTANAS
         # un clic en el margen de los números: punto de parada
         alternar_punto(d, ed_linea_en(d, mui_canvas_mouse_y(v.editor)))
+    elif mui_canvas_button(v.editor) == 1 and (teclas & Q_CTRL) != 0
+        # Ctrl + clic: a la definición de lo que hay ahí
+        ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), false)
+        d.al = -1
+        redibujar()
+        ir_definicion()
     elif mui_canvas_button(v.editor) == 1
         ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), (teclas & Q_MAYUS) != 0)
         redibujar()
@@ -1356,20 +1734,9 @@ func en_editor() -> Int
             alternar_punto(d, d.cl + 1)
             return 0
         end
-        if codigo == T_F5
-            if tarea == DEPURANDO
-                return EV_SEGUIR
-            end
-            return EV_DEPURAR
-        end
-        if codigo == T_F10
-            return EV_PASO
-        end
-        if codigo == T_F6
-            return EV_ENTRAR
-        end
-        if codigo == T_F7
-            return EV_SALIR_FUNCION
+        otro = tecla_depurador(codigo)
+        if otro != 0
+            return otro
         end
         if d.diseno
             if dv_tecla(codigo, teclas, letra)
@@ -1379,19 +1746,37 @@ func en_editor() -> Int
             redibujar()
             return 0
         end
-        # escribir dentro de una línea solo redibuja esa línea
+        if completar_activo and completar_tecla(d, codigo, teclas)
+            return 0
+        end
+        # escribir dentro de una línea solo redibuja esa línea (y la lista o la ayuda, si están)
         antes_lineas = d.lineas.length
         antes_cl = d.cl
         antes_primera = d.primera
         antes_izquierda = d.izquierda
         antes_cambiado = d.cambiado
         antes_sel = ed_hay_seleccion(d)
+        antes_version = d.version
+        y1 = ed_pintado_y1
+        y2 = ed_pintado_y2
         if ed_tecla(codigo, teclas, letra)
-            if d.lineas.length == antes_lineas and d.cl == antes_cl and d.primera == antes_primera and d.izquierda == antes_izquierda and antes_cambiado and not antes_sel and not ed_hay_seleccion(d)
-                redibujar_linea(d.cl)
-            else
-                redibujar()
+            if d.version != antes_version
+                # las variables locales siguen valiendo mientras se escribe en la misma línea
+                if d.cl != linea_escrita or d.lineas.length != lineas_antes
+                    cx_locales_olvidar()
+                end
+                linea_escrita = d.cl
+                lineas_antes = d.lineas.length
+                ultimo_cambio = time_ms()
+                if completar_activo and not tic_armado
+                    armar_tic(REPOSO_MS, EV_TIC)
+                end
             end
+            if completar_activo
+                completar_despues(d, codigo, letra)
+            end
+            solo = d.lineas.length == antes_lineas and d.cl == antes_cl and d.primera == antes_primera and d.izquierda == antes_izquierda and antes_cambiado and not antes_sel and not ed_hay_seleccion(d)
+            redibujar_tras_tecla(solo, y1, y2)
         end
     end
     return 0
@@ -1499,6 +1884,7 @@ func preferencias_abrir()
     mui_set_text(vp.inferencia, env_get("Forja/inferencia"))
     mui_set_value(vp.recordar, recordar_sesion())
     mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
+    mui_set_value(vp.completar, completar_activo)
     mui_window_open(vp.window)
 end
 
@@ -1518,6 +1904,14 @@ func preferencias_aplicar(guardar: Bool)
         env_set("Forja/pantalla", "si", guardar)
     else
         env_set("Forja/pantalla", "no", guardar)
+    end
+    completar_activo = mui_get_value(vp.completar) != 0
+    if completar_activo
+        env_set("Forja/completar", "si", guardar)
+    else
+        env_set("Forja/completar", "no", guardar)
+        cerrar_capas()
+        redibujar()
     end
     mui_window_close(vp.window)
 end
@@ -1793,6 +2187,134 @@ func orden_rexx(linea: String) -> String
     return ""
 end
 
+# Lo que pide un evento de la ventana (lo que no es salir ni del menú Proyecto). Va aparte de Main para que Main
+# no pase de 32 KB: dashc 2.4 estropea un salto corto que tiene que crecer (ver el informe de la rama autocompletar).
+func atender(ev: Int)
+    if ev == EV_PROYECTO
+        en_proyecto()
+    elif ev == EV_BUSCAR
+        mui_window_open(vb.window)
+        mui_set_active(vb.window, vb.texto)
+    elif ev == EV_SIGUIENTE or ev == EV_ANTERIOR
+        buscar(ev == EV_SIGUIENTE)
+    elif ev == EV_CAMBIAR
+        cambiar_uno()
+    elif ev == EV_TODO_CAMBIAR
+        cambiar_todo(mui_get_text(vb.texto), mui_get_text(vb.cambio), mui_get_value(vb.mayus) != 0)
+    elif ev == EV_BUSCAR_CERRAR
+        mui_window_close(vb.window)
+    elif ev == EV_IRA
+        mui_set_text(vi.linea, "")
+        mui_window_open(vi.window)
+        mui_set_active(vi.window, vi.linea)
+    elif ev == EV_IR
+        ir_a(Int(str_trim(mui_get_text(vi.linea))))
+        mui_window_close(vi.window)
+    elif ev == EV_IRA_CERRAR
+        mui_window_close(vi.window)
+    elif ev == EV_GIT_ESTADO
+        git("status")
+    elif ev == EV_GIT_DIFERENCIAS
+        git("diff")
+    elif ev == EV_GIT_HISTORIAL
+        git("log --oneline -n 30")
+    elif ev == EV_GIT_ANADIR
+        git("add -A")
+    elif ev == EV_GIT_CONFIRMAR
+        mui_set_text(vg.mensaje, "")
+        mui_window_open(vg.window)
+        mui_set_active(vg.window, vg.mensaje)
+    elif ev == EV_GIT_MENSAJE
+        m = str_trim(mui_get_text(vg.mensaje))
+        if m != ""
+            mui_window_close(vg.window)
+            git("commit -a -m " + entre_comillas(m))
+        end
+    elif ev == EV_GIT_CERRAR
+        mui_window_close(vg.window)
+    elif ev == EV_GIT_TRAER
+        git("pull")
+    elif ev == EV_DEFINICION
+        ir_definicion()
+    elif ev == EV_VOLVER
+        volver()
+    elif ev == EV_REFERENCIAS
+        referencias()
+    elif ev == EV_COMPLETAR
+        completar_ahora()
+    elif ev == EV_GIT_SUBIR
+        git("push")
+    elif ev == EV_PREFERENCIAS
+        preferencias_abrir()
+    elif ev == EV_PREF_GUARDAR or ev == EV_PREF_USAR
+        preferencias_aplicar(ev == EV_PREF_GUARDAR)
+    elif ev == EV_PREF_CANCELAR
+        mui_window_close(vp.window)
+    elif ev == EV_SALIDA
+        en_salida()
+    elif ev == EV_ARRASTRE_SALIDA
+        arrastrar_salida()
+    elif ev == EV_COPIAR_SALIDA
+        copiar_salida(salida_hay_seleccion())
+    elif ev == EV_GUARDAR_SALIDA
+        guardar_salida()
+    elif ev == EV_BARRA_SALIDA
+        desde = mui_get_value(v.barra_salida)
+        if desde != salida_desde
+            salida_ir_a(desde)
+            barra_salida_valor = desde
+            mui_canvas_redraw(v.salida)
+        end
+    elif ev == EV_BARRA_PROYECTO
+        desde = mui_get_value(v.barra_proyecto)
+        if desde != proyecto_desde
+            proyecto_desde = proyecto_desde_valido(desde)
+            barra_proyecto_valor = desde
+            mui_canvas_redraw(v.proyecto)
+        end
+    elif ev == EV_ELEGIR_DASHC
+        if file_open_dialog(tr(223, "El compilador de Dash"), "#?")
+            mui_set_text(vp.dashc, file_fullpath())
+        end
+    elif ev == EV_ELEGIR_INFERENCIA
+        if file_open_dialog(tr(224, "Inferencia"), "#?")
+            mui_set_text(vp.inferencia, file_fullpath())
+        end
+    elif ev == EV_INFERENCIA
+        boton_inferencia()
+    elif ev == EV_DEPURAR
+        depurar()
+    elif ev >= EV_SEGUIR and ev <= EV_PARAR
+        orden_depurador(ev)
+    elif ev == EV_COMPILAR
+        compilar(false)
+    elif ev == EV_EJECUTAR
+        compilar(true)
+    elif ev == EV_TIC
+        tic()
+    elif ev == EV_VISTA_CERRADA
+        dv_cerrar_vista()
+    elif ev >= EV_CORTAR and ev <= EV_VISTA
+        edicion(ev)
+    elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().mapa != nil
+        mp_resultado(ed_actual(), mp_arrastrar(ed_actual().mapa, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
+    elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().sprite != nil
+        sp_resultado(ed_actual(), sp_arrastrar(ed_actual().sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
+    elif ev == EV_ARRASTRE
+        if mui_canvas_drag(v.editor) == 1
+            ed_arrastrar(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
+            redibujar()
+        end
+    elif ev == EV_BARRA
+        d = ed_actual()
+        if d != nil and mui_get_value(v.barra) != d.primera
+            d.primera = mui_get_value(v.barra)
+            barra_valor = d.primera
+            mui_canvas_redraw(v.editor)
+        end
+    end
+end
+
 Main
     app = mui_app_begin("Forja", "FORJA")
     if app == 0
@@ -1825,6 +2347,7 @@ Main
         mui_app_rexx(app, orden_rexx)
         poner_tarea(NADA)
         sonda = env_get("FORJA_SONDA") != ""
+        completar_activo = env_get("Forja/completar") != "no"
 
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
@@ -1835,7 +2358,7 @@ Main
         elif not sesion_abrir()
             proyecto_leer(cajon_de(ruta))     # sin fichero: la bienvenida, con el logo de Dash
         end
-        salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.3."), 0)
+        salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.4."), 0)
         salida_anadir(tr(31, "Listo."), 2)
 
         ajustar_paneles()
@@ -1845,6 +2368,9 @@ Main
         ajustar_barra()
         if ed_actual() == nil
             armar_tic(500, EV_TIC)
+        elif completar_activo
+            # los símbolos del código, en cuanto la ventana esté quieta
+            armar_tic(REPOSO_MS, EV_TIC)
         end
         if sonda
             publicar_sonda()
@@ -1871,6 +2397,10 @@ Main
                 if otro != 0
                     ev = otro
                 end
+            elif ev == EV_PROYECTO and mui_canvas_key(v.proyecto) >= 0 and tecla_depurador(mui_canvas_key(v.proyecto)) != 0
+                ev = tecla_depurador(mui_canvas_key(v.proyecto))
+            elif ev == EV_SALIDA and mui_canvas_key(v.salida) >= 0 and tecla_depurador(mui_canvas_key(v.salida)) != 0
+                ev = tecla_depurador(mui_canvas_key(v.salida))
             end
             if ev == -1
                 ev = EV_SALIR
@@ -1881,121 +2411,7 @@ Main
                     break
                 end
             end
-            if ev == EV_PROYECTO
-                en_proyecto()
-            elif ev == EV_BUSCAR
-                mui_window_open(vb.window)
-                mui_set_active(vb.window, vb.texto)
-            elif ev == EV_SIGUIENTE or ev == EV_ANTERIOR
-                buscar(ev == EV_SIGUIENTE)
-            elif ev == EV_CAMBIAR
-                cambiar_uno()
-            elif ev == EV_TODO_CAMBIAR
-                cambiar_todo(mui_get_text(vb.texto), mui_get_text(vb.cambio), mui_get_value(vb.mayus) != 0)
-            elif ev == EV_BUSCAR_CERRAR
-                mui_window_close(vb.window)
-            elif ev == EV_IRA
-                mui_set_text(vi.linea, "")
-                mui_window_open(vi.window)
-                mui_set_active(vi.window, vi.linea)
-            elif ev == EV_IR
-                ir_a(Int(str_trim(mui_get_text(vi.linea))))
-                mui_window_close(vi.window)
-            elif ev == EV_IRA_CERRAR
-                mui_window_close(vi.window)
-            elif ev == EV_GIT_ESTADO
-                git("status")
-            elif ev == EV_GIT_DIFERENCIAS
-                git("diff")
-            elif ev == EV_GIT_HISTORIAL
-                git("log --oneline -n 30")
-            elif ev == EV_GIT_ANADIR
-                git("add -A")
-            elif ev == EV_GIT_CONFIRMAR
-                mui_set_text(vg.mensaje, "")
-                mui_window_open(vg.window)
-                mui_set_active(vg.window, vg.mensaje)
-            elif ev == EV_GIT_MENSAJE
-                m = str_trim(mui_get_text(vg.mensaje))
-                if m != ""
-                    mui_window_close(vg.window)
-                    git("commit -a -m " + entre_comillas(m))
-                end
-            elif ev == EV_GIT_CERRAR
-                mui_window_close(vg.window)
-            elif ev == EV_GIT_TRAER
-                git("pull")
-            elif ev == EV_GIT_SUBIR
-                git("push")
-            elif ev == EV_PREFERENCIAS
-                preferencias_abrir()
-            elif ev == EV_PREF_GUARDAR or ev == EV_PREF_USAR
-                preferencias_aplicar(ev == EV_PREF_GUARDAR)
-            elif ev == EV_PREF_CANCELAR
-                mui_window_close(vp.window)
-            elif ev == EV_SALIDA
-                en_salida()
-            elif ev == EV_ARRASTRE_SALIDA
-                arrastrar_salida()
-            elif ev == EV_COPIAR_SALIDA
-                copiar_salida(salida_hay_seleccion())
-            elif ev == EV_GUARDAR_SALIDA
-                guardar_salida()
-            elif ev == EV_BARRA_SALIDA
-                desde = mui_get_value(v.barra_salida)
-                if desde != salida_desde
-                    salida_ir_a(desde)
-                    barra_salida_valor = desde
-                    mui_canvas_redraw(v.salida)
-                end
-            elif ev == EV_BARRA_PROYECTO
-                desde = mui_get_value(v.barra_proyecto)
-                if desde != proyecto_desde
-                    proyecto_desde = proyecto_desde_valido(desde)
-                    barra_proyecto_valor = desde
-                    mui_canvas_redraw(v.proyecto)
-                end
-            elif ev == EV_ELEGIR_DASHC
-                if file_open_dialog(tr(223, "El compilador de Dash"), "#?")
-                    mui_set_text(vp.dashc, file_fullpath())
-                end
-            elif ev == EV_ELEGIR_INFERENCIA
-                if file_open_dialog(tr(224, "Inferencia"), "#?")
-                    mui_set_text(vp.inferencia, file_fullpath())
-                end
-            elif ev == EV_INFERENCIA
-                boton_inferencia()
-            elif ev == EV_DEPURAR
-                depurar()
-            elif ev >= EV_SEGUIR and ev <= EV_PARAR
-                orden_depurador(ev)
-            elif ev == EV_COMPILAR
-                compilar(false)
-            elif ev == EV_EJECUTAR
-                compilar(true)
-            elif ev == EV_TIC
-                tic()
-            elif ev == EV_VISTA_CERRADA
-                dv_cerrar_vista()
-            elif ev >= EV_CORTAR and ev <= EV_VISTA
-                edicion(ev)
-            elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().mapa != nil
-                mp_resultado(ed_actual(), mp_arrastrar(ed_actual().mapa, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
-            elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().sprite != nil
-                sp_resultado(ed_actual(), sp_arrastrar(ed_actual().sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
-            elif ev == EV_ARRASTRE
-                if mui_canvas_drag(v.editor) == 1
-                    ed_arrastrar(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
-                    redibujar()
-                end
-            elif ev == EV_BARRA
-                d = ed_actual()
-                if d != nil and mui_get_value(v.barra) != d.primera
-                    d.primera = mui_get_value(v.barra)
-                    barra_valor = d.primera
-                    mui_canvas_redraw(v.editor)
-                end
-            end
+            atender(ev)
             ajustar_barra()
             ajustar_barras_paneles()
             if ed_actual() == nil and not tic_armado

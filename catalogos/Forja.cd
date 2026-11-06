@@ -59,7 +59,7 @@ Mandado a Inferencia.
 MSG_29 (29//)
 Forja 
 MSG_30 (30//)
-, con Dash 2.3.
+, con Dash 2.4.
 MSG_31 (31//)
 Listo.
 MSG_32 (32//)
@@ -394,6 +394,16 @@ MSG_228 (228//)
 Git: hecho en 
 MSG_229 (229//)
 Git acabó con código %1.
+MSG_230 (230//)
+No hay un nombre en el cursor.
+MSG_231 (231//)
+No sé dónde se define %1.
+MSG_232 (232//)
+%1 es de Dash: 
+MSG_233 (233//)
+No hay a dónde volver.
+MSG_234 (234//)
+Dónde se usa %1: %2 sitios (clic en uno para ir).
 MSG_300 (300//)
 Forja
 MSG_301 (301//)
@@ -532,3 +542,15 @@ MSG_367 (367//)
 Mensaje:
 MSG_368 (368//)
 _Confirmar
+MSG_369 (369//)
+Código
+MSG_370 (370//)
+Completar (Ctrl+Espacio)
+MSG_371 (371//)
+Ir a la definición (Ctrl+clic)
+MSG_372 (372//)
+Volver
+MSG_373 (373//)
+Dónde se usa
+MSG_374 (374//)
+Completar y ayuda de argumentos:

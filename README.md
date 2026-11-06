@@ -36,11 +36,21 @@ ejecuta salen ahí. Al salir, vuelve a serlo la de antes. Necesita un Dash con `
 - **Ficheros**: pestañas; Amiga-N, Amiga-O, Amiga-S, Amiga-W. El panel de la izquierda abre los ficheros del cajón
   con un clic; la rueda y su barra lo mueven. Al cerrar con cambios, pregunta.
 - **Buscar y cambiar** (Amiga-F) e **ir a la línea** (Amiga-L).
+- **Completar**: a partir de dos letras sale una lista bajo el cursor con las palabras de Dash, sus builtins y los
+  nombres del proyecto (funciones, structs, constantes, variables globales y las locales de la función; también los
+  de lo que importa el fichero). Tras un punto, los campos y métodos del struct, o lo que tienen las listas y los
+  textos. Flechas para elegir, Tab o Return la meten, Esc la cierra; Ctrl+Espacio la saca con menos letras. Al
+  escribir "(" tras una función o un builtin, una ayuda con sus argumentos y su descripción. Se apaga en
+  Preferencias.
+- **Ir a la definición** (Amiga-J o Ctrl+clic): al fichero y la línea donde se define el nombre, abriéndolo si hace
+  falta; Amiga-U vuelve. **Dónde se usa** (Amiga-H): la lista en la salida, y un clic lleva a cada sitio. Los
+  símbolos se leen al abrir o cambiar de fichero y tras un momento sin escribir (en el menú Código).
 - **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea. La salida
   guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
   Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...".
 - **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen; F5 seguir, F10 paso, F6 entrar, F7
-  salir. A la izquierda, la pila y las variables.
+  salir (con el puntero sobre el editor, el proyecto o la salida). A la izquierda, la pila y las variables. Al parar,
+  Forja se pone delante: la ventana del programa se queda el teclado al abrirse.
 - **Ventanas `.dashui`**: se abren en el editor de ventanas (Amiga-D cambia a texto). El árbol de objetos y sus
   propiedades; "+" añade, Supr quita, Alt+flechas mueve. Amiga-P abre la vista previa con MUI de verdad. Se guarda
   igual que la extensión de VS Code.

@@ -88,6 +88,18 @@ func salida_anadir(texto: String, tipo: Int)
     end
 end
 
+# Una línea con un sitio (dónde se usa un nombre): un clic lleva a ruta, línea num, columna col
+func salida_anadir_sitio(texto: String, ruta: String, num: Int, col: Int)
+    if salida_atras > 0
+        salida_atras = salida_atras + 1
+    end
+    salida_lineas.push(texto)
+    salida_tipos.push(0)
+    salida_rutas.push(ruta)
+    salida_num.push(num)
+    salida_col.push(col)
+end
+
 # Una línea de dashc: "fichero:línea:columna: Error: texto" (el fichero puede llevar ":", como DH0:x.dash).
 # Si lo es, va como error con su sitio y devuelve true.
 func salida_error_dashc(l: String) -> Bool

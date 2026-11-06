@@ -68,6 +68,16 @@
             { "tr": 323, "label": "Diseño o texto (.dashui)", "key": "D", "event": 46 },
             { "tr": 324, "label": "Vista previa (.dashui)", "key": "P", "event": 47 }
           ]
+        },
+        {
+          "tr": 369, "title": "Código",
+          "items": [
+            { "tr": 370, "label": "Completar (Ctrl+Espacio)", "event": 75 },
+            { "separator": true },
+            { "tr": 371, "label": "Ir a la definición (Ctrl+clic)", "key": "J", "event": 72 },
+            { "tr": 372, "label": "Volver", "key": "U", "event": 73 },
+            { "tr": 373, "label": "Dónde se usa", "key": "H", "event": 74 }
+          ]
         }
       ],
       "root": {
@@ -215,7 +225,9 @@
                   { "type": "label", "tr": 348, "text": "Abrir lo de la última vez:", "color": [220, 220, 210] },
                   { "type": "checkbox", "name": "recordar", "checked": true },
                   { "type": "label", "tr": 353, "text": "En su propia pantalla (al arrancar):", "color": [220, 220, 210] },
-                  { "type": "checkbox", "name": "pantalla", "checked": false }
+                  { "type": "checkbox", "name": "pantalla", "checked": false },
+                  { "type": "label", "tr": 374, "text": "Completar y ayuda de argumentos:", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "completar", "checked": true }
                 ]
               },
               { "type": "space" }
