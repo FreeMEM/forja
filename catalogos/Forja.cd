@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/ejecutables/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -554,3 +554,11 @@ MSG_373 (373//)
 Dónde se usa
 MSG_374 (374//)
 Completar y ayuda de argumentos:
+MSG_375 (375//)
+Ejecutables en:
+MSG_376 (376//)
+Elegir...
+MSG_377 (377//)
+No se puede crear el cajón de los ejecutables: 
+MSG_378 (378//)
+El cajón de los ejecutables

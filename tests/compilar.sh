@@ -6,6 +6,7 @@
 #
 # DASHC_AMIGA: el cajón con dashc para el Amiga (make amiga en dashc/: dashc.amiga y los dashc_*.drt).
 #   REAL=1 tests/compilar.sh ...   # con la CPU emulada a la velocidad de un A1200 (68020 a 14 MHz), no al máximo
+#   EJECUTABLES=RAM:Salida tests/compilar.sh ...   # los ejecutables en ese cajón (lo crea Forja), no al lado del .dash
 set -e
 dash=$1; dashc=$2; shift 2
 png=""
@@ -25,6 +26,7 @@ cp "$dashc"/dashc_*.drt "$tmp/sys/Dash/"
 {
   echo "C:MakeDir ENV:Forja"
   echo "SetEnv Forja/dashc DH0:Dash/dashc"
+  if [ -n "$EJECUTABLES" ]; then echo "SetEnv Forja/ejecutables $EJECUTABLES"; fi
   echo "SetEnv FORJA_SONDA 1"
   echo "SetEnv FORJA_PRUEBA DH0:Prueba/juego/main.dash"
   echo "Run >NIL: DH0:Prueba/Compilar"

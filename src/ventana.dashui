@@ -218,6 +218,14 @@
           {
             "type": "hgroup",
             "children": [
+              { "type": "label", "tr": 375, "text": "Ejecutables en:", "color": [220, 220, 210], "weight": 0 },
+              { "type": "string", "name": "ejecutables", "text": "", "max": 300, "weight": 100 },
+              { "type": "button", "name": "elegir_ejecutables", "tr": 376, "label": "Elegir...", "event": 76, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
               {
                 "type": "columns",
                 "columns": 2,
