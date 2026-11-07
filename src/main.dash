@@ -423,26 +423,32 @@ end
 
 # --- Compilar y ejecutar ---
 
-# El compilador: ENV:Forja/dashc (lo escribe el instalador de Dash), o DASH:dash, o la orden dash del camino de
-# órdenes
+# El compilador: ENV:Forja/dashc (lo escribe el instalador de Dash), o DASH:dash, o el dash del cajón de encima del de
+# Forja (Dash/Forja/Forja: Dash/dash, sin necesitar la asignación DASH:, idea de Tolkien), o la orden dash del camino
+# de órdenes
 func dashc() -> String
-    c = env_get("Forja/dashc")
-    if c == "" and file_exists("DASH:dash")
-        c = "DASH:dash"            # el cajón que deja el instalador de Dash
-    elif c == ""
-        c = "dash"
-    end
-    return c
+    return programa_de_dash("Forja/dashc", "dash")
 end
 
 func dashgit() -> String
-    c = env_get("Forja/dashgit")
-    if c == "" and file_exists("DASH:dashgit")
-        c = "DASH:dashgit"
-    elif c == ""
-        c = "dashgit"
+    return programa_de_dash("Forja/dashgit", "dashgit")
+end
+
+func programa_de_dash(variable: String, orden: String) -> String
+    c = env_get(variable)
+    if c != ""
+        return c
     end
-    return c
+    if file_exists("DASH:" + orden)
+        return "DASH:" + orden     # el cajón que deja el instalador de Dash
+    end
+    if file_exists("PROGDIR:/" + orden)
+        r = file_real_path("PROGDIR:/" + orden)   # (la ruta entera: PROGDIR: es de cada proceso)
+        if r != ""
+            return r
+        end
+    end
+    return orden
 end
 
 # Una orden de dashgit en el cajón del proyecto, sin esperar; lo que escriba sale en la salida al acabar
