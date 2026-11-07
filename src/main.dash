@@ -439,16 +439,20 @@ func programa_de_dash(variable: String, orden: String) -> String
     if c != ""
         return c
     end
+    # sin peticiones: sin la asignación DASH:, el Amiga pediría que se inserte ese volumen y Forja se quedaría
+    # esperando detrás (quien llame no debe tenerlas ya quitadas: dos_requesters(true) las vuelve a poner)
+    dos_requesters(false)
+    c = orden
     if file_exists("DASH:" + orden)
-        return "DASH:" + orden     # el cajón que deja el instalador de Dash
-    end
-    if file_exists("PROGDIR:/" + orden)
+        c = "DASH:" + orden     # el cajón que deja el instalador de Dash
+    elif file_exists("PROGDIR:/" + orden)
         r = file_real_path("PROGDIR:/" + orden)   # (la ruta entera: PROGDIR: es de cada proceso)
         if r != ""
-            return r
+            c = r
         end
     end
-    return orden
+    dos_requesters(true)
+    return c
 end
 
 # Una orden de dashgit en el cajón del proyecto, sin esperar; lo que escriba sale en la salida al acabar
@@ -1065,8 +1069,9 @@ func indice_al_dia()
         end
     end
     # (sin requesters: buscar lo importado en DASH: no debe pedir que se inserte ese volumen si no existe)
+    cajon = cajon_de(dashc())
     dos_requesters(false)
-    cx_preparar(clave_de(d), cajon_de(dashc()))
+    cx_preparar(clave_de(d), cajon)
     dos_requesters(true)
     bi_preparar()
     indice_de = clave_de(d)
@@ -1102,8 +1107,9 @@ func indice_en_reposo()
     end
     # el mismo fichero: se lee a trozos de LINEAS_TIC líneas, un trozo por tic, para que el editor siga respondiendo
     if cx_leer_paso(clave_de(d), d.lineas, d.version, LINEAS_TIC)
+        cajon = cajon_de(dashc())
         dos_requesters(false)
-        cx_preparar(clave_de(d), cajon_de(dashc()))
+        cx_preparar(clave_de(d), cajon)
         dos_requesters(true)
         indice_version = d.version
     elif not tic_armado
