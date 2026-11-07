@@ -1,0 +1,232 @@
+# Prueba de src/codigo.dash sin ventana: los símbolos de DH0:Prueba/juego (main.dash importa red.dash), la lista
+# para completar (palabras de Dash, del proyecto, locales y campos tras un punto), la ayuda de los argumentos, ir
+# a la definición y dónde se usa. tests/codigo_base.sh la ejecuta.
+
+import "../src/codigo.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso
+        fallos = fallos + 1
+    end
+end
+
+func lineas_de(ruta: String) -> [String]
+    t = file_read_text(ruta)
+    if t == nil
+        return [""]
+    end
+    if str_contains(t, str_char(0xC3))
+        t = utf8_to_latin1(t)
+    end
+    return str_split(t, "\n")
+end
+
+func esta(nombre: String) -> Bool
+    for n in ac_nombres
+        if n == nombre
+            return true
+        end
+    end
+    return false
+end
+
+func lista() -> String
+    r = ""
+    i = 0
+    while i < ac_nombres.length and i < 12
+        r = r + ac_nombres[i] + " "
+        i = i + 1
+    end
+    return r
+end
+
+# La línea (desde 0) que empieza por t
+func linea_con(l: [String], t: String) -> Int
+    i = 0
+    while i < l.length
+        if str_starts(str_trim(l[i]), t)
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+Main
+    # lo que cuesta la primera vez partir las palabras de Dash
+    t0 = time_ms()
+    bi_preparar()
+    t1 = time_ms()
+    x = bi_firma(bi_buscar("gfx_pen"))
+    Print "palabras de Dash: nombres #{t1 - t0} ms, firmas #{time_ms() - t1} ms"
+    malas = ""
+    for n in ["abs", "gfx_pen", "mui_canvas_key", "str_split", "utf8_to_latin1", "window_find", "wait_vblank"]
+        i = bi_buscar(n)
+        if i < 0 or not str_starts(bi_firma(i), n + "(") or bi_clase(i) != CX_BUILTIN
+            malas = malas + n + " "
+        end
+    end
+    ver("firmas de builtins hasta el final de la lista (" + malas + ")", malas == "")
+    ver("Print es palabra clave", bi_buscar("Print") >= 0 and bi_clase(bi_buscar("Print")) == CX_CLAVE)
+    ruta = "DH0:Prueba/juego/main.dash"
+    l = lineas_de(ruta)
+    cx_empezar()
+    cx_fichero(ruta, l, 1)
+    cx_preparar(ruta, "")
+    Print "preparar: #{cx_ms} ms, #{cx_total} símbolos, #{cx_rutas.length} ficheros"
+    ver("importa red.dash", cx_rutas.length == 2 and str_ends(cx_rutas[1], "juego/red.dash"))
+    g = cx_global("conectar")
+    ver("conectar de red.dash, línea 3", g != nil and str_ends(sim_ruta(g), "red.dash") and g.linea == 3 and sim_tipo(g) == "Bool")
+    g = cx_global("Nave")
+    ver("struct Nave", g != nil and g.clase == CX_STRUCT and g.linea == 6)
+    m = cx_miembro("Nave", "y")
+    ver("campo Nave.y: Int", m != nil and sim_tipo(m) == "Int" and m.linea == 8)
+    g = cx_global("MAX")
+    ver("const MAX", g != nil and g.clase == CX_CONST and sim_tipo(g) == "Int")
+    g = cx_global("mover")
+    ver("mover y su comentario", g != nil and sim_firma(g) == "mover(n: Nave, dx: Int)")
+
+    # completar: "pri" en una línea nueva de Main
+    w = linea_con(l, "Print")
+    l.insert(w, "    pri")
+    ac_calcular(l, w, 7, 2, false)
+    ver("pri: la lista con Print (" + lista() + ")", ac_visible and esta("Print"))
+    l[w] = "    p"
+    ver("una letra: sin lista", not ac_calcular(l, w, 5, 3, false))
+    ver("una letra con Ctrl + Espacio: lista", ac_calcular(l, w, 5, 3, true) and ac_nombres.length > 10)
+    l[w] = "    con"
+    ac_calcular(l, w, 7, 4, false)
+    ver("con: conectar de red.dash y const (" + lista() + ")", esta("conectar") and esta("const") and ac_nombres[0] == "conectar")
+    l[w] = "    lis"
+    ac_calcular(l, w, 7, 5, false)
+    ver("lis: la local lista (" + lista() + ")", esta("lista"))
+    l[w] = "    lista[0]."
+    ac_calcular(l, w, l[w].length, 6, false)
+    ver("lista[0].: x e y (" + lista() + ")", ac_visible and esta("x") and esta("y") and ac_nombres.length == 2)
+    l[w] = "    lista."
+    ac_calcular(l, w, l[w].length, 7, false)
+    ver("lista.: push, length... (" + lista() + ")", esta("push") and esta("length"))
+    l[w] = "    x = \"pri"
+    ver("dentro de un texto: sin lista", not ac_calcular(l, w, l[w].length, 8, false))
+    l[w] = "    # pri"
+    ver("en un comentario: sin lista", not ac_calcular(l, w, l[w].length, 9, false))
+    l[w] = "    Print \"\x23{tot"
+    ac_calcular(l, w, l[w].length, 10, false)
+    ver("en \x23{...}: total (" + lista() + ")", esta("total"))
+    m1 = linea_con(l, "n.x = ")
+    l.insert(m1, "    n.")
+    ac_calcular(l, m1, 6, 11, false)
+    ver("parámetro n: Nave, n. da x e y (" + lista() + ")", esta("x") and esta("y"))
+    l.remove(m1)
+
+    # la ayuda de los argumentos
+    l[w] = "    mover(lista[0], "
+    ver("mover(: su firma", ay_calcular(l, w, l[w].length, 12) and ay_cabeza == "mover(" and ay_params.length == 2 and ay_arg == 1)
+    l[w] = "    gfx_pen("
+    ver("gfx_pen(: firma y nota del builtin", ay_calcular(l, w, l[w].length, 13) and ay_params[0] == "color" and ay_nota != "")
+    l[w] = "    Nave("
+    ver("Nave(: los campos", ay_calcular(l, w, l[w].length, 14) and ay_params.length == 2 and ay_params[0] == "x: Int")
+    l[w] = "    mover(1, 2)"
+    ver("tras el ): sin ayuda", not ay_calcular(l, w, l[w].length, 15))
+
+    # ir a la definición
+    l[w] = "    conectar()"
+    ver("conectar: a red.dash, línea 3", cx_definicion(l, ruta, w, 6, 16) == 1 and str_ends(cx_def_ruta, "red.dash") and cx_def_linea == 3)
+    l[w] = "    total = total + 1"
+    ver("total: la local, línea 17", cx_definicion(l, ruta, w, 12, 17) == 1 and cx_def_linea == 17 and cx_def_ruta == ruta)
+    l[w] = "    lista[0].y = 1"
+    ver("lista[0].y: el campo, línea 8", cx_definicion(l, ruta, w, 14, 18) == 1 and cx_def_linea == 8)
+    l[w] = "    gfx_pen(1)"
+    ver("gfx_pen: es de Dash", cx_definicion(l, ruta, w, 6, 19) == 2 and str_starts(cx_def_info, "gfx_pen(color)"))
+    l.remove(w)
+
+    # dónde se usa
+    k = linea_con(l, "mover(lista")
+    ver("mover se usa en 2 sitios", cx_referencias(l, ruta, k, 10, 20, []) and cx_ref_lineas.length == 2 and cx_ref_lineas[0] == 11)
+    k = linea_con(l, "j = j + 1")
+    ver("j (local) en 5 sitios", cx_referencias(l, ruta, k, 8, 21, []) and cx_ref_lineas.length == 5)
+
+    # Forja entero (si está): cuánto se tarda
+    f = "DH0:Prueba/forja/main.dash"
+    if file_exists(f)
+        lf = lineas_de(f)
+        cx_empezar()
+        var nombres: [String] = ["main.dash", "editor.dash", "codigo.dash", "builtins.dash", "sprites.dash", "mapas.dash", "diseno.dash", "ventana.dashui", "tema.dash", "paneles.dash", "sintaxis.dash"]
+        var guardadas: [[String]] = []
+        for nombre in nombres
+            t0 = time_ms()
+            lx = lineas_de("DH0:Prueba/forja/" + nombre)
+            guardadas.push(lx)
+            t1 = time_ms()
+            cx_fichero("DH0:Prueba/forja/" + nombre, lx, 1)
+            Print nombre + ": leer #{t1 - t0} ms, símbolos #{time_ms() - t1} ms"
+        end
+        # lo que cuesta solo recorrer las líneas
+        t0 = time_ms()
+        k = 0
+        suma = 0
+        while k < lf.length
+            suma = suma + str_code(lf[k], 0)
+            k = k + 1
+        end
+        Print "recorrer #{lf.length} líneas: #{time_ms() - t0} ms"
+        t0 = time_ms()
+        k = 0
+        while k < 1000
+            x = "abc" + "def"
+            k = k + 1
+        end
+        Print "1000 sumas de textos: #{time_ms() - t0} ms"
+        cx_fichero(f, lf, 1)
+        cx_preparar(f, "DH0:Dash")
+        Print "Forja: #{cx_ms} ms, #{cx_total} símbolos, #{cx_rutas.length} ficheros"
+        # como en Forja con esos ficheros abiertos: main.dash ha cambiado (los demás se dan otra vez, sin cambios)
+        t0 = time_ms()
+        cx_empezar()
+        i = 0
+        while i < nombres.length
+            if nombres[i] != "main.dash"
+                cx_fichero("DH0:Prueba/forja/" + nombres[i], guardadas[i], 1)
+            end
+            i = i + 1
+        end
+        cx_fichero(f, lf, 2)
+        t1 = time_ms()
+        cx_preparar(f, "DH0:Dash")
+        Print "main.dash cambiado: leerlo #{t1 - t0} ms, preparar #{cx_ms} ms"
+        # a trozos, como en Forja tras un rato sin escribir: lo que tarda el trozo más largo
+        mas = 0
+        trozos = 0
+        hecho = false
+        while not hecho
+            t0 = time_ms()
+            hecho = cx_leer_paso(f, lf, 3, 120)
+            if time_ms() - t0 > mas
+                mas = time_ms() - t0
+            end
+            trozos = trozos + 1
+        end
+        t0 = time_ms()
+        cx_preparar(f, "DH0:Dash")
+        Print "a trozos de 120 líneas: #{trozos} trozos, el más largo #{mas} ms; preparar #{time_ms() - t0} ms"
+        ver("Forja: Documento.lineas", cx_miembro("Documento", "lineas") != nil)
+        t0 = time_ms()
+        k = linea_con(lf, "d = ed_actual()")
+        lf.insert(k + 1, "        d.lin")
+        ac_calcular(lf, k + 1, 13, 2, false)
+        Print "completar d.lin: #{time_ms() - t0} ms: " + lista()
+        ver("d.lin: lineas", esta("lineas"))
+        t0 = time_ms()
+        lf[k + 1] = "        str_"
+        ac_calcular(lf, k + 1, 12, 3, false)
+        Print "completar str_: #{time_ms() - t0} ms, #{ac_nombres.length}"
+    end
+    if fallos == 0
+        Print "TODO BIEN"
+    end
+end

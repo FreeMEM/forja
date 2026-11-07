@@ -18,6 +18,13 @@ velocidad de un A1200 (68020 a 14 MHz) en lugar de al máximo.
 de pestaña, guarda `main.dash` con Amiga-S (que sigue en UTF-8) y cierra una pestaña con cambios: Amiga-W pregunta,
 Cancelar (Esc) la deja y Descartar (D) la cierra sin guardar. Los diálogos de abrir y guardar como (ASL) no se prueban solos.
 
+`tests/completar.sh <worktree de Dash>`: `tests/completar.dash` escribe "pri" en `main.dash` (sale la lista con Print
+y Tab lo mete), "con" (conectar, de `red.dash`, que importa; Return lo mete), "(" (la ayuda de sus argumentos), va a
+la definición de conectar con Amiga-J (abre `red.dash` en su línea) y vuelve con Amiga-U, completa un campo tras un
+punto con flechas y Return, mira la ayuda de un builtin, busca dónde se usa mover (Amiga-H) y va a su definición con
+Ctrl+clic. `tests/codigo_base.sh <worktree de Dash>` prueba `src/codigo.dash` sin ventana (símbolos, locales, campos,
+ayuda, definición, dónde se usa) y mide lo que tarda con los fuentes de Forja.
+
 `tests/compilar.sh <worktree de Dash> <cajón con dashc.amiga y los dashc_*.drt>`: `tests/compilar.dash` ejecuta el
 programa (Amiga-E: compila con dashc y lo ejecuta; su salida debe tener "Naves: 2"), mete un error, compila
 (Amiga-K) y hace clic en el error de la salida: el cursor debe ir a su línea. dashc para el Amiga sale de
@@ -38,6 +45,15 @@ deshace (en un paso), rehace y guarda; después añade un objeto, lo mueve, lo q
 
 `tests/depurar.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/depurar.dash` pone un punto de parada con F9,
 depura (Amiga-G) y comprueba la línea, la pila y las variables con F10, F5, F6 y F7, y la salida al acabar.
+
+`tests/depurar_ventana.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/depurar_ventana.dash` depura
+`tests/prueba/gravedad/main.dash` (`examples/fixed_gravedad.dash` de Dash, que abre su propia ventana): para en la
+línea 42, comprueba que Forja vuelve a ser la ventana activa (la del programa se queda el teclado al abrirse) y que F10
+avanza a la 45 y a la 46.
+
+Con Dash 2.4.0, `tests/depurar.sh` falla por un fallo de dashc: una función que no se usa (`conectar` de `red.dash`)
+deja en la información de depuración una línea que no es un NOP, y el depurador escribe un NOP ahí al seguir; el
+programa cae con "Program failed (error #80000004)".
 
 `tests/buscar.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/buscar.dash` busca, cambia todo y va a una
 línea por ARexx, y abre las ventanas de buscar (Amiga-F) e ir a la línea (Amiga-L) por teclado.

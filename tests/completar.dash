@@ -1,0 +1,304 @@
+# Hace de usuario del autocompletado de Forja: en main.dash de DH0:Prueba/juego escribe "pri" (sale la lista con
+# Print y Tab lo mete), "con" (conectar, de red.dash, que importa), "(" (la ayuda de los argumentos), va a la
+# definición de conectar con Amiga-J (abre red.dash en su línea) y vuelve con Amiga-U, completa campos tras un
+# punto (lista[0].) con flechas y Return, mira la ayuda de un builtin (gfx_pen), busca dónde se usa mover
+# (Amiga-H) y va a su definición con Ctrl + clic. Sale descartando los cambios.
+# Lo arranca tests/completar.sh; anota en DH0:Prueba/completar.txt.
+
+const ESPERA_DECIMAS = 600
+const AMIGA = 8
+const ALT = 4
+const CTRL = 2
+const ARRIBA = 0x4C
+const ABAJO = 0x4D
+const DERECHA = 0x4E
+const IZQUIERDA = 0x4F
+const RETURN = 0x44
+const TAB = 0x42
+const ESC = 0x45
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/completar.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# La sonda: "línea columna nombre" y el texto
+func sonda() -> String
+    time_delay(20)
+    t = file_read_text("RAM:forja-sonda.txt")
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text("RAM:forja-sonda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func cabeza() -> String
+    return str_split(sonda(), "\n")[0]
+end
+
+# La línea n (desde 0) del texto del editor
+func linea(n: Int) -> String
+    l = str_split(sonda(), "\n")
+    if n + 1 >= l.length
+        return "(no hay)"
+    end
+    return l[n + 1]
+end
+
+# Lo que dice la sonda de la lista: "elegida nombre nombre..." ("" si no se ve)
+func lista() -> String
+    time_delay(25)
+    return env_get("FORJA_COMPLETAR")
+end
+
+func en_lista(nombre: String) -> Bool
+    p = str_split(lista(), " ")
+    i = 1
+    while i < p.length
+        if p[i] == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func esperar_peticion() -> Bool
+    n = 0
+    while n < 100
+        if input_active_title() == "Cambios sin guardar"
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+# Teclas como las de alguien que escribe deprisa (unas 12 por segundo), no todas de golpe
+func escribir(t: String)
+    i = 0
+    while i < t.length
+        input_text(t[i:i + 1])
+        time_delay(4)
+        i = i + 1
+    end
+end
+
+func tecla(codigo: Int, teclas: Int)
+    input_key(codigo, teclas)
+    time_delay(4)
+end
+
+# Espera a que Forja haya hecho todas las teclas: el cursor en (l, c) (desde 0) según la sonda
+func esperar_cursor(l: Int, c: Int) -> Bool
+    quiero = "#{l} #{c} "
+    n = 0
+    while n < 150
+        t = file_read_text("RAM:forja-sonda.txt")
+        if t != nil and str_starts(t, quiero)
+            time_delay(5)
+            return true
+        end
+        time_delay(4)
+        n = n + 1
+    end
+    anotar("(el cursor no llega a " + quiero + ": " + cabeza() + ")")
+    return false
+end
+
+# Espera a que la sonda diga que el fichero activo es nombre
+func esperar_fichero(nombre: String) -> String
+    n = 0
+    while n < 150
+        c = cabeza()
+        if str_ends(c, " " + nombre)
+            return c
+        end
+        n = n + 1
+    end
+    return cabeza()
+end
+
+func esperar_env(nombre: String, empieza: String) -> String
+    n = 0
+    while n < 100
+        e = env_get(nombre)
+        if (empieza == "" and e == "") or (empieza != "" and str_starts(e, empieza))
+            return e
+        end
+        time_delay(4)
+        n = n + 1
+    end
+    return env_get(nombre)
+end
+
+Main
+    n = 0
+    while n < ESPERA_DECIMAS and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= ESPERA_DECIMAS
+        ver("la ventana de Forja", false, "")
+    else
+        # (los símbolos se leen tras un rato quieto)
+        time_delay(100)
+        al_editor()
+        # al final de la línea 23 (Print "Naves..."), y una línea nueva
+        tecla(ARRIBA, CTRL)
+        k = 0
+        while k < 22
+            tecla(ABAJO, 0)
+            k = k + 1
+        end
+        tecla(DERECHA, ALT)
+        tecla(RETURN, 0)
+        esperar_cursor(23, 4)
+        escribir("p")
+        esperar_cursor(23, 5)
+        ver("una letra: sin lista", env_get("FORJA_COMPLETAR") == "", env_get("FORJA_COMPLETAR"))
+        escribir("ri")
+        esperar_cursor(23, 7)
+        ver("pri: la lista con Print", en_lista("Print"), lista())
+        anotar("lista: #{campo("FORJA_VISTA", 3)} ms; dibujo: " + env_get("FORJA_DIBUJO") + " ms")
+        # para la captura: la lista a la vista
+        time_delay(150)
+        tecla(TAB, 0)
+        esperar_cursor(23, 9)
+        ver("Tab mete Print", linea(23) == "    Print", linea(23))
+        ver("y la lista se cierra", env_get("FORJA_COMPLETAR") == "", env_get("FORJA_COMPLETAR"))
+        tecla(RETURN, 0)
+        esperar_cursor(24, 4)
+
+        # con: conectar, de red.dash
+        escribir("con")
+        esperar_cursor(24, 7)
+        ver("con: conectar (de red.dash) la primera", str_starts(env_get("FORJA_COMPLETAR"), "0 conectar "), env_get("FORJA_COMPLETAR"))
+        tecla(RETURN, 0)
+        esperar_cursor(24, 12)
+        ver("Return mete conectar", linea(24) == "    conectar", linea(24))
+        escribir("(")
+        esperar_cursor(24, 13)
+        ver("(: la ayuda de conectar", str_contains(env_get("FORJA_AYUDA"), "conectar() -> Bool"), env_get("FORJA_AYUDA"))
+        escribir(")")
+        esperar_cursor(24, 14)
+        ver("): sin ayuda", env_get("FORJA_AYUDA") == "", env_get("FORJA_AYUDA"))
+
+        # ir a la definición y volver
+        tecla(IZQUIERDA, 0)
+        tecla(IZQUIERDA, 0)
+        tecla(IZQUIERDA, 0)
+        esperar_cursor(24, 11)
+        tecla(0x26, AMIGA)
+        c = esperar_fichero("red.dash")
+        ver("Amiga-J: a conectar en red.dash, línea 3", str_starts(c, "2 ") and str_ends(c, " red.dash"), c)
+        al_editor()
+        tecla(0x16, AMIGA)
+        c = esperar_fichero("main.dash")
+        ver("Amiga-U: de vuelta en main.dash, línea 25", str_starts(c, "24 ") and str_ends(c, " main.dash"), c)
+
+        # un campo tras un punto: flechas y Return
+        al_editor()
+        tecla(DERECHA, ALT)
+        tecla(RETURN, 0)
+        esperar_cursor(25, 4)
+        escribir("lista[0].")
+        esperar_cursor(25, 13)
+        ver("lista[0].: x e y", env_get("FORJA_COMPLETAR") == "0 x y", env_get("FORJA_COMPLETAR"))
+        tecla(ABAJO, 0)
+        e = esperar_env("FORJA_COMPLETAR", "1 ")
+        ver("abajo elige y", str_starts(e, "1 "), e)
+        tecla(RETURN, 0)
+        esperar_cursor(25, 14)
+        ver("Return mete y", linea(25) == "    lista[0].y", linea(25))
+        escribir(" = gfx_pen(")
+        esperar_cursor(25, 25)
+        ver("gfx_pen(: su ayuda", str_starts(env_get("FORJA_AYUDA"), "0 gfx_pen(color)"), env_get("FORJA_AYUDA"))
+        time_delay(150)
+        tecla(ESC, 0)
+        e = esperar_env("FORJA_AYUDA", "")
+        ver("Esc la cierra", e == "", e)
+        # dónde se usa mover (línea 20)
+        tecla(ARRIBA, CTRL)
+        k = 0
+        while k < 19
+            tecla(ABAJO, 0)
+            k = k + 1
+        end
+        tecla(DERECHA, CTRL)
+        esperar_cursor(19, 13)
+        tecla(0x25, AMIGA)
+        n = 0
+        s = file_read_text("RAM:forja-salida.txt")
+        while n < 50 and (s == nil or not str_contains(s, "mover: 2 "))
+            time_delay(5)
+            s = file_read_text("RAM:forja-salida.txt")
+            n = n + 1
+        end
+        ver("Amiga-H: mover en 2 sitios", s != nil and str_contains(s, "mover: 2 ") and str_contains(s, "main.dash:11: func mover"), s)
+
+        # Ctrl + clic en mover (línea 20, columna 10): a su definición, la línea 11
+        primera = campo("FORJA_VISTA", 0)
+        alto = campo("FORJA_VISTA", 1)
+        margen = campo("FORJA_VISTA", 2)
+        x = campo("FORJA_EDITOR", 0) + margen + 2 + 10 * 8 + 2
+        y = campo("FORJA_EDITOR", 1) + 18 + 2 + (19 - primera) * alto + alto / 2
+        input_click(x, y, CTRL)
+        esperar_cursor(10, 5)
+        c = cabeza()
+        ver("Ctrl + clic: a mover, línea 11", str_starts(c, "10 ") and str_ends(c, " main.dash"), c)
+        anotar("dibujo entero: " + env_get("FORJA_DIBUJO") + " ms")
+        if env_get("COMPLETAR_EVENTOS") != ""
+            anotar("eventos: " + file_read_text("RAM:forja-eventos.txt"))
+        end
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    tecla(0x10, AMIGA)
+    if esperar_peticion()
+        time_delay(25)
+        tecla(0x22, 0)
+    end
+end

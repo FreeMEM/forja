@@ -1,0 +1,123 @@
+# Hace de usuario del depurador con un programa que abre su propia ventana (tests/prueba/gravedad, el
+# examples/fixed_gravedad.dash de Dash): punto de parada con F9 en la línea 42 (la lista de structs con Fixed),
+# depura (Amiga-G); al parar, Forja tiene que volver a ser la ventana activa (la del programa se queda el teclado al
+# abrirse) y F10 tiene que avanzar a la 45 y a la 46 (David Martínez, PiStorm). Sale con Amiga-Q.
+# Lo arranca tests/depurar_ventana.sh; anota en DH0:Prueba/depurar_ventana.txt.
+
+const AMIGA = 8
+const CTRL = 2
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const F5 = 0x54
+const F6 = 0x55
+const F7 = 0x56
+const F9 = 0x58
+const F10 = 0x59
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/depurar_ventana.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+# Una variable de ENV: que Forja puede estar escribiendo justo ahora (entonces sale vacía): otra vez
+func variables() -> String
+    t = env_get("FORJA_VARIABLES")
+    n = 0
+    while t == "" and n < 10
+        time_delay(5)
+        t = env_get("FORJA_VARIABLES")
+        n = n + 1
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# Espera a que el depurador esté parado ("3 línea función") en esa línea, o acabado ("4"); da lo que haya
+func esperar_parada(que: String) -> String
+    n = 0
+    while n < 900
+        e = env_get("FORJA_DEPURAR")
+        if str_starts(e, que)
+            return e
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return env_get("FORJA_DEPURAR")
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        al_editor()
+        input_key(ARRIBA, CTRL)
+        k = 0
+        while k < 41
+            input_key(ABAJO, 0)
+            k = k + 1
+        end
+        input_key(F9, 0)
+        input_key(0x24, AMIGA)
+        e = esperar_parada("3 42 ")
+        ver("para en el punto de la línea 42", str_starts(e, "3 42 Main"), e)
+        # Forja delante otra vez (sin activar() aquí: eso es lo que se prueba)
+        n = 0
+        while n < 60 and input_active_title() != "Forja"
+            time_delay(5)
+            n = n + 1
+        end
+        ver("al parar, Forja es la ventana activa", input_active_title() == "Forja", input_active_title())
+        al_editor()
+        input_key(F10, 0)
+        e = esperar_parada("3 45 ")
+        ver("F10: de la 42 a la 45", str_starts(e, "3 45 Main"), e)
+        input_key(F10, 0)
+        e = esperar_parada("3 46 ")
+        ver("F10: a la 46", str_starts(e, "3 46 Main"), e)
+        vs = variables()
+        ver("las variables: g y bolas", str_contains(vs, "g = ") and str_contains(vs, "bolas = "), vs)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+end

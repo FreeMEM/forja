@@ -36,11 +36,20 @@ default comes back. It needs a Dash with `screen_make_default`.
 - **Files**: tabs; Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click; the
   wheel and its scroll bar move it. It asks when closing with unsaved changes.
 - **Find and replace** (Amiga-F) and **go to line** (Amiga-L).
+- **Completion**: after two letters a list appears under the cursor with Dash's words, its builtins and the
+  project's names (functions, structs, constants, global variables and the function's locals; also those of the
+  files it imports). After a dot, the struct's fields and methods, or what lists and strings have. Arrows choose,
+  Tab or Return insert, Esc closes; Ctrl+Space shows it with fewer letters. Typing "(" after a function or a builtin
+  shows its arguments and description. It can be turned off in Preferences.
+- **Go to definition** (Amiga-J or Ctrl+click): to the file and line where the name is defined, opening it if
+  needed; Amiga-U goes back. **Find uses** (Amiga-H): the list in the output, and a click goes to each place. The
+  symbols are read when a file is opened or shown and after a moment without typing (in the Code menu).
 - **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line. The
   output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
 - **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin; F5 continue, F10 step over, F6 step into,
-  F7 step out. On the left, the call stack and the variables.
+  F7 step out (with the pointer over the editor, the project or the output). On the left, the call stack and the
+  variables. When it stops, Forja comes to the front: the program's window takes the keyboard when it opens.
 - **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;
   "+" adds, Del removes, Alt+arrows moves. Amiga-P opens the preview with real MUI. It saves the same way as the VS
   Code extension.

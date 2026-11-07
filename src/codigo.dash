@@ -1,0 +1,2107 @@
+# Lo que Forja sabe del código: los símbolos del proyecto (funciones, structs y sus campos, constantes, variables,
+# enums, las ventanas de los .dashui), las variables locales de la función donde está el cursor, las palabras clave
+# y los builtins de Dash (builtins.dash, de tools/builtins.py). Con eso: la lista para completar, la ayuda de los
+# argumentos, ir a la definición y dónde se usa un nombre.
+#
+#   cx_fichero(ruta, lineas, version)     # un fichero abierto en el editor (se vuelve a leer si cambió su versión)
+#   cx_preparar(ruta, cajon_dash)         # los símbolos que se ven desde ese fichero: el suyo y lo que importa
+#   ac_calcular(lineas, cl, cc, forzar)   # la lista para completar lo que hay delante del cursor (ac_*)
+#   ay_calcular(lineas, cl, cc)           # la ayuda de los argumentos de la llamada donde está el cursor (ay_*)
+#   cx_definicion(lineas, ruta, cl, cc)   # dónde se define el nombre del cursor (cx_def_*)
+#   cx_referencias(lineas, ruta, cl, cc, otros)  # dónde se usa (cx_ref_*)
+#
+# No usa el compilador: lee las líneas como las escribe Forja, con la sangría de Dash (lo de arriba del todo
+# empieza en la columna 0; los campos de un struct, un poco más adentro). Las líneas van desde 0 aquí; los sitios
+# que se dan (cx_def_linea, cx_ref_lineas, Simbolo.linea), desde 1.
+
+import "builtins.dash"
+import "lib/json.dash"
+
+const CX_FUNC = 1
+const CX_STRUCT = 2
+const CX_CONST = 3
+const CX_VAR = 4
+const CX_ENUM = 5
+const CX_CAMPO = 6
+const CX_METODO = 7
+const CX_VALOR = 8        # un valor de un enum
+const CX_LOCAL = 9        # una variable local o un parámetro
+const CX_CLAVE = 10       # una palabra clave
+const CX_TIPO = 11
+const CX_BUILTIN = 12
+const CX_MIEMBRO = 13     # de las listas, los diccionarios y los textos (push, length...)
+
+const AC_MINIMO = 2       # las letras que hay que escribir para que salga la lista sola
+const AC_MAXIMO = 200     # las entradas de la lista como mucho
+
+# Un símbolo guarda lo justo (cada texto guardado cuesta una copia, y un fichero tiene cientos): su firma, su tipo
+# y su comentario se sacan de su línea cuando hacen falta (sim_firma, sim_tipo, sim_nota)
+struct Simbolo
+    nombre: String
+    clave: String         # el nombre en minúsculas, para buscar
+    clase: Int            # CX_FUNC, CX_STRUCT...
+    dueno: String         # el struct de un campo o un método, el enum de un valor ("" los de arriba)
+    weak fichero: FicheroCx
+    linea: Int            # desde 1
+    col: Int              # desde 1: donde empieza el nombre
+    fija: String = nil    # la firma, si no sale de la línea (las ventanas de un .dashui)
+end
+
+struct FicheroCx
+    ruta: String
+    version: Int          # la del documento del editor; -1 si se leyó del disco
+    ronda: Int            # la última vez que lo dio el editor (cx_ronda)
+    simbolos: [Simbolo]   # en el orden del fichero (los miembros de un struct, seguidos)
+    importa: [String]     # lo que importa, tal como está escrito
+    lineas: [String]
+    orden: [Simbolo] = nil          # los de arriba del todo, en el orden de su clave (para buscar a medias)
+    desde: {String: Int} = nil      # los miembros de un struct o un enum: de dónde a dónde en simbolos
+    hasta: {String: Int} = nil
+    # leyéndolo a trozos (cx_leer_paso): la línea por la que va (-1: no se está leyendo) y cómo está
+    paso: Int = -1
+    p_version: Int = 0
+    p_dentro: String = ""
+    p_enum: Bool = false
+    p_miembros: Int = -1
+    p_nativo: Int = 0
+    nuevos: [Simbolo] = nil
+    nuevos_imp: [String] = nil
+end
+
+var cx_ficheros: [FicheroCx] = []
+var cx_ronda: Int = 0
+var cx_activa: String = ""             # el fichero desde el que se mira
+var _cx_vistos: [FicheroCx] = []       # los ficheros que se ven desde él, él primero
+var cx_total: Int = 0                  # cuántos símbolos tienen
+var cx_rutas: [String] = []            # él y lo que importa (también lo que importa lo importado)
+var cx_ms: Int = 0                     # lo que tardó el último cx_preparar
+var _cx_hondo: Int = 0                 # para no dar vueltas sin fin al buscar tipos
+
+# --- Letras ---
+
+func _cx_es_id(c: Int) -> Bool
+    return (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95 or c >= 192
+end
+
+func _cx_sangria(s: String) -> Int
+    n = 0
+    while str_code(s, n) == 32
+        n = n + 1
+    end
+    return n
+end
+
+# El nombre que empieza en p ("" si no hay); acaba en _cx_fin
+var _cx_fin: Int = 0
+
+func _cx_palabra(s: String, p: Int) -> String
+    i = p
+    if str_code(s, i) == 64
+        i = i + 1
+    end
+    while i < s.length and _cx_es_id(str_code(s, i))
+        i = i + 1
+    end
+    _cx_fin = i
+    if i == p
+        return ""
+    end
+    return s[p:i]
+end
+
+func _cx_blancos(s: String, p: Int) -> Int
+    while str_code(s, p) == 32
+        p = p + 1
+    end
+    return p
+end
+
+# La línea sin el comentario del final (un "#" fuera de un texto que no es "#{")
+func _cx_sin_comentario(s: String) -> String
+    i = 0
+    texto = false
+    while i < s.length
+        c = str_code(s, i)
+        if texto
+            if c == 92
+                i = i + 1
+            elif c == 34
+                texto = false
+            end
+        elif c == 34
+            texto = true
+        elif c == 35 and str_code(s, i + 1) != 123
+            return s[0:i]
+        end
+        i = i + 1
+    end
+    return s
+end
+
+# ¿Es código la posición k de la línea? (no dentro de un texto, salvo en #{...}, ni de un comentario)
+func cx_es_codigo(s: String, k: Int) -> Bool
+    i = 0
+    texto = false
+    llaves = 0
+    while i < k and i < s.length
+        c = str_code(s, i)
+        if texto and llaves == 0
+            if c == 92
+                i = i + 1
+            elif c == 35 and str_code(s, i + 1) == 123
+                llaves = 1
+                i = i + 1
+            elif c == 34
+                texto = false
+            end
+        elif llaves > 0
+            if c == 123
+                llaves = llaves + 1
+            elif c == 125
+                llaves = llaves - 1
+            end
+        elif c == 34
+            texto = true
+        elif c == 35
+            return false
+        end
+        i = i + 1
+    end
+    return not texto or llaves > 0
+end
+
+func _cx_recortar(s: String, n: Int) -> String
+    if s.length > n
+        return s[0:n - 3] + "..."
+    end
+    return s
+end
+
+# --- Rutas ---
+
+func _cx_cajon(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = str_code(ruta, i)
+        if c == 47
+            return ruta[0:i]
+        end
+        if c == 58
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
+
+func _cx_unir(cajon: String, nombre: String) -> String
+    if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
+        return cajon + nombre
+    end
+    return cajon + "/" + nombre
+end
+
+# Quita los "." y los ".." de una ruta ("DH0:a/b/../c.dash" -> "DH0:a/c.dash")
+func _cx_normalizar(ruta: String) -> String
+    dispositivo = ""
+    p = str_find(ruta, ":")
+    resto = ruta
+    if p >= 0
+        dispositivo = ruta[0:p + 1]
+        resto = ruta[p + 1:]
+    end
+    var partes: [String] = []
+    for t in str_split(resto, "/")
+        if t == ".."
+            if partes.length > 0 and partes[partes.length - 1] != ".."
+                partes.pop()
+            elif dispositivo == ""
+                partes.push(t)
+            end
+        elif t != "." and t != ""
+            partes.push(t)
+        end
+    end
+    r = dispositivo
+    i = 0
+    for t in partes
+        if i > 0
+            r = r + "/"
+        end
+        r = r + t
+        i = i + 1
+    end
+    return r
+end
+
+# Dónde está lo que importa un fichero, como lo busca el compilador: desde su cajón y los de arriba, y en la
+# carpeta de Dash (lib/...). "" si no está.
+var _cx_resueltos: {String: String} = {}
+
+func cx_resolver(imp: String, desde: String, cajon_dash: String) -> String
+    clave = desde + "|" + imp
+    if _cx_resueltos.has(clave)
+        return _cx_resueltos[clave]
+    end
+    r = _cx_resolver(imp, desde, cajon_dash)
+    if r != ""
+        _cx_resueltos[clave] = r
+    end
+    return r
+end
+
+func _cx_resolver(imp: String, desde: String, cajon_dash: String) -> String
+    if str_find(imp, ":") >= 0
+        if file_exists(imp)
+            return imp
+        end
+        return ""
+    end
+    cajon = _cx_cajon(desde)
+    n = 0
+    while n < 10
+        r = _cx_normalizar(_cx_unir(cajon, imp))
+        if file_exists(r)
+            return r
+        end
+        if cajon == "" or str_ends(cajon, ":")
+            break
+        end
+        cajon = _cx_cajon(cajon)
+        n = n + 1
+    end
+    if cajon_dash != ""
+        r = _cx_normalizar(_cx_unir(cajon_dash, imp))
+        if file_exists(r)
+            return r
+        end
+    end
+    return ""
+end
+
+# --- Leer un fichero ---
+
+func _cx_simbolo(f: FicheroCx, nombre: String, clase: Int, dueno: String, linea: Int, col: Int)
+    f.nuevos.push(Simbolo(nombre, str_lower(nombre), clase, dueno, f, linea, col))
+end
+
+func _cx_simbolo_fijo(f: FicheroCx, nombre: String, clase: Int, dueno: String, linea: Int, firma: String)
+    f.nuevos.push(Simbolo(nombre, str_lower(nombre), clase, dueno, f, linea, 1, firma))
+end
+
+func sim_ruta(s: Simbolo) -> String
+    if s.fichero == nil
+        return ""
+    end
+    return s.fichero.ruta
+end
+
+# La línea del símbolo, sin el comentario del final ("" si ya no está donde estaba: el texto ha cambiado)
+func _sim_linea(s: Simbolo) -> String
+    f = s.fichero
+    if f == nil or s.linea < 1 or s.linea > f.lineas.length
+        return ""
+    end
+    l = f.lineas[s.linea - 1]
+    if l.length > 400
+        l = l[0:400]
+    end
+    if not str_starts(l[s.col - 1:], s.nombre)
+        return ""
+    end
+    return _cx_sin_comentario(l)
+end
+
+func sim_firma(s: Simbolo) -> String
+    if s.fija != nil
+        return s.fija
+    end
+    if s.clase == CX_VALOR
+        return s.dueno + "." + s.nombre
+    end
+    l = _sim_linea(s)
+    if l == ""
+        return s.nombre
+    end
+    if s.clase == CX_FUNC or s.clase == CX_METODO
+        return str_trim(l[s.col - 1:])
+    elif s.clase == CX_STRUCT or s.clase == CX_ENUM
+        t = str_trim(l)
+        if str_ends(t, " end")
+            return _cx_recortar(t, 60)
+        end
+        return t
+    elif s.clase == CX_CONST
+        return _cx_recortar(str_trim(l[s.col - 1:]), 60)
+    elif _cx_declaracion(l, s.col - 1)
+        return _cx_n + ": " + _cx_t
+    end
+    return str_trim(l[s.col - 1:])
+end
+
+func sim_tipo(s: Simbolo) -> String
+    if s.clase == CX_STRUCT
+        return s.nombre
+    elif s.clase == CX_ENUM
+        return "enum " + s.nombre
+    elif s.clase == CX_VALOR
+        return "enum " + s.dueno
+    end
+    if s.fija != nil
+        if s.clase == CX_CAMPO
+            return "Int"
+        end
+        return _cx_devuelve(s.fija)
+    end
+    l = _sim_linea(s)
+    if l == ""
+        return ""
+    end
+    if s.clase == CX_FUNC or s.clase == CX_METODO
+        return _cx_devuelve(l[s.col - 1:])
+    elif s.clase == CX_CONST
+        p = str_find_from(l, "=", s.col - 1)
+        if p < 0
+            return ""
+        end
+        return _cx_tipo_literal(l[p + 1:])
+    elif s.clase == CX_VAR and str_starts(str_trim(l), "Window")
+        return "Window"
+    elif _cx_declaracion(l, s.col - 1)
+        return _cx_t
+    end
+    return ""
+end
+
+func sim_nota(s: Simbolo) -> String
+    if s.fichero == nil or s.fija != nil
+        return ""
+    end
+    return _cx_nota(s.fichero.lineas, s.linea - 2)
+end
+
+# Lo que devuelve una función a partir de su firma ("f(a) -> Int" -> "Int")
+func _cx_devuelve(firma: String) -> String
+    p = str_find(firma, "->")
+    if p < 0
+        return ""
+    end
+    return str_trim(firma[p + 2:])
+end
+
+# El tipo de un valor escrito (para las constantes)
+func _cx_tipo_literal(e: String) -> String
+    e = str_trim(e)
+    c = str_code(e, 0)
+    if c == 34
+        return "String"
+    end
+    if (c >= 48 and c <= 57) or c == 45
+        if str_contains(e, ".") and not str_starts(e, "0x")
+            return "Float"
+        end
+        return "Int"
+    end
+    if e == "true" or e == "false"
+        return "Bool"
+    end
+    return ""
+end
+
+# "nombre: Tipo = valor" desde p: deja el nombre y el tipo en _cx_n y _cx_t; false si no es eso
+var _cx_n: String = ""
+var _cx_t: String = ""
+
+func _cx_declaracion(s: String, p: Int) -> Bool
+    n = _cx_palabra(s, p)
+    if n == ""
+        return false
+    end
+    q = _cx_blancos(s, _cx_fin)
+    if str_code(s, q) != 58
+        return false
+    end
+    t = s[q + 1:]
+    e = str_find(t, "=")
+    if e >= 0
+        t = t[0:e]
+    end
+    _cx_n = n
+    _cx_t = str_trim(t)
+    return true
+end
+
+# Los valores de un enum en una línea ("A, B = 2, C")
+func _cx_valores(f: FicheroCx, s: String, p: Int, dueno: String, linea: Int)
+    k = p
+    for trozo in str_split(s[p:], ",")
+        q = _cx_blancos(trozo, 0)
+        n = _cx_palabra(trozo, q)
+        if n != "" and n != "end"
+            _cx_simbolo(f, n, CX_VALOR, dueno, linea, k + q + 1)
+        end
+        k = k + trozo.length + 1
+    end
+end
+
+# El comentario de encima de la línea k (desde 0) y las seguidas de antes, en una línea (como mucho cinco)
+func _cx_nota(lineas: [String], k: Int) -> String
+    nota = ""
+    n = 0
+    while k >= 0 and n < 5
+        l = lineas[k]
+        s = _cx_sangria(l)
+        if str_code(l, s) != 35
+            break
+        end
+        t = str_trim(l[s + 1:])
+        if nota == ""
+            nota = t
+        else
+            nota = t + " " + nota
+        end
+        k = k - 1
+        n = n + 1
+    end
+    return nota
+end
+
+# Un miembro de un struct (un campo o un método) en la línea n (desde 1), con sangría s
+func _cx_miembro_linea(f: FicheroCx, lineas: [String], n: Int, s: Int, dentro: String)
+    l = lineas[n - 1]
+    w = _cx_palabra(l, s)
+    p = _cx_blancos(l, _cx_fin)
+    if w == "func"
+        nombre = _cx_palabra(l, p)
+        if nombre != ""
+            _cx_simbolo(f, nombre, CX_METODO, dentro, n, p + 1)
+        end
+        return
+    end
+    q = s
+    if w == "weak"
+        q = p
+        w = _cx_palabra(l, q)
+        p = _cx_blancos(l, _cx_fin)
+    end
+    if w != "" and str_code(l, p) == 58
+        _cx_simbolo(f, w, CX_CAMPO, dentro, n, q + 1)
+    end
+end
+
+# Los símbolos de un fichero de Dash. Va deprisa por lo que no interesa: las líneas con sangría (los cuerpos de las
+# funciones) solo se miran dentro de un struct o un enum, y los comentarios solo encima de lo que se declara.
+# Desde la línea f.paso, hasta max líneas; true si llegó al final (lo leído está en f.nuevos y f.nuevos_imp)
+func _cx_leer_trozo(f: FicheroCx, max: Int) -> Bool
+    lineas = f.lineas
+    dentro = f.p_dentro      # el struct o el enum donde se está
+    es_enum = f.p_enum
+    miembros = f.p_miembros  # la sangría de los campos y los métodos del struct
+    nativo = f.p_nativo      # en un @native o un @c: 1 antes de su """, 2 dentro, 3 después (hasta su end)
+    total = lineas.length
+    n = f.paso
+    limite = n + max
+    while n < total and n < limite
+        c0 = str_code(lineas[n], 0)
+        n = n + 1
+        if nativo > 0
+            k = str_find(lineas[n - 1], "\"\"\"")
+            if k >= 0
+                if str_find_from(lineas[n - 1], "\"\"\"", k + 3) >= 0
+                    nativo = 3
+                elif nativo == 1
+                    nativo = 2
+                else
+                    nativo = 3
+                end
+            elif nativo != 2 and c0 == 101 and str_trim(lineas[n - 1]) == "end"
+                nativo = 0
+            end
+            continue
+        end
+        if c0 == 32
+            if dentro == ""
+                continue
+            end
+            s = _cx_sangria(lineas[n - 1])
+            c = str_code(lineas[n - 1], s)
+            if c == 0 or c == 35
+                continue
+            end
+            if es_enum
+                _cx_valores(f, _cx_sin_comentario(lineas[n - 1]), s, dentro, n)
+                continue
+            end
+            if miembros < 0
+                miembros = s
+            end
+            if s == miembros
+                _cx_miembro_linea(f, lineas, n, s, dentro)
+            end
+            continue
+        end
+        if c0 == 0 or c0 == 35 or c0 == 9 or c0 == 13
+            continue
+        end
+        # en la columna 0: lo de arriba del todo
+        dentro = ""
+        miembros = -1
+        l = lineas[n - 1]
+        w = _cx_palabra(l, 0)
+        p = _cx_blancos(l, _cx_fin)
+        if w == "@native" or w == "@export" or w == "@amiga"
+            if w == "@native"
+                nativo = 1
+            end
+            w = _cx_palabra(l, p)
+            p = _cx_blancos(l, _cx_fin)
+        elif w == "@c"
+            nativo = 1
+            continue
+        end
+        if w == "func" or w == "const" or w == "Window"
+            nombre = _cx_palabra(l, p)
+            if nombre != ""
+                clase = CX_FUNC
+                if w == "const"
+                    clase = CX_CONST
+                elif w == "Window"
+                    clase = CX_VAR
+                end
+                _cx_simbolo(f, nombre, clase, "", n, p + 1)
+            end
+        elif w == "struct" or w == "interface" or w == "enum"
+            nombre = _cx_palabra(l, p)
+            if nombre != ""
+                codigo = l
+                if codigo.length > 400
+                    codigo = codigo[0:400]
+                end
+                codigo = str_trim(_cx_sin_comentario(codigo))
+                if w == "enum"
+                    _cx_simbolo(f, nombre, CX_ENUM, "", n, p + 1)
+                    resto = _cx_blancos(l, _cx_fin)
+                    if resto < codigo.length
+                        _cx_valores(f, codigo, resto, nombre, n)
+                    end
+                else
+                    _cx_simbolo(f, nombre, CX_STRUCT, "", n, p + 1)
+                end
+                if not str_ends(codigo, " end") and codigo != "end"
+                    dentro = nombre
+                    es_enum = w == "enum"
+                end
+            end
+        elif w == "var"
+            nombre = _cx_palabra(l, p)
+            if nombre != ""
+                _cx_simbolo(f, nombre, CX_VAR, "", n, p + 1)
+            end
+        elif w == "import"
+            q = str_find(l, "\"")
+            if q >= 0
+                r = str_find_from(l, "\"", q + 1)
+                if r > q
+                    f.nuevos_imp.push(l[q + 1:r])
+                end
+            end
+        end
+    end
+    f.paso = n
+    f.p_dentro = dentro
+    f.p_enum = es_enum
+    f.p_miembros = miembros
+    f.p_nativo = nativo
+    return n >= total
+end
+
+func _cx_empezar_lectura(f: FicheroCx, version: Int)
+    f.paso = 0
+    f.p_version = version
+    f.p_dentro = ""
+    f.p_enum = false
+    f.p_miembros = -1
+    f.p_nativo = 0
+    f.nuevos = []
+    f.nuevos_imp = []
+end
+
+# Lo leído pasa a ser lo de verdad: los miembros de cada struct y los de arriba en orden, para buscar
+func _cx_terminar(f: FicheroCx)
+    f.simbolos = f.nuevos
+    f.importa = f.nuevos_imp
+    f.nuevos = nil
+    f.nuevos_imp = nil
+    f.paso = -1
+    f.version = f.p_version
+    f.desde = {}
+    f.hasta = {}
+    var orden: [Simbolo] = []
+    ultimo = ""
+    i = 0
+    for s in f.simbolos
+        if s.dueno == ""
+            orden.push(s)
+        elif s.dueno != ultimo
+            if not f.desde.has(s.dueno)
+                f.desde[s.dueno] = i
+            end
+            ultimo = s.dueno
+        end
+        if s.dueno != ""
+            f.hasta[s.dueno] = i + 1
+        end
+        i = i + 1
+    end
+    orden.sort(_cx_antes)
+    f.orden = orden
+end
+
+func _cx_leer_lineas(f: FicheroCx)
+    _cx_empezar_lectura(f, f.version)
+    while not _cx_leer_trozo(f, 100000)
+    end
+    _cx_terminar(f)
+end
+
+# Un .dashui: un struct por ventana (con window y un campo por objeto con nombre) y su Nombre_create()
+func _cx_dashui_objetos(f: FicheroCx, o: Json, ventana: String, sitios: {String: Int})
+    if o == nil
+        return
+    end
+    if o.kind == JSON_OBJECT
+        nombre = json_get_str(o, "name")
+        if nombre != "" and json_has(o, "type")
+            _cx_simbolo_fijo(f, nombre, CX_CAMPO, ventana, sitios.get(nombre, 0), nombre + ": Int (" + json_get_str(o, "type") + ")")
+        end
+        i = 0
+        while i < json_length(o)
+            v = json_value_at(o, i)
+            if v != nil and (v.kind == JSON_OBJECT or v.kind == JSON_ARRAY)
+                _cx_dashui_objetos(f, v, ventana, sitios)
+            end
+            i = i + 1
+        end
+    elif o.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(o)
+            _cx_dashui_objetos(f, json_at(o, i), ventana, sitios)
+            i = i + 1
+        end
+    end
+end
+
+func _cx_leer_dashui(f: FicheroCx)
+    _cx_empezar_lectura(f, f.version)
+    _cx_leer_dashui_todo(f)
+    _cx_terminar(f)
+end
+
+func _cx_leer_dashui_todo(f: FicheroCx)
+    var sitios: {String: Int} = {}
+    texto = ""
+    n = 0
+    for l in f.lineas
+        n = n + 1
+        p = str_find(l, "\"name\": \"")
+        if p >= 0
+            q = str_find_from(l, "\"", p + 9)
+            if q > p + 9 and not sitios.has(l[p + 9:q])
+                sitios[l[p + 9:q]] = n
+            end
+        end
+        texto = texto + l + "\n"
+    end
+    j = json_parse(texto)
+    if j == nil
+        return
+    end
+    ventanas = json_get(j, "windows")
+    if ventanas == nil
+        return
+    end
+    i = 0
+    while i < json_length(ventanas)
+        w = json_at(ventanas, i)
+        nombre = json_get_str(w, "name")
+        if nombre != ""
+            linea = sitios.get(nombre, 1)
+            _cx_simbolo_fijo(f, nombre, CX_STRUCT, "", linea, "struct " + nombre + " (" + json_get_str(w, "title") + ")")
+            _cx_simbolo_fijo(f, nombre + "_create", CX_FUNC, "", linea, nombre + "_create() -> " + nombre)
+            _cx_simbolo_fijo(f, "window", CX_CAMPO, nombre, linea, "window: Int")
+            _cx_dashui_objetos(f, json_get(w, "root"), nombre, sitios)
+            _cx_dashui_objetos(f, json_get(w, "menus"), nombre, sitios)
+        end
+        i = i + 1
+    end
+end
+
+func _cx_leer(f: FicheroCx)
+    if str_ends(str_lower(f.ruta), ".dashui")
+        _cx_leer_dashui(f)
+    else
+        _cx_leer_lineas(f)
+    end
+end
+
+var _cx_por_ruta: {String: Int} = {}   # la ruta en minúsculas: su sitio en cx_ficheros
+
+func _cx_buscar(ruta: String) -> FicheroCx
+    i = _cx_por_ruta.get(str_lower(ruta), -1)
+    if i < 0
+        return nil
+    end
+    return cx_ficheros[i]
+end
+
+func _cx_nuevo(ruta: String, version: Int, lineas: [String]) -> FicheroCx
+    var s: [Simbolo] = []
+    var im: [String] = []
+    f = FicheroCx(ruta, version, cx_ronda, s, im, lineas)
+    f.orden = []
+    f.desde = {}
+    f.hasta = {}
+    _cx_por_ruta[str_lower(ruta)] = cx_ficheros.length
+    cx_ficheros.push(f)
+    return f
+end
+
+# Un fichero abierto en el editor, con sus líneas de ahora, a trozos: lee como mucho max líneas cada vez y da true
+# cuando lo tiene al día (mientras, valen sus símbolos de antes). Si cambia la versión a medias, empieza otra vez.
+func cx_leer_paso(ruta: String, lineas: [String], version: Int, max: Int) -> Bool
+    f = _cx_buscar(ruta)
+    if f == nil
+        f = _cx_nuevo(ruta, -2, lineas)
+    end
+    f.ronda = cx_ronda
+    if f.paso == -1 and f.version == version and f.lineas == lineas
+        return true
+    end
+    if f.paso == -2 and f.p_version == version and f.lineas == lineas
+        # leído: falta ordenarlo (un paso aparte, que también cuesta)
+        _cx_terminar(f)
+        return true
+    end
+    if f.paso < 0 or f.p_version != version or f.lineas != lineas
+        f.lineas = lineas
+        if str_ends(str_lower(ruta), ".dashui")
+            f.version = version
+            _cx_leer_dashui(f)
+            return true
+        end
+        _cx_empezar_lectura(f, version)
+    end
+    if _cx_leer_trozo(f, max)
+        if max >= 100000
+            _cx_terminar(f)
+            return true
+        end
+        f.paso = -2
+    end
+    return false
+end
+
+# Un fichero abierto en el editor, de una vez
+func cx_fichero(ruta: String, lineas: [String], version: Int)
+    while not cx_leer_paso(ruta, lineas, version, 100000)
+    end
+end
+
+# Un fichero del disco (lo importado que no está abierto); nil si no se puede leer
+func _cx_del_disco(ruta: String) -> FicheroCx
+    f = _cx_buscar(ruta)
+    if f != nil and (f.version == -1 or f.ronda == cx_ronda)
+        return f
+    end
+    texto = file_read_text(ruta)
+    if texto == nil
+        return f
+    end
+    # en UTF-8 (de un PC) pasa a Latin-1, como en el editor
+    if str_contains(texto, str_char(0xC3)) and latin1_to_utf8(utf8_to_latin1(texto)) == texto
+        texto = utf8_to_latin1(texto)
+    end
+    lineas = str_split(str_replace(str_replace(texto, "\r\n", "\n"), "\t", "    "), "\n")
+    if f == nil
+        f = _cx_nuevo(ruta, -1, lineas)
+    end
+    f.version = -1
+    f.lineas = lineas
+    _cx_leer(f)
+    return f
+end
+
+# Empieza una ronda: los ficheros que el editor no dé en ella se volverán a leer del disco
+func cx_empezar()
+    cx_ronda = cx_ronda + 1
+end
+
+# Los ficheros que se ven desde uno: él y lo que importa (y lo que importa lo importado), en cx_rutas y _cx_vistos.
+# No junta los símbolos: se buscan en cada fichero (cada uno los tiene en orden), así que es barato.
+func cx_preparar(ruta: String, cajon_dash: String)
+    t0 = time_ms()
+    cx_activa = ruta
+    cx_rutas = [ruta]
+    _cx_vistos = []
+    cx_total = 0
+    var ya: {String: Int} = {}
+    ya[str_lower(ruta)] = 1
+    i = 0
+    while i < cx_rutas.length
+        f = _cx_buscar(cx_rutas[i])
+        if f == nil or (f.version >= 0 and f.ronda != cx_ronda)
+            f = _cx_del_disco(cx_rutas[i])
+        end
+        if f != nil
+            _cx_vistos.push(f)
+            cx_total = cx_total + f.simbolos.length
+            for imp in f.importa
+                r = cx_resolver(imp, f.ruta, cajon_dash)
+                if r != "" and not ya.has(str_lower(r))
+                    ya[str_lower(r)] = 1
+                    cx_rutas.push(r)
+                end
+            end
+        end
+        i = i + 1
+    end
+    cx_ms = time_ms() - t0
+end
+
+func _cx_antes(a: Simbolo, b: Simbolo) -> Bool
+    return a.clave < b.clave
+end
+
+# El primero de f.orden cuya clave no va antes que clave
+func _cx_orden_desde(f: FicheroCx, clave: String) -> Int
+    a = 0
+    b = f.orden.length
+    while a < b
+        m = (a + b) / 2
+        if f.orden[m].clave < clave
+            a = m + 1
+        else
+            b = m
+        end
+    end
+    return a
+end
+
+# Un símbolo de arriba del todo que se ve, por su nombre (el del fichero activo antes que el de lo importado; los
+# privados, "_x", solo en el suyo); nil si no hay
+func cx_global(nombre: String) -> Simbolo
+    clave = str_lower(nombre)
+    i = 0
+    for f in _cx_vistos
+        if i == 0 or not str_starts(nombre, "_")
+            k = _cx_orden_desde(f, clave)
+            while k < f.orden.length and f.orden[k].clave == clave
+                if f.orden[k].nombre == nombre
+                    return f.orden[k]
+                end
+                k = k + 1
+            end
+        end
+        i = i + 1
+    end
+    return nil
+end
+
+# Los campos y métodos de un struct (o los valores de un enum), en su orden
+func cx_miembros_de(dueno: String) -> [Simbolo]
+    var r: [Simbolo] = []
+    for f in _cx_vistos
+        k = f.desde.get(dueno, -1)
+        if k >= 0
+            fin = f.hasta.get(dueno, 0)
+            while k < fin
+                if f.simbolos[k].dueno == dueno
+                    r.push(f.simbolos[k])
+                end
+                k = k + 1
+            end
+            return r
+        end
+    end
+    return r
+end
+
+func cx_miembro(tipo: String, nombre: String) -> Simbolo
+    for f in _cx_vistos
+        k = f.desde.get(tipo, -1)
+        if k >= 0
+            fin = f.hasta.get(tipo, 0)
+            while k < fin
+                s = f.simbolos[k]
+                if s.nombre == nombre and s.dueno == tipo
+                    return s
+                end
+                k = k + 1
+            end
+        end
+    end
+    return nil
+end
+
+# --- Las palabras de Dash (builtins.dash) ---
+
+# Los textos de builtins.dash, sin partir (partirlos en casi mil textos cuesta más de un segundo en un A1200): cada
+# nombre ocupa BI_ANCHO letras y BI_POS dice dónde empieza cada línea de BI_INFO
+var _bi_texto: String = ""
+var _bi_info_texto: String = ""
+var _bi_pos: String = ""
+var bi_total: Int = 0
+
+func bi_preparar()
+    if bi_total > 0
+        return
+    end
+    # (copias: un literal no lleva su largo y cortar un trozo lo mediría entero cada vez)
+    _bi_texto = BI_NOMBRES + ""
+    _bi_info_texto = BI_INFO + ""
+    _bi_pos = BI_POS + ""
+    bi_total = BI_TOTAL
+end
+
+func bi_nombre(i: Int) -> String
+    return str_trim(_bi_texto[i * BI_ANCHO:(i + 1) * BI_ANCHO])
+end
+
+func _bi_clave(i: Int) -> String
+    return str_lower(str_trim(_bi_texto[i * BI_ANCHO:(i + 1) * BI_ANCHO]))
+end
+
+# La primera entrada cuya clave no va antes que clave
+func _bi_desde(clave: String) -> Int
+    bi_preparar()
+    a = 0
+    b = bi_total
+    while a < b
+        m = (a + b) / 2
+        if _bi_clave(m) < clave
+            a = m + 1
+        else
+            b = m
+        end
+    end
+    return a
+end
+
+# La entrada de ese nombre; -1 si no es una palabra de Dash
+func bi_buscar(nombre: String) -> Int
+    clave = str_lower(nombre)
+    i = _bi_desde(clave)
+    while i < bi_total and _bi_clave(i) == clave
+        if bi_nombre(i) == nombre
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# "clase|firma|descripción" de la entrada i
+func _bi_partes(i: Int) -> [String]
+    bi_preparar()
+    desde = str_to_int(_bi_pos[i * 6:i * 6 + 6], 16)
+    hasta = str_to_int(_bi_pos[i * 6 + 6:i * 6 + 12], 16) - 1
+    p = str_split(_bi_info_texto[desde:hasta], "|")
+    while p.length < 3
+        p.push("")
+    end
+    if p.length > 3
+        # una descripción con "|"
+        d = p[2]
+        k = 3
+        while k < p.length
+            d = d + "|" + p[k]
+            k = k + 1
+        end
+        p = [p[0], p[1], d]
+    end
+    return p
+end
+
+func bi_clase(i: Int) -> Int
+    c = _bi_partes(i)[0]
+    if c == "0"
+        return CX_CLAVE
+    elif c == "1"
+        return CX_TIPO
+    end
+    return CX_BUILTIN
+end
+
+func bi_firma(i: Int) -> String
+    return _bi_partes(i)[1]
+end
+
+func bi_nota(i: Int) -> String
+    return _bi_partes(i)[2]
+end
+
+# --- Las variables locales de la función donde está el cursor ---
+
+var _loc_nombres: [String] = []
+var _loc_tipos: [String] = []     # el tipo escrito ("" si hay que sacarlo de la expresión)
+var _loc_exprs: [String] = []     # lo que se le dio al empezar ("for:x" en un for x in ...)
+var _loc_lineas: [Int] = []       # desde 1
+var _loc_cols: [Int] = []
+var _loc_struct: String = ""      # el struct del método donde está el cursor (para self)
+var _loc_func: Int = -1           # la línea de la función (desde 0); -1 fuera de una
+var _loc_de: [String] = nil       # de qué líneas y qué línea se sacaron
+var _loc_cl: Int = -1
+var _loc_version: Int = -1
+
+func _loc_anadir(nombre: String, tipo: String, expr: String, linea: Int, col: Int)
+    for n in _loc_nombres
+        if n == nombre
+            return
+        end
+    end
+    _loc_nombres.push(nombre)
+    _loc_tipos.push(tipo)
+    _loc_exprs.push(expr)
+    _loc_lineas.push(linea)
+    _loc_cols.push(col)
+end
+
+# Los parámetros de "f(a: Int, b) -> X" desde p (en la línea l, desde 0)
+func _loc_parametros(s: String, l: Int)
+    a = str_find(s, "(")
+    if a < 0
+        return
+    end
+    b = str_find_from(s, ")", a)
+    if b < 0
+        b = s.length
+    end
+    k = a + 1
+    for trozo in str_split(s[a + 1:b], ",")
+        q = _cx_blancos(trozo, 0)
+        if _cx_declaracion(trozo, q)
+            _loc_anadir(_cx_n, _cx_t, "", l + 1, k + q + 1)
+        else
+            n = _cx_palabra(trozo, q)
+            if n != ""
+                _loc_anadir(n, "", "", l + 1, k + q + 1)
+            end
+        end
+        k = k + trozo.length + 1
+    end
+end
+
+# Que cx_locales vuelva a mirar las líneas (se cambió una que no es la del cursor)
+func cx_locales_olvidar()
+    _loc_de = nil
+end
+
+# Las variables de la función que lleva a la línea cl: sus parámetros y lo que se declara antes de cl. Escribir
+# en la línea cl no las cambia: se guardan mientras no cambie la línea (o cx_locales_olvidar).
+func cx_locales(lineas: [String], cl: Int, version: Int)
+    if _loc_de == lineas and _loc_cl == cl
+        return
+    end
+    _loc_de = lineas
+    _loc_cl = cl
+    _loc_version = version
+    _loc_nombres = []
+    _loc_tipos = []
+    _loc_exprs = []
+    _loc_lineas = []
+    _loc_cols = []
+    _loc_struct = ""
+    _loc_func = -1
+    if cl < 0 or cl >= lineas.length
+        return
+    end
+    sc = _cx_sangria(lineas[cl])
+    metodo = -1
+    l = cl
+    while l >= 0
+        k = _cx_sangria(lineas[l])
+        c = str_code(lineas[l], k)
+        if k == 0 and c != 0 and c != 35
+            w = _cx_palabra(lineas[l], 0)
+            if w == "func" or w == "Main" or w == "@native"
+                _loc_func = l
+            elif (w == "struct" or w == "interface") and metodo >= 0
+                _loc_func = metodo
+                _loc_struct = _cx_palabra(lineas[l], _cx_blancos(lineas[l], _cx_fin))
+            end
+            break
+        elif c == 102 and metodo < 0 and k < sc and l != cl and _cx_palabra(lineas[l], k) == "func"
+            metodo = l
+        end
+        l = l - 1
+    end
+    if _loc_func < 0
+        return
+    end
+    _loc_parametros(_cx_sin_comentario(lineas[_loc_func]), _loc_func)
+    l = _loc_func + 1
+    while l < cl
+        k = _cx_sangria(lineas[l])
+        c = str_code(lineas[l], k)
+        # solo las que empiezan por una letra minúscula o "_" (var, for, nombre = ...)
+        if (c >= 97 and c <= 122) or c == 95
+            w = _cx_palabra(lineas[l], k)
+            p = _cx_blancos(lineas[l], _cx_fin)
+            c2 = str_code(lineas[l], p)
+            if w == "var"
+                s = _cx_sin_comentario(lineas[l])
+                if _cx_declaracion(s, p)
+                    _loc_anadir(_cx_n, _cx_t, "", l + 1, p + 1)
+                end
+            elif w == "for"
+                s = _cx_sin_comentario(lineas[l])
+                n = _cx_palabra(s, p)
+                q = _cx_blancos(s, _cx_fin)
+                if n != "" and _cx_palabra(s, q) == "in"
+                    _loc_anadir(n, "", "for:" + str_trim(s[_cx_fin:]), l + 1, p + 1)
+                end
+            elif c2 == 61 and str_code(lineas[l], p + 1) != 61
+                s = _cx_sin_comentario(lineas[l])
+                _loc_anadir(w, "", str_trim(s[p + 1:]), l + 1, k + 1)
+            end
+        end
+        l = l + 1
+    end
+end
+
+func _loc_indice(nombre: String) -> Int
+    i = 0
+    while i < _loc_nombres.length
+        if _loc_nombres[i] == nombre
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# --- Tipos ---
+
+# El tipo de los elementos ("[Nave]" -> "Nave", "{String: Int}" -> "Int", "String" -> "String")
+func _cx_elemento(t: String) -> String
+    if str_starts(t, "[") and str_ends(t, "]")
+        return str_trim(t[1:t.length - 1])
+    end
+    if str_starts(t, "{") and str_ends(t, "}")
+        p = str_find(t, ":")
+        if p > 0
+            return str_trim(t[p + 1:t.length - 1])
+        end
+    end
+    if t == "String"
+        return "String"
+    end
+    return ""
+end
+
+# Lo que devuelve un builtin
+func _cx_devuelve_bi(nombre: String) -> String
+    i = bi_buscar(nombre)
+    if i < 0 or bi_clase(i) != CX_BUILTIN
+        return ""
+    end
+    return _cx_devuelve(bi_firma(i))
+end
+
+# Los trozos de "a.b(x).c[i]" (los puntos de fuera de paréntesis y corchetes)
+func _cx_partes(cadena: String) -> [String]
+    var r: [String] = []
+    hondo = 0
+    desde = 0
+    i = 0
+    while i < cadena.length
+        c = str_code(cadena, i)
+        if c == 40 or c == 91
+            hondo = hondo + 1
+        elif c == 41 or c == 93
+            hondo = hondo - 1
+        elif c == 46 and hondo == 0
+            r.push(cadena[desde:i])
+            desde = i + 1
+        end
+        i = i + 1
+    end
+    r.push(cadena[desde:])
+    return r
+end
+
+# Cuántos [...] lleva un trozo al final, fuera de paréntesis
+func _cx_indices(p: String) -> Int
+    n = 0
+    hondo = 0
+    i = 0
+    while i < p.length
+        c = str_code(p, i)
+        if c == 40
+            hondo = hondo + 1
+        elif c == 41
+            hondo = hondo - 1
+        elif c == 91 and hondo == 0
+            n = n + 1
+            hondo = hondo + 100
+        elif c == 93 and hondo >= 100
+            hondo = hondo - 100
+        end
+        i = i + 1
+    end
+    return n
+end
+
+# El tipo de una expresión (lo que se puede: un texto, un número, un struct nuevo, una cadena de nombres)
+func cx_tipo_expr(e: String, lineas: [String], cl: Int) -> String
+    e = str_trim(e)
+    if e == ""
+        return ""
+    end
+    t = _cx_tipo_literal(e)
+    if t != ""
+        return t
+    end
+    c = str_code(e, 0)
+    if c == 91
+        # una lista escrita: del tipo de su primer elemento
+        i = 1
+        hondo = 0
+        while i < e.length
+            k = str_code(e, i)
+            if k == 40 or k == 91 or k == 123
+                hondo = hondo + 1
+            elif (k == 41 or k == 93 or k == 125) and hondo > 0
+                hondo = hondo - 1
+            elif (k == 44 or k == 93) and hondo == 0
+                break
+            end
+            i = i + 1
+        end
+        t = cx_tipo_expr(e[1:i], lineas, cl)
+        if t == ""
+            return "[]"
+        end
+        return "[" + t + "]"
+    end
+    if c == 123
+        return "{}"
+    end
+    # la cadena del principio: "a.b(1)[2] + 3" -> "a.b(1)[2]"
+    i = 0
+    hondo = 0
+    while i < e.length
+        k = str_code(e, i)
+        if k == 40 or k == 91
+            hondo = hondo + 1
+        elif k == 41 or k == 93
+            hondo = hondo - 1
+        elif hondo == 0 and not _cx_es_id(k) and k != 46
+            break
+        end
+        i = i + 1
+    end
+    if i == 0
+        return ""
+    end
+    return cx_tipo_cadena(e[0:i], lineas, cl)
+end
+
+# El tipo de un nombre suelto (o de una llamada a él)
+func _cx_tipo_nombre(nombre: String, llamada: Bool, lineas: [String], cl: Int) -> String
+    if nombre == "self"
+        return _loc_struct
+    end
+    if llamada
+        if nombre == "Int" or nombre == "String" or nombre == "Float" or nombre == "Bool" or nombre == "Fixed"
+            return nombre
+        end
+        s = cx_global(nombre)
+        if s != nil
+            return sim_tipo(s)
+        end
+        return _cx_devuelve_bi(nombre)
+    end
+    i = _loc_indice(nombre)
+    if i >= 0
+        if _loc_tipos[i] != ""
+            return _loc_tipos[i]
+        end
+        e = _loc_exprs[i]
+        if str_starts(e, "for:")
+            e = str_trim(e[4:])
+            p = str_find(e, " in ")
+            if p >= 0
+                e = str_trim(e[p + 4:])
+            elif str_starts(e, "in ")
+                e = str_trim(e[3:])
+            end
+            if str_starts(e, "(")
+                return "Int"
+            end
+            return _cx_elemento(cx_tipo_expr(e, lineas, cl))
+        end
+        return cx_tipo_expr(e, lineas, cl)
+    end
+    s = cx_global(nombre)
+    if s != nil
+        if s.clase == CX_ENUM
+            return "enum " + nombre
+        end
+        if s.clase == CX_STRUCT
+            return ""
+        end
+        return sim_tipo(s)
+    end
+    return ""
+end
+
+# El tipo de "a.b(x).c[i]" en la línea cl (las locales deben estar hechas con cx_locales)
+func cx_tipo_cadena(cadena: String, lineas: [String], cl: Int) -> String
+    if _cx_hondo > 8
+        return ""
+    end
+    _cx_hondo = _cx_hondo + 1
+    tipo = ""
+    i = 0
+    for p in _cx_partes(cadena)
+        nombre = _cx_palabra(p, 0)
+        llamada = str_code(p, _cx_fin) == 40
+        if nombre == ""
+            tipo = ""
+            break
+        end
+        if i == 0
+            tipo = _cx_tipo_nombre(nombre, llamada, lineas, cl)
+        elif str_starts(tipo, "enum ")
+            tipo = tipo
+        elif str_starts(tipo, "[") or str_starts(tipo, "{")
+            if nombre == "length"
+                tipo = "Int"
+            elif nombre == "pop" or nombre == "get"
+                tipo = _cx_elemento(tipo)
+            elif nombre == "keys"
+                tipo = "[String]"
+            else
+                tipo = ""
+            end
+        elif tipo == "String"
+            tipo = ""
+            if nombre == "length"
+                tipo = "Int"
+            end
+        else
+            m = cx_miembro(tipo, nombre)
+            tipo = ""
+            if m != nil
+                tipo = sim_tipo(m)
+            end
+        end
+        k = _cx_indices(p)
+        while k > 0 and tipo != ""
+            tipo = _cx_elemento(tipo)
+            k = k - 1
+        end
+        if tipo == ""
+            break
+        end
+        i = i + 1
+    end
+    _cx_hondo = _cx_hondo - 1
+    return tipo
+end
+
+# La cadena de nombres que acaba justo antes de fin ("a.b(1)[i]" en "x = a.b(1)[i].c")
+func _cx_cadena_antes(s: String, fin: Int) -> String
+    i = fin - 1
+    while i >= 0
+        c = str_code(s, i)
+        if c == 41 or c == 93
+            # hasta su paréntesis o corchete de apertura
+            hondo = 0
+            while i >= 0
+                k = str_code(s, i)
+                if k == 41 or k == 93
+                    hondo = hondo + 1
+                elif k == 40 or k == 91
+                    hondo = hondo - 1
+                    if hondo == 0
+                        break
+                    end
+                end
+                i = i - 1
+            end
+            i = i - 1
+        elif _cx_es_id(c)
+            while i >= 0 and _cx_es_id(str_code(s, i))
+                i = i - 1
+            end
+            if i >= 0 and str_code(s, i) == 46
+                i = i - 1
+            else
+                break
+            end
+        else
+            break
+        end
+    end
+    return s[i + 1:fin]
+end
+
+# --- Completar ---
+
+var ac_visible: Bool = false
+var ac_nombres: [String] = []
+var ac_clases: [Int] = []
+var ac_firmas: [String] = []
+var ac_simbolos: [Simbolo] = []  # el símbolo del proyecto de cada entrada (nil en las demás): su firma, al verla
+var ac_sel: Int = 0
+var ac_primera: Int = 0          # la primera que se ve
+var ac_col: Int = 0              # dónde empieza la palabra que se completa
+var ac_linea: Int = -1
+var ac_prefijo: String = ""
+var ac_elegida_antes: String = ""  # la que eligió el usuario con las flechas (sigue elegida al filtrar)
+var _ac_vistos: {String: Int} = {}
+
+func ac_cerrar()
+    ac_visible = false
+end
+
+func _ac_anadir(nombre: String, clase: Int, firma: String)
+    if ac_nombres.length >= AC_MAXIMO or _ac_vistos.has(nombre)
+        return
+    end
+    _ac_vistos[nombre] = 1
+    ac_nombres.push(nombre)
+    ac_clases.push(clase)
+    ac_firmas.push(firma)
+    ac_simbolos.push(nil)
+end
+
+func _ac_simbolo(s: Simbolo)
+    if ac_nombres.length >= AC_MAXIMO or _ac_vistos.has(s.nombre)
+        return
+    end
+    _ac_vistos[s.nombre] = 1
+    ac_nombres.push(s.nombre)
+    ac_clases.push(s.clase)
+    ac_firmas.push("")
+    ac_simbolos.push(s)
+end
+
+# Mete en la lista, en orden, los que empiezan por clave (ya en minúsculas): de desde al final
+func _ac_ordenar(desde: Int)
+    # inserción: son pocos (los del proyecto)
+    i = desde + 1
+    while i < ac_nombres.length
+        n = ac_nombres[i]
+        c = ac_clases[i]
+        f = ac_firmas[i]
+        o = ac_simbolos[i]
+        k = str_lower(n)
+        j = i - 1
+        while j >= desde and str_lower(ac_nombres[j]) > k
+            ac_nombres[j + 1] = ac_nombres[j]
+            ac_clases[j + 1] = ac_clases[j]
+            ac_firmas[j + 1] = ac_firmas[j]
+            ac_simbolos[j + 1] = ac_simbolos[j]
+            j = j - 1
+        end
+        ac_nombres[j + 1] = n
+        ac_clases[j + 1] = c
+        ac_firmas[j + 1] = f
+        ac_simbolos[j + 1] = o
+        i = i + 1
+    end
+end
+
+func _ac_miembros(tipo: String, clave: String)
+    if str_starts(tipo, "[")
+        var n1: [String] = ["clear", "insert", "length", "pop", "push", "remove", "sort"]
+        var f1: [String] = ["clear()", "insert(i, valor)", "length: Int", "pop()", "push(valor)", "remove(i)", "sort(f)"]
+        i = 0
+        while i < n1.length
+            if str_starts(n1[i], clave)
+                _ac_anadir(n1[i], CX_MIEMBRO, f1[i])
+            end
+            i = i + 1
+        end
+        return
+    end
+    if str_starts(tipo, "{")
+        var n2: [String] = ["clear", "get", "has", "keys", "length", "remove"]
+        var f2: [String] = ["clear()", "get(clave, defecto)", "has(clave) -> Bool", "keys() -> [String]", "length: Int", "remove(clave)"]
+        i = 0
+        while i < n2.length
+            if str_starts(n2[i], clave)
+                _ac_anadir(n2[i], CX_MIEMBRO, f2[i])
+            end
+            i = i + 1
+        end
+        return
+    end
+    if tipo == "String"
+        if str_starts("length", clave)
+            _ac_anadir("length", CX_MIEMBRO, "length: Int")
+        end
+        return
+    end
+    if tipo == "Window"
+        for m in ["close", "open"]
+            if str_starts(m, clave)
+                _ac_anadir(m, CX_MIEMBRO, m)
+            end
+        end
+        return
+    end
+    dueno = tipo
+    if str_starts(tipo, "enum ")
+        dueno = tipo[5:]
+    end
+    # en el orden en que se declaran
+    for s in cx_miembros_de(dueno)
+        if str_starts(s.clave, clave)
+            _ac_simbolo(s)
+        end
+    end
+end
+
+# La lista para completar la palabra que acaba en el cursor (cl, cc). Sale sola desde AC_MINIMO letras, o tras
+# un punto con lo que tiene el tipo de delante; forzar (Ctrl + Espacio) la saca con menos. true si se ve.
+func ac_calcular(lineas: [String], cl: Int, cc: Int, version: Int, forzar: Bool) -> Bool
+    ac_visible = false
+    if cl < 0 or cl >= lineas.length
+        return false
+    end
+    s = lineas[cl]
+    if cc > s.length
+        return false
+    end
+    k = cc
+    while k > 0 and _cx_es_id(str_code(s, k - 1))
+        k = k - 1
+    end
+    c0 = str_code(s, k)
+    if k < cc and c0 >= 48 and c0 <= 57
+        return false
+    end
+    if not cx_es_codigo(s, k)
+        return false
+    end
+    prefijo = s[k:cc]
+    clave = str_lower(prefijo)
+    miembro = k > 0 and str_code(s, k - 1) == 46
+    if not miembro and prefijo.length < AC_MINIMO and not forzar
+        return false
+    end
+    if not miembro and k > 0 and str_code(s, k - 1) == 64
+        # @native, @version...
+        k = k - 1
+        prefijo = s[k:cc]
+        clave = str_lower(prefijo)
+    end
+    ac_nombres = []
+    ac_clases = []
+    ac_firmas = []
+    ac_simbolos = []
+    _ac_vistos = {}
+    cx_locales(lineas, cl, version)
+    if miembro
+        cadena = _cx_cadena_antes(s, k - 1)
+        if cadena == ""
+            return false
+        end
+        _cx_hondo = 0
+        tipo = cx_tipo_cadena(cadena, lineas, cl)
+        if tipo == ""
+            # el nombre de un enum: sus valores
+            g = cx_global(cadena)
+            if g != nil and g.clase == CX_ENUM
+                tipo = "enum " + cadena
+            end
+        end
+        if tipo == ""
+            return false
+        end
+        _ac_miembros(tipo, clave)
+    else
+        i = 0
+        while i < _loc_nombres.length
+            if str_starts(str_lower(_loc_nombres[i]), clave)
+                t = _loc_tipos[i]
+                if t == ""
+                    t = _cx_recortar(_loc_exprs[i], 40)
+                end
+                _ac_anadir(_loc_nombres[i], CX_LOCAL, _loc_nombres[i] + ": " + t)
+            end
+            i = i + 1
+        end
+        if _loc_struct != "" and str_starts("self", clave)
+            _ac_anadir("self", CX_LOCAL, "self: " + _loc_struct)
+        end
+        _ac_ordenar(0)
+        # los del proyecto: los de cada fichero ya van en orden; juntos, se ordenan
+        var del_proyecto: [Simbolo] = []
+        nf = 0
+        for f in _cx_vistos
+            if nf == 0 or not str_starts(clave, "_")
+                i = _cx_orden_desde(f, clave)
+                while i < f.orden.length and str_starts(f.orden[i].clave, clave) and del_proyecto.length < AC_MAXIMO
+                    if nf == 0 or not str_starts(f.orden[i].nombre, "_")
+                        del_proyecto.push(f.orden[i])
+                    end
+                    i = i + 1
+                end
+            end
+            nf = nf + 1
+        end
+        if _cx_vistos.length > 1
+            del_proyecto.sort(_cx_antes)
+        end
+        for o in del_proyecto
+            _ac_simbolo(o)
+        end
+        # las palabras de Dash, ya en orden
+        i = _bi_desde(clave)
+        while i < bi_total and str_starts(_bi_clave(i), clave) and ac_nombres.length < AC_MAXIMO
+            _ac_anadir(bi_nombre(i), -1 - i, "")
+            i = i + 1
+        end
+    end
+    if ac_nombres.length == 0
+        return false
+    end
+    if ac_nombres.length == 1 and ac_nombres[0] == prefijo and not forzar
+        return false
+    end
+    # sigue elegida la de antes si aún está
+    # la escrita tal cual, si está (Return no debe cambiar "if" por "ifx")
+    sel = 0
+    i = 0
+    while i < ac_nombres.length
+        if ac_nombres[i] == prefijo
+            sel = i
+            break
+        end
+        i = i + 1
+    end
+    if not (ac_linea == cl and ac_col == k)
+        ac_elegida_antes = ""
+    elif ac_elegida_antes != ""
+        i = 0
+        while i < ac_nombres.length
+            if ac_nombres[i] == ac_elegida_antes
+                sel = i
+            end
+            i = i + 1
+        end
+    end
+    ac_sel = sel
+    ac_primera = 0
+    ac_col = k
+    ac_linea = cl
+    ac_prefijo = prefijo
+    ac_visible = true
+    ac_seguir(8)
+    return true
+end
+
+# La clase de la entrada i de la lista (las palabras de Dash van como -1 - su sitio en builtins.dash)
+func ac_clase(i: Int) -> Int
+    c = ac_clases[i]
+    if c < 0
+        return bi_clase(-1 - c)
+    end
+    return c
+end
+
+func ac_firma(i: Int) -> String
+    c = ac_clases[i]
+    if c < 0
+        return bi_firma(-1 - c)
+    end
+    if ac_simbolos[i] != nil
+        return sim_firma(ac_simbolos[i])
+    end
+    return ac_firmas[i]
+end
+
+# Que la elegida se vea en una lista de filas filas
+func ac_seguir(filas: Int)
+    if ac_sel < ac_primera
+        ac_primera = ac_sel
+    end
+    if ac_sel >= ac_primera + filas
+        ac_primera = ac_sel - filas + 1
+    end
+end
+
+func ac_mover(paso: Int, filas: Int)
+    ac_sel = ac_sel + paso
+    if ac_sel < 0
+        ac_sel = ac_nombres.length - 1
+    end
+    if ac_sel >= ac_nombres.length
+        ac_sel = 0
+    end
+    ac_elegida_antes = ac_nombres[ac_sel]
+    ac_seguir(filas)
+end
+
+func ac_elegida() -> String
+    if not ac_visible or ac_sel < 0 or ac_sel >= ac_nombres.length
+        return ""
+    end
+    return ac_nombres[ac_sel]
+end
+
+# --- La ayuda de los argumentos ---
+
+var ay_visible: Bool = false
+var ay_cabeza: String = ""       # "gfx_pen("
+var ay_params: [String] = []     # "color"
+var ay_cola: String = ")"        # ") -> Int"
+var ay_nota: String = ""
+var ay_arg: Int = 0              # el argumento donde está el cursor
+var ay_linea: Int = -1
+
+func ay_cerrar()
+    ay_visible = false
+end
+
+# La firma de lo que se llama (una función, un método, un builtin o un struct nuevo); "" si no se sabe
+var _ay_nota: String = ""
+
+func _cx_firma_de(callee: String, lineas: [String], cl: Int) -> String
+    _ay_nota = ""
+    p = str_find(callee, ".")
+    if p >= 0
+        q = callee.length - 1
+        while q > 0 and str_code(callee, q) != 46
+            q = q - 1
+        end
+        _cx_hondo = 0
+        tipo = cx_tipo_cadena(callee[0:q], lineas, cl)
+        m = cx_miembro(tipo, callee[q + 1:])
+        if m != nil and m.clase == CX_METODO
+            _ay_nota = sim_nota(m)
+            return sim_firma(m)
+        end
+        if str_starts(tipo, "[")
+            n = callee[q + 1:]
+            if n == "push"
+                return "push(valor)"
+            elif n == "insert"
+                return "insert(i, valor)"
+            elif n == "remove"
+                return "remove(i)"
+            end
+        end
+        return ""
+    end
+    s = cx_global(callee)
+    if s != nil
+        if s.clase == CX_FUNC
+            _ay_nota = sim_nota(s)
+            return sim_firma(s)
+        end
+        if s.clase == CX_STRUCT
+            # el constructor: los campos en orden
+            r = callee + "("
+            i = 0
+            for o in cx_miembros_de(callee)
+                if o.clase == CX_CAMPO
+                    if i > 0
+                        r = r + ", "
+                    end
+                    r = r + sim_firma(o)
+                    i = i + 1
+                end
+            end
+            _ay_nota = sim_nota(s)
+            return r + ")"
+        end
+    end
+    i = bi_buscar(callee)
+    if i >= 0 and bi_clase(i) == CX_BUILTIN
+        _ay_nota = bi_nota(i)
+        return bi_firma(i)
+    end
+    return ""
+end
+
+# La ayuda de la llamada donde está el cursor (en su línea); true si se ve
+func ay_calcular(lineas: [String], cl: Int, cc: Int, version: Int) -> Bool
+    ay_visible = false
+    if cl < 0 or cl >= lineas.length
+        return false
+    end
+    s = lineas[cl]
+    if cc > s.length or not cx_es_codigo(s, cc)
+        return false
+    end
+    # hacia atrás hasta el "(" que no se ha cerrado, contando las comas
+    hondo = 0
+    comas = 0
+    i = cc - 1
+    abre = -1
+    while i >= 0
+        c = str_code(s, i)
+        if c == 34
+            # un texto: hasta su comilla de empezar
+            i = i - 1
+            while i >= 0 and not (str_code(s, i) == 34 and str_code(s, i - 1) != 92)
+                i = i - 1
+            end
+        elif c == 41 or c == 93 or c == 125
+            hondo = hondo + 1
+        elif c == 40 or c == 91 or c == 123
+            if hondo == 0
+                if c == 40
+                    abre = i
+                end
+                break
+            end
+            hondo = hondo - 1
+        elif c == 44 and hondo == 0
+            comas = comas + 1
+        end
+        i = i - 1
+    end
+    if abre <= 0
+        return false
+    end
+    callee = _cx_cadena_antes(s, abre)
+    if callee == "" or str_contains(callee, "(") or str_contains(callee, "[")
+        return false
+    end
+    cx_locales(lineas, cl, version)
+    firma = _cx_firma_de(callee, lineas, cl)
+    if firma == ""
+        return false
+    end
+    a = str_find(firma, "(")
+    b = firma.length - 1
+    while b > a and str_code(firma, b) != 41
+        b = b - 1
+    end
+    if a < 0 or b <= a
+        return false
+    end
+    ay_cabeza = firma[0:a + 1]
+    ay_cola = firma[b:]
+    ay_params = []
+    dentro = str_trim(firma[a + 1:b])
+    if dentro != ""
+        for p in str_split(dentro, ",")
+            ay_params.push(str_trim(p))
+        end
+    end
+    ay_nota = _ay_nota
+    ay_arg = comas
+    ay_linea = cl
+    ay_visible = true
+    return true
+end
+
+# --- Ir a la definición y dónde se usa ---
+
+var cx_def_ruta: String = ""
+var cx_def_linea: Int = 0
+var cx_def_col: Int = 0
+var cx_def_info: String = ""     # de una palabra de Dash: su firma y su descripción
+var cx_def_nombre: String = ""
+var cx_def_miembro: Bool = false # el nombre va tras un punto (un campo, un método)
+
+# El nombre del cursor: deja en cx_def_nombre el nombre y devuelve dónde empieza (-1 si no hay)
+func _cx_nombre_en(s: String, cc: Int) -> Int
+    a = cc
+    while a > 0 and _cx_es_id(str_code(s, a - 1))
+        a = a - 1
+    end
+    b = cc
+    while b < s.length and _cx_es_id(str_code(s, b))
+        b = b + 1
+    end
+    if a == b
+        return -1
+    end
+    if a > 0 and str_code(s, a - 1) == 64
+        a = a - 1
+    end
+    cx_def_nombre = s[a:b]
+    return a
+end
+
+func _cx_sitio(s: Simbolo) -> Int
+    cx_def_ruta = sim_ruta(s)
+    cx_def_linea = s.linea
+    cx_def_col = s.col
+    return 1
+end
+
+# Dónde se define el nombre del cursor: 1 si está en el proyecto (cx_def_ruta, cx_def_linea, cx_def_col), 2 si es
+# una palabra de Dash (cx_def_info), 0 si no se sabe
+func cx_definicion(lineas: [String], ruta: String, cl: Int, cc: Int, version: Int) -> Int
+    cx_def_info = ""
+    cx_def_miembro = false
+    if cl < 0 or cl >= lineas.length
+        return 0
+    end
+    s = lineas[cl]
+    a = _cx_nombre_en(s, cc)
+    if a < 0 or not cx_es_codigo(s, a)
+        return 0
+    end
+    nombre = cx_def_nombre
+    cx_locales(lineas, cl, version)
+    if a > 0 and str_code(s, a - 1) == 46
+        cx_def_miembro = true
+        cadena = _cx_cadena_antes(s, a - 1)
+        _cx_hondo = 0
+        tipo = cx_tipo_cadena(cadena, lineas, cl)
+        if tipo == ""
+            g = cx_global(cadena)
+            if g != nil and g.clase == CX_ENUM
+                tipo = "enum " + cadena
+            end
+        end
+        if str_starts(tipo, "enum ")
+            tipo = tipo[5:]
+        end
+        m = cx_miembro(tipo, nombre)
+        if m != nil
+            return _cx_sitio(m)
+        end
+        return 0
+    end
+    i = _loc_indice(nombre)
+    if i >= 0
+        cx_def_ruta = ruta
+        cx_def_linea = _loc_lineas[i]
+        cx_def_col = _loc_cols[i]
+        return 1
+    end
+    if nombre == "self" and _loc_struct != ""
+        nombre = _loc_struct
+    end
+    g = cx_global(nombre)
+    if g != nil
+        return _cx_sitio(g)
+    end
+    # un campo usado sin self dentro de su método no existe en Dash; un valor de enum suelto, tampoco
+    i = bi_buscar(nombre)
+    if i >= 0
+        cx_def_info = bi_firma(i)
+        if bi_nota(i) != ""
+            cx_def_info = cx_def_info + ": " + bi_nota(i)
+        end
+        return 2
+    end
+    return 0
+end
+
+var cx_ref_rutas: [String] = []
+var cx_ref_lineas: [Int] = []
+var cx_ref_cols: [Int] = []
+var cx_ref_textos: [String] = []
+
+func _cx_refs_en(ruta: String, lineas: [String], nombre: String, miembro: Bool)
+    nativo = false
+    n = 0
+    while n < lineas.length
+        s = lineas[n]
+        n = n + 1
+        if str_starts(str_trim(s), "\"\"\"")
+            nativo = not nativo
+            continue
+        end
+        if nativo
+            continue
+        end
+        p = str_find(s, nombre)
+        while p >= 0
+            antes = str_code(s, p - 1)
+            if p == 0
+                antes = 32
+            end
+            despues = str_code(s, p + nombre.length)
+            if not _cx_es_id(antes) and antes != 64 and not _cx_es_id(despues) and (antes == 46) == miembro and cx_es_codigo(s, p)
+                cx_ref_rutas.push(ruta)
+                cx_ref_lineas.push(n)
+                cx_ref_cols.push(p + 1)
+                cx_ref_textos.push(str_trim(s))
+            end
+            p = str_find_from(s, nombre, p + 1)
+        end
+    end
+end
+
+# Dónde se usa el nombre del cursor: en el fichero, en lo que importa y en otros (los .dash del cajón del
+# proyecto). Deja los sitios en cx_ref_*; el nombre en cx_def_nombre. false si no hay un nombre.
+func cx_referencias(lineas: [String], ruta: String, cl: Int, cc: Int, version: Int, otros: [String]) -> Bool
+    cx_ref_rutas = []
+    cx_ref_lineas = []
+    cx_ref_cols = []
+    cx_ref_textos = []
+    if cl < 0 or cl >= lineas.length
+        return false
+    end
+    s = lineas[cl]
+    a = _cx_nombre_en(s, cc)
+    if a < 0
+        return false
+    end
+    nombre = cx_def_nombre
+    miembro = a > 0 and str_code(s, a - 1) == 46
+    # una local solo en su función
+    cx_locales(lineas, cl, version)
+    if not miembro and _loc_indice(nombre) >= 0 and _loc_func >= 0
+        var trozo: [String] = []
+        l = _loc_func
+        fin = false
+        while l < lineas.length and not fin
+            trozo.push(lineas[l])
+            if l > _loc_func and _cx_sangria(lineas[l]) <= _cx_sangria(lineas[_loc_func]) and str_starts(str_trim(lineas[l]), "end")
+                fin = true
+            end
+            l = l + 1
+        end
+        _cx_refs_en(ruta, trozo, nombre, false)
+        i = 0
+        while i < cx_ref_lineas.length
+            cx_ref_lineas[i] = cx_ref_lineas[i] + _loc_func
+            i = i + 1
+        end
+        return true
+    end
+    var hechas: [String] = []
+    _cx_refs_en(ruta, lineas, nombre, miembro)
+    hechas.push(str_lower(ruta))
+    var todas: [String] = []
+    for r in cx_rutas
+        todas.push(r)
+    end
+    for r in otros
+        todas.push(r)
+    end
+    for r in todas
+        ya = false
+        for h in hechas
+            if h == str_lower(r)
+                ya = true
+            end
+        end
+        if not ya and not str_ends(str_lower(r), ".dashui")
+            hechas.push(str_lower(r))
+            f = _cx_buscar(r)
+            if f == nil or (f.version >= 0 and f.ronda != cx_ronda)
+                f = _cx_del_disco(r)
+            end
+            if f != nil
+                _cx_refs_en(f.ruta, f.lineas, nombre, miembro)
+            end
+        end
+    end
+    return true
+end
