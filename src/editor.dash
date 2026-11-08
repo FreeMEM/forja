@@ -84,6 +84,7 @@ var ed_zona_ancho: Int = 0
 var ed_zona_alto: Int = 0
 var ed_solo_linea: Int = -1    # con mui_canvas_update: dibujar solo esta línea
 var ed_ms_dibujo: Int = 0      # lo que tardó el último dibujo entero
+var ed_dibujos: Int = 0        # cuántos dibujos enteros del texto (para la sonda: depurar no repinta todo)
 # Lo que va encima del texto: la lista para completar y la ayuda de los argumentos (desde la esquina de la zona;
 # alto 0 si no se ve)
 var ed_lista_x: Int = 0
@@ -182,6 +183,36 @@ func ed_buscar_ruta(ruta: String) -> Int
         i = i + 1
     end
     return -1
+end
+
+# Como ed_ir_a, pero si la línea ya se ve (sin selección), la vista no se mueve: al depurar, cada parada centraba la
+# línea y el código saltaba arriba y abajo entre dos líneas cercanas (lo contó David Martínez). true si la vista se
+# quedó donde estaba: basta repintar las líneas que cambian
+func ed_ir_a_quieto(n: Int, c: Int) -> Bool
+    d = ed_actual()
+    if d == nil
+        return false
+    end
+    margen = 0
+    if ed_visibles > 8
+        margen = 2
+    end
+    l = n - 1
+    if d.al >= 0 or l < d.primera + margen or l >= d.primera + ed_visibles - margen or l >= d.lineas.length
+        ed_ir_a(n, c)
+        return false
+    end
+    izquierda = d.izquierda
+    d.cl = l
+    d.cc = c - 1
+    if d.cc < 0
+        d.cc = 0
+    end
+    if d.cc > d.lineas[d.cl].length
+        d.cc = d.lineas[d.cl].length
+    end
+    ed_seguir_cursor(d)
+    return d.izquierda == izquierda
 end
 
 # Lleva el cursor a la línea n (desde 1) y la columna c (desde 1) del documento activo, y la deja a la vista
@@ -1331,6 +1362,7 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         n = n + 1
     end
     ed_ms_dibujo = time_ms() - t0
+    ed_dibujos = ed_dibujos + 1
     ed_capas_geometria(d)
     _dibujar_capas(d, x, y)
 end
