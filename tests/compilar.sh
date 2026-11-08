@@ -6,7 +6,8 @@
 #
 # DASHC_AMIGA: el cajón con dashc para el Amiga (make amiga en dashc/: dashc.amiga y los dashc_*.drt).
 #   REAL=1 tests/compilar.sh ...   # con la CPU emulada a la velocidad de un A1200 (68020 a 14 MHz), no al máximo
-#   EJECUTABLES=RAM:Salida tests/compilar.sh ...   # los ejecutables en ese cajón (lo crea Forja), no al lado del .dash
+#   EJECUTABLES=RAM:Salida tests/compilar.sh ...   # los ejecutables en ese cajón (lo crea Forja), no al lado del .dash;
+#                                                  # el programa debe seguir leyendo sus ficheros con ruta relativa
 set -e
 dash=$1; dashc=$2; shift 2
 png=""
@@ -19,6 +20,19 @@ cp -r "$HOME/.cache/dash-emu/sys31muisslweb" "$tmp/sys"
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
 "$dash/dash" "$aqui/tests/compilar.dash" -o "$tmp/sys/Prueba/Compilar"
+# con EJECUTABLES, el programa lee también un fichero de su cajón con ruta relativa: se ejecuta en el cajón del
+# .dash aunque el ejecutable esté en otro
+if [ -n "$EJECUTABLES" ]; then
+  echo "leido de su cajon" > "$tmp/sys/Prueba/juego/datos.txt"
+  python3 - "$tmp/sys/Prueba/juego/main.dash" <<'PY'
+import sys
+from pathlib import Path
+p = Path(sys.argv[1]); s = p.read_text()
+a = '    Print "Naves: #{total}"\n'
+s = s.replace(a, a + '    datos = file_read_text("datos.txt")\n    if datos != nil\n        Print "Datos: " + str_trim(datos)\n    end\n')
+p.write_text(s)
+PY
+fi
 # dashc en DH0:Dash, con sus runtimes al lado (los busca en PROGDIR:)
 mkdir -p "$tmp/sys/Dash"
 cp "$dashc/dashc.amiga" "$tmp/sys/Dash/dashc"

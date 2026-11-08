@@ -31,8 +31,9 @@ While Forja is open it is the default public screen, so the programs it runs ope
 default comes back. It needs a Dash with `screen_make_default`.
 
 When compiling, the executable goes next to the `.dash`. In the preferences, "Executables in:" picks another drawer,
-for example `RAM:` (`ENV:Forja/ejecutables`); if it does not exist, Forja creates it. A program that loads its files
-from `PROGDIR:` will look for them in that drawer.
+for example `RAM:` (`ENV:Forja/ejecutables`); if it does not exist, Forja creates it. The program runs in the
+`.dash`'s drawer, so it finds its files with a relative path (`"jugador.iff"`) even when the executable is elsewhere.
+What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the executable's drawer.
 
 - **Editor**: the keyboard goes to the editor when the pointer is over it. Arrows; with Shift they select; Alt: start
   and end of line, page up and down; Ctrl: word by word, start and end of the text. Tab and Shift+Tab indent. Undo

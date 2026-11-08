@@ -169,6 +169,7 @@ var tarea: Int = NADA
 var tarea_run: Int = 0
 var tarea_inicio: Int = 0
 var tarea_exe: String = ""
+var tarea_dash: String = ""    # el .dash de lo que se compila: su cajón es el actual de lo que se ejecuta
 var ejecutar_despues: Bool = false
 var depurar_despues: Bool = false
 var salida_vista: Int = 0          # lo que ya se enseñó de dbg_output()
@@ -511,6 +512,24 @@ func en_cajon(cajon: String, ruta: String) -> String
     return cajon + "/" + nombre_de(ruta)
 end
 
+# Lo que se ejecuta o depura arranca en el cajón del .dash (el proceso nuevo copia el cajón actual de Forja): así
+# encuentra sus ficheros con ruta relativa aunque el ejecutable esté en otro cajón (Ejecutables en:). Devuelve el
+# cajón de antes, para volver a él
+func al_cajon_del_programa() -> String
+    antes = dir_current()
+    cajon = cajon_de(tarea_dash)
+    if cajon == "" or antes == "" or not dir_change(cajon)
+        return ""
+    end
+    return antes
+end
+
+func volver_al_cajon(antes: String)
+    if antes != ""
+        dir_change(antes)
+    end
+end
+
 func cajon_ejecutables() -> String
     return str_trim(env_get("Forja/ejecutables"))
 end
@@ -593,6 +612,7 @@ func compilar(y_ejecutar: Bool)
     end
     redibujar()
     tarea_exe = ejecutable_de(d.ruta)
+    tarea_dash = d.ruta
     if not cajon_listo(cajon_ejecutables())
         avisar(tr(377, "No se puede crear el cajón de los ejecutables: ") + cajon_ejecutables(), 1)
         return
@@ -729,7 +749,9 @@ func tic()
             return
         end
         avisar(tr(15, "Ejecutando ") + nombre_de(tarea_exe) + "...", 0)
+        antes = al_cajon_del_programa()
         tarea_run = run_start("\"" + tarea_exe + "\"", 0)
+        volver_al_cajon(antes)
         if tarea_run == 0
             avisar(tr(16, "No se puede ejecutar ") + tarea_exe, 1)
             poner_tarea(NADA)
@@ -766,7 +788,10 @@ func depurar()
 end
 
 func empezar_depuracion()
-    if not dbg_start(tarea_exe, "")
+    antes = al_cajon_del_programa()
+    empezado = dbg_start(tarea_exe, "")
+    volver_al_cajon(antes)
+    if not empezado
         avisar(tr(17, "No se puede depurar: ") + dbg_error(), 1)
         poner_tarea(NADA)
         return
