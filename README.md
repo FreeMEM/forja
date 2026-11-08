@@ -30,8 +30,8 @@ En Preferencias también se puede pedir que Forja arranque en su propia pantalla
 pública, llamada `FORJA`. Mientras Forja está abierto, es la pantalla pública por defecto, así que los programas que
 ejecuta salen ahí. Al salir, vuelve a serlo la de antes. Necesita un Dash con `screen_make_default`.
 
-Al compilar, el ejecutable se deja al lado del `.dash`. En Preferencias, "Ejecutables en:" elige otro cajón, por
-ejemplo `RAM:` (`ENV:Forja/ejecutables`); si no existe, Forja lo crea. El programa se ejecuta en el cajón del `.dash`,
+Al compilar, el ejecutable se deja al lado del `.dash`. En Preferencias, "Ejecutables en:" elige otro cajón (idea de Ferrán
+García), por ejemplo `RAM:` (`ENV:Forja/ejecutables`); si no existe, Forja lo crea. El programa se ejecuta en el cajón del `.dash`,
 así que encuentra sus ficheros con ruta relativa (`"jugador.iff"`) aunque el ejecutable esté en otro cajón. Lo que
 busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del ejecutable.
 
