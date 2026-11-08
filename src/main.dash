@@ -22,7 +22,8 @@
 # ESTADO (libre, compilando, ejecutando, depurando); ERRORES (los de la última compilación); BUSCAR texto (lo elige
 # y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea.
 #
-# Buscar y cambiar (Amiga-F) e ir a la línea (Amiga-L) en sus ventanas. Preferencias: dashc, Inferencia, si abrir al
+# Buscar y cambiar (Amiga-F) e ir a la línea (Amiga-L) en sus ventanas. Preferencias: dashc, Inferencia, el cajón
+# de los ejecutables (ENV:Forja/ejecutables, por ejemplo RAM:; vacío: al lado de cada .dash), si abrir al
 # empezar lo de la última vez (ENVARC:Forja/sesion: el cajón del proyecto y los ficheros, al salir) y si arrancar en
 # su propia pantalla (ENV:Forja/pantalla: un clon público del Workbench, FORJA, que es la pública por defecto
 # mientras Forja está abierto; los programas que ejecuta salen ahí).
@@ -78,6 +79,7 @@ const EV_COPIAR_SALIDA = 21
 const EV_GUARDAR_SALIDA = 22
 const EV_ELEGIR_DASHC = 61
 const EV_ELEGIR_INFERENCIA = 62
+const EV_ELEGIR_EJECUTABLES = 76
 const EV_GIT_ESTADO = 63
 const EV_GIT_DIFERENCIAS = 64
 const EV_GIT_HISTORIAL = 65
@@ -167,6 +169,7 @@ var tarea: Int = NADA
 var tarea_run: Int = 0
 var tarea_inicio: Int = 0
 var tarea_exe: String = ""
+var tarea_dash: String = ""    # el .dash de lo que se compila: su cajón es el actual de lo que se ejecuta
 var ejecutar_despues: Bool = false
 var depurar_despues: Bool = false
 var salida_vista: Int = 0          # lo que ya se enseñó de dbg_output()
@@ -237,10 +240,11 @@ func ajustar_paneles()
     ocultar = d != nil and (d.sprite != nil or d.mapa != nil)
     if ocultar != _salida_oculta
         _salida_oculta = ocultar
-        mui_set_visible(v.salida, not ocultar)
+        # el grupo de la salida entero: con la salida y su barra ocultas dentro, el grupo vacío no deja crecer la
+        # ventana a lo ancho y MUI la encoge a su mínimo
+        mui_set_visible(v.grupo_salida, not ocultar)
         mui_set_visible(v.balance_salida, not ocultar)
         mui_set_visible(v.barra, not ocultar)
-        mui_set_visible(v.barra_salida, not ocultar)
         sp_mensaje = ""
         mp_mensaje = ""
     end
@@ -486,12 +490,60 @@ func entre_comillas(t: String) -> String
     return "\"" + str_replace(str_replace(t, "*", "**"), "\"", "*\"") + "\""
 end
 
-# "main.dash" -> "main"
+# "main.dash" -> "main", al lado del .dash o en el cajón de las preferencias (ENV:Forja/ejecutables)
 func ejecutable_de(ruta: String) -> String
+    return en_cajon(cajon_ejecutables(), sin_dash(ruta))
+end
+
+func sin_dash(ruta: String) -> String
     if str_ends(str_lower(ruta), ".dash")
         return ruta[0:ruta.length - 5]
     end
     return ruta + ".exe"
+end
+
+# El fichero en ese cajón ("": donde está); "RAM:" + "Work:Juego/main" -> "RAM:main"
+func en_cajon(cajon: String, ruta: String) -> String
+    if cajon == ""
+        return ruta
+    end
+    if str_ends(cajon, ":") or str_ends(cajon, "/")
+        return cajon + nombre_de(ruta)
+    end
+    return cajon + "/" + nombre_de(ruta)
+end
+
+# Lo que se ejecuta o depura arranca en el cajón del .dash (el proceso nuevo copia el cajón actual de Forja): así
+# encuentra sus ficheros con ruta relativa aunque el ejecutable esté en otro cajón (Ejecutables en:). Devuelve el
+# cajón de antes, para volver a él
+func al_cajon_del_programa() -> String
+    antes = dir_current()
+    cajon = cajon_de(tarea_dash)
+    if cajon == "" or antes == "" or not dir_change(cajon)
+        return ""
+    end
+    return antes
+end
+
+func volver_al_cajon(antes: String)
+    if antes != ""
+        dir_change(antes)
+    end
+end
+
+func cajon_ejecutables() -> String
+    return str_trim(env_get("Forja/ejecutables"))
+end
+
+# El cajón de los ejecutables existe o se crea (sin peticiones: un volumen que no está no deja Forja esperando)
+func cajon_listo(cajon: String) -> Bool
+    if cajon == ""
+        return true
+    end
+    dos_requesters(false)
+    listo = file_exists(cajon) or dir_create(cajon)
+    dos_requesters(true)
+    return listo
 end
 
 func segundos(ms: Int) -> String
@@ -561,6 +613,11 @@ func compilar(y_ejecutar: Bool)
     end
     redibujar()
     tarea_exe = ejecutable_de(d.ruta)
+    tarea_dash = d.ruta
+    if not cajon_listo(cajon_ejecutables())
+        avisar(tr(377, "No se puede crear el cajón de los ejecutables: ") + cajon_ejecutables(), 1)
+        return
+    end
     opciones = ""
     if depurar_despues
         opciones = " --debug"
@@ -693,7 +750,9 @@ func tic()
             return
         end
         avisar(tr(15, "Ejecutando ") + nombre_de(tarea_exe) + "...", 0)
+        antes = al_cajon_del_programa()
         tarea_run = run_start("\"" + tarea_exe + "\"", 0)
+        volver_al_cajon(antes)
         if tarea_run == 0
             avisar(tr(16, "No se puede ejecutar ") + tarea_exe, 1)
             poner_tarea(NADA)
@@ -730,7 +789,10 @@ func depurar()
 end
 
 func empezar_depuracion()
-    if not dbg_start(tarea_exe, "")
+    antes = al_cajon_del_programa()
+    empezado = dbg_start(tarea_exe, "")
+    volver_al_cajon(antes)
+    if not empezado
         avisar(tr(17, "No se puede depurar: ") + dbg_error(), 1)
         poner_tarea(NADA)
         return
@@ -1894,6 +1956,7 @@ end
 func preferencias_abrir()
     mui_set_text(vp.dashc, dashc())
     mui_set_text(vp.inferencia, env_get("Forja/inferencia"))
+    mui_set_text(vp.ejecutables, cajon_ejecutables())
     mui_set_value(vp.recordar, recordar_sesion())
     mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
     mui_set_value(vp.completar, completar_activo)
@@ -1907,6 +1970,7 @@ end
 func preferencias_aplicar(guardar: Bool)
     env_set("Forja/dashc", str_trim(mui_get_text(vp.dashc)), guardar)
     env_set("Forja/inferencia", str_trim(mui_get_text(vp.inferencia)), guardar)
+    env_set("Forja/ejecutables", str_trim(mui_get_text(vp.ejecutables)), guardar)
     if mui_get_value(vp.recordar) != 0
         env_set("Forja/recordar", "si", guardar)
     else
@@ -2291,6 +2355,11 @@ func atender(ev: Int)
     elif ev == EV_ELEGIR_INFERENCIA
         if file_open_dialog(tr(224, "Inferencia"), "#?")
             mui_set_text(vp.inferencia, file_fullpath())
+        end
+    elif ev == EV_ELEGIR_EJECUTABLES
+        # el cajón donde está el diálogo al aceptar (el nombre de fichero no cuenta)
+        if file_open_dialog(tr(378, "El cajón de los ejecutables"), "#?")
+            mui_set_text(vp.ejecutables, file_get_path())
         end
     elif ev == EV_INFERENCIA
         boton_inferencia()

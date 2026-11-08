@@ -1,4 +1,5 @@
-# Hace de usuario de Forja en el emulador: ejecuta el programa abierto (Amiga-E, que compila con dashc), mete
+# Hace de usuario de Forja en el emulador: ejecuta el programa abierto (Amiga-E, que compila con dashc; el
+# ejecutable, al lado del .dash o en el cajón de ENV:Forja/ejecutables), mete
 # un error al final, compila (Amiga-K) y hace clic en el error de la salida: el cursor debe ir a su línea.
 # Lo arranca tests/compilar.sh; anota en DH0:Prueba/compilar.txt.
 
@@ -28,6 +29,11 @@ func ver(paso: String, cierto: Bool)
     else
         fallo(paso)
     end
+end
+
+func ver_bien(paso: String, cierto: Bool) -> Bool
+    ver(paso, cierto)
+    return cierto
 end
 
 func activar() -> Bool
@@ -91,6 +97,14 @@ Main
         input_key(0x12, AMIGA)
         if esperar_salida("acabó con código")
             ver("ejecutar: el programa escribe", str_contains(leer("RAM:forja-salida.txt"), "Naves: 2"))
+            # el ejecutable, en el cajón de las preferencias (EJECUTABLES=... en compilar.sh) o al lado del .dash
+            cajon = env_get("Forja/ejecutables")
+            if cajon != ""
+                ver("el ejecutable va a " + cajon, file_exists(cajon + "/main") and not file_exists("DH0:Prueba/juego/main"))
+                ver("el programa lee sus ficheros del cajón del .dash", str_contains(leer("RAM:forja-salida.txt"), "Datos: leido de su cajon"))
+            else
+                ver("el ejecutable va al lado del .dash", file_exists("DH0:Prueba/juego/main"))
+            end
             anotar(str_trim(leer("RAM:forja-salida.txt")))
         end
         # un error en la última línea, el cursor arriba y compilar
@@ -119,7 +133,9 @@ Main
                 input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
                 time_delay(30)
                 cursor = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
-                ver("clic en el error lleva a la línea #{num}", Int(cursor[0]) == num - 1 and num > 1)
+                if not ver_bien("clic en el error lleva a la línea #{num}", Int(cursor[0]) == num - 1 and num > 1)
+                    anotar("FORJA_SALIDA: " + env_get("FORJA_SALIDA") + ", fila del error #{error}, clic en y=#{y}; sonda: " + str_split(leer("RAM:forja-sonda.txt"), "\n")[0])
+                end
             end
         end
         time_delay(150)

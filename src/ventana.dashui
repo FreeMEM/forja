@@ -116,7 +116,7 @@
           },
           { "type": "balance", "name": "balance_salida" },
           {
-            "type": "hgroup", "weight": 60,
+            "type": "hgroup", "name": "grupo_salida", "weight": 60,
             "children": [
               { "type": "canvas", "name": "salida", "min_width": 240, "min_height": 44 },
               { "type": "scrollbar", "name": "barra_salida", "vertical": true, "change": 9 }
@@ -213,6 +213,14 @@
               { "type": "label", "tr": 347, "text": "Inferencia:", "color": [220, 220, 210], "weight": 0 },
               { "type": "string", "name": "inferencia", "text": "", "max": 300, "weight": 100 },
               { "type": "button", "name": "elegir_inferencia", "tr": 357, "label": "Elegir...", "event": 62, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "label", "tr": 375, "text": "Ejecutables en:", "color": [220, 220, 210], "weight": 0 },
+              { "type": "string", "name": "ejecutables", "text": "", "max": 300, "weight": 100 },
+              { "type": "button", "name": "elegir_ejecutables", "tr": 376, "label": "Elegir...", "event": 76, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           },
           {
