@@ -240,10 +240,11 @@ func ajustar_paneles()
     ocultar = d != nil and (d.sprite != nil or d.mapa != nil)
     if ocultar != _salida_oculta
         _salida_oculta = ocultar
-        mui_set_visible(v.salida, not ocultar)
+        # el grupo de la salida entero: con la salida y su barra ocultas dentro, el grupo vacío no deja crecer la
+        # ventana a lo ancho y MUI la encoge a su mínimo
+        mui_set_visible(v.grupo_salida, not ocultar)
         mui_set_visible(v.balance_salida, not ocultar)
         mui_set_visible(v.barra, not ocultar)
-        mui_set_visible(v.barra_salida, not ocultar)
         sp_mensaje = ""
         mp_mensaje = ""
     end
