@@ -55,7 +55,8 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...".
 - **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen; F5 seguir, F10 paso, F6 entrar, F7
   salir (con el puntero sobre el editor, el proyecto o la salida). A la izquierda, la pila y las variables. Al parar,
-  Forja se pone delante: la ventana del programa se queda el teclado al abrirse.
+  Forja se pone delante: la ventana del programa se queda el teclado al abrirse. Si la línea de la parada ya se ve,
+  el código no se mueve ni se repinta entero (lo contó David Martínez).
 - **Ventanas `.dashui`**: se abren en el editor de ventanas (Amiga-D cambia a texto). El árbol de objetos y sus
   propiedades; "+" añade, Supr quita, Alt+flechas mueve. Amiga-P abre la vista previa con MUI de verdad. Se guarda
   igual que la extensión de VS Code.

@@ -54,7 +54,8 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
 - **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin; F5 continue, F10 step over, F6 step into,
   F7 step out (with the pointer over the editor, the project or the output). On the left, the call stack and the
-  variables. When it stops, Forja comes to the front: the program's window takes the keyboard when it opens.
+  variables. When it stops, Forja comes to the front: the program's window takes the keyboard when it opens. If the
+  stop line is already in view, the code does not move or repaint as a whole (reported by David Martínez).
 - **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;
   "+" adds, Del removes, Alt+arrows moves. Amiga-P opens the preview with real MUI. It saves the same way as the VS
   Code extension.
