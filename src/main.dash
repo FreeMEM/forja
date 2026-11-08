@@ -42,7 +42,7 @@
 # hace de usuario (tests/teclas.dash, tests/ficheros.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y
 # ancho alto" desde la esquina de la ventana), ENV:FORJA_PROYECTO dónde empiezan las filas del proyecto ("x y
 # alto de fila"), ENV:FORJA_SALIDA lo de la salida ("x y alto_de_fila primera_vista total"; el texto en
-# RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
+# RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_DIBUJOS (cuántos dibujos enteros del texto), ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
 # tras cada cambio, "línea columna nombre" y el texto; ENV:FORJA_DISENO, lo del editor de ventanas ("fila propiedad
 # editando mensaje"); ENV:FORJA_COMPLETAR, la lista ("elegida nombre nombre...", "" si no se ve); ENV:FORJA_AYUDA, la
 # ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen".
@@ -845,10 +845,23 @@ func al_parar()
     end
     ruta = dbg_file()
     n = dbg_line()
+    # en el mismo fichero y con la línea a la vista, el código no se mueve y solo se repintan la línea del cursor de
+    # antes y la de la parada (cada parada repintaba y centraba: lo contó David Martínez)
+    d0 = ed_actual()
+    mismo = d0 != nil and d0.ruta != "" and str_lower(d0.ruta) == str_lower(ruta) and es_codigo(d0)
+    cursor_antes = -1
+    if d0 != nil
+        cursor_antes = d0.cl
+    end
+    quieto = false
     ed_dbg_ruta = ruta
     ed_dbg_linea = n
     if abrir(ruta)
-        ed_ir_a(n, 1)
+        if mismo
+            quieto = ed_ir_a_quieto(n, 1)
+        else
+            ed_ir_a(n, 1)
+        end
     end
     # la pila y las variables, en el panel de la izquierda
     depuracion_lineas.clear()
@@ -886,7 +899,14 @@ func al_parar()
         end
     end
     mui_canvas_redraw(v.proyecto)
-    redibujar()
+    if quieto
+        if cursor_antes >= 0 and cursor_antes != n - 1
+            redibujar_linea(cursor_antes)
+        end
+        redibujar_linea(n - 1)
+    else
+        redibujar()
+    end
     publicar_depuracion()
 end
 
@@ -916,7 +936,13 @@ func orden_depurador(ev: Int)
     if dbg_state() != 3 and dbg_state() != 1
         return
     end
+    # la línea de la parada deja de marcarse: se repinta solo ella (el editor entero, en cada paso, parpadeaba)
+    vieja = ed_dbg_linea
     ed_dbg_linea = 0
+    d = ed_actual()
+    if vieja > 0 and d != nil and d.ruta != "" and str_lower(d.ruta) == str_lower(ed_dbg_ruta) and es_codigo(d)
+        redibujar_linea(vieja - 1)
+    end
     if ev == EV_SEGUIR
         dbg_continue()
     elif ev == EV_PASO
@@ -926,7 +952,6 @@ func orden_depurador(ev: Int)
     elif ev == EV_SALIR_FUNCION
         dbg_out()
     end
-    redibujar()
     # (puede haber parado o acabado ya)
     mirar_depuracion()
     publicar_depuracion()
@@ -943,7 +968,13 @@ func publicar_depuracion()
         t = t + l + "|"
     end
     env_set("FORJA_VARIABLES", t, false)
-    env_set("FORJA_DEPURAR", "#{dbg_state()} #{dbg_line()} " + dbg_function(), false)
+    # parado (3) solo cuando Forja ya ha recogido la parada (al_parar): si no, la prueba leería la línea nueva con las
+    # variables de antes
+    estado = dbg_state()
+    if estado == 3 and ed_dbg_linea == 0
+        estado = 1
+    end
+    env_set("FORJA_DEPURAR", "#{estado} #{dbg_line()} " + dbg_function(), false)
 end
 
 # Un clic en un error de la salida: a su fichero y su línea
@@ -1443,6 +1474,7 @@ func escribir_sonda()
             sonda_fichero("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + mp_sonda(d.mapa))
         else
             sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
+            env_set("FORJA_DIBUJOS", "#{ed_dibujos}", false)
         end
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
         env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
