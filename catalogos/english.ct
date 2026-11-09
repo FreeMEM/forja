@@ -1,4 +1,4 @@
-## version $VER: Forja.catalog 1.0 (08.11.2026)
+## version $VER: Forja.catalog 1.0 (10.11.2026)
 ## language english
 ## codeset 0
 ;
@@ -848,3 +848,192 @@ The executables drawer
 MSG_379
 No help for what is under the cursor.
 ; No hay ayuda para lo que hay en el cursor.
+MSG_380
+Look for a new version of Dash...
+; Buscar versión nueva de Dash...
+MSG_381
+Look for new versions of Dash at startup:
+; Buscar versiones nuevas de Dash al empezar:
+MSG_382
+A new version of Dash is already being looked for or installed.
+; Ya se está buscando o instalando una versión nueva de Dash.
+MSG_383
+I cannot find the Dash drawer (DASH:): install Dash with its installer to update it from here.
+; No encuentro el cajón de Dash (DASH:): instálalo con su instalador para poder actualizarlo desde aquí.
+MSG_384
+Looking for new versions of Dash needs the network (a running TCP/IP stack) and AmiSSL.
+; Para buscar versiones nuevas de Dash hace falta la red (una pila TCP/IP en marcha) y AmiSSL.
+MSG_385
+Looking for the latest version of Dash...
+; Buscando la última versión de Dash...
+MSG_386
+Could not ask GitHub: %1
+; No se pudo consultar GitHub: %1
+MSG_387
+You have the latest version of Dash, %1.
+; Tienes la última versión de Dash, la %1.
+MSG_388
+There is a new version of Dash, %1, but without the package Forja can install: get it from its page.
+; Hay una versión nueva de Dash, la %1, pero sin el paquete que sabe instalar Forja: bájala de su página.
+MSG_389
+There is a new version of Dash, %1 (you have %2).\nTo install it: Project > Look for a new version of Dash.
+; Hay una versión nueva de Dash, la %1 (tienes la %2).\nPara instalarla: Proyecto > Buscar versión nueva de Dash.
+MSG_390
+Downloading Dash %1 (%2 MB)...
+; Bajando Dash %1 (%2 MB)...
+MSG_391
+Could not download Dash: %1
+; No se pudo bajar Dash: %1
+MSG_392
+Dash arrived incomplete (%1 bytes of %2).
+; Dash llegó incompleto (%1 bytes de %2).
+MSG_393
+Cannot read %1.
+; No se puede leer %1.
+MSG_394
+Checking the files...
+; Comprobando los ficheros...
+MSG_395
+Dash has not changed.
+; Dash no ha cambiado.
+MSG_396
+the package is cut short
+; el paquete está cortado
+MSG_397
+out of memory
+; falta memoria
+MSG_398
+a strange name in the package: %1
+; un nombre raro en el paquete: %1
+MSG_399
+%1 arrived damaged (CRC)
+; %1 llegó estropeado (CRC)
+MSG_400
+too many redirects
+; too many redirects
+MSG_401
+the server closed without answering
+; the server closed without answering
+MSG_402
+an answer that isn't HTTP
+; an answer that isn't HTTP
+MSG_403
+broken status line
+; broken status line
+MSG_404
+cut headers
+; cut headers
+MSG_405
+cut body
+; cut body
+MSG_406
+could not decompress
+; could not decompress
+MSG_407
+timed out
+; timed out
+MSG_408
+cancelled
+; cancelled
+MSG_409
+unsupported scheme: %1
+; unsupported scheme: %1
+MSG_410
+can't write %1
+; can't write %1
+MSG_420
+too many connections
+; too many connections
+MSG_421
+connection closed
+; connection closed
+MSG_422
+out of memory
+; out of memory
+MSG_423
+can't send
+; can't send
+MSG_424
+network closed
+; network closed
+MSG_425
+connection refused
+; connection refused
+MSG_426
+too many connections at once
+; too many connections at once
+MSG_427
+too many TLS connections
+; too many TLS connections
+MSG_428
+error sending
+; error sending
+MSG_429
+error receiving
+; error receiving
+MSG_430
+network error
+; network error
+MSG_431
+TLS error
+; TLS error
+MSG_432
+the network belongs to another task
+; the network belongs to another task
+MSG_433
+AmiSSL is missing (amisslmaster.library)
+; AmiSSL is missing (amisslmaster.library)
+MSG_434
+no bsdsocket.library (a TCP/IP stack is missing)
+; no bsdsocket.library (a TCP/IP stack is missing)
+MSG_435
+server not found
+; server not found
+MSG_436
+can't open AmiSSL (5.1 or later is needed)
+; can't open AmiSSL (5.1 or later is needed)
+MSG_437
+can't open a socket
+; can't open a socket
+MSG_438
+can't look up the server
+; can't look up the server
+MSG_439
+timed out connecting
+; timed out connecting
+MSG_440
+timed out negotiating TLS
+; timed out negotiating TLS
+MSG_441
+timed out looking up the server
+; timed out looking up the server
+MSG_442
+can't write the file
+; can't write the file
+MSG_443
+cannot create the drawer of %1
+; no se puede crear el cajón de %1
+MSG_444
+cannot write %1
+; no se puede escribir %1
+MSG_445
+Downloaded %1 %.
+; Bajado el %1 %.
+MSG_446
+Dash was left half updated: %1. Install it again with its installer.
+; Dash quedó a medias: %1. Instálalo otra vez con su instalador.
+MSG_447
+Dash %1 installed in %2. Close Forja and open it again to use the new one.
+; Dash %1 instalado en %2. Cierra Forja y ábrela otra vez para usar la nueva.
+MSG_448
+New version of Dash
+; Versión nueva de Dash
+MSG_449
+Dash %1 is out. Shall I download it and install it in the Dash drawer?\n\nIt is %2 MB. It updates the dash command, Forja, Inferencia, lib/ and the examples.\nYour programs and your preferences are not touched.
+; Está publicada Dash %1. ¿La bajo y la instalo en el cajón de Dash?\n\nSon %2 MB. Pone al día la orden dash, Forja, Inferencia, lib/ y los ejemplos.\nTus programas y tus preferencias no se tocan.
+MSG_450
+_Install|_Cancel
+; _Instalar|_Cancelar
+MSG_451
+Checked %1 %.
+; Comprobado el %1 %.

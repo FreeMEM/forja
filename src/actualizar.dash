@@ -1,0 +1,559 @@
+# Versiones nuevas de Dash, desde Forja: mirar en GitHub la última publicada y, si el usuario quiere, bajarla e
+# instalarla encima del cajón de Dash (DASH:), con su compilador, Forja, Inferencia, lib/ y los ejemplos.
+#
+# Cada versión de Dash publica, junto al .lha, dash-X.Y.Z-amiga.tar (tools/paquete_amiga.py de Dash): un tar con
+# cada fichero del cajón comprimido aparte con gzip ("Dash/<ruta>.gz"). Forja no sabe abrir .lha y no todos los
+# Amiga tienen lha; así cada fichero se descomprime solo, con poca memoria, y su CRC se comprueba.
+#
+# Todo va paso a paso desde el temporizador de Forja, sin parar la ventana:
+#
+#   act_iniciar(true)        # al empezar: la consulta automática, 20 s después y una vez al día
+#   act_pedir()              # el menú: consulta y, si hay una nueva, pregunta (act_preguntar)
+#   act_paso()               # en cada tic; act_espera() dice cuándo hace falta el siguiente
+#   act_mensaje()            # lo que hay que enseñar en la salida ("" si nada), con act_tipo()
+#   act_preguntar()          # true una vez cuando hay que preguntar si se instala; luego act_instalar(si)
+#
+# Primero se bajan y se comprueban todos los ficheros, que se escriben al lado como "<fichero>.nuevo"; solo si todos
+# están bien se cambian por los de antes. Un fallo a medias no deja Dash con piezas de dos versiones.
+# Para las pruebas, ENV:Forja/actualizar_api cambia la dirección de la consulta.
+
+import "lib/red/http.dash"
+import "lib/json.dash"
+
+const ACT_API = "https://api.github.com/repos/FreeMEM/dash/releases/latest"
+const ACT_TAR = "T:dash-actualizar.tar"
+const ACT_PRIMERA = 20000           # ms desde que arranca Forja hasta la consulta automática
+const ACT_ESPERA_RED = 60000        # lo más que se espera sin recibir nada
+
+const ACT_NADA = 0
+const ACT_CONSULTANDO = 1
+const ACT_BAJANDO = 2
+const ACT_ABRIENDO = 3              # descomprime y comprueba cada fichero, uno por tic
+const ACT_PONIENDO = 4              # cambia los de antes por los nuevos
+
+var act_fase: Int = 0
+var act_carga: Carga = nil
+var act_quiere: Bool = false        # lo pidió el usuario (si no, es la consulta automática, que solo avisa)
+var act_proxima: Int = 0            # time_ms de la consulta automática (0: ninguna)
+var act_nueva: String = ""          # la versión nueva publicada ("" si no hay)
+var act_url: String = ""            # de dónde se baja su tar
+var act_tam: Int = 0                # y cuánto mide
+var act_pregunta: Bool = false
+var act_texto: String = ""          # el último mensaje, aún sin enseñar
+var act_tipo_msg: Int = 0           # 0 normal, 1 error, 2 bien (los de la salida)
+var act_ultimo_por: Int = -1        # el último % enseñado
+var act_red: Bool = false           # se usó la red: al acabar se suelta
+
+# lo que se abre del tar
+var act_f: Int = 0                  # el tar abierto
+var act_cajon_dash: String = ""     # dónde se instala, acabado en ":" o "/"
+var act_nuevos: [String] = []       # los ficheros escritos como .nuevo (sin el .nuevo)
+var act_cabecera: Int = 0           # 512 bytes
+var act_leidos: Int = 0             # bytes del tar ya leídos (el %)
+
+func act_avisar(texto: String, tipo: Int)
+    if act_texto != ""
+        act_texto = act_texto + "\n" + texto
+    else
+        act_texto = texto
+    end
+    act_tipo_msg = tipo
+end
+
+func act_mensaje() -> String
+    t = act_texto
+    act_texto = ""
+    return t
+end
+
+func act_tipo() -> Int
+    return act_tipo_msg
+end
+
+func act_preguntar() -> Bool
+    r = act_pregunta
+    act_pregunta = false
+    return r
+end
+
+func act_version_nueva() -> String
+    return act_nueva
+end
+
+func act_megas() -> String
+    decimas = (act_tam + 52428) / 104857
+    return "#{decimas / 10},#{decimas % 10}"
+end
+
+func act_ocupada() -> Bool
+    return act_fase != ACT_NADA
+end
+
+# "2.10.0" es más nueva que "2.9.1": número a número
+func act_mas_nueva(a: String, b: String) -> Bool
+    var pa: [String] = str_split(a, ".")
+    var pb: [String] = str_split(b, ".")
+    i = 0
+    while i < pa.length or i < pb.length
+        x = 0
+        y = 0
+        if i < pa.length
+            x = Int(pa[i])
+        end
+        if i < pb.length
+            y = Int(pb[i])
+        end
+        if x != y
+            return x > y
+        end
+        i = i + 1
+    end
+    return false
+end
+
+# El cajón de Dash, acabado en ":" o "/": DASH: o, si no está, el de encima del de Forja (Dash/Forja). "" si no se encuentra
+func act_cajon() -> String
+    var probar: [String] = ["DASH:", "PROGDIR:/"]
+    for p in probar
+        if file_exists(p + "dash")
+            c = file_real_path(p)
+            if c != ""
+                if not str_ends(c, ":") and not str_ends(c, "/")
+                    c = c + "/"
+                end
+                return c
+            end
+        end
+    end
+    return ""
+end
+
+# La versión de la orden dash de ese cajón (su $VER:), o "" si no se sabe
+func act_version_instalada(cajon: String) -> String
+    ruta = cajon + "dash"
+    n = file_size(ruta)
+    if n <= 0
+        return ""
+    end
+    b = buffer_alloc(n)
+    if b == 0
+        return ""
+    end
+    h = file_open(ruta, 1005)
+    leidos = 0
+    if h != 0
+        leidos = file_read(h, b, n)
+        file_close(h)
+    end
+    marca = "$VER: dash "
+    r = ""
+    i = buffer_find_byte(b, 0, leidos - marca.length - 8, 36)
+    while i >= 0 and r == ""
+        if buffer_equals(b, i, marca.length, marca)
+            j = i + marca.length
+            while j < leidos and buffer_get_byte(b, j) != 32 and buffer_get_byte(b, j) != 0
+                j = j + 1
+            end
+            r = str_from_buffer(b, i + marca.length, j - i - marca.length)
+        else
+            i = buffer_find_byte(b, i + 1, leidos - marca.length - 8, 36)
+        end
+    end
+    buffer_free(b)
+    return r
+end
+
+func act_iniciar(automatico: Bool)
+    file_delete(ACT_TAR)                  # lo de una vez que no acabó
+    if automatico and env_get("Forja/actualizar_visto") != date_text("%Y%m%d")
+        act_proxima = time_ms() + ACT_PRIMERA
+    end
+end
+
+# Cuántos ms faltan para el próximo tic que hace falta, o -1 si ninguno
+func act_espera() -> Int
+    if act_fase != ACT_NADA
+        if act_fase == ACT_ABRIENDO or act_fase == ACT_PONIENDO
+            return 20
+        end
+        return 100
+    end
+    if act_proxima > 0
+        # (como mucho un segundo: el temporizador es uno solo y los demás lo esperan si está puesto)
+        falta = act_proxima - time_ms()
+        if falta < 100
+            return 100
+        elif falta > 1000
+            return 1000
+        end
+        return falta
+    end
+    if act_red
+        return 100
+    end
+    return -1
+end
+
+func act_direccion_api() -> String
+    otra = env_get("Forja/actualizar_api")
+    if otra != ""
+        return otra
+    end
+    return ACT_API
+end
+
+func act_consultar()
+    act_fase = ACT_CONSULTANDO
+    act_red = true
+    act_carga = http_empezar_metodo(act_direccion_api(), "GET", "", "", "Accept: application/vnd.github+json", ACT_ESPERA_RED)
+end
+
+# El menú: busca y, si hay una nueva, pregunta si se instala
+func act_pedir()
+    if act_fase != ACT_NADA
+        act_quiere = true
+        act_avisar(tr(382, "Ya se está buscando o instalando una versión nueva de Dash."), 0)
+        return
+    end
+    if act_cajon() == ""
+        act_avisar(tr(383, "No encuentro el cajón de Dash (DASH:): instálalo con su instalador para poder actualizarlo desde aquí."), 1)
+        return
+    end
+    if not net_stack_running()
+        act_avisar(tr(384, "Para buscar versiones nuevas de Dash hace falta la red (una pila TCP/IP en marcha) y AmiSSL."), 1)
+        return
+    end
+    act_quiere = true
+    act_avisar(tr(385, "Buscando la última versión de Dash..."), 0)
+    act_consultar()
+end
+
+func act_consulta_hecha(r: Respuesta)
+    if r.error != "" or r.estado != 200
+        if act_quiere
+            error = r.error
+            if error == ""
+                error = "HTTP #{r.estado}"
+            end
+            act_avisar(hueco(tr(386, "No se pudo consultar GitHub: %1"), error), 1)
+        end
+        return
+    end
+    j = json_parse(http_texto(r))
+    etiqueta = json_get_str(j, "tag_name")
+    if not str_starts(etiqueta, "v")
+        return
+    end
+    version = etiqueta[1:etiqueta.length]
+    act_url = ""
+    act_tam = 0
+    activos = json_get(j, "assets")
+    i = 0
+    while i < json_length(activos)
+        a = json_at(activos, i)
+        if json_get_str(a, "name") == "dash-" + version + "-amiga.tar"
+            act_url = json_get_str(a, "browser_download_url")
+            act_tam = json_get_int(a, "size")
+        end
+        i = i + 1
+    end
+    cajon = act_cajon()
+    instalada = ""
+    if cajon != ""
+        instalada = act_version_instalada(cajon)
+    end
+    if instalada == "" or not act_mas_nueva(version, instalada)
+        act_nueva = ""
+        if act_quiere
+            act_avisar(hueco(tr(387, "Tienes la última versión de Dash, la %1."), instalada), 2)
+        end
+        return
+    end
+    if act_url == "" or act_tam <= 0
+        act_nueva = ""
+        if act_quiere
+            act_avisar(hueco(tr(388, "Hay una versión nueva de Dash, la %1, pero sin el paquete que sabe instalar Forja: bájala de su página."), version), 0)
+        end
+        return
+    end
+    act_nueva = version
+    if act_quiere
+        act_pregunta = true
+    else
+        act_avisar(hueco2(tr(389, "Hay una versión nueva de Dash, la %1 (tienes la %2).\nPara instalarla: Proyecto > Buscar versión nueva de Dash."), version, instalada), 2)
+    end
+end
+
+# La respuesta a la pregunta: si se baja e instala la nueva
+func act_instalar(si: Bool)
+    if not si or act_nueva == "" or act_fase != ACT_NADA
+        act_quiere = false
+        return
+    end
+    act_cajon_dash = act_cajon()
+    if act_cajon_dash == ""
+        act_avisar(tr(383, "No encuentro el cajón de Dash (DASH:): instálalo con su instalador para poder actualizarlo desde aquí."), 1)
+        return
+    end
+    act_avisar(hueco2(tr(390, "Bajando Dash %1 (%2 MB)..."), act_nueva, act_megas()), 0)
+    act_ultimo_por = 0
+    act_fase = ACT_BAJANDO
+    act_red = true
+    act_carga = http_volcar(http_empezar_a_fichero(act_url, ACT_TAR, ACT_ESPERA_RED))
+end
+
+func act_bajada_hecha(r: Respuesta)
+    if r.error != "" or r.estado != 200
+        error = r.error
+        if error == ""
+            error = "HTTP #{r.estado}"
+        end
+        act_fallo(hueco(tr(391, "No se pudo bajar Dash: %1"), error))
+        return
+    end
+    if file_size(ACT_TAR) != act_tam
+        act_fallo(hueco2(tr(392, "Dash llegó incompleto (%1 bytes de %2)."), "#{file_size(ACT_TAR)}", "#{act_tam}"))
+        return
+    end
+    act_f = file_open(ACT_TAR, 1005)
+    if act_f == 0
+        act_fallo(hueco(tr(393, "No se puede leer %1."), ACT_TAR))
+        return
+    end
+    if act_cabecera == 0
+        act_cabecera = buffer_alloc(512)
+    end
+    act_nuevos = []
+    act_leidos = 0
+    act_ultimo_por = 0
+    act_avisar(tr(394, "Comprobando los ficheros..."), 0)
+    act_fase = ACT_ABRIENDO
+end
+
+# Algo salió mal: se quita lo escrito y lo bajado, y Dash queda como estaba
+func act_fallo(texto: String)
+    if act_f != 0
+        file_close(act_f)
+        act_f = 0
+    end
+    for n in act_nuevos
+        file_delete(n + ".nuevo")
+    end
+    act_nuevos = []
+    file_delete(ACT_TAR)
+    act_fase = ACT_NADA
+    act_quiere = false
+    act_avisar(texto + " " + tr(395, "Dash no ha cambiado."), 1)
+end
+
+# Un número octal de la cabecera del tar (el tamaño): de desde, hasta un espacio o un cero
+func act_octal(b: Int, desde: Int, largo: Int) -> Int
+    n = 0
+    for i in (desde..desde + largo - 1)
+        c = buffer_get_byte(b, i)
+        if c >= 48 and c <= 55
+            n = n * 8 + c - 48
+        elif n > 0 or c == 0
+            return n
+        end
+    end
+    return n
+end
+
+# Un texto de la cabecera, hasta su cero
+func act_campo(b: Int, desde: Int, largo: Int) -> String
+    f = buffer_find_byte(b, desde, desde + largo, 0)
+    if f < 0
+        f = desde + largo
+    end
+    return str_from_buffer(b, desde, f - desde)
+end
+
+# Un nombre del tar que se puede poner en el cajón: "Dash/<ruta>.gz", sin subir de cajón ni salir de él
+func act_ruta_valida(nombre: String) -> Bool
+    if not str_starts(nombre, "Dash/") or not str_ends(nombre, ".gz") or nombre.length <= 8
+        return false
+    end
+    resto = nombre[5:nombre.length - 3]
+    return not str_contains(resto, ":") and not str_contains(resto, "//") and not str_starts(resto, "/") and not str_contains(resto, "..")
+end
+
+# Los cajones de una ruta del cajón de Dash ("Forja/Catalogs/english/x" crea Forja, Forja/Catalogs...)
+func act_crear_cajones(rel: String) -> Bool
+    partes = str_split(rel, "/")
+    camino = act_cajon_dash
+    i = 0
+    while i < partes.length - 1
+        camino = camino + partes[i]
+        if not file_exists(camino) and not dir_create(camino)
+            return false
+        end
+        camino = camino + "/"
+        i = i + 1
+    end
+    return true
+end
+
+func act_le32(b: Int, i: Int) -> Int
+    return buffer_get_byte(b, i) | (buffer_get_byte(b, i + 1) << 8) | (buffer_get_byte(b, i + 2) << 16) | (buffer_get_byte(b, i + 3) << 24)
+end
+
+# Un fichero del tar: se descomprime, se comprueba y se escribe como .nuevo. "" si bien, "fin" al acabar el tar, o el error
+func act_un_fichero() -> String
+    if file_read(act_f, act_cabecera, 512) != 512
+        return tr(396, "el paquete está cortado")
+    end
+    nombre = act_campo(act_cabecera, 0, 100)
+    if nombre == ""
+        return "fin"
+    end
+    prefijo = act_campo(act_cabecera, 345, 155)
+    if prefijo != ""
+        nombre = prefijo + "/" + nombre
+    end
+    tam = act_octal(act_cabecera, 124, 12)
+    tipo = buffer_get_byte(act_cabecera, 156)
+    relleno = (tam + 511) / 512 * 512
+    act_leidos = act_leidos + 512 + relleno
+    if tipo != 48 and tipo != 0               # solo ficheros ('0'); un cajón u otra cosa se salta
+        if relleno > 0
+            s = buffer_alloc(relleno)
+            if s == 0
+                return tr(397, "falta memoria")
+            end
+            file_read(act_f, s, relleno)
+            buffer_free(s)
+        end
+        return ""
+    end
+    if not act_ruta_valida(nombre) or tam < 18
+        return hueco(tr(398, "un nombre raro en el paquete: %1"), nombre)
+    end
+    gz = buffer_alloc(relleno)
+    if gz == 0
+        return tr(397, "falta memoria")
+    end
+    if file_read(act_f, gz, relleno) != relleno
+        buffer_free(gz)
+        return tr(396, "el paquete está cortado")
+    end
+    largo = act_le32(gz, tam - 4)
+    crc = act_le32(gz, tam - 8)
+    rel = nombre[5:nombre.length - 3]
+    datos = buffer_alloc(largo + 1)
+    if datos == 0
+        buffer_free(gz)
+        return tr(397, "falta memoria")
+    end
+    n = inflate_auto(gz, tam, datos, largo)
+    buffer_free(gz)
+    if n != largo or crc32(datos, largo, 0) != crc
+        buffer_free(datos)
+        return hueco(tr(399, "%1 llegó estropeado (CRC)"), rel)
+    end
+    if not act_crear_cajones(rel)
+        buffer_free(datos)
+        return hueco(tr(443, "no se puede crear el cajón de %1"), rel)
+    end
+    destino = act_cajon_dash + rel
+    h = file_open(destino + ".nuevo", 1006)
+    if h == 0
+        buffer_free(datos)
+        return hueco(tr(444, "no se puede escribir %1"), destino + ".nuevo")
+    end
+    act_nuevos.push(destino)
+    escrito = file_write(h, datos, largo)
+    file_close(h)
+    buffer_free(datos)
+    if escrito != largo
+        return hueco(tr(444, "no se puede escribir %1"), destino + ".nuevo")
+    end
+    return ""
+end
+
+# Todos comprobados: cada .nuevo en lugar del de antes. Uno que no se deja borrar (en uso) se aparta como .old
+func act_poner() -> String
+    for destino in act_nuevos
+        if file_exists(destino) and not file_delete(destino)
+            file_delete(destino + ".old")
+            if not file_rename(destino, destino + ".old")
+                return hueco(tr(444, "no se puede escribir %1"), destino)
+            end
+        end
+        if not file_rename(destino + ".nuevo", destino)
+            return hueco(tr(444, "no se puede escribir %1"), destino)
+        end
+    end
+    return ""
+end
+
+func act_soltar_red()
+    if act_red and act_fase == ACT_NADA
+        act_red = false
+        act_carga = nil
+        net_release()
+    end
+end
+
+# Lo que toque ahora: llamarla en cada tic
+func act_paso()
+    if act_fase == ACT_NADA
+        act_soltar_red()
+        if act_proxima > 0 and time_ms() >= act_proxima
+            act_proxima = 0
+            env_set("Forja/actualizar_visto", date_text("%Y%m%d"), true)
+            if net_stack_running() and act_cajon() != ""
+                act_quiere = false
+                act_consultar()
+            end
+        end
+        return
+    end
+    if act_fase == ACT_CONSULTANDO
+        if http_avanzar(act_carga)
+            act_fase = ACT_NADA
+            act_consulta_hecha(act_carga.respuesta)
+            if not act_pregunta
+                act_quiere = false
+            end
+        end
+    elif act_fase == ACT_BAJANDO
+        if http_avanzar(act_carga)
+            act_fase = ACT_NADA
+            act_bajada_hecha(act_carga.respuesta)
+        elif act_tam > 0
+            por = http_recibidos(act_carga) * 100 / act_tam
+            if por >= act_ultimo_por + 20 and por < 100
+                act_ultimo_por = por / 20 * 20
+                act_avisar(hueco(tr(445, "Bajado el %1 %."), "#{act_ultimo_por}"), 0)
+            end
+        end
+    elif act_fase == ACT_ABRIENDO
+        e = act_un_fichero()
+        por = act_leidos * 100 / act_tam
+        if e == "" and por >= act_ultimo_por + 20 and por < 100
+            act_ultimo_por = por / 20 * 20
+            act_avisar(hueco(tr(451, "Comprobado el %1 %."), "#{act_ultimo_por}"), 0)
+        end
+        if e == "fin"
+            file_close(act_f)
+            act_f = 0
+            act_fase = ACT_PONIENDO
+        elif e != ""
+            act_fallo(e + ".")
+        end
+    elif act_fase == ACT_PONIENDO
+        e = act_poner()
+        file_delete(ACT_TAR)
+        act_fase = ACT_NADA
+        act_quiere = false
+        if e != ""
+            act_nuevos = []
+            act_avisar(hueco(tr(446, "Dash quedó a medias: %1. Instálalo otra vez con su instalador."), e), 1)
+        else
+            act_nuevos = []
+            act_avisar(hueco2(tr(447, "Dash %1 instalado en %2. Cierra Forja y ábrela otra vez para usar la nueva."), act_nueva, act_cajon_dash), 2)
+            act_nueva = ""
+        end
+    end
+end

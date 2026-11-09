@@ -76,6 +76,10 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   - C copia al portapapeles las líneas de Dash que lo cargan, con sus colores y cómo animarlo.
 
   ![El editor de sprites con una nave de 4 fotogramas](docs/img/sprites.png)
+- **Versiones nuevas de Dash**: Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay, pregunta si
+  la baja e instala en el cajón de Dash (`DASH:`): la orden dash, Forja, Inferencia, `lib/` y los ejemplos. Antes de
+  cambiar nada lo comprueba todo; si algo llega mal, Dash se queda como estaba. Al empezar mira una vez al día y solo
+  avisa en la salida (se apaga en las preferencias). Hace falta la red y AmiSSL. También por ARexx: `ACTUALIZAR`.
 - **Mapas de tiles**: los ficheros `.fmap` (IFF `FORM FMAP`) se abren en el editor de mapas, y Amiga-B también
   crea un mapa nuevo. El tileset es un BOB del editor de sprites, con un fotograma por tile de 8, 16 o 32; el mapa
   guarda su nombre. `tilemap_load` y `tilemap_draw` de Dash los cargan y los pintan.

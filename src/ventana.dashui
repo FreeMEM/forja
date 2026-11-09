@@ -20,6 +20,7 @@
             { "tr": 306, "label": "Cerrar pestaña", "key": "W", "event": 34 },
             { "separator": true },
             { "tr": 307, "label": "Preferencias...", "event": 35 },
+            { "tr": 380, "label": "Buscar versión nueva de Dash...", "event": 77 },
             { "separator": true },
             { "tr": 308, "label": "Salir", "key": "Q", "event": 99 }
           ]
@@ -235,7 +236,9 @@
                   { "type": "label", "tr": 353, "text": "En su propia pantalla (al arrancar):", "color": [220, 220, 210] },
                   { "type": "checkbox", "name": "pantalla", "checked": false },
                   { "type": "label", "tr": 374, "text": "Completar y ayuda de argumentos:", "color": [220, 220, 210] },
-                  { "type": "checkbox", "name": "completar", "checked": true }
+                  { "type": "checkbox", "name": "completar", "checked": true },
+                  { "type": "label", "tr": 381, "text": "Buscar versiones nuevas de Dash al empezar:", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "buscar", "checked": true }
                 ]
               },
               { "type": "space" }

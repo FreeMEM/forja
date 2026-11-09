@@ -128,3 +128,10 @@ de la sonda cuando Forja lo escribe, AmigaDOS no deja escribirlo: Forja reintent
 `tests/git.sh <worktree de Dash> [cajón de dashgit]`: `tests/git.dash` maneja dashgit desde Forja por ARexx (`GIT` y
 `SALIDA`): init, config, status, add, commit, diff, commit -a con un mensaje con comillas, log y push a un servidor
 git del PC (`tests/servidor_git.py` de dashgit). Necesita dashgit (por defecto `~/Projects/dashgit`).
+
+`tests/actualizar.sh <worktree de Dash>`: `tests/actualizar.dash` prueba `src/actualizar.dash` sin ventana contra un
+GitHub de mentira en el PC (un servidor HTTP local con la respuesta de la API y dos tar hechos con
+`tools/paquete_amiga.py` de Dash, uno bueno y otro con un CRC estropeado). Un Dash 2.7.0 de mentira en `DH0:Dash`: el
+estropeado no cambia nada, Cancelar tampoco, el bueno lo pone al día (y respeta lo que no trae), al día no pregunta y
+la consulta automática solo avisa, una vez al día. `GRANDE=build/dash-X.Y.Z-amiga.tar` usa uno de verdad (unos 70 s
+en el emulador; dos comprobaciones del contenido fallan, porque son del pequeño).

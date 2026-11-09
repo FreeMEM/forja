@@ -564,3 +564,129 @@ MSG_378 (378//)
 El cajón de los ejecutables
 MSG_379 (379//)
 No hay ayuda para lo que hay en el cursor.
+MSG_380 (380//)
+Buscar versión nueva de Dash...
+MSG_381 (381//)
+Buscar versiones nuevas de Dash al empezar:
+MSG_382 (382//)
+Ya se está buscando o instalando una versión nueva de Dash.
+MSG_383 (383//)
+No encuentro el cajón de Dash (DASH:): instálalo con su instalador para poder actualizarlo desde aquí.
+MSG_384 (384//)
+Para buscar versiones nuevas de Dash hace falta la red (una pila TCP/IP en marcha) y AmiSSL.
+MSG_385 (385//)
+Buscando la última versión de Dash...
+MSG_386 (386//)
+No se pudo consultar GitHub: %1
+MSG_387 (387//)
+Tienes la última versión de Dash, la %1.
+MSG_388 (388//)
+Hay una versión nueva de Dash, la %1, pero sin el paquete que sabe instalar Forja: bájala de su página.
+MSG_389 (389//)
+Hay una versión nueva de Dash, la %1 (tienes la %2).\nPara instalarla: Proyecto > Buscar versión nueva de Dash.
+MSG_390 (390//)
+Bajando Dash %1 (%2 MB)...
+MSG_391 (391//)
+No se pudo bajar Dash: %1
+MSG_392 (392//)
+Dash llegó incompleto (%1 bytes de %2).
+MSG_393 (393//)
+No se puede leer %1.
+MSG_394 (394//)
+Comprobando los ficheros...
+MSG_395 (395//)
+Dash no ha cambiado.
+MSG_396 (396//)
+el paquete está cortado
+MSG_397 (397//)
+falta memoria
+MSG_398 (398//)
+un nombre raro en el paquete: %1
+MSG_399 (399//)
+%1 llegó estropeado (CRC)
+MSG_400 (400//)
+too many redirects
+MSG_401 (401//)
+the server closed without answering
+MSG_402 (402//)
+an answer that isn't HTTP
+MSG_403 (403//)
+broken status line
+MSG_404 (404//)
+cut headers
+MSG_405 (405//)
+cut body
+MSG_406 (406//)
+could not decompress
+MSG_407 (407//)
+timed out
+MSG_408 (408//)
+cancelled
+MSG_409 (409//)
+unsupported scheme: %1
+MSG_410 (410//)
+can't write %1
+MSG_420 (420//)
+too many connections
+MSG_421 (421//)
+connection closed
+MSG_422 (422//)
+out of memory
+MSG_423 (423//)
+can't send
+MSG_424 (424//)
+network closed
+MSG_425 (425//)
+connection refused
+MSG_426 (426//)
+too many connections at once
+MSG_427 (427//)
+too many TLS connections
+MSG_428 (428//)
+error sending
+MSG_429 (429//)
+error receiving
+MSG_430 (430//)
+network error
+MSG_431 (431//)
+TLS error
+MSG_432 (432//)
+the network belongs to another task
+MSG_433 (433//)
+AmiSSL is missing (amisslmaster.library)
+MSG_434 (434//)
+no bsdsocket.library (a TCP/IP stack is missing)
+MSG_435 (435//)
+server not found
+MSG_436 (436//)
+can't open AmiSSL (5.1 or later is needed)
+MSG_437 (437//)
+can't open a socket
+MSG_438 (438//)
+can't look up the server
+MSG_439 (439//)
+timed out connecting
+MSG_440 (440//)
+timed out negotiating TLS
+MSG_441 (441//)
+timed out looking up the server
+MSG_442 (442//)
+can't write the file
+MSG_443 (443//)
+no se puede crear el cajón de %1
+MSG_444 (444//)
+no se puede escribir %1
+MSG_445 (445//)
+Bajado el %1 %.
+MSG_446 (446//)
+Dash quedó a medias: %1. Instálalo otra vez con su instalador.
+MSG_447 (447//)
+Dash %1 instalado en %2. Cierra Forja y ábrela otra vez para usar la nueva.
+MSG_448 (448//)
+Versión nueva de Dash
+MSG_449 (449//)
+Está publicada Dash %1. ¿La bajo y la instalo en el cajón de Dash?\n\nSon %2 MB. Pone al día la orden dash, Forja, Inferencia, lib/ y los ejemplos.\nTus programas y tus preferencias no se tocan.
+MSG_450 (450//)
+_Instalar|_Cancelar
+MSG_451 (451//)
+Comprobado el %1 %.

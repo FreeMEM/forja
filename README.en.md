@@ -76,6 +76,11 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   - C copies to the clipboard the Dash lines that load it, with its colours and how to animate it.
 
   ![The sprite editor with a 4-frame ship](docs/img/sprites-en.png)
+- **New Dash versions**: Project > Look for a new version of Dash looks on GitHub and, if there is one, asks whether
+  to download it and install it in the Dash drawer (`DASH:`): the dash command, Forja, Inferencia, `lib/` and the
+  examples. It checks everything before changing anything; if something arrives damaged, Dash stays as it was. At
+  startup it looks once a day and only tells you in the output (it can be turned off in the preferences). It needs
+  the network and AmiSSL. Also through ARexx: `ACTUALIZAR`.
 - **Tile maps**: `.fmap` files (IFF `FORM FMAP`) open in the map editor, and Amiga-B also makes a new map. The
   tileset is a BOB from the sprite editor, with one frame a tile of 8, 16 or 32; the map keeps its name. Dash's
   `tilemap_load` and `tilemap_draw` load and draw them.

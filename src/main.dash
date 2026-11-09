@@ -20,7 +20,11 @@
 # guardado o no); SELECCION (fichero, desde, hasta y el texto, en líneas); CAMBIAR fichero desde hasta texto
 # (con deshacer; hasta = desde - 1 mete líneas); GUARDAR [fichero]; COMPILAR y EJECUTAR (sin esperar);
 # ESTADO (libre, compilando, ejecutando, depurando); ERRORES (los de la última compilación); BUSCAR texto (lo elige
-# y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea.
+# y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea; ACTUALIZAR (como el menú).
+#
+# Versiones nuevas de Dash (actualizar.dash): Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay,
+# pregunta si se baja e instala encima del cajón de Dash (DASH:). Sola, 20 s después de empezar y una vez al día,
+# solo avisa en la salida (preferencia ENV:Forja/buscar_dash, "no" la apaga).
 #
 # Buscar y cambiar (Amiga-F) e ir a la línea (Amiga-L) en sus ventanas. Preferencias: dashc, Inferencia, el cajón
 # de los ejecutables (ENV:Forja/ejecutables, por ejemplo RAM:; vacío: al lado de cada .dash), si abrir al
@@ -53,6 +57,7 @@
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
+import "actualizar.dash"
 import "ventana.dashui"
 
 const VERSION = "0.5.2"
@@ -93,6 +98,7 @@ const EV_DEFINICION = 72
 const EV_VOLVER = 73
 const EV_REFERENCIAS = 74
 const EV_COMPLETAR = 75
+const EV_ACTUALIZAR = 77
 const ESPERA_GIT = 600000      # diez minutos como mucho para una orden de git (clonar o traer por la red)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
@@ -654,6 +660,35 @@ func programa_abierto() -> Documento
 end
 
 # El único temporizador de MUI: uno nuevo cancela el anterior, así que todo lo que espera pasa por tic()
+# Las versiones nuevas de Dash (actualizar.dash): un paso, sus mensajes a la salida y, si hay una nueva y se pidió,
+# la pregunta de si se instala
+func actualizar_tic()
+    act_paso()
+    actualizar_mensajes()
+    if act_preguntar()
+        r = mui_request(v.window, tr(448, "Versión nueva de Dash"), hueco2(tr(449, "Está publicada Dash %1. ¿La bajo y la instalo en el cajón de Dash?\n\nSon %2 MB. Pone al día la orden dash, Forja, Inferencia, lib/ y los ejemplos.\nTus programas y tus preferencias no se tocan."), act_version_nueva(), act_megas()), tr(450, "_Instalar|_Cancelar"))
+        act_instalar(r == 1)
+        actualizar_mensajes()
+    end
+end
+
+func actualizar_mensajes()
+    m = act_mensaje()
+    if m != ""
+        avisar(m, act_tipo())
+    end
+end
+
+# El temporizador para lo de actualizar, si nada más lo ha puesto
+func actualizar_armar()
+    if not tic_armado
+        e = act_espera()
+        if e >= 0
+            armar_tic(e, EV_TIC)
+        end
+    end
+end
+
 func armar_tic(ms: Int, ev: Int)
     tic_armado = true
     mui_timer(ms, ev)
@@ -661,6 +696,7 @@ end
 
 func tic()
     tic_armado = false
+    actualizar_tic()
     indice_en_reposo()
     d = ed_actual()
     if d != nil and d.sprite != nil and sp_avanzar(d.sprite)
@@ -2011,6 +2047,7 @@ func preferencias_abrir()
     mui_set_value(vp.recordar, recordar_sesion())
     mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
     mui_set_value(vp.completar, completar_activo)
+    mui_set_value(vp.buscar, env_get("Forja/buscar_dash") != "no")
     mui_window_open(vp.window)
 end
 
@@ -2039,6 +2076,11 @@ func preferencias_aplicar(guardar: Bool)
         env_set("Forja/completar", "no", guardar)
         cerrar_capas()
         redibujar()
+    end
+    if mui_get_value(vp.buscar) != 0
+        env_set("Forja/buscar_dash", "si", guardar)
+    else
+        env_set("Forja/buscar_dash", "no", guardar)
     end
     mui_window_close(vp.window)
 end
@@ -2309,6 +2351,11 @@ func orden_rexx(linea: String) -> String
         return ""
     elif orden == "SALIDA"
         return salida_texto(false)
+    elif orden == "ACTUALIZAR"
+        # lo mismo que el menú: busca una versión nueva de Dash y, si la hay, pregunta si se instala
+        act_pedir()
+        actualizar_mensajes()
+        return ""
     end
     mui_rexx_fail(10)
     return ""
@@ -2319,6 +2366,9 @@ end
 func atender(ev: Int)
     if ev == EV_PROYECTO
         en_proyecto()
+    elif ev == EV_ACTUALIZAR
+        act_pedir()
+        actualizar_mensajes()
     elif ev == EV_BUSCAR
         mui_window_open(vb.window)
         mui_set_active(vb.window, vb.texto)
@@ -2482,6 +2532,7 @@ Main
         poner_tarea(NADA)
         sonda = env_get("FORJA_SONDA") != ""
         completar_activo = env_get("Forja/completar") != "no"
+        act_iniciar(env_get("Forja/buscar_dash") != "no" and env_get("FORJA_SONDA") == "")
 
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
@@ -2506,6 +2557,7 @@ Main
             # los símbolos del código, en cuanto la ventana esté quieta
             armar_tic(REPOSO_MS, EV_TIC)
         end
+        actualizar_armar()
         if sonda
             publicar_sonda()
             escribir_sonda()
@@ -2555,6 +2607,7 @@ Main
             if ed_actual() != nil and ed_actual().sprite != nil and ed_actual().sprite.reproduciendo and not tic_armado
                 armar_tic(sp_intervalo(ed_actual().sprite), EV_TIC)
             end
+            actualizar_armar()
             if sonda
                 publicar_sonda()
                 # para las pruebas: abre las preferencias (la simulación del menú no llega a ellas)

@@ -1,0 +1,115 @@
+# Prueba de src/actualizar.dash sin ventana, contra un GitHub de mentira en el PC (tests/actualizar.sh lo arranca):
+# un Dash 2.7.0 de mentira en DH0:Dash (DASH:) se pone al día con el tar de la 2.8.0, y uno que llega estropeado
+# no cambia nada. Acaba con "TODO BIEN" si todo fue bien.
+
+import "../src/actualizar.dash"
+
+var fallos: Int = 0
+
+func mirar(que: String, bien: Bool)
+    if bien
+        Print "bien: " + que
+    else
+        Print "MAL: " + que
+        fallos = fallos + 1
+    end
+end
+
+func escribir(ruta: String, texto: String)
+    file_write_text(ruta, texto)
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return "(no está)"
+    end
+    return t
+end
+
+# Todo lo que pase hasta que acabe, con los mensajes; true si preguntó
+func esperar(instalar: Bool) -> Bool
+    pregunto = false
+    t0 = time_ms()
+    while time_ms() - t0 < 120000
+        act_paso()
+        m = act_mensaje()
+        if m != ""
+            Print "  [" + m + "] #{time_ms() - t0} ms"
+        end
+        if act_preguntar()
+            pregunto = true
+            Print "  pregunta: " + act_version_nueva() + ", " + act_megas() + " MB"
+            act_instalar(instalar)
+        end
+        if not act_ocupada()
+            m = act_mensaje()
+            if m != ""
+                Print "  [" + m + "]"
+            end
+            return pregunto
+        end
+        time_delay(1)
+    end
+    Print "  (no acabó en dos minutos)"
+    return pregunto
+end
+
+Main
+    puerto = str_trim(file_read_text("DH0:puerto"))     # (lo pone tests/actualizar.sh)
+    mirar("versiones", act_mas_nueva("2.10.0", "2.9.1") and not act_mas_nueva("2.8.0", "2.8.0") and not act_mas_nueva("2.7.9", "2.8"))
+    mirar("rutas", act_ruta_valida("Dash/lib/red/http.dash.gz") and not act_ruta_valida("Dash//x.gz") and not act_ruta_valida("Dash/SYS:x.gz") and not act_ruta_valida("Otro/x.gz") and not act_ruta_valida("Dash/x"))
+    # el Dash "instalado": 2.7.0, con un fichero que la nueva cambia y otro que no trae
+    dir_create("DH0:Dash")
+    dir_create("DH0:Dash/lib")
+    escribir("DH0:Dash/dash", "algo antes\n$VER: dash 2.7.0 (1.11.2026)\n")
+    escribir("DH0:Dash/LEEME", "el viejo\n")
+    escribir("DH0:Dash/lib/mio.dash", "lo mío\n")
+    run_command("Assign DASH: DH0:Dash")
+    mirar("cajón", act_cajon() == "DH0:Dash/")
+    mirar("versión instalada", act_version_instalada(act_cajon()) == "2.7.0")
+
+    # 1. una que llega estropeada: pregunta, se dice que sí, falla y no cambia nada
+    env_set("Forja/actualizar_api", "http://127.0.0.1:" + puerto + "/roto/latest", false)
+    act_pedir()
+    mirar("estropeada: pregunta", esperar(true))
+    mirar("estropeada: nada cambió", leer("DH0:Dash/LEEME") == "el viejo\n" and act_version_instalada(act_cajon()) == "2.7.0" and not file_exists("DH0:Dash/LEEME.nuevo") and not file_exists("DH0:Dash/Forja/Catalogs/english/Forja.catalog") and not file_exists("T:dash-actualizar.tar"))
+
+    # 2. que no: pregunta y no instala
+    env_set("Forja/actualizar_api", "http://127.0.0.1:" + puerto + "/bien/latest", false)
+    act_pedir()
+    mirar("cancelada: pregunta", esperar(false))
+    mirar("cancelada: nada cambió", leer("DH0:Dash/LEEME") == "el viejo\n")
+
+    # 3. que sí: la instala
+    act_pedir()
+    t0 = time_ms()
+    mirar("buena: pregunta", esperar(true))
+    Print "  (#{time_ms() - t0} ms)"
+    mirar("buena: la nueva", act_version_instalada(act_cajon()) == "2.8.0")
+    mirar("buena: LEEME nuevo", leer("DH0:Dash/LEEME") == "el nuevo\n")
+    mirar("buena: cajones nuevos", leer("DH0:Dash/Forja/Catalogs/english/Forja.catalog") == "catálogo\n" and leer("DH0:Dash/lib/red/http.dash") == "red\n")
+    mirar("buena: lo mío sigue", leer("DH0:Dash/lib/mio.dash") == "lo mío\n")
+    mirar("buena: sin restos", not file_exists("DH0:Dash/LEEME.nuevo") and not file_exists("DH0:Dash/dash.old") and not file_exists("T:dash-actualizar.tar"))
+
+    # 4. ya al día
+    act_pedir()
+    mirar("al día: no pregunta", not esperar(true))
+
+    # 5. la automática: avisa sin preguntar (y una vez al día)
+    env_set("Forja/actualizar_visto", "", false)
+    escribir("DH0:Dash/dash", "$VER: dash 2.7.0 (1.11.2026)\n")
+    act_iniciar(true)
+    act_proxima = time_ms()
+    mirar("automática: no pregunta", not esperar(true))
+    mirar("automática: apunta el día", env_get("Forja/actualizar_visto") == date_text("%Y%m%d"))
+    act_iniciar(true)
+    mirar("automática: no otra vez hoy", act_proxima == 0)
+
+    run_command("Assign DASH: DH0:Dash REMOVE")
+    if fallos == 0
+        Print "TODO BIEN"
+    else
+        Print "FALLOS: #{fallos}"
+    end
+end
