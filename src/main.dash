@@ -48,14 +48,14 @@
 # ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen".
 
 @catalog "Forja.catalog" 1 "español"
-@version "Forja 0.5.1"
+@version "Forja 0.5.2"
 
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
 import "ventana.dashui"
 
-const VERSION = "0.5.1"
+const VERSION = "0.5.2"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
