@@ -845,3 +845,6 @@ Cannot create the executables drawer:
 MSG_378
 The executables drawer
 ; El cajón de los ejecutables
+MSG_379
+No help for what is under the cursor.
+; No hay ayuda para lo que hay en el cursor.
