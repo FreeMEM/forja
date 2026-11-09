@@ -45,7 +45,8 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   project's names (functions, structs, constants, global variables and the function's locals; also those of the
   files it imports). After a dot, the struct's fields and methods, or what lists and strings have. Arrows choose,
   Tab or Return insert, Esc closes; Ctrl+Space shows it with fewer letters. Typing "(" after a function or a builtin
-  shows its arguments and description. It can be turned off in Preferences.
+  shows its arguments and description. It can be turned off in Preferences. Help or F1 show that help for the name
+  under the cursor (idea by Javier R. Santurde "Tolkien").
 - **Go to definition** (Amiga-J or Ctrl+click): to the file and line where the name is defined, opening it if
   needed; Amiga-U goes back. **Find uses** (Amiga-H): the list in the output, and a click goes to each place. The
   symbols are read when a file is opened or shown and after a moment without typing (in the Code menu).
@@ -53,7 +54,8 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
 - **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin; F5 continue, F10 step over, F6 step into,
-  F7 step out (with the pointer over the editor, the project or the output). On the left, the call stack and the
+  F7 step out, with the pointer anywhere in the window, unless a text field or another gadget has the keyboard
+  (reported by David Martínez). On the left, the call stack and the
   variables. When it stops, Forja comes to the front: the program's window takes the keyboard when it opens. If the
   stop line is already in view, the code does not move or repaint as a whole (reported by David Martínez).
 - **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;

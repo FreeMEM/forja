@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/ejecutables/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -562,3 +562,5 @@ MSG_377 (377//)
 No se puede crear el cajón de los ejecutables: 
 MSG_378 (378//)
 El cajón de los ejecutables
+MSG_379 (379//)
+No hay ayuda para lo que hay en el cursor.

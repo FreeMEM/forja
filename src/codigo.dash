@@ -1880,6 +1880,38 @@ func ay_calcular(lineas: [String], cl: Int, cc: Int, version: Int) -> Bool
     if firma == ""
         return false
     end
+    return _ay_poner(firma, comas, cl)
+end
+
+# Help o F1 (idea de Javier R. Santurde "Tolkien"): la ayuda del nombre que hay en el cursor, sin argumento marcado;
+# true si se ve
+func ay_palabra(lineas: [String], cl: Int, cc: Int, version: Int) -> Bool
+    ay_visible = false
+    if cl < 0 or cl >= lineas.length
+        return false
+    end
+    s = lineas[cl]
+    fin = cc
+    if fin > s.length
+        fin = s.length
+    end
+    while fin < s.length and _cx_es_id(str_code(s, fin))
+        fin = fin + 1
+    end
+    callee = _cx_cadena_antes(s, fin)
+    if callee == "" or str_contains(callee, "(") or str_contains(callee, "[")
+        return false
+    end
+    cx_locales(lineas, cl, version)
+    firma = _cx_firma_de(callee, lineas, cl)
+    if firma == ""
+        return false
+    end
+    return _ay_poner(firma, -1, cl)
+end
+
+# La ayuda con esta firma; comas, el argumento que se marca (-1, ninguno)
+func _ay_poner(firma: String, comas: Int, cl: Int) -> Bool
     a = str_find(firma, "(")
     b = firma.length - 1
     while b > a and str_code(firma, b) != 41

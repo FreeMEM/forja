@@ -46,7 +46,7 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   de lo que importa el fichero). Tras un punto, los campos y métodos del struct, o lo que tienen las listas y los
   textos. Flechas para elegir, Tab o Return la meten, Esc la cierra; Ctrl+Espacio la saca con menos letras. Al
   escribir "(" tras una función o un builtin, una ayuda con sus argumentos y su descripción. Se apaga en
-  Preferencias.
+  Preferencias. Help o F1 sacan esa ayuda para el nombre que hay en el cursor (idea de Javier R. Santurde "Tolkien").
 - **Ir a la definición** (Amiga-J o Ctrl+clic): al fichero y la línea donde se define el nombre, abriéndolo si hace
   falta; Amiga-U vuelve. **Dónde se usa** (Amiga-H): la lista en la salida, y un clic lleva a cada sitio. Los
   símbolos se leen al abrir o cambiar de fichero y tras un momento sin escribir (en el menú Código).
@@ -54,7 +54,8 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
   Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...".
 - **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen; F5 seguir, F10 paso, F6 entrar, F7
-  salir (con el puntero sobre el editor, el proyecto o la salida). A la izquierda, la pila y las variables. Al parar,
+  salir, con el puntero en cualquier sitio de la ventana, salvo si un campo de texto u otro gadget tiene el teclado
+  (lo contó David Martínez). A la izquierda, la pila y las variables. Al parar,
   Forja se pone delante: la ventana del programa se queda el teclado al abrirse. Si la línea de la parada ya se ve,
   el código no se mueve ni se repinta entero (lo contó David Martínez).
 - **Ventanas `.dashui`**: se abren en el editor de ventanas (Amiga-D cambia a texto). El árbol de objetos y sus

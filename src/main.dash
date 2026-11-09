@@ -48,14 +48,14 @@
 # ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen".
 
 @catalog "Forja.catalog" 1 "español"
-@version "Forja 0.5.1"
+@version "Forja 0.5.2"
 
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
 import "ventana.dashui"
 
-const VERSION = "0.5.1"
+const VERSION = "0.5.2"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
@@ -108,6 +108,8 @@ const T_F6 = 0x55
 const T_F7 = 0x56
 const T_F9 = 0x58
 const T_F10 = 0x59
+const T_F1 = 0x50
+const T_HELP = 0x5F
 const T_ESPACIO = 0x40
 const REPOSO_MS = 1200        # sin escribir este tiempo, se vuelven a leer los símbolos del fichero
 const LINEAS_TIC = 60         # las líneas que se leen en cada tic (unos 30 ms en un A1200)
@@ -1278,6 +1280,19 @@ func completar_tecla(d: Documento, codigo: Int, teclas: Int) -> Bool
     return false
 end
 
+# Help o F1: la ayuda del nombre del cursor (idea de Javier R. Santurde "Tolkien"); Esc o mover el cursor la cierra
+func ayuda_del_cursor(d: Documento)
+    y1 = ed_pintado_y1
+    y2 = ed_pintado_y2
+    indice_si_hace_falta(true)
+    ac_cerrar()
+    if ay_palabra(d.lineas, d.cl, d.cc, d.version)
+        redibujar_tras_tecla(true, y1, y2)
+    else
+        avisar(tr(379, "No hay ayuda para lo que hay en el cursor."), 1)
+    end
+end
+
 # Ctrl + Espacio (o el menú): la lista para completar, aunque haya menos letras
 func completar_ahora()
     d = ed_actual()
@@ -1838,6 +1853,10 @@ func en_editor() -> Int
         end
         if codigo == T_F9
             alternar_punto(d, d.cl + 1)
+            return 0
+        end
+        if (codigo == T_HELP or codigo == T_F1) and es_codigo(d)
+            ayuda_del_cursor(d)
             return 0
         end
         otro = tecla_depurador(codigo)
@@ -2456,6 +2475,8 @@ Main
         mui_canvas_on_input(v.salida, EV_SALIDA)
         mui_canvas_on_drag(v.salida, EV_ARRASTRE_SALIDA)
         mui_canvas_take_tab(v.editor, true)
+        # las teclas, al editor aunque el puntero no esté encima (F5, F10... al depurar: lo contó David Martínez)
+        mui_canvas_take_keys(v.editor, true)
         # lo que aún no hace nada, apagado
         mui_app_rexx(app, orden_rexx)
         poner_tarea(NADA)

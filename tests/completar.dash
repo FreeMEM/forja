@@ -1,7 +1,7 @@
 # Hace de usuario del autocompletado de Forja: en main.dash de DH0:Prueba/juego escribe "pri" (sale la lista con
 # Print y Tab lo mete), "con" (conectar, de red.dash, que importa), "(" (la ayuda de los argumentos), va a la
 # definición de conectar con Amiga-J (abre red.dash en su línea) y vuelve con Amiga-U, completa campos tras un
-# punto (lista[0].) con flechas y Return, mira la ayuda de un builtin (gfx_pen), busca dónde se usa mover
+# punto (lista[0].) con flechas y Return, mira la ayuda de un builtin (gfx_pen), y con F1 y el puntero fuera, busca dónde se usa mover
 # (Amiga-H) y va a su definición con Ctrl + clic. Sale descartando los cambios.
 # Lo arranca tests/completar.sh; anota en DH0:Prueba/completar.txt.
 
@@ -16,6 +16,7 @@ const IZQUIERDA = 0x4F
 const RETURN = 0x44
 const TAB = 0x42
 const ESC = 0x45
+const F1 = 0x50
 
 var fallos: Int = 0
 var registro: String = ""
@@ -257,6 +258,21 @@ Main
         tecla(ESC, 0)
         e = esperar_env("FORJA_AYUDA", "")
         ver("Esc la cierra", e == "", e)
+        # Help o F1 sobre un nombre: su ayuda, sin argumento marcado (idea de Javier R. Santurde "Tolkien"); con el
+        # puntero en la barra de título, fuera del editor: las teclas le llegan igual (lo contó David Martínez)
+        input_move(campo("FORJA_EDITOR", 0) + 60, 4)
+        time_delay(5)
+        tecla(IZQUIERDA, 0)
+        tecla(IZQUIERDA, 0)
+        tecla(IZQUIERDA, 0)
+        esperar_cursor(25, 22)
+        tecla(F1, 0)
+        e = esperar_env("FORJA_AYUDA", "-1 ")
+        ver("F1 fuera del editor: la ayuda de gfx_pen", str_starts(e, "-1 gfx_pen(color)"), e)
+        tecla(ESC, 0)
+        e = esperar_env("FORJA_AYUDA", "")
+        ver("Esc la cierra otra vez", e == "", e)
+        al_editor()
         # dónde se usa mover (línea 20)
         tecla(ARRIBA, CTRL)
         k = 0

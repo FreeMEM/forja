@@ -50,14 +50,16 @@ def palabras_clave():
 
 
 def builtins():
-    fila = re.compile(r"^\| `([A-Za-z_][A-Za-z0-9_]*)\((.*?)\)` \| `(.*?)` \| (.*?) \|")
+    # "| `f(a)` | `int` | ... |" hasta Dash 2.6.3; desde la 2.6.4, "| [`f(a)`](#f) | Int | ... |" (— sin valor)
+    fila = re.compile(r"^\| \[?`([A-Za-z_][A-Za-z0-9_]*)\((.*?)\)`(?:\]\(#[^)]*\))? \| `?(.*?)`? \| ((?:[^|\\]|\\.)*?) \|")
     vistos = {}
     for linea in (dash / "docs/BUILTINS.md").read_text(encoding="utf-8").splitlines():
         m = fila.match(linea)
         if not m:
             continue
         nombre, params, ret, desc = m.groups()
-        ret = C_A_DASH.get(ret.strip(), ret.strip())
+        ret = ret.strip().replace(" (dirección)", "")
+        ret = "" if ret == "—" else C_A_DASH.get(ret, ret)
         firma = f"{nombre}({params})" + (f" -> {ret}" if ret else "")
         desc = desc.replace("\\|", "|").replace("`", "").strip()
         vistos.setdefault(nombre, (firma, desc))
