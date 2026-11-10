@@ -76,6 +76,28 @@ func pantalla(x: Int, y: Int) -> Int
     return screen_pixel(window_found_box(w, 0) + cx(x), window_found_box(w, 1) + cy(y))
 end
 
+# ¿Hay algún píxel de ese color en la celda x, y? (el punto de la cebolla es un tercio del lado: con celdas
+# pequeñas, de 4 píxeles en 640x256, es un píxel que no cae en el centro justo)
+func en_celda(x: Int, y: Int, color: Int) -> Bool
+    sonda()
+    w = window_find("Forja")
+    z = campo("FORJA_SPRITE", 2)
+    x0 = window_found_box(w, 0) + campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + x * z
+    y0 = window_found_box(w, 1) + campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + y * z
+    j = 0
+    while j < z
+        i = 0
+        while i < z
+            if screen_pixel(x0 + i, y0 + j) == color
+                return true
+            end
+            i = i + 1
+        end
+        j = j + 1
+    end
+    return false
+end
+
 Main
     n = 0
     while n < 600 and not (env_get("FORJA_SPRITE_BOTONES") != "" and activar())
@@ -101,7 +123,7 @@ Main
         input_text("o")
         ver("O enciende la cebolla", esperar(11, "true"), sonda()[1])
         p = pantalla(0, 0)
-        ver("con cebolla, la 0,0 enseña el color 1 del anterior", p == lleno, "#{p} #{vacio} #{lleno}")
+        ver("con cebolla, la 0,0 enseña el color 1 del anterior", p == lleno or en_celda(0, 0, lleno), "#{p} #{vacio} #{lleno}; geometría " + env_get("FORJA_SPRITE"))
         ver("y la 5,5 sigue vacía", pantalla(5, 5) == vacio, "#{pantalla(5, 5)}")
         input_text("o")
         e = esperar(11, "false")

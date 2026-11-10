@@ -67,6 +67,16 @@ func quieto() -> String
     return "#{campo("FORJA_VISTA", 0)} " + env_get("FORJA_DIBUJOS")
 end
 
+# Lo que se movió el código entre a y b (de quieto()): nada con sitio (12 líneas o más); en una ventana pequeña (la de
+# 640x256 del emulador: 8 líneas), como mucho una línea, como con las flechas, sin centrar (antes saltaba 4)
+func poco(a: String, b: String) -> Bool
+    if campo("FORJA_VISTA", 4) >= 12
+        return a == b
+    end
+    d = Int(str_split(a, " ")[0]) - Int(str_split(b, " ")[0])
+    return d >= -1 and d <= 1
+end
+
 # Espera a que el depurador esté parado ("3 línea función") en esa línea, o acabado ("4"); da lo que haya
 func esperar_parada(que: String) -> String
     n = 0
@@ -121,13 +131,13 @@ Main
         ver("F10: paso a la línea 21", str_starts(e, "3 21 Main"), e)
         # la línea ya se veía: el código no se mueve ni se repinta entero (lo contó David Martínez)
         q = quieto()
-        ver("F10: el código no salta ni se repinta entero", q == vista, vista + " / " + q)
+        ver("F10: el código no salta ni se repinta entero", poco(vista, q), vista + " / " + q)
         input_key(F5, 0)
         e = esperar_parada("3 20 ")
         vs = variables()
         ver("F5: otra vez en la 20, con j = 1", str_starts(e, "3 20 Main") and str_contains(vs, "j = 1|"), vs)
         q = quieto()
-        ver("F5: el código sigue quieto", q == vista, vista + " / " + q)
+        ver("F5: el código sigue quieto", poco(vista, q), vista + " / " + q)
         input_key(F6, 0)
         e = esperar_parada("3 12 ")
         vs = variables()

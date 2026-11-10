@@ -50,7 +50,7 @@
 # RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_DIBUJOS (cuántos dibujos enteros del texto), ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
 # tras cada cambio, "línea columna nombre" y el texto; ENV:FORJA_DISENO, lo del editor de ventanas ("fila propiedad
 # editando mensaje"); ENV:FORJA_COMPLETAR, la lista ("elegida nombre nombre...", "" si no se ve); ENV:FORJA_AYUDA, la
-# ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen".
+# ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen"; RAM:forja-vistas.txt, la primera línea de cada dibujo entero; ENV:FORJA_FICHEROS, "cajón|fila|fila..." del panel del proyecto.
 
 @catalog "Forja.catalog" 1 "español"
 @version "Forja 0.6.0"
@@ -172,6 +172,8 @@ var barra_total: Int = -1
 var barra_visibles: Int = -1
 var barra_valor: Int = -1
 var sonda_proyecto: String = ""
+var sonda_vistas: String = ""
+var sonda_lista: String = ""
 var sonda_pestanas: String = ""
 var sonda_salida: String = ""
 var sonda_sprite: String = ""      # lo último publicado del editor de sprites
@@ -420,9 +422,9 @@ func proyecto(ev: Int) -> Bool
     elif ev == EV_SALIR
         n = cambiados()
         if n > 0
-            texto = "Hay #{n} ficheros con cambios sin guardar."
+            texto = hueco(tr(452, "Hay %1 ficheros con cambios sin guardar."), "#{n}")
             if n == 1
-                texto = "Hay un fichero con cambios sin guardar."
+                texto = tr(453, "Hay un fichero con cambios sin guardar.")
             end
             r = mui_request(v.window, tr(63, "Cambios sin guardar"), texto, tr(6, "_Guardar|_Descartar|_Cancelar"))
             if r == 0
@@ -436,7 +438,7 @@ func proyecto(ev: Int) -> Bool
                 end
             end
         end
-        return true
+        return parar_al_salir()
     end
     redibujar()
     return false
@@ -586,9 +588,39 @@ func poner_tarea(t: Int)
     end
 end
 
+var parar_pedido: Int = 0        # cuándo se pulsó Parar (time_ms), 0 si no
+var parar_avisado: Bool = false
+
+# Al salir con un programa en marcha: se para antes (el depurado, con dbg_end; el ejecutado, con Ctrl-C). Si no
+# para en 3 s, se pregunta: Forja no puede acabar hasta que acabe él (su proceso corre con el código de Forja).
+# false si no hay que salir.
+func parar_al_salir() -> Bool
+    if tarea == DEPURANDO
+        dbg_end(3000)
+        return true
+    end
+    if tarea != EJECUTANDO
+        return true
+    end
+    run_break(tarea_run)
+    n = 0
+    while n < 60 and not run_ready(tarea_run)
+        time_delay(5)
+        n = n + 1
+    end
+    if run_ready(tarea_run)
+        return true
+    end
+    r = mui_request(v.window, tr(455, "El programa sigue en marcha"), tr(456, "Forja se cerrará cuando acabe. Si tiene ventana, ciérrala."), tr(457, "_Salir|_No salir"))
+    return r == 1
+end
+
 func compilar(y_ejecutar: Bool)
     if tarea == EJECUTANDO
         run_break(tarea_run)
+        if parar_pedido == 0
+            parar_pedido = time_ms()
+        end
         return
     end
     if tarea != NADA
@@ -615,8 +647,11 @@ func compilar(y_ejecutar: Bool)
         end
     end
     redibujar()
-    tarea_exe = ejecutable_de(d.ruta)
-    tarea_dash = d.ruta
+    # un módulo (sin Main) no es un programa: se compila el de su proyecto
+    ruta = programa_de(d)
+    nombre = nombre_de(ruta)
+    tarea_exe = ejecutable_de(ruta)
+    tarea_dash = ruta
     if not cajon_listo(cajon_ejecutables())
         avisar(tr(377, "No se puede crear el cajón de los ejecutables: ") + cajon_ejecutables(), 1)
         return
@@ -625,8 +660,8 @@ func compilar(y_ejecutar: Bool)
     if depurar_despues
         opciones = " --debug"
     end
-    orden = dashc() + opciones + " \"" + d.ruta + "\" -o \"" + tarea_exe + "\""
-    avisar(tr(9, "Compilando ") + d.nombre + "...", 0)
+    orden = dashc() + opciones + " \"" + ruta + "\" -o \"" + tarea_exe + "\""
+    avisar(tr(9, "Compilando ") + nombre + "...", 0)
     tarea_run = run_start(orden, ESPERA_DASHC)
     if tarea_run == 0
         avisar(tr(10, "No se puede ejecutar ") + dashc() + tr(11, ". Pon su ruta en ENV:Forja/dashc."), 1)
@@ -636,6 +671,48 @@ func compilar(y_ejecutar: Bool)
     tarea_inicio = time_ms()
     poner_tarea(COMPILANDO)
     armar_tic(TIC_MS, EV_TIC)
+end
+
+# true si el código tiene Main (es un programa, no un módulo que importa otro)
+func tiene_main(lineas: [String]) -> Bool
+    for l in lineas
+        if str_starts(l, "Main") and (l.length == 4 or str_code(l, 4) == 32 or str_code(l, 4) == 35 or str_code(l, 4) == 9)
+            return true
+        end
+    end
+    return false
+end
+
+# Lo que se compila desde un documento: él mismo si tiene Main; si es un módulo, el programa de su proyecto (un
+# .dash abierto con Main de su cajón o del de encima; si no, el main.dash de esos cajones o del proyecto). Antes se
+# compilaba el módulo solo, y fallaba.
+func programa_de(d: Documento) -> String
+    if not str_ends(str_lower(d.ruta), ".dash") and not str_ends(str_lower(d.ruta), ".dashui")
+        return d.ruta
+    end
+    if str_ends(str_lower(d.ruta), ".dash") and tiene_main(d.lineas)
+        return d.ruta
+    end
+    cajon = cajon_de(d.ruta)
+    var cajones: [String] = [cajon]
+    if cajon_de(cajon) != "" and cajon_de(cajon) != cajon
+        cajones.push(cajon_de(cajon))
+    end
+    if proyecto_cajon != "" and proyecto_cajon != cajon
+        cajones.push(proyecto_cajon)
+    end
+    for c in cajones
+        for o in documentos
+            if o.ruta != "" and o.sprite == nil and o.mapa == nil and str_lower(cajon_de(o.ruta)) == str_lower(c) and str_ends(str_lower(o.ruta), ".dash") and tiene_main(o.lineas)
+                return o.ruta
+            end
+        end
+        m = ruta_unir(c, "main.dash")
+        if file_exists(m)
+            return m
+        end
+    end
+    return d.ruta
 end
 
 # Desde una pestaña de sprite se compila el programa: main.dash si está abierto, si no el primer .dash
@@ -729,9 +806,17 @@ func tic()
         return
     end
     if not run_ready(tarea_run)
+        # Parar manda Ctrl-C (y otra vez cada segundo); un programa que espera a su ventana no lo ve hasta que le
+        # llega algo: a los 4 s, se dice
+        if parar_pedido > 0 and not parar_avisado and time_ms() - parar_pedido > 4000
+            parar_avisado = true
+            avisar(tr(454, "El programa no se para: si tiene ventana, ciérrala."), 1)
+        end
         armar_tic(TIC_MS, EV_TIC)
         return
     end
+    parar_pedido = 0
+    parar_avisado = false
     texto = run_finish(tarea_run)
     rc = run_rc()
     tarea_run = 0
@@ -792,19 +877,26 @@ func tic()
             return
         end
         tarea_inicio = time_ms()
+        parar_pedido = 0
+        parar_avisado = false
         poner_tarea(EJECUTANDO)
         armar_tic(TIC_MS, EV_TIC)
         return
     end
-    # acabó el programa
+    # acabó el programa (un error de ejecución, con su sitio: un clic lleva a la línea)
+    error = -1
     if str_trim(texto) != ""
-        salida_anadir(str_trim(texto), 0)
+        error = salida_anadir_programa(str_trim(texto), cajon_de(tarea_dash), tarea_exe)
     end
     tipo = 2
     if rc != 0
         tipo = 1
     end
     avisar(hueco2(tr(68, "%1 acabó con código %2"), nombre_de(tarea_exe), "#{rc}") + tr(69, " en ") + segundos(ms) + ".", tipo)
+    if error >= 0
+        salida_mostrar(error)
+        mui_canvas_redraw(v.salida)
+    end
     poner_tarea(NADA)
 end
 
@@ -838,6 +930,7 @@ func empezar_depuracion()
     salida_vista = 0
     avisar(tr(18, "Depurando ") + nombre_de(tarea_exe) + tr(19, " (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada)."), 0)
     poner_tarea(DEPURANDO)
+    parada_atendida = false
     dbg_continue()
     armar_tic(TIC_MS * 3, EV_TIC)
     mirar_depuracion()
@@ -858,12 +951,16 @@ func salida_programa()
 end
 
 # El depurador avisó (o un tic): ¿ha parado o ha acabado?
+var parada_atendida: Bool = false   # la parada de ahora ya está en el editor y en el panel
 func mirar_depuracion()
     if tarea != DEPURANDO
         return
     end
     e = dbg_state()
-    if e == 3
+    if e == 3 and not parada_atendida
+        # una vez por parada: el tic de por si se pierde la señal la volvía a atender cada poco, y llevaba el cursor
+        # a la línea de la parada (y el código saltaba tras un clic en el editor, lo contó David Martínez)
+        parada_atendida = true
         al_parar()
     elif e == 4 or e == 0
         al_acabar()
@@ -976,6 +1073,7 @@ func orden_depurador(ev: Int)
     if vieja > 0 and d != nil and d.ruta != "" and str_lower(d.ruta) == str_lower(ed_dbg_ruta) and es_codigo(d)
         redibujar_linea(vieja - 1)
     end
+    parada_atendida = false
     if ev == EV_SEGUIR
         dbg_continue()
     elif ev == EV_PASO
@@ -1088,7 +1186,9 @@ func en_proyecto()
         mui_canvas_redraw(v.proyecto)
         return
     end
-    if mui_canvas_button(v.proyecto) != 1
+    # al depurar, el panel enseña la pila y las variables: un clic ahí no es en la lista de ficheros que tapan
+    # (abría el de esa fila, lo contó David Martínez)
+    if mui_canvas_button(v.proyecto) != 1 or depuracion_lineas.length > 0
         return
     end
     i = proyecto_en(mui_canvas_mouse_y(v.proyecto))
@@ -1521,6 +1621,10 @@ func escribir_sonda()
         else
             sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
             env_set("FORJA_DIBUJOS", "#{ed_dibujos}", false)
+            if ed_vistas != sonda_vistas
+                sonda_vistas = ed_vistas
+                sonda_fichero("RAM:forja-vistas.txt", ed_vistas)
+            end
         end
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
         env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
@@ -1533,7 +1637,7 @@ func escribir_sonda()
                 i = i + 1
             end
         end
-        env_set("FORJA_VISTA", "#{d.primera} #{ed_alto_fila} #{ed_margen} #{ms_completar}", false)
+        env_set("FORJA_VISTA", "#{d.primera} #{ed_alto_fila} #{ed_margen} #{ms_completar} #{ed_visibles}", false)
         if c != sonda_completar
             sonda_completar = c
             env_set("FORJA_COMPLETAR", c, false)
@@ -1949,6 +2053,17 @@ func publicar_sonda()
         sonda_proyecto = p
         env_set("FORJA_PROYECTO", p, false)
     end
+    lista = proyecto_cajon
+    for f in proyecto_ficheros
+        lista = lista + "|" + f
+    end
+    if depuracion_lineas.length > 0
+        lista = "(depurando)"
+    end
+    if lista != sonda_lista
+        sonda_lista = lista
+        env_set("FORJA_FICHEROS", lista, false)
+    end
     b = bb_sonda()
     if b != sonda_botones
         sonda_botones = b
@@ -2102,17 +2217,23 @@ func sesion_abrir() -> Bool
         return false
     end
     partes = str_split(env_get("Forja/sesion"), "|")
+    # un fichero de un disco que ya no está (DF0:, otro Work:): sin el requester de "Inserta el volumen", que dejaba
+    # Forja esperando al arrancar; se salta
+    dos_requesters(false)
     abiertos = 0
     i = 1
     while i < partes.length
-        if abrir(partes[i])
+        if file_exists(partes[i]) and abrir(partes[i])
             abiertos = abiertos + 1
         end
         i = i + 1
     end
-    if partes[0] != ""
+    if partes[0] != "" and file_exists(partes[0])
         proyecto_leer(partes[0])
+    elif abiertos > 0
+        proyecto_leer(cajon_de(ed_actual().ruta))
     end
+    dos_requesters(true)
     return abiertos > 0
 end
 
@@ -2535,6 +2656,7 @@ Main
         mui_app_rexx(app, orden_rexx)
         poner_tarea(NADA)
         sonda = env_get("FORJA_SONDA") != ""
+        ed_anotar_vistas = sonda
         completar_activo = env_get("Forja/completar") != "no"
         act_iniciar(env_get("Forja/buscar_dash") != "no" and env_get("FORJA_SONDA") == "")
 

@@ -686,3 +686,15 @@ MSG_450 (450//)
 _Instalar|_Cancelar
 MSG_451 (451//)
 Comprobado el %1 %.
+MSG_452 (452//)
+Hay %1 ficheros con cambios sin guardar.
+MSG_453 (453//)
+Hay un fichero con cambios sin guardar.
+MSG_454 (454//)
+El programa no se para: si tiene ventana, ciérrala.
+MSG_455 (455//)
+El programa sigue en marcha
+MSG_456 (456//)
+Forja se cerrará cuando acabe. Si tiene ventana, ciérrala.
+MSG_457 (457//)
+_Salir|_No salir

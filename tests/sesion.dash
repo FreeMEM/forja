@@ -1,0 +1,205 @@
+# Abrir lo de la última vez (ENVARC:Forja/sesion) y cerrar con cambios. Este usuario de prueba arranca Forja él mismo
+# (DH0:Prueba/Forja) tres veces, con tests/prueba/proyecto en "DH0:Prueba/Mi juego":
+# 1. abre fisica.dash y lib/pantalla.dash desde la lista, cambia fisica.dash y la cierra sin guardar (Descartar),
+#    y sale: la sesión guarda el cajón y los dos que quedan;
+# 2. sin fichero, Forja abre esos dos y el cajón;
+# 3. con un fichero de la sesión en un disco que no está (NOESTA:), Forja arranca igual: sin el requester de
+#    "Inserta el volumen", que la dejaría esperando.
+# Lo lanza tests/sesion.sh. Anota en DH0:Prueba/sesion.txt y acaba con "TODO BIEN" si todo fue bien.
+
+const AMIGA = 8
+const CTRL = 2
+const ARRIBA = 0x4C
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/sesion.txt", registro)
+    Print texto
+end
+
+func ver(paso: String, cierto: Bool, detalle: String) -> Bool
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+    return cierto
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+func activo() -> String
+    n = 0
+    while n < 30
+        c = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
+        if c.length >= 3 and c[2] != ""
+            return c[2]
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return "?"
+end
+
+func pestanas() -> Int
+    t = env_get("FORJA_PESTANAS")
+    if t == ""
+        return 0
+    end
+    return str_split(t, " ").length
+end
+
+func pestana(i: Int)
+    p = str_split(env_get("FORJA_PESTANAS"), " ")
+    if i < p.length
+        xy = str_split(p[i], ",")
+        input_click(Int(xy[0]), Int(xy[1]), 0)
+        time_delay(30)
+    end
+end
+
+func clic_fichero(nombre: String) -> Bool
+    filas = str_split(env_get("FORJA_FICHEROS"), "|")
+    i = 1
+    while i < filas.length
+        if filas[i] == nombre
+            fila = campo("FORJA_PROYECTO", 2)
+            input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + (i - 1) * fila + fila / 2, 0)
+            time_delay(40)
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+# Arranca Forja y espera a su ventana (n décimas); false si no sale
+func arrancar(decimas: Int) -> Bool
+    env_set("FORJA_EDITOR", "", false)
+    env_set("FORJA_FICHEROS", "", false)
+    env_set("FORJA_PESTANAS", "", false)
+    run_command("Run >NIL: DH0:Prueba/Forja")
+    n = 0
+    while n < decimas and not (env_get("FORJA_EDITOR") != "" and env_get("FORJA_FICHEROS") != "" and activar())
+        time_delay(5)
+        n = n + 5
+    end
+    time_delay(30)
+    return n < decimas
+end
+
+func esperar_fin() -> Bool
+    n = 0
+    while n < 100 and window_find("Forja") != 0
+        time_delay(10)
+        n = n + 1
+    end
+    time_delay(50)
+    return window_find("Forja") == 0
+end
+
+func salir()
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+    ver("Forja se cierra", esperar_fin(), "")
+end
+
+Main
+    fisica = leer("DH0:Prueba/Mi juego/fisica.dash")
+    # 1
+    env_set("FORJA_PRUEBA", "DH0:Prueba/Mi juego/main.dash", false)
+    if ver("Forja arranca con main.dash", arrancar(1200), "")
+        clic_fichero("fisica.dash")
+        ver("abre fisica.dash", activo() == "fisica.dash", activo())
+        clic_fichero("lib/")
+        ver("entra en lib/", str_starts(env_get("FORJA_FICHEROS"), "DH0:Prueba/Mi juego/lib|"), env_get("FORJA_FICHEROS"))
+        clic_fichero("pantalla.dash")
+        ver("abre pantalla.dash", activo() == "pantalla.dash", activo())
+        clic_fichero("/")
+        ver("vuelve arriba", str_starts(env_get("FORJA_FICHEROS"), "DH0:Prueba/Mi juego|"), env_get("FORJA_FICHEROS"))
+        pestana(1)
+        ver("pestaña de fisica.dash", activo() == "fisica.dash", activo())
+        al_editor()
+        input_key(ARRIBA, CTRL)
+        input_text("# un cambio que no se guarda\n")
+        time_delay(20)
+        input_key(0x11, AMIGA)
+        n = 0
+        while n < 40 and input_active_title() != "Cambios sin guardar"
+            time_delay(5)
+            n = n + 1
+        end
+        if ver("cerrar con cambios pregunta", input_active_title() == "Cambios sin guardar", input_active_title())
+            time_delay(20)
+            input_key(0x22, 0)
+            time_delay(30)
+        end
+        activar()
+        ver("quedan dos pestañas", pestanas() == 2, env_get("FORJA_PESTANAS"))
+        ver("fisica.dash sin el cambio en el disco", leer("DH0:Prueba/Mi juego/fisica.dash") == fisica, "")
+        salir()
+        s = env_get("Forja/sesion")
+        ver("la sesión: el cajón y los dos", s == "DH0:Prueba/Mi juego|DH0:Prueba/Mi juego/main.dash|DH0:Prueba/Mi juego/lib/pantalla.dash", s)
+    end
+    # 2
+    env_set("FORJA_PRUEBA", "", false)
+    if ver("Forja arranca sin fichero", arrancar(1200), "")
+        ver("abre los dos de la última vez", pestanas() == 2, env_get("FORJA_PESTANAS"))
+        ver("y el cajón", str_starts(env_get("FORJA_FICHEROS"), "DH0:Prueba/Mi juego|"), env_get("FORJA_FICHEROS"))
+        salir()
+    end
+    # 3
+    env_set("Forja/sesion", "DH0:Prueba/Mi juego|NOESTA:juego/main.dash|DH0:Prueba/Mi juego/main.dash", true)
+    ok = arrancar(600)
+    if window_find("System Request") != 0
+        ver("sin el requester de Inserta el volumen", false, "sale")
+        anotar("  (se cancela el requester)")
+        w = window_find("System Request")
+        window_found_activate(w)
+        time_delay(10)
+        input_key(0x45, 0)
+        ok = arrancar(600)
+    else
+        ver("sin el requester de Inserta el volumen", true, "")
+    end
+    if ver("Forja arranca con un disco que no está en la sesión", ok, "")
+        ver("abre el que está", pestanas() == 1 and activo() == "main.dash", env_get("FORJA_PESTANAS") + " " + activo())
+        salir()
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+end

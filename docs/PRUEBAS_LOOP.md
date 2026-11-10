@@ -1,0 +1,94 @@
+# Pruebas a fondo de Forja (loop)
+
+Encargo del usuario (2026-11-10): probar Forja a tope, con programas de varios ficheros y todo lo que usa la gente,
+y arreglar cada fallo hasta que no salgan más. Para que nadie se eche atrás al usarla. Nada se publica sin el usuario.
+
+Empezó por dos fallos de David Martínez con la 0.6.0 (Dash Amiga #1094 y #1095, con vídeo #1093).
+
+Rama: `clic-depurar`.
+
+## Cómo se prueba
+
+- Cada prueba es `tests/X.sh ~/Projects/FreeMEMLang ~/Projects/FreeMEMLang/dashc/build`, con `scratchpad/env.sh`.
+- Las pruebas de Forja no usan red, así que no hace falta el cerrojo del emulador. Van de dos en dos, como mucho, para
+  no ahogar la CPU.
+- Un fallo que coincida con otra tanda pesada se repite a solas antes de darlo por bueno o por malo.
+- Cada arreglo lleva su prueba, y la prueba se pasa antes con el Forja viejo para ver que falla (`FORJA=cajón`).
+
+## Plan
+
+1. [ ] Los dos de David: clic en el editor depurando (`tests/clic.sh`) y clic en el panel de las variables.
+2. [ ] Proyecto de varios ficheros en un cajón con espacio (`tests/proyecto.sh`): ejecutar desde un módulo, guardar
+   al ejecutar, error en otro fichero, depurar entre ficheros.
+3. [ ] Todas las pruebas que ya había, con lo nuevo.
+4. [ ] Más casos de uso:
+   - ficheros largos (más de 1000 líneas): escribir, rueda, barra, buscar;
+   - cerrar pestañas con cambios y depurando;
+   - error de ejecución en un módulo (código 20, el sitio);
+   - programa que no acaba: Parar;
+   - abrir lo de la última vez (la sesión) con varios ficheros;
+   - Workbench de pocos colores y 640x256;
+   - MUI de 3.2 (sys32mui);
+   - puntos de parada en dos ficheros;
+   - cambiar un fichero mientras se depura;
+   - seleccionar con el ratón y arrastrar;
+   - deshacer muchas veces.
+5. [ ] Lo que salga de mirar con capturas (lo que una prueba no ve: parpadeos, cosas mal pintadas).
+
+## Bitácora
+
+- 2026-11-10:
+  - Causa del salto, vista en el vídeo de David: tras el clic, el editor pinta un momento desde la línea 12.
+  - El tic del depurador (cada 0,3 s) volvía a atender la misma parada. Con el ancla del clic puesta (`d.al`),
+    `ed_ir_a_quieto` lo tomaba por una selección y centraba la línea. También se llevaba el cursor a la línea de la
+    parada.
+  - Arreglo: la parada se atiende una sola vez (`parada_atendida`), y solo una selección de verdad cuenta.
+  - Clic en las variables: `en_proyecto` no miraba si el panel enseñaba la depuración. Ahora no hace nada.
+  - Visto al leer el código:
+    - Ejecutar desde un módulo compilaba el módulo solo. Ahora `programa_de` busca el programa del proyecto.
+    - La lista del proyecto salía en el orden del disco. Ahora salen los cajones y luego los ficheros, por orden
+      alfabético.
+  - Sonda nueva: `RAM:forja-vistas.txt` (la primera línea de cada dibujo entero) y `ENV:FORJA_FICHEROS`.
+  - `tests/proyecto.sh` y `tests/depurar.sh` pasan enteras. `tests/clic.sh` falla con el Forja viejo (el código pasa
+    de la línea 13 a la 16 y el cursor se va a la parada) y pasa con el nuevo.
+  - En 640x256 el editor enseña 8 líneas. Cada paso del depurador cerca del borde centraba la línea, y el código
+    saltaba 4 líneas (también en la 0.5.2 y la 0.6.0). Ahora, si la parada cae cerca, el código se mueve lo justo
+    (`ed_ir_a_quieto`).
+  - La salida pesa 25 en vez de 60. En 640x256 no cambia nada, porque ya está en su mínimo, pero en pantallas más
+    altas el editor gana sitio.
+  - Fallo de Dash, pasado a la sesión freememlang-af: el compilador directo no comprueba el tipo al reasignar
+    (`s = "a"`, luego `s = [1]` compila).
+  - `tests/salir.sh`: salir de Forja con un programa en marcha cierra la ventana, pero Forja sigue viva hasta que el
+    programa acaba, y el programa sigue corriendo. La causa es que un programa de Dash solo atiende Ctrl-C si llama a
+    `break_check()`. Lo comprueba `tests/parar.sh`: si Parar no puede con un bucle sin fin, no hay forma de pararlo
+    sin reiniciar.
+  - `tests/parar.sh` lo confirma: Parar no para `while true / i = i + 1 / end`, y Forja no puede ni salir.
+  - El usuario eligió arreglarlo en Dash (rama `ctrl-c` de FreeMEMLang, sin subir): cada vuelta de un `while` o un
+    `for` mira el Ctrl-C de la tarea, en los dos compiladores.
+    - Si llega, el programa escribe `***Break` y acaba con código 5.
+    - No se pone en los programas que atienden Ctrl-C por su cuenta: `break_check`, `single_instance`, la espera de
+      MUI y los `cx_`.
+    - Pruebas `tests/test_ctrl_c*.dash` y `dashc/tests/ctrl_c*.dash`: pasan en A1200 y A500, y los dos compiladores
+      dan lo mismo.
+    - Un fallo por el camino: sin `volatile`, gcc sacaba la lectura fuera de un bucle sin llamadas.
+  - Forja:
+    - Si Parar no lo para en 4 s, lo dice en la salida (un programa que espera a su ventana no lo ve).
+    - Al salir, para antes lo que esté en marcha: `dbg_end`, o Ctrl-C y 3 s. Si sigue, pregunta.
+  - `tests/grande.sh` (1505 líneas):
+    - Bien: ir al final, Amiga-L, buscar, ejecutar, deshacer y rehacer.
+    - El dibujo entero tarda 71 ms en el emulador rápido.
+    - Compilar y ejecutar tarda 12,6 s: es lo que tarda dashc en el Amiga, y queda por mirar aparte.
+    - Escribir tras buscar falla. Se está mirando si las teclas van a la ventana de Buscar.
+  - Con el Dash de la rama `ctrl-c`:
+    - `tests/parar.sh`: Parar corta el bucle sin fin en 1,3 s.
+    - `tests/salir.sh`: al salir de Forja no queda nada vivo, ni ejecutando ni depurando.
+  - `tests/grande.sh` pasa. Escribir no repinta todo. Las dos veces que sí repinta son la flecha (quita lo elegido
+    por buscar) y la primera tecla (el "*" de la pestaña).
+  - `tests/errores.sh` (nuevo):
+    - Un error de ejecución en un módulo ("Error: campo de nil (en ruta:línea)") no se podía pulsar. Ahora sale en
+      rojo y con su sitio (`salida_error_programa`).
+    - En 640x256 la salida enseña dos líneas, y "exe failed returncode 20" del Shell empujaba el error fuera de la
+      vista. Esa línea ya no se pone, y el primer error queda a la vista.
+  - `tests/sesion.sh` (nuevo): abrir lo de la última vez y cerrar con cambios (Descartar).
+    - Con un fichero de la sesión en un disco que no está, Forja se quedaba esperando en "Inserta el volumen" al
+      arrancar. Ahora `sesion_abrir` lo hace sin esos requesters (`dos_requesters(false)`) y salta lo que no está.

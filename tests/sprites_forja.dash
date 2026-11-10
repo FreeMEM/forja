@@ -137,10 +137,11 @@ Main
         activar()
         al_editor()
         ver("un BOB nuevo", linea(0) == "0 0 sin nombre.iff" and linea(1) == "32 32 4 false 1 0 1 0 6 0 0 false false 0", linea(0) + " / " + linea(1))
-        # compilar desde un sprite compila el .dash abierto (aquí no hay compilador: basta con que lo intente)
+        # compilar desde un sprite compila el programa: el .dash abierto es red.dash, un módulo (sin Main), así que el
+        # main.dash de su cajón (aquí no hay compilador: basta con que lo intente)
         input_key(0x27, AMIGA)
         time_delay(50)
-        ver("Amiga-K en un sprite compila red.dash", str_contains(salida(), "Compilando red.dash"), salida())
+        ver("Amiga-K en un sprite compila main.dash, el programa de red.dash", str_contains(salida(), "Compilando main.dash"), salida())
         input_key(0x17, AMIGA)
         ver("Inferencia avisa con un sprite", str_contains(salida(), "Inferencia lee texto"), salida())
         time_delay(100)

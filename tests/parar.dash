@@ -1,0 +1,101 @@
+# Parar un programa que se ejecuta (no al depurar): uno que no acaba nunca (un bucle sin nada dentro) y otro que
+# escribe y espera. El botón Ejecutar se vuelve Parar: un clic debe pararlo en unos segundos. Lo arranca
+# tests/parar.sh; anota en DH0:Prueba/parar.txt y acaba con "TODO BIEN" si todo fue bien.
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/parar.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+func esperar_estado(e: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas and env_get("FORJA_ESTADO") != e
+        time_delay(5)
+        n = n + 5
+    end
+    return env_get("FORJA_ESTADO") == e
+end
+
+# Un clic en el botón de ese evento de la barra
+func pulsar(ev: Int)
+    b = str_split(env_get("FORJA_BOTONES"), " ")
+    i = 4
+    while i < b.length
+        q = str_split(b[i], ":")
+        if Int(q[0]) == ev
+            input_click(Int(q[1]) + Int(q[2]) / 2, Int(b[1]) + Int(b[2]) / 2, 0)
+        end
+        i = i + 1
+    end
+end
+
+func probar(que: String)
+    activar()
+    al_editor()
+    input_key(0x12, AMIGA)
+    ver(que + ": se ejecuta", esperar_estado("ejecutando", 1800), env_get("FORJA_ESTADO"))
+    time_delay(150)
+    t0 = time_ms()
+    pulsar(11)
+    parado = esperar_estado("libre", 150)
+    ver(que + ": Parar lo para en 15 s", parado, env_get("FORJA_ESTADO"))
+    if parado
+        anotar("  (en #{time_ms() - t0} ms)")
+    end
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and env_get("FORJA_BOTONES") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        time_delay(20)
+        probar("un bucle sin fin")
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+end

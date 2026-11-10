@@ -1,0 +1,8 @@
+# Lo que falla
+struct Nave
+    x: Int
+end
+
+func posicion(n: Nave) -> Int
+    return n.x
+end

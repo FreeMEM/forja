@@ -85,6 +85,8 @@ var ed_zona_alto: Int = 0
 var ed_solo_linea: Int = -1    # con mui_canvas_update: dibujar solo esta línea
 var ed_ms_dibujo: Int = 0      # lo que tardó el último dibujo entero
 var ed_dibujos: Int = 0        # cuántos dibujos enteros del texto (para la sonda: depurar no repinta todo)
+var ed_anotar_vistas: Bool = false     # para las pruebas (con la sonda): la primera línea de cada dibujo entero
+var ed_vistas: String = ""
 # Lo que va encima del texto: la lista para completar y la ayuda de los argumentos (desde la esquina de la zona;
 # alto 0 si no se ve)
 var ed_lista_x: Int = 0
@@ -196,13 +198,19 @@ func ed_ir_a_quieto(n: Int, c: Int) -> Bool
     margen = 0
     if ed_visibles > 8
         margen = 2
+    elif ed_visibles > 4
+        margen = 1
     end
     l = n - 1
-    if d.al >= 0 or l < d.primera + margen or l >= d.primera + ed_visibles - margen or l >= d.lineas.length
+    # (un clic deja el ancla puesta, d.al, sin que haya nada elegido: eso no cuenta como selección; antes centraba la
+    # línea y el código daba un salto al pulsar en el editor depurando, lo contó David Martínez)
+    if ed_hay_seleccion(d) or l >= d.lineas.length or l < d.primera - ed_visibles or l >= d.primera + 2 * ed_visibles
         ed_ir_a(n, c)
         return false
     end
     izquierda = d.izquierda
+    primera = d.primera
+    d.al = -1
     d.cl = l
     d.cc = c - 1
     if d.cc < 0
@@ -211,8 +219,21 @@ func ed_ir_a_quieto(n: Int, c: Int) -> Bool
     if d.cc > d.lineas[d.cl].length
         d.cc = d.lineas[d.cl].length
     end
+    # cerca de lo que se ve, pero fuera (o en el borde): el código se mueve lo justo, como con las flechas, en vez de
+    # centrar la línea (en una ventana pequeña, cada paso del depurador hacía saltar el código unas líneas)
+    if l < d.primera + margen
+        d.primera = l - margen
+    elif l >= d.primera + ed_visibles - margen
+        d.primera = l - ed_visibles + margen + 1
+    end
+    if d.primera > d.lineas.length - ed_visibles
+        d.primera = d.lineas.length - ed_visibles
+    end
+    if d.primera < 0
+        d.primera = 0
+    end
     ed_seguir_cursor(d)
-    return d.izquierda == izquierda
+    return d.izquierda == izquierda and d.primera == primera
 end
 
 # Lleva el cursor a la línea n (desde 1) y la columna c (desde 1) del documento activo, y la deja a la vista
@@ -1363,6 +1384,9 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     end
     ed_ms_dibujo = time_ms() - t0
     ed_dibujos = ed_dibujos + 1
+    if ed_anotar_vistas and ed_vistas.length < 2000
+        ed_vistas = ed_vistas + "#{d.primera} "
+    end
     ed_capas_geometria(d)
     _dibujar_capas(d, x, y)
 end

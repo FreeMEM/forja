@@ -1031,3 +1031,21 @@ _Install|_Cancel
 MSG_451
 Checked %1 %.
 ; Comprobado el %1 %.
+MSG_452
+There are %1 files with unsaved changes.
+; Hay %1 ficheros con cambios sin guardar.
+MSG_453
+There is a file with unsaved changes.
+; Hay un fichero con cambios sin guardar.
+MSG_454
+The program does not stop: if it has a window, close it.
+; El programa no se para: si tiene ventana, ciérrala.
+MSG_455
+The program is still running
+; El programa sigue en marcha
+MSG_456
+Forja will close when it ends. If it has a window, close it.
+; Forja se cerrará cuando acabe. Si tiene ventana, ciérrala.
+MSG_457
+_Quit|_Don't quit
+; _Salir|_No salir
