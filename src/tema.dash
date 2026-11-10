@@ -5,6 +5,8 @@
 #
 # Con los 4 colores del Workbench, color_pen da el más parecido: los fondos salen negros y el texto blanco.
 
+import "lib/red/idioma.dash"
+
 struct Tema
     fondo: Int          # el editor
     fondo_panel: Int    # proyecto y pestañas
@@ -30,14 +32,8 @@ var ancho_letra: Int = 8
 var alto_letra: Int = 8
 var base_letra: Int = 6
 
-# Un texto traducido con sus huecos (%1, %2) llenos
-func hueco(t: String, a: String) -> String
-    return str_replace(t, "%1", a)
-end
-
-func hueco2(t: String, a: String, b: String) -> String
-    return str_replace(str_replace(t, "%1", a), "%2", b)
-end
+# Un texto traducido con sus huecos (%1, %2) llenos: hueco y hueco2, los de lib/red/idioma.dash (los usa también
+# lib/red/http.dash, que importa actualizar.dash)
 
 func tema_preparar()
     if tema != nil

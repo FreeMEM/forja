@@ -1,7 +1,8 @@
 # Forja: el entorno de desarrollo de Dash en el Amiga.
 #
-# La ventana (ventana.dashui): botones arriba; el proyecto a la izquierda; el editor con sus pestañas; la salida
-# abajo. Los paneles se dibujan en lienzos con el tema oscuro (tema.dash).
+# La ventana (ventana.dashui): la barra de botones arriba (botones.dash: iconos de color con su nombre, los que no
+# valen ahora en gris); el proyecto a la izquierda; el editor con sus pestañas; la salida abajo. Los paneles y la
+# barra se dibujan en lienzos con el tema oscuro (tema.dash).
 #
 #   Forja [fichero]      # sin fichero, la bienvenida: el logo de Dash con el cursor parpadeando
 #
@@ -20,7 +21,11 @@
 # guardado o no); SELECCION (fichero, desde, hasta y el texto, en líneas); CAMBIAR fichero desde hasta texto
 # (con deshacer; hasta = desde - 1 mete líneas); GUARDAR [fichero]; COMPILAR y EJECUTAR (sin esperar);
 # ESTADO (libre, compilando, ejecutando, depurando); ERRORES (los de la última compilación); BUSCAR texto (lo elige
-# y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea.
+# y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea; ACTUALIZAR (como el menú).
+#
+# Versiones nuevas de Dash (actualizar.dash): Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay,
+# pregunta si se baja e instala encima del cajón de Dash (DASH:). Sola, 20 s después de empezar y una vez al día,
+# solo avisa en la salida (preferencia ENV:Forja/buscar_dash, "no" la apaga).
 #
 # Buscar y cambiar (Amiga-F) e ir a la línea (Amiga-L) en sus ventanas. Preferencias: dashc, Inferencia, el cajón
 # de los ejecutables (ENV:Forja/ejecutables, por ejemplo RAM:; vacío: al lado de cada .dash), si abrir al
@@ -48,14 +53,16 @@
 # ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen".
 
 @catalog "Forja.catalog" 1 "español"
-@version "Forja 0.5.2"
+@version "Forja 0.6.0"
 
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
+import "actualizar.dash"
+import "botones.dash"
 import "ventana.dashui"
 
-const VERSION = "0.5.2"
+const VERSION = "0.6.0"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
@@ -93,6 +100,9 @@ const EV_DEFINICION = 72
 const EV_VOLVER = 73
 const EV_REFERENCIAS = 74
 const EV_COMPLETAR = 75
+const EV_ACTUALIZAR = 77
+const EV_BOTONES = 78          # un clic en la barra de botones
+const EV_BOTONES_MOVER = 79    # el puntero se movió sobre ella
 const ESPERA_GIT = 600000      # diez minutos como mucho para una orden de git (clonar o traer por la red)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
@@ -194,6 +204,7 @@ var linea_escrita: Int = -1        # la línea donde se escribió por última ve
 var lineas_antes: Int = -1         # cuántas líneas había entonces
 var sonda_completar: String = "-"
 var sonda_ayuda: String = "-"
+var sonda_botones: String = ""
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -201,6 +212,10 @@ end
 
 func dibujar_editor(x: Int, y: Int, ancho: Int, alto: Int)
     ed_dibujar(x, y, ancho, alto)
+end
+
+func dibujar_botones(x: Int, y: Int, ancho: Int, alto: Int)
+    bb_dibujar(x, y, ancho, alto)
 end
 
 func dibujar_salida(x: Int, y: Int, ancho: Int, alto: Int)
@@ -554,30 +569,16 @@ end
 
 func poner_tarea(t: Int)
     tarea = t
-    mui_set_enabled(v.compilar, t == NADA)
-    mui_set_enabled(v.ejecutar, t == NADA or t == EJECUTANDO)
-    mui_set_enabled(v.depurar, t == NADA)
-    # al depurar, los botones del depurador en lugar de los de siempre (todos no caben: primero se ocultan unos y
-    # luego se enseñan los otros)
-    if t == DEPURANDO
-        for b in [v.compilar, v.ejecutar, v.depurar]
-            mui_set_visible(b, false)
-        end
-        for b in [v.seguir, v.paso, v.entrar, v.salir, v.parar]
-            mui_set_visible(b, true)
-        end
-    else
-        for b in [v.seguir, v.paso, v.entrar, v.salir, v.parar]
-            mui_set_visible(b, false)
-        end
-        for b in [v.compilar, v.ejecutar, v.depurar]
-            mui_set_visible(b, true)
-        end
+    # la barra de botones (botones.dash): los que no valen ahora, en gris
+    cambio = bb_poner(EV_COMPILAR, t == NADA)
+    cambio = bb_poner(EV_EJECUTAR, t == NADA or t == EJECUTANDO) or cambio
+    cambio = bb_poner(EV_DEPURAR, t == NADA) or cambio
+    for ev in [EV_SEGUIR, EV_PASO, EV_ENTRAR, EV_SALIR_FUNCION, EV_PARAR]
+        cambio = bb_poner(ev, t == DEPURANDO) or cambio
     end
-    if t == EJECUTANDO
-        mui_set_text(v.ejecutar, tr(7, "Parar"))
-    else
-        mui_set_text(v.ejecutar, tr(8, "Ejecutar"))
+    cambio = bb_ejecutando(t == EJECUTANDO) or cambio
+    if cambio and abierta
+        mui_canvas_redraw(v.botones)
     end
     if sonda
         var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando", "git"]
@@ -654,6 +655,35 @@ func programa_abierto() -> Documento
 end
 
 # El único temporizador de MUI: uno nuevo cancela el anterior, así que todo lo que espera pasa por tic()
+# Las versiones nuevas de Dash (actualizar.dash): un paso, sus mensajes a la salida y, si hay una nueva y se pidió,
+# la pregunta de si se instala
+func actualizar_tic()
+    act_paso()
+    actualizar_mensajes()
+    if act_preguntar()
+        r = mui_request(v.window, tr(448, "Versión nueva de Dash"), hueco2(tr(449, "Está publicada Dash %1. ¿La bajo y la instalo en el cajón de Dash?\n\nSon %2 MB. Pone al día la orden dash, Forja, Inferencia, lib/ y los ejemplos.\nTus programas y tus preferencias no se tocan."), act_version_nueva(), act_megas()), tr(450, "_Instalar|_Cancelar"))
+        act_instalar(r == 1)
+        actualizar_mensajes()
+    end
+end
+
+func actualizar_mensajes()
+    m = act_mensaje()
+    if m != ""
+        avisar(m, act_tipo())
+    end
+end
+
+# El temporizador para lo de actualizar, si nada más lo ha puesto
+func actualizar_armar()
+    if not tic_armado
+        e = act_espera()
+        if e >= 0
+            armar_tic(e, EV_TIC)
+        end
+    end
+end
+
 func armar_tic(ms: Int, ev: Int)
     tic_armado = true
     mui_timer(ms, ev)
@@ -661,6 +691,7 @@ end
 
 func tic()
     tic_armado = false
+    actualizar_tic()
     indice_en_reposo()
     d = ed_actual()
     if d != nil and d.sprite != nil and sp_avanzar(d.sprite)
@@ -1918,6 +1949,11 @@ func publicar_sonda()
         sonda_proyecto = p
         env_set("FORJA_PROYECTO", p, false)
     end
+    b = bb_sonda()
+    if b != sonda_botones
+        sonda_botones = b
+        env_set("FORJA_BOTONES", b, false)
+    end
     s = "#{salida_zona_x} #{salida_zona_y + salida_y0} #{salida_fila} #{salida_desde} #{salida_lineas.length}"
     if s != sonda_salida
         sonda_salida = s
@@ -2011,6 +2047,7 @@ func preferencias_abrir()
     mui_set_value(vp.recordar, recordar_sesion())
     mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
     mui_set_value(vp.completar, completar_activo)
+    mui_set_value(vp.buscar, env_get("Forja/buscar_dash") != "no")
     mui_window_open(vp.window)
 end
 
@@ -2039,6 +2076,11 @@ func preferencias_aplicar(guardar: Bool)
         env_set("Forja/completar", "no", guardar)
         cerrar_capas()
         redibujar()
+    end
+    if mui_get_value(vp.buscar) != 0
+        env_set("Forja/buscar_dash", "si", guardar)
+    else
+        env_set("Forja/buscar_dash", "no", guardar)
     end
     mui_window_close(vp.window)
 end
@@ -2309,6 +2351,11 @@ func orden_rexx(linea: String) -> String
         return ""
     elif orden == "SALIDA"
         return salida_texto(false)
+    elif orden == "ACTUALIZAR"
+        # lo mismo que el menú: busca una versión nueva de Dash y, si la hay, pregunta si se instala
+        act_pedir()
+        actualizar_mensajes()
+        return ""
     end
     mui_rexx_fail(10)
     return ""
@@ -2319,6 +2366,9 @@ end
 func atender(ev: Int)
     if ev == EV_PROYECTO
         en_proyecto()
+    elif ev == EV_ACTUALIZAR
+        act_pedir()
+        actualizar_mensajes()
     elif ev == EV_BUSCAR
         mui_window_open(vb.window)
         mui_set_active(vb.window, vb.texto)
@@ -2468,6 +2518,10 @@ Main
         mui_canvas_on_draw(v.proyecto, dibujar_proyecto)
         mui_canvas_on_draw(v.editor, dibujar_editor)
         mui_canvas_on_draw(v.salida, dibujar_salida)
+        bb_crear()
+        mui_canvas_on_draw(v.botones, dibujar_botones)
+        mui_canvas_on_input(v.botones, EV_BOTONES)
+        mui_canvas_on_move(v.botones, EV_BOTONES_MOVER)
         mui_canvas_buffered(v.editor, true)
         mui_canvas_on_input(v.editor, EV_EDITOR)
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
@@ -2482,6 +2536,7 @@ Main
         poner_tarea(NADA)
         sonda = env_get("FORJA_SONDA") != ""
         completar_activo = env_get("Forja/completar") != "no"
+        act_iniciar(env_get("Forja/buscar_dash") != "no" and env_get("FORJA_SONDA") == "")
 
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
@@ -2492,7 +2547,7 @@ Main
         elif not sesion_abrir()
             proyecto_leer(cajon_de(ruta))     # sin fichero: la bienvenida, con el logo de Dash
         end
-        salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.4."), 0)
+        salida_anadir(tr(29, "Forja ") + VERSION + ".", 0)
         salida_anadir(tr(31, "Listo."), 2)
 
         ajustar_paneles()
@@ -2506,6 +2561,7 @@ Main
             # los símbolos del código, en cuanto la ventana esté quieta
             armar_tic(REPOSO_MS, EV_TIC)
         end
+        actualizar_armar()
         if sonda
             publicar_sonda()
             escribir_sonda()
@@ -2531,6 +2587,16 @@ Main
                 if otro != 0
                     ev = otro
                 end
+            elif ev == EV_BOTONES_MOVER
+                if bb_mover(mui_canvas_pointer_x(v.botones), mui_canvas_pointer_inside(v.botones))
+                    mui_canvas_redraw(v.botones)
+                end
+            elif ev == EV_BOTONES
+                if mui_canvas_button(v.botones) == 1
+                    ev = bb_clic(mui_canvas_mouse_x(v.botones))
+                elif mui_canvas_key(v.botones) >= 0
+                    ev = tecla_depurador(mui_canvas_key(v.botones))
+                end
             elif ev == EV_PROYECTO and mui_canvas_key(v.proyecto) >= 0 and tecla_depurador(mui_canvas_key(v.proyecto)) != 0
                 ev = tecla_depurador(mui_canvas_key(v.proyecto))
             elif ev == EV_SALIDA and mui_canvas_key(v.salida) >= 0 and tecla_depurador(mui_canvas_key(v.salida)) != 0
@@ -2555,6 +2621,7 @@ Main
             if ed_actual() != nil and ed_actual().sprite != nil and ed_actual().sprite.reproduciendo and not tic_armado
                 armar_tic(sp_intervalo(ed_actual().sprite), EV_TIC)
             end
+            actualizar_armar()
             if sonda
                 publicar_sonda()
                 # para las pruebas: abre las preferencias (la simulación del menú no llega a ellas)

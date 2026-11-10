@@ -50,6 +50,9 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 - **Go to definition** (Amiga-J or Ctrl+click): to the file and line where the name is defined, opening it if
   needed; Amiga-U goes back. **Find uses** (Amiga-H): the list in the output, and a click goes to each place. The
   symbols are read when a file is opened or shown and after a moment without typing (in the Code menu).
+- **The top bar**: Build, Run, Debug, the debugger buttons and Inferencia, each with a coloured icon and its name.
+  The ones that do nothing right now are grey, and the one under the pointer lights up. In a narrow window, first
+  the grey ones and then all of them show only their icon.
 - **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line. The
   output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
@@ -76,6 +79,11 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   - C copies to the clipboard the Dash lines that load it, with its colours and how to animate it.
 
   ![The sprite editor with a 4-frame ship](docs/img/sprites-en.png)
+- **New Dash versions**: Project > Look for a new version of Dash looks on GitHub and, if there is one, asks whether
+  to download it and install it in the Dash drawer (`DASH:`): the dash command, Forja, Inferencia, `lib/` and the
+  examples. It checks everything before changing anything; if something arrives damaged, Dash stays as it was. At
+  startup it looks once a day and only tells you in the output (it can be turned off in the preferences). It needs
+  the network and AmiSSL. Also through ARexx: `ACTUALIZAR`.
 - **Tile maps**: `.fmap` files (IFF `FORM FMAP`) open in the map editor, and Amiga-B also makes a new map. The
   tileset is a BOB from the sprite editor, with one frame a tile of 8, 16 or 32; the map keeps its name. Dash's
   `tilemap_load` and `tilemap_draw` load and draw them.

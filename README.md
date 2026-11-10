@@ -50,6 +50,9 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 - **Ir a la definición** (Amiga-J o Ctrl+clic): al fichero y la línea donde se define el nombre, abriéndolo si hace
   falta; Amiga-U vuelve. **Dónde se usa** (Amiga-H): la lista en la salida, y un clic lleva a cada sitio. Los
   símbolos se leen al abrir o cambiar de fichero y tras un momento sin escribir (en el menú Código).
+- **La barra de arriba**: Compilar, Ejecutar, Depurar, los botones del depurador e Inferencia, cada uno con un icono
+  de color y su nombre. Los que no valen ahora salen en gris, y el que está bajo el puntero se ilumina. Si la ventana
+  es estrecha, primero los grises y luego todos se quedan solo con el icono.
 - **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea. La salida
   guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
   Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...".
@@ -76,6 +79,10 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   - C copia al portapapeles las líneas de Dash que lo cargan, con sus colores y cómo animarlo.
 
   ![El editor de sprites con una nave de 4 fotogramas](docs/img/sprites.png)
+- **Versiones nuevas de Dash**: Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay, pregunta si
+  la baja e instala en el cajón de Dash (`DASH:`): la orden dash, Forja, Inferencia, `lib/` y los ejemplos. Antes de
+  cambiar nada lo comprueba todo; si algo llega mal, Dash se queda como estaba. Al empezar mira una vez al día y solo
+  avisa en la salida (se apaga en las preferencias). Hace falta la red y AmiSSL. También por ARexx: `ACTUALIZAR`.
 - **Mapas de tiles**: los ficheros `.fmap` (IFF `FORM FMAP`) se abren en el editor de mapas, y Amiga-B también
   crea un mapa nuevo. El tileset es un BOB del editor de sprites, con un fotograma por tile de 8, 16 o 32; el mapa
   guarda su nombre. `tilemap_load` y `tilemap_draw` de Dash los cargan y los pintan.
