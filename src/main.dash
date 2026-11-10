@@ -1,7 +1,8 @@
 # Forja: el entorno de desarrollo de Dash en el Amiga.
 #
-# La ventana (ventana.dashui): botones arriba; el proyecto a la izquierda; el editor con sus pestañas; la salida
-# abajo. Los paneles se dibujan en lienzos con el tema oscuro (tema.dash).
+# La ventana (ventana.dashui): la barra de botones arriba (botones.dash: iconos de color con su nombre, los que no
+# valen ahora en gris); el proyecto a la izquierda; el editor con sus pestañas; la salida abajo. Los paneles y la
+# barra se dibujan en lienzos con el tema oscuro (tema.dash).
 #
 #   Forja [fichero]      # sin fichero, la bienvenida: el logo de Dash con el cursor parpadeando
 #
@@ -52,15 +53,16 @@
 # ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen".
 
 @catalog "Forja.catalog" 1 "español"
-@version "Forja 0.5.2"
+@version "Forja 0.6.0"
 
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
 import "actualizar.dash"
+import "botones.dash"
 import "ventana.dashui"
 
-const VERSION = "0.5.2"
+const VERSION = "0.6.0"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
@@ -99,6 +101,8 @@ const EV_VOLVER = 73
 const EV_REFERENCIAS = 74
 const EV_COMPLETAR = 75
 const EV_ACTUALIZAR = 77
+const EV_BOTONES = 78          # un clic en la barra de botones
+const EV_BOTONES_MOVER = 79    # el puntero se movió sobre ella
 const ESPERA_GIT = 600000      # diez minutos como mucho para una orden de git (clonar o traer por la red)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
@@ -200,6 +204,7 @@ var linea_escrita: Int = -1        # la línea donde se escribió por última ve
 var lineas_antes: Int = -1         # cuántas líneas había entonces
 var sonda_completar: String = "-"
 var sonda_ayuda: String = "-"
+var sonda_botones: String = ""
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -207,6 +212,10 @@ end
 
 func dibujar_editor(x: Int, y: Int, ancho: Int, alto: Int)
     ed_dibujar(x, y, ancho, alto)
+end
+
+func dibujar_botones(x: Int, y: Int, ancho: Int, alto: Int)
+    bb_dibujar(x, y, ancho, alto)
 end
 
 func dibujar_salida(x: Int, y: Int, ancho: Int, alto: Int)
@@ -560,30 +569,16 @@ end
 
 func poner_tarea(t: Int)
     tarea = t
-    mui_set_enabled(v.compilar, t == NADA)
-    mui_set_enabled(v.ejecutar, t == NADA or t == EJECUTANDO)
-    mui_set_enabled(v.depurar, t == NADA)
-    # al depurar, los botones del depurador en lugar de los de siempre (todos no caben: primero se ocultan unos y
-    # luego se enseñan los otros)
-    if t == DEPURANDO
-        for b in [v.compilar, v.ejecutar, v.depurar]
-            mui_set_visible(b, false)
-        end
-        for b in [v.seguir, v.paso, v.entrar, v.salir, v.parar]
-            mui_set_visible(b, true)
-        end
-    else
-        for b in [v.seguir, v.paso, v.entrar, v.salir, v.parar]
-            mui_set_visible(b, false)
-        end
-        for b in [v.compilar, v.ejecutar, v.depurar]
-            mui_set_visible(b, true)
-        end
+    # la barra de botones (botones.dash): los que no valen ahora, en gris
+    cambio = bb_poner(EV_COMPILAR, t == NADA)
+    cambio = bb_poner(EV_EJECUTAR, t == NADA or t == EJECUTANDO) or cambio
+    cambio = bb_poner(EV_DEPURAR, t == NADA) or cambio
+    for ev in [EV_SEGUIR, EV_PASO, EV_ENTRAR, EV_SALIR_FUNCION, EV_PARAR]
+        cambio = bb_poner(ev, t == DEPURANDO) or cambio
     end
-    if t == EJECUTANDO
-        mui_set_text(v.ejecutar, tr(7, "Parar"))
-    else
-        mui_set_text(v.ejecutar, tr(8, "Ejecutar"))
+    cambio = bb_ejecutando(t == EJECUTANDO) or cambio
+    if cambio and abierta
+        mui_canvas_redraw(v.botones)
     end
     if sonda
         var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando", "git"]
@@ -1954,6 +1949,11 @@ func publicar_sonda()
         sonda_proyecto = p
         env_set("FORJA_PROYECTO", p, false)
     end
+    b = bb_sonda()
+    if b != sonda_botones
+        sonda_botones = b
+        env_set("FORJA_BOTONES", b, false)
+    end
     s = "#{salida_zona_x} #{salida_zona_y + salida_y0} #{salida_fila} #{salida_desde} #{salida_lineas.length}"
     if s != sonda_salida
         sonda_salida = s
@@ -2518,6 +2518,10 @@ Main
         mui_canvas_on_draw(v.proyecto, dibujar_proyecto)
         mui_canvas_on_draw(v.editor, dibujar_editor)
         mui_canvas_on_draw(v.salida, dibujar_salida)
+        bb_crear()
+        mui_canvas_on_draw(v.botones, dibujar_botones)
+        mui_canvas_on_input(v.botones, EV_BOTONES)
+        mui_canvas_on_move(v.botones, EV_BOTONES_MOVER)
         mui_canvas_buffered(v.editor, true)
         mui_canvas_on_input(v.editor, EV_EDITOR)
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
@@ -2543,7 +2547,7 @@ Main
         elif not sesion_abrir()
             proyecto_leer(cajon_de(ruta))     # sin fichero: la bienvenida, con el logo de Dash
         end
-        salida_anadir(tr(29, "Forja ") + VERSION + tr(30, ", con Dash 2.4."), 0)
+        salida_anadir(tr(29, "Forja ") + VERSION + ".", 0)
         salida_anadir(tr(31, "Listo."), 2)
 
         ajustar_paneles()
@@ -2582,6 +2586,16 @@ Main
                 otro = en_editor()
                 if otro != 0
                     ev = otro
+                end
+            elif ev == EV_BOTONES_MOVER
+                if bb_mover(mui_canvas_pointer_x(v.botones), mui_canvas_pointer_inside(v.botones))
+                    mui_canvas_redraw(v.botones)
+                end
+            elif ev == EV_BOTONES
+                if mui_canvas_button(v.botones) == 1
+                    ev = bb_clic(mui_canvas_mouse_x(v.botones))
+                elif mui_canvas_key(v.botones) >= 0
+                    ev = tecla_depurador(mui_canvas_key(v.botones))
                 end
             elif ev == EV_PROYECTO and mui_canvas_key(v.proyecto) >= 0 and tecla_depurador(mui_canvas_key(v.proyecto)) != 0
                 ev = tecla_depurador(mui_canvas_key(v.proyecto))

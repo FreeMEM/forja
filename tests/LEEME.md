@@ -35,6 +35,11 @@ líneas y prueba la salida: se ve lo último, su barra la sube, un clic elige un
 se eligen varias, un clic en el editor devuelve Amiga-C al editor; y abre las preferencias (con `ENV:FORJA_PREFERENCIAS`,
 que solo mira la sonda).
 
+`tests/botones.sh <worktree de Dash> <cajón con dashc.amiga y los dashc_*.drt> [captura.png]`: `tests/botones.dash`
+prueba la barra de botones con el ratón: el puntero encima ilumina Ejecutar, Seguir en gris no hace nada, Compilar
+compila, Depurar depura un programa que tarda (con el depurador encendido y Compilar en gris) y Parar lo para. Con
+`captura.png`, guarda `captura-encima.png` y `captura-depurando.png` (las hace el propio Amiga con `screen_save_png`).
+
 `tests/rexx.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/rexx.dash` maneja Forja por su puerto ARexx
 (ABRIR, ABIERTO, SELECCION, CAMBIAR, TEXTO, GUARDAR, COMPILAR, ERRORES, EJECUTAR). La prueba con Inferencia a la vez
 está en el repo de Inferencia: `FORJA=~/Projects/forja PERMISO=Si tests/usuario.sh <worktree> tests/juntos.dash`.

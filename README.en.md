@@ -50,6 +50,9 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 - **Go to definition** (Amiga-J or Ctrl+click): to the file and line where the name is defined, opening it if
   needed; Amiga-U goes back. **Find uses** (Amiga-H): the list in the output, and a click goes to each place. The
   symbols are read when a file is opened or shown and after a moment without typing (in the Code menu).
+- **The top bar**: Build, Run, Debug, the debugger buttons and Inferencia, each with a coloured icon and its name.
+  The ones that do nothing right now are grey, and the one under the pointer lights up. In a narrow window, first
+  the grey ones and then all of them show only their icon.
 - **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line. The
   output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".

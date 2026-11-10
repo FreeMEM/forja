@@ -1,0 +1,119 @@
+# Hace de usuario de la barra de botones de Forja en el emulador: pasa el puntero por encima de Ejecutar (se
+# ilumina), pulsa Seguir apagado (no hace nada), Compilar, Depurar y Parar, con un programa que tarda (espera/). Lo arranca tests/botones.sh; anota en
+# DH0:Prueba/botones.txt y acaba con "TODO BIEN" si todo fue bien.
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/botones.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + " (" + env_get("FORJA_BOTONES") + "; " + env_get("FORJA_ESTADO") + ")")
+        fallos = fallos + 1
+    end
+end
+
+func activar()
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+end
+
+func campos() -> [String]
+    return str_split(env_get("FORJA_BOTONES"), " ")
+end
+
+# El botón de ese evento: [x, ancho, activo], o [] si no está
+func boton(ev: Int) -> [Int]
+    c = campos()
+    i = 4
+    while i < c.length
+        p = str_split(c[i], ":")
+        if Int(p[0]) == ev
+            return [Int(p[1]), Int(p[2]), Int(p[3])]
+        end
+        i = i + 1
+    end
+    return []
+end
+
+func centro_y() -> Int
+    c = campos()
+    return Int(c[1]) + Int(c[2]) / 2
+end
+
+func encima() -> Int
+    return Int(campos()[3])
+end
+
+func pulsar(ev: Int)
+    b = boton(ev)
+    input_click(b[0] + b[1] / 2, centro_y(), 0)
+    time_delay(10)
+end
+
+# Espera a que FORJA_ESTADO sea ese (hasta d décimas)
+func esperar_estado(estado: String, d: Int) -> Bool
+    n = 0
+    while env_get("FORJA_ESTADO") != estado and n < d
+        time_delay(5)
+        n = n + 5
+    end
+    return env_get("FORJA_ESTADO") == estado
+end
+
+Main
+    n = 0
+    while campos().length < 13 and n < 600
+        time_delay(10)
+        n = n + 10
+    end
+    ver("la barra está (9 botones)", campos().length == 13)
+    if campos().length == 13
+        activar()
+        ver("al empezar: Compilar, Ejecutar y Depurar encendidos, el depurador apagado", boton(10)[2] == 1 and boton(11)[2] == 1 and boton(12)[2] == 1 and boton(13)[2] == 0 and boton(17)[2] == 0 and boton(19)[2] == 1)
+        ver("Inferencia a la derecha", boton(19)[0] > boton(17)[0] + boton(17)[1])
+        b = boton(11)
+        input_move(b[0] + b[1] / 2, centro_y())
+        time_delay(10)
+        ver("el puntero encima de Ejecutar lo ilumina", encima() == 1)
+        screen_save_png("DH0:Prueba/encima.png")
+        pulsar(13)
+        time_delay(10)
+        ver("Seguir apagado no hace nada", env_get("FORJA_ESTADO") == "libre")
+        pulsar(10)
+        ver("Compilar compila", esperar_estado("compilando", 50))
+        ver("y acaba", esperar_estado("libre", 1800))
+        pulsar(12)
+        ver("Depurar depura", esperar_estado("depurando", 1800))
+        time_delay(10)
+        ver("al depurar, el depurador encendido y Compilar apagado", boton(13)[2] == 1 and boton(17)[2] == 1 and boton(10)[2] == 0)
+        screen_save_png("DH0:Prueba/depurando.png")
+        pulsar(17)
+        ver("Parar para", esperar_estado("libre", 300))
+        input_move(10, 2)
+        time_delay(10)
+        ver("fuera de la barra, nada iluminado", encima() == -1)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+    # Amiga-Q con el puntero en el editor
+    activar()
+    e = str_split(env_get("FORJA_EDITOR"), " ")
+    input_move(Int(e[0]) + Int(e[2]) / 2, Int(e[1]) + Int(e[3]) / 2)
+    time_delay(5)
+    input_key(0x10, 8)
+end

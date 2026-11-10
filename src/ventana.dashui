@@ -84,21 +84,7 @@
       "root": {
         "type": "vgroup",
         "children": [
-          {
-            "type": "hgroup",
-            "children": [
-              { "type": "button", "name": "compilar", "tr": 325, "label": "_Compilar", "event": 10, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "ejecutar", "tr": 326, "label": "_Ejecutar", "event": 11, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "depurar", "tr": 327, "label": "_Depurar", "event": 12, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "seguir", "tr": 328, "label": "Seguir F5", "event": 13, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "paso", "tr": 329, "label": "Paso F10", "event": 14, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "entrar", "tr": 330, "label": "Entrar F6", "event": 15, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "salir", "tr": 331, "label": "Salir F7", "event": 16, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "parar", "tr": 332, "label": "Parar", "event": 17, "hidden": true, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "space" },
-              { "type": "button", "name": "inferencia", "tr": 333, "label": "_Inferencia", "event": 19, "background": [44, 44, 52], "color": [220, 220, 210] }
-            ]
-          },
+          { "type": "canvas", "name": "botones", "min_width": 200, "min_height": 24, "weight": 0 },
           {
             "type": "hgroup",
             "weight": 300,

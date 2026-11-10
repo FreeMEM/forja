@@ -14,8 +14,6 @@ MSG_6 (6//)
 _Guardar|_Descartar|_Cancelar
 MSG_7 (7//)
 Parar
-MSG_8 (8//)
-Ejecutar
 MSG_9 (9//)
 Compilando 
 MSG_10 (10//)
@@ -58,8 +56,6 @@ MSG_28 (28//)
 Mandado a Inferencia.
 MSG_29 (29//)
 Forja 
-MSG_30 (30//)
-, con Dash 2.4.
 MSG_31 (31//)
 Listo.
 MSG_32 (32//)
@@ -455,23 +451,23 @@ Diseño o texto (.dashui)
 MSG_324 (324//)
 Vista previa (.dashui)
 MSG_325 (325//)
-_Compilar
+Compilar
 MSG_326 (326//)
-_Ejecutar
+Ejecutar
 MSG_327 (327//)
-_Depurar
+Depurar
 MSG_328 (328//)
-Seguir F5
+Seguir
 MSG_329 (329//)
-Paso F10
+Paso
 MSG_330 (330//)
-Entrar F6
+Entrar
 MSG_331 (331//)
-Salir F7
+Salir
 MSG_332 (332//)
 Parar
 MSG_333 (333//)
-_Inferencia
+Inferencia
 MSG_334 (334//)
 Buscar y cambiar (Forja)
 MSG_335 (335//)

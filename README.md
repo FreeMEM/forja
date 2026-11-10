@@ -50,6 +50,9 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 - **Ir a la definición** (Amiga-J o Ctrl+clic): al fichero y la línea donde se define el nombre, abriéndolo si hace
   falta; Amiga-U vuelve. **Dónde se usa** (Amiga-H): la lista en la salida, y un clic lleva a cada sitio. Los
   símbolos se leen al abrir o cambiar de fichero y tras un momento sin escribir (en el menú Código).
+- **La barra de arriba**: Compilar, Ejecutar, Depurar, los botones del depurador e Inferencia, cada uno con un icono
+  de color y su nombre. Los que no valen ahora salen en gris, y el que está bajo el puntero se ilumina. Si la ventana
+  es estrecha, primero los grises y luego todos se quedan solo con el icono.
 - **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea. La salida
   guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
   Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...".

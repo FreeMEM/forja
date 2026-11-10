@@ -1,0 +1,301 @@
+# La barra de botones de arriba, dibujada en un lienzo: Compilar, Ejecutar y Depurar, los del depurador (Seguir,
+# Paso, Entrar, Salir, Parar) e Inferencia a la derecha. Cada uno lleva un icono de color y su nombre; el que
+# está bajo el puntero se ilumina y los que no valen ahora salen en gris. Si no caben con nombre, los grises se
+# quedan solo con el icono, y si aún no caben, todos.
+#
+#   bb_crear()                              # una vez, antes de abrir la ventana
+#   bb_dibujar(x, y, ancho, alto)           # desde el mui_canvas_on_draw del lienzo
+#   bb_poner(evento, activo)                # encender o apagar uno
+#   ev = bb_clic(x)                         # el evento del botón en esa x (0 si ninguno o apagado)
+#   if bb_mover(x, dentro) ...              # el puntero se movió: true si hay que redibujar
+
+import "tema.dash"
+
+const BB_ALTO = 24
+
+struct BotonBarra
+    nombre: String
+    evento: Int
+    rgb: [Int]          # el color de su icono
+    icono: String       # cuál: el nombre de su dibujo en _bb_dibujo
+    grupo: Int          # 0 los de siempre, 1 los del depurador, 2 Inferencia (a la derecha)
+    activo: Bool
+    x: Int              # dónde quedó al dibujarlo, y su ancho
+    ancho: Int
+    pen: Int            # el pen del color (lo busca bb_dibujar la primera vez)
+    tramos: [Int]       # el icono en tramos de píxeles: x1, x2, y de cada uno
+end
+
+var bb_botones: [BotonBarra] = []
+var bb_encima: Int = -1             # el botón bajo el puntero, o -1
+var bb_pens: Bool = false
+var bb_zona_x: Int = 0             # la esquina de la zona en la ventana (para las pruebas)
+var bb_zona_y: Int = 0
+var bb_zona_alto: Int = 0
+var bb_pen_apagado: Int = 0
+var bb_pen_encima: Int = 0
+var bb_pen_fondo: Int = 0
+var bb_pen_raya: Int = 0
+
+# Los iconos, de 12 por 12: "#" es un píxel del color del botón
+func _bb_dibujo(nombre: String) -> [String]
+    if nombre == "compilar"     # un martillo
+        return ["............", "...######...", "..########..", "..########..", "...######...", "......##....", "......##....", "......##....", "......##....", "......##....", "......##....", "............"]
+    elif nombre == "ejecutar"
+        return ["............", "..##........", "..####......", "..######....", "..########..", "..#########.", "..#########.", "..########..", "..######....", "..####......", "..##........", "............"]
+    elif nombre == "depurar"    # un bicho
+        return ["............", "..#......#..", "...#....#...", "....####....", "#..######..#", ".##########.", "...######...", ".##########.", "#..######..#", "....####....", "...#....#...", "............"]
+    elif nombre == "seguir"
+        return ["............", "..#.##......", "..#.####....", "..#.######..", "..#.#######.", "..#.#######.", "..#.######..", "..#.####....", "..#.##......", "............", "............", "............"]
+    elif nombre == "paso"
+        return ["............", "...######...", "..#......#..", ".#........#.", ".#......###.", ".#.......##.", "..........#.", "............", "....####....", "....####....", "............", "............"]
+    elif nombre == "entrar"
+        return ["............", ".....##.....", ".....##.....", ".....##.....", "..########..", "...######...", "....####....", ".....##.....", "............", "..########..", "............", "............"]
+    elif nombre == "salir"
+        return ["............", "..########..", "............", ".....##.....", "....####....", "...######...", "..########..", ".....##.....", ".....##.....", ".....##.....", "............", "............"]
+    elif nombre == "parar"
+        return ["............", "............", "..########..", "..########..", "..########..", "..########..", "..########..", "..########..", "..########..", "..########..", "............", "............"]
+    end
+    # inferencia: un destello
+    return ["............", ".....#......", ".....#......", "....###.....", "#..#####..#.", ".#########..", "...#####....", "....###...#.", ".....#...###", ".....#....#.", "............", "............"]
+end
+
+func _bb_tramos(icono: String) -> [Int]
+    var t: [Int] = []
+    y = 0
+    for f in _bb_dibujo(icono)
+        i = 0
+        while i < f.length
+            if str_code(f, i) == 35
+                a = i
+                while i < f.length and str_code(f, i) == 35
+                    i = i + 1
+                end
+                t.push(a)
+                t.push(i - 1)
+                t.push(y)
+            else
+                i = i + 1
+            end
+        end
+        y = y + 1
+    end
+    return t
+end
+
+func _bb_anadir(nombre: String, evento: Int, rgb: [Int], icono: String, grupo: Int)
+    bb_botones.push(BotonBarra(nombre, evento, rgb, icono, grupo, true, 0, 0, 0, _bb_tramos(icono)))
+end
+
+func bb_crear()
+    amarillo = [255, 200, 80]
+    azul = [90, 150, 230]
+    rojo = [230, 80, 70]
+    _bb_anadir(tr(325, "Compilar"), 10, amarillo, "compilar", 0)
+    _bb_anadir(tr(326, "Ejecutar"), 11, [110, 200, 120], "ejecutar", 0)
+    _bb_anadir(tr(327, "Depurar"), 12, rojo, "depurar", 0)
+    _bb_anadir(tr(328, "Seguir"), 13, azul, "seguir", 1)
+    _bb_anadir(tr(329, "Paso"), 14, azul, "paso", 1)
+    _bb_anadir(tr(330, "Entrar"), 15, azul, "entrar", 1)
+    _bb_anadir(tr(331, "Salir"), 16, azul, "salir", 1)
+    _bb_anadir(tr(332, "Parar"), 17, rojo, "parar", 1)
+    _bb_anadir(tr(333, "Inferencia"), 19, [190, 140, 240], "inferencia", 2)
+end
+
+func _bb_boton(evento: Int) -> BotonBarra
+    for b in bb_botones
+        if b.evento == evento
+            return b
+        end
+    end
+    return nil
+end
+
+# true si cambió (y hay que redibujar)
+func bb_poner(evento: Int, activo: Bool) -> Bool
+    b = _bb_boton(evento)
+    if b == nil or b.activo == activo
+        return false
+    end
+    b.activo = activo
+    return true
+end
+
+# Ejecutar se vuelve Parar mientras corre el programa
+func bb_ejecutando(si: Bool) -> Bool
+    b = _bb_boton(11)
+    icono = "ejecutar"
+    nombre = tr(326, "Ejecutar")
+    rgb = [110, 200, 120]
+    if si
+        icono = "parar"
+        nombre = tr(7, "Parar")
+        rgb = [230, 80, 70]
+    end
+    if b == nil or b.icono == icono
+        return false
+    end
+    b.icono = icono
+    b.nombre = nombre
+    b.rgb = rgb
+    b.tramos = _bb_tramos(icono)
+    b.pen = color_pen(rgb[0], rgb[1], rgb[2])
+    return true
+end
+
+# El ancho de un botón: con nombre, o solo el icono
+func _bb_ancho(b: BotonBarra, con_nombre: Bool) -> Int
+    if con_nombre
+        return 6 + 12 + 5 + font_text_width(b.nombre) + 7
+    end
+    return 6 + 12 + 6
+end
+
+# 0 todos con nombre, 1 los grises sin nombre, 2 ninguno con nombre: lo primero que quepa
+func _bb_modo(ancho: Int) -> Int
+    modo = 0
+    while modo < 2
+        total = 8 + 2 * 13      # los márgenes y las dos rayas entre grupos
+        for b in bb_botones
+            total = total + _bb_ancho(b, modo == 0 or (modo == 1 and b.activo)) + 2
+        end
+        if total <= ancho
+            return modo
+        end
+        modo = modo + 1
+    end
+    return 2
+end
+
+func _bb_icono(b: BotonBarra, x: Int, y: Int)
+    if b.activo
+        gfx_pen(b.pen)
+    else
+        gfx_pen(bb_pen_apagado)
+    end
+    i = 0
+    while i + 2 < b.tramos.length
+        gfx_rect(x + b.tramos[i], y + b.tramos[i + 2], x + b.tramos[i + 1], y + b.tramos[i + 2])
+        i = i + 3
+    end
+end
+
+func _bb_pintar(b: BotonBarra, i: Int, x0: Int, y: Int, alto: Int, con_nombre: Bool)
+    x = x0 + b.x
+    if i == bb_encima and b.activo
+        gfx_pen(bb_pen_encima)
+        gfx_rect(x + 1, y + 3, x + b.ancho - 2, y + alto - 4)
+        gfx_rect(x, y + 4, x + b.ancho - 1, y + alto - 5)      # las esquinas, un poco redondas
+    end
+    _bb_icono(b, x + 6, y + (alto - 12) / 2)
+    if con_nombre
+        if b.activo
+            gfx_pen(tema.texto)
+        else
+            gfx_pen(bb_pen_apagado)
+        end
+        gfx_text_at(x + 6 + 12 + 5, y + (alto - font_height()) / 2 + font_baseline(), b.nombre)
+    end
+end
+
+func bb_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    if not bb_pens
+        bb_pens = true
+        bb_pen_apagado = color_pen(80, 80, 92)
+        bb_pen_encima = color_pen(48, 48, 60)
+        bb_pen_fondo = color_pen(20, 20, 24)
+        bb_pen_raya = color_pen(44, 44, 52)
+        for b in bb_botones
+            b.pen = color_pen(b.rgb[0], b.rgb[1], b.rgb[2])
+        end
+    end
+    bb_zona_x = x
+    bb_zona_y = y
+    bb_zona_alto = alto
+    gfx_mode(0)
+    gfx_pen(bb_pen_fondo)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    gfx_pen(bb_pen_raya)
+    gfx_rect(x, y + alto - 1, x + ancho - 1, y + alto - 1)
+    usar_panel(0)
+    modo = _bb_modo(ancho)
+    # Inferencia, a la derecha (las x de los botones, desde el borde de la zona, como las del ratón)
+    derecha = ancho - 4
+    for b in bb_botones
+        if b.grupo == 2
+            b.ancho = _bb_ancho(b, modo == 0 or (modo == 1 and b.activo))
+            derecha = derecha - b.ancho
+            b.x = derecha
+        end
+    end
+    bx = 4
+    grupo = 0
+    for b in bb_botones
+        if b.grupo != 2
+            if b.grupo != grupo
+                grupo = b.grupo
+                gfx_pen(bb_pen_raya)
+                gfx_rect(x + bx + 5, y + 5, x + bx + 5, y + alto - 6)
+                bx = bx + 13
+            end
+            b.x = bx
+            b.ancho = _bb_ancho(b, modo == 0 or (modo == 1 and b.activo))
+            bx = bx + b.ancho + 2
+        end
+    end
+    i = 0
+    for b in bb_botones
+        if b.x + b.ancho <= ancho
+            _bb_pintar(b, i, x, y, alto, modo == 0 or (modo == 1 and b.activo))
+        end
+        i = i + 1
+    end
+    usar_codigo()
+end
+
+func _bb_en(x: Int) -> Int
+    i = 0
+    for b in bb_botones
+        if x >= b.x and x < b.x + b.ancho
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# El evento del botón en esa x, o 0
+func bb_clic(x: Int) -> Int
+    i = _bb_en(x)
+    if i < 0 or not bb_botones[i].activo
+        return 0
+    end
+    return bb_botones[i].evento
+end
+
+# El puntero se movió (o salió): true si cambió el botón iluminado
+func bb_mover(x: Int, dentro: Bool) -> Bool
+    i = -1
+    if dentro
+        i = _bb_en(x)
+    end
+    if i == bb_encima
+        return false
+    end
+    bb_encima = i
+    return true
+end
+
+# Para las pruebas: "x y alto encima" y por cada botón "evento:x:ancho:activo" (x desde la ventana; activo 1 o 0)
+func bb_sonda() -> String
+    t = "#{bb_zona_x} #{bb_zona_y} #{bb_zona_alto} #{bb_encima}"
+    for b in bb_botones
+        a = 0
+        if b.activo
+            a = 1
+        end
+        t = t + " #{b.evento}:#{bb_zona_x + b.x}:#{b.ancho}:#{a}"
+    end
+    return t
+end

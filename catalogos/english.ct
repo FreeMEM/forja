@@ -23,9 +23,6 @@ _Save|_Discard|_Cancel
 MSG_7
 Stop
 ; Parar
-MSG_8
-Run
-; Ejecutar
 MSG_9
 Compiling 
 ; Compilando 
@@ -89,9 +86,6 @@ Sent to Inferencia.
 MSG_29
 Forja 
 ; Forja 
-MSG_30
-, with Dash 2.4.
-; , con Dash 2.4.
 MSG_31
 Ready.
 ; Listo.
@@ -684,32 +678,32 @@ MSG_324
 Preview (.dashui)
 ; Vista previa (.dashui)
 MSG_325
-_Compile
-; _Compilar
+Compile
+; Compilar
 MSG_326
-_Run
-; _Ejecutar
+Run
+; Ejecutar
 MSG_327
-_Debug
-; _Depurar
+Debug
+; Depurar
 MSG_328
-Continue F5
-; Seguir F5
+Continue
+; Seguir
 MSG_329
-Step F10
-; Paso F10
+Step
+; Paso
 MSG_330
-Into F6
-; Entrar F6
+Into
+; Entrar
 MSG_331
-Out F7
-; Salir F7
+Out
+; Salir
 MSG_332
 Stop
 ; Parar
 MSG_333
-_Inferencia
-; _Inferencia
+Inferencia
+; Inferencia
 MSG_334
 Find and replace (Forja)
 ; Buscar y cambiar (Forja)
