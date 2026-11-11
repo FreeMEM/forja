@@ -37,9 +37,11 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 
 - **Editor**: el teclado va al editor con el puntero encima. Flechas; con Mayúsculas eligen; Alt: principio y final
   de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Tab y Mayúsculas+Tab
-  sangran. Deshacer (Amiga-Z), rehacer (Amiga-R), cortar, copiar y pegar con el portapapeles del sistema.
+  sangran; al pulsar Return tras `func`, `if`, `while` y demás, la línea nueva entra un nivel, y `end`, `else` y
+  `elif` vuelven solos a su sitio, como en la extensión de VS Code. Deshacer (Amiga-Z), rehacer (Amiga-R), cortar,
+  copiar y pegar con el portapapeles del sistema.
 - **Ficheros**: pestañas; Amiga-N, Amiga-O, Amiga-S, Amiga-W. El panel de la izquierda abre los ficheros del cajón
-  con un clic; la rueda y su barra lo mueven. Al cerrar con cambios, pregunta.
+  con un clic, carpetas primero y en orden; la rueda y su barra lo mueven. Al cerrar con cambios, pregunta.
 - **Buscar y cambiar** (Amiga-F) e **ir a la línea** (Amiga-L).
 - **Completar**: a partir de dos letras sale una lista bajo el cursor con las palabras de Dash, sus builtins y los
   nombres del proyecto (funciones, structs, constantes, variables globales y las locales de la función; también los
@@ -55,12 +57,17 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   es estrecha, primero los grises y luego todos se quedan solo con el icono.
 - **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea. La salida
   guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
-  Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...".
+  Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...". En un proyecto de varios
+  ficheros, compilar o ejecutar desde uno que no tiene `Main` lo hace con el programa del proyecto. Un error del
+  programa al ejecutarse sale en rojo, y un clic lleva a su línea. **Parar** acaba un programa que se ha quedado en un
+  bucle (necesita Dash 2.11.0); si tiene ventana y no para, Forja avisa de que la cierres. Al salir con algo en
+  marcha, lo para antes.
 - **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen; F5 seguir, F10 paso, F6 entrar, F7
   salir, con el puntero en cualquier sitio de la ventana, salvo si un campo de texto u otro gadget tiene el teclado
   (lo contó David Martínez). A la izquierda, la pila y las variables. Al parar,
   Forja se pone delante: la ventana del programa se queda el teclado al abrirse. Si la línea de la parada ya se ve,
-  el código no se mueve ni se repinta entero (lo contó David Martínez).
+  el código no se mueve ni se repinta entero, ni salta al hacer clic en él o en las variables (lo contó David
+  Martínez).
 - **Ventanas `.dashui`**: se abren en el editor de ventanas (Amiga-D cambia a texto). El árbol de objetos y sus
   propiedades; "+" añade, Supr quita, Alt+flechas mueve. Amiga-P abre la vista previa con MUI de verdad. Se guarda
   igual que la extensión de VS Code.

@@ -1,0 +1,296 @@
+# Hace de usuario de Forja con un programa de varios ficheros en un cajón con un espacio ("DH0:Prueba/Mi juego":
+# main.dash importa fisica.dash y lib/pantalla.dash). Ejecuta; abre fisica.dash desde la lista y ejecuta desde ahí (se
+# compila main.dash, no el módulo solo); cambia fisica.dash sin guardar y ejecuta (se guarda antes); mete un error en
+# fisica.dash, compila desde main.dash y un clic en el error lleva a fisica.dash; depura con un punto de parada en
+# fisica.dash (para ahí, F7 vuelve a main.dash, F6 entra en lib/pantalla.dash) y acaba. Lo arranca tests/proyecto.sh;
+# anota en DH0:Prueba/proyecto.txt y acaba con "TODO BIEN" si todo fue bien.
+
+const AMIGA = 8
+const CTRL = 2
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const F5 = 0x54
+const F6 = 0x55
+const F7 = 0x56
+const F9 = 0x58
+const F10 = 0x59
+const K_E = 0x12
+const K_K = 0x27
+const K_G = 0x24
+const K_Z = 0x31
+const K_S = 0x21
+const K_Q = 0x10
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/proyecto.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String) -> Bool
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+    return cierto
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# "línea columna nombre" del documento activo
+func sonda() -> [String]
+    n = 0
+    while n < 30
+        c = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
+        if c.length >= 3 and c[0] != "" and c[2] != ""
+            return c
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return ["?", "?", "?"]
+end
+
+func activo() -> String
+    s = sonda()
+    if s.length < 3
+        return "?"
+    end
+    return s[2]
+end
+
+# Lo que ha llegado a la salida desde la marca
+func salida_desde(marca: Int) -> String
+    t = leer("RAM:forja-salida.txt")
+    if t.length <= marca
+        return ""
+    end
+    return t[marca:]
+end
+
+func marca() -> Int
+    return leer("RAM:forja-salida.txt").length
+end
+
+func esperar_salida(desde: Int, texto: String) -> Bool
+    n = 0
+    while n < 900
+        if str_contains(salida_desde(desde), texto)
+            return true
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return false
+end
+
+# Ejecuta (Amiga-E) y espera a que acabe; da lo que salió
+func ejecutar() -> String
+    m = marca()
+    al_editor()
+    input_key(K_E, AMIGA)
+    esperar_salida(m, "acabó con código")
+    time_delay(20)
+    return salida_desde(m)
+end
+
+# Un clic en la fila del panel del proyecto que tiene ese nombre
+func clic_fichero(nombre: String) -> Bool
+    filas = str_split(env_get("FORJA_FICHEROS"), "|")
+    i = 1
+    while i < filas.length
+        if filas[i] == nombre
+            fila = campo("FORJA_PROYECTO", 2)
+            input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + (i - 1) * fila + fila / 2, 0)
+            time_delay(40)
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func pestana(i: Int)
+    p = str_split(env_get("FORJA_PESTANAS"), " ")
+    if i < p.length
+        xy = str_split(p[i], ",")
+        input_click(Int(xy[0]), Int(xy[1]), 0)
+        time_delay(30)
+    end
+end
+
+# Lleva el cursor a la línea n (desde 1), columna 0
+func a_linea(n: Int)
+    al_editor()
+    input_key(ARRIBA, CTRL)
+    k = 1
+    while k < n
+        input_key(ABAJO, 0)
+        k = k + 1
+    end
+end
+
+# Espera a que el depurador pare (o acabe) en algo que empiece por que, distinto de lo de antes de la orden (si no,
+# se tomaría por buena la parada de antes)
+var parada_antes: String = ""
+
+func esperar_parada(que: String) -> String
+    n = 0
+    while n < 900
+        e = env_get("FORJA_DEPURAR")
+        if str_starts(e, que) and e != parada_antes
+            parada_antes = e
+            return e
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return env_get("FORJA_DEPURAR")
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and env_get("FORJA_FICHEROS") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        time_delay(20)
+        # 0. la lista del cajón, en orden: el de arriba, los cajones y los ficheros
+        ver("la lista del proyecto, en orden", env_get("FORJA_FICHEROS") == "DH0:Prueba/Mi juego|/|lib/|fisica.dash|main.dash", env_get("FORJA_FICHEROS"))
+        # 1. ejecutar el programa (en un cajón con espacio)
+        s = ejecutar()
+        ver("ejecutar main.dash", str_contains(s, "== Altura == 30") and str_contains(s, "acabó con código 0"), s)
+        # 2. abrir fisica.dash desde la lista y ejecutar desde ahí: se compila main.dash
+        clic_fichero("fisica.dash")
+        ver("abrir fisica.dash desde la lista", activo() == "fisica.dash", activo())
+        s = ejecutar()
+        ver("ejecutar desde fisica.dash compila main.dash", str_contains(s, "main.dash") and str_contains(s, "== Altura == 30") and str_contains(s, "acabó con código 0"), s)
+        ver("y sigue en fisica.dash", activo() == "fisica.dash", activo())
+        # 3. un cambio en fisica.dash sin guardar: ejecutar lo guarda antes
+        a_linea(5)
+        input_text("    return v + GRAVEDAD + 1\n")
+        time_delay(10)
+        s = ejecutar()
+        ver("el cambio sin guardar se guarda al ejecutar", str_contains(s, "== Altura == 45"), s)
+        ver("fisica.dash en el disco, con el cambio", str_contains(leer("DH0:Prueba/Mi juego/fisica.dash"), "GRAVEDAD + 1"), leer("DH0:Prueba/Mi juego/fisica.dash"))
+        # 4. un error en fisica.dash, compilar desde main.dash y un clic en el error
+        a_linea(9)
+        input_text("    x = (\n")
+        time_delay(10)
+        pestana(0)
+        ver("pestaña de main.dash", activo() == "main.dash", activo())
+        m = marca()
+        al_editor()
+        input_key(K_K, AMIGA)
+        if ver("no compila", esperar_salida(m, "No compila"), salida_desde(m))
+            time_delay(20)
+            lineas = str_split(leer("RAM:forja-salida.txt"), "\n")
+            i = 0
+            error = -1
+            while i < lineas.length
+                if str_contains(lineas[i], ": Error: ")
+                    error = i
+                end
+                i = i + 1
+            end
+            if ver("el error dice fisica.dash", error >= 0 and str_contains(lineas[error], "fisica.dash"), salida_desde(m))
+                fila = campo("FORJA_SALIDA", 2)
+                y = campo("FORJA_SALIDA", 1) + (error - campo("FORJA_SALIDA", 3)) * fila + fila / 2
+                input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
+                time_delay(30)
+                cur = sonda()
+                ver("un clic en el error lleva a fisica.dash, a su línea", cur[2] == "fisica.dash" and (cur[0] == "8" or cur[0] == "9"), lineas[error] + " / " + cur[0] + " " + cur[2])
+            end
+        end
+        # se quita el error (deshacer) y se guarda
+        al_editor()
+        if activo() == "fisica.dash"
+            input_key(K_Z, AMIGA)
+            time_delay(10)
+            input_key(K_S, AMIGA)
+            time_delay(30)
+        end
+        ver("fisica.dash sin el error", not str_contains(leer("DH0:Prueba/Mi juego/fisica.dash"), "x = ("), leer("DH0:Prueba/Mi juego/fisica.dash"))
+        # 5. depurar: punto de parada en fisica.dash (la 10, nueva = y + v), desde main.dash
+        a_linea(10)
+        input_key(F9, 0)
+        time_delay(10)
+        pestana(0)
+        al_editor()
+        input_key(K_G, AMIGA)
+        e = esperar_parada("3 10 ")
+        ver("para en fisica.dash, en caer", str_starts(e, "3 10 caer") and activo() == "fisica.dash", e + " / " + activo())
+        vs = env_get("FORJA_VARIABLES")
+        ver("las variables de caer", str_contains(vs, "y = 0|") and str_contains(vs, "v = 3|"), vs)
+        input_key(F7, 0)
+        e = esperar_parada("3 1")
+        ver("F7 vuelve a main.dash", (str_starts(e, "3 11 Main") or str_starts(e, "3 12 Main")) and activo() == "main.dash", e + " / " + activo())
+        # quitar el punto de fisica.dash (su pestaña, el cursor está en su línea 10)
+        pestana(1)
+        a_linea(10)
+        input_key(F9, 0)
+        time_delay(10)
+        # y uno en la 14 de main.dash, la del título
+        pestana(0)
+        a_linea(14)
+        input_key(F9, 0)
+        time_delay(10)
+        input_key(F5, 0)
+        e = esperar_parada("3 14 ")
+        ver("F5 sigue hasta la 14 de main.dash", str_starts(e, "3 14 Main") and activo() == "main.dash", e + " / " + activo())
+        input_key(F6, 0)
+        e = esperar_parada("3 3 ")
+        ver("F6 entra en titulo, en lib/pantalla.dash", str_starts(e, "3 3 titulo") and activo() == "pantalla.dash", e + " / " + activo())
+        input_key(F10, 0)
+        e = esperar_parada("3 4 ")
+        ver("F10 en pantalla.dash", str_starts(e, "3 4 titulo"), e)
+        m = marca()
+        input_key(F5, 0)
+        e = esperar_parada("4")
+        ver("F5 acaba", str_starts(e, "4"), e)
+        ver("y la salida del programa", esperar_salida(m, "acabó con código 0") and str_contains(salida_desde(m), "== Altura == 45"), salida_desde(m))
+        time_delay(100)
+        ver("vuelve la lista del proyecto", str_contains(env_get("FORJA_FICHEROS"), "|fisica.dash|"), env_get("FORJA_FICHEROS"))
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+    activar()
+    al_editor()
+    input_key(K_Q, AMIGA)
+end

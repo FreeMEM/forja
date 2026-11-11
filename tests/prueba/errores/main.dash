@@ -1,0 +1,8 @@
+# Un programa que falla al ejecutarse en un módulo (tests/errores.sh): un campo de nil en util.dash
+import "util.dash"
+
+Main
+    Print "antes"
+    var n: Nave = nil
+    Print "x = #{posicion(n)}"
+end

@@ -36,9 +36,11 @@ When compiling, the executable goes next to the `.dash`. In the preferences, "Ex
 What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the executable's drawer.
 
 - **Editor**: the keyboard goes to the editor when the pointer is over it. Arrows; with Shift they select; Alt: start
-  and end of line, page up and down; Ctrl: word by word, start and end of the text. Tab and Shift+Tab indent. Undo
-  (Amiga-Z), redo (Amiga-R), cut, copy and paste with the system clipboard.
-- **Files**: tabs; Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click; the
+  and end of line, page up and down; Ctrl: word by word, start and end of the text. Tab and Shift+Tab indent;
+  pressing Return after `func`, `if`, `while` and the like indents the new line one level, and `end`, `else` and
+  `elif` go back to their place by themselves, as in the VS Code extension. Undo (Amiga-Z), redo (Amiga-R), cut, copy
+  and paste with the system clipboard.
+- **Files**: tabs; Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click (folders first, in order); the
   wheel and its scroll bar move it. It asks when closing with unsaved changes.
 - **Find and replace** (Amiga-F) and **go to line** (Amiga-L).
 - **Completion**: after two letters a list appears under the cursor with Dash's words, its builtins and the
@@ -56,11 +58,16 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 - **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line. The
   output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
+  In a project of several files, compiling or running from one without `Main` uses the project's program. An error
+  of the program while it runs is shown in red, and a click goes to its line. **Stop** ends a program stuck in a
+  loop (it needs Dash 2.11.0); if it has a window and does not stop, Forja tells you to close it. Quitting with
+  something running stops it first.
 - **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin; F5 continue, F10 step over, F6 step into,
   F7 step out, with the pointer anywhere in the window, unless a text field or another gadget has the keyboard
   (reported by David Martínez). On the left, the call stack and the
   variables. When it stops, Forja comes to the front: the program's window takes the keyboard when it opens. If the
-  stop line is already in view, the code does not move or repaint as a whole (reported by David Martínez).
+  stop line is already in view, the code does not move or repaint as a whole, nor jumps when clicking on it or on the variables (reported by
+  David Martínez).
 - **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;
   "+" adds, Del removes, Alt+arrows moves. Amiga-P opens the preview with real MUI. It saves the same way as the VS
   Code extension.

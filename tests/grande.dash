@@ -1,0 +1,239 @@
+# Forja con un fichero grande (DH0:Prueba/grande/main.dash, 1505 líneas, lo hace tests/grande.sh): ir al final, ir a
+# una línea, buscar, escribir (sin repintar todo el texto), ejecutar y deshacer muchas veces hasta el texto de
+# antes. Anota lo que tarda el dibujo. Anota en DH0:Prueba/grande.txt y acaba con "TODO BIEN" si todo fue bien.
+
+const AMIGA = 8
+const CTRL = 2
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const RETURN = 0x44
+const LINEAS = 1505
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/grande.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and input_active_title() != titulo
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return input_active_title() == titulo
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# [línea, columna] del cursor y el texto, de la sonda
+func cursor() -> [Int]
+    n = 0
+    while n < 30
+        c = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
+        if c.length >= 3 and c[0] != "" and c[2] != ""
+            return [Int(c[0]), Int(c[1])]
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return [-1, -1]
+end
+
+# El texto, de la sonda (si Forja la está escribiendo justo entonces, sale corta: otra vez)
+func texto() -> String
+    time_delay(25)
+    n = 0
+    while n < 20
+        t = leer("RAM:forja-sonda.txt")
+        p = str_find(t, "\n")
+        if p >= 0 and t.length > 1000
+            return t[p + 1:]
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return ""
+end
+
+func entorno(nombre: String) -> String
+    n = 0
+    while n < 20
+        t = env_get(nombre)
+        if t != ""
+            return t
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return ""
+end
+
+# Se ve la línea l (desde 0)
+func se_ve(l: Int) -> Bool
+    primera = campo("FORJA_VISTA", 0)
+    caben = (campo("FORJA_EDITOR", 3) - 22) / campo("FORJA_VISTA", 1)
+    return l >= primera and l < primera + caben
+end
+
+func esperar_salida(desde: Int, que: String) -> String
+    n = 0
+    while n < 1200
+        t = leer("RAM:forja-salida.txt")
+        if t.length > desde and str_contains(t[desde:], que)
+            return t[desde:]
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    t = leer("RAM:forja-salida.txt")
+    if t.length > desde
+        return t[desde:]
+    end
+    return ""
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and env_get("FORJA_VISTA") != "" and activar("Forja"))
+        time_delay(5)
+        n = n + 1
+        if n % 50 == 0
+            anotar("  esperando: editor " + env_get("FORJA_EDITOR") + ", vista " + env_get("FORJA_VISTA") + ", ventana " + input_active_title())
+        end
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        time_delay(30)
+        original = texto()
+        ver("abre las 1505 líneas", str_split(original, "\n").length >= LINEAS, "#{str_split(original, "\n").length}")
+        anotar("  dibujo entero: " + env_get("FORJA_DIBUJO") + " ms")
+        # al final
+        al_editor()
+        input_key(ABAJO, CTRL)
+        time_delay(20)
+        c = cursor()
+        ver("Ctrl+Abajo lleva al final y se ve", c[0] >= LINEAS - 2 and se_ve(c[0]), "#{c[0]} " + env_get("FORJA_VISTA"))
+        # ir a la 750
+        input_key(0x28, AMIGA)
+        if activar("Ir a la línea (Forja)")
+            time_delay(25)
+            input_text("750")
+            input_key(RETURN, 0)
+            time_delay(50)
+            activar("Forja")
+            c = cursor()
+            ver("Amiga-L 750: el cursor en la 750 y se ve", c[0] == 749 and se_ve(749), "#{c[0]} " + env_get("FORJA_VISTA"))
+        else
+            ver("Amiga-L abre su ventana", false, input_active_title())
+        end
+        # buscar
+        al_editor()
+        input_key(0x23, AMIGA)
+        if activar("Buscar y cambiar (Forja)")
+            time_delay(25)
+            input_text("func f250(")
+            input_key(RETURN, 0)
+            time_delay(50)
+            activar("Forja")
+            c = cursor()
+            ver("buscar func f250( la encuentra y se ve", c[0] == 1245 and se_ve(1245), "#{c[0]} " + env_get("FORJA_VISTA"))
+        else
+            ver("Amiga-F abre su ventana", false, input_active_title())
+        end
+        # escribir en una línea: sin repintar todo (la primera tecla sí: la pestaña gana su "*"; y la flecha quita lo
+        # elegido por buscar)
+        al_editor()
+        input_key(ARRIBA, 0)
+        time_delay(30)
+        input_text("#")
+        time_delay(30)
+        dibujos = entorno("FORJA_DIBUJOS")
+        input_text(" una nota")
+        t = texto()
+        n = 0
+        while n < 20 and not str_contains(t, "# una nota")
+            time_delay(10)
+            t = texto()
+            n = n + 1
+        end
+        c = cursor()
+        linea = ""
+        ls = str_split(t, "\n")
+        if c[0] >= 0 and c[0] < ls.length
+            linea = ls[c[0]]
+        end
+        ver("lo escrito está", str_contains(t, "# una nota"), "cursor #{c[0]},#{c[1]}: " + linea)
+        ver("escribir no repinta todo el texto", entorno("FORJA_DIBUJOS") == dibujos, dibujos + " / " + entorno("FORJA_DIBUJOS"))
+        anotar("  una línea: " + env_get("FORJA_DIBUJO") + " ms (el último dibujo entero)")
+        # ejecutar
+        m = leer("RAM:forja-salida.txt").length
+        t0 = time_ms()
+        input_key(0x12, AMIGA)
+        s = esperar_salida(m, "acabó con código")
+        ver("ejecutar el fichero grande", str_contains(s, "Total: 454") and str_contains(s, "acabó con código 0"), s)
+        anotar("  compilar y ejecutar: #{time_ms() - t0} ms")
+        # deshacer hasta el principio (Amiga-Z unas cuantas veces)
+        activar("Forja")
+        al_editor()
+        k = 0
+        while k < 15
+            input_key(0x31, AMIGA)
+            k = k + 1
+        end
+        time_delay(30)
+        ver("deshacer deja el texto de antes", texto() == original, "")
+        # rehacer (Amiga-R)
+        input_key(0x13, AMIGA)
+        time_delay(20)
+        ver("rehacer (Amiga-R) vuelve a poner algo", texto() != original, "")
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+    activar("Forja")
+    al_editor()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 40 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    if input_active_title() == "Cambios sin guardar"
+        time_delay(25)
+        input_key(0x22, 0)
+    end
+end

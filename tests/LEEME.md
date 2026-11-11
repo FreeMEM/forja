@@ -40,6 +40,28 @@ prueba la barra de botones con el ratón: el puntero encima ilumina Ejecutar, Se
 compila, Depurar depura un programa que tarda (con el depurador encendido y Compilar en gris) y Parar lo para. Con
 `captura.png`, guarda `captura-encima.png` y `captura-depurando.png` (las hace el propio Amiga con `screen_save_png`).
 
+`tests/clic.sh <worktree de Dash> <cajón con dashc.amiga y los dashc_*.drt>`: `tests/clic.dash` hace clic con el
+ratón mientras depura (lo contó David Martínez): en el editor, el código no salta y el cursor se queda donde se pulsó;
+en el panel de las variables, no se abre el fichero de la lista que hay debajo; ya sin depurar, la lista vuelve a
+abrir ficheros. Con `FORJA=otro/cajón` prueba las fuentes de ese cajón (para ver que la prueba falla sin el arreglo).
+`RAM:forja-vistas.txt` (con la sonda) apunta la primera línea de cada dibujo entero del editor.
+
+Las de uso a fondo (`docs/PRUEBAS_LOOP.md`). Todas reciben `<worktree de Dash> <cajón con dashc.amiga y los
+dashc_*.drt>`:
+
+- `tests/proyecto.sh`: un programa de varios ficheros en un cajón con un espacio ("Mi juego": main.dash,
+  fisica.dash y lib/pantalla.dash). Ejecuta desde un módulo (se compila main.dash), guarda al ejecutar lo que no
+  estaba guardado, hace clic en un error de otro fichero y depura entre ficheros (F6, F7, puntos en dos ficheros).
+- `tests/grande.sh`: un fichero de 1505 líneas. Ir al final, Amiga-L, buscar, escribir sin repintar todo, ejecutar,
+  deshacer y rehacer. Anota lo que tarda el dibujo.
+- `tests/errores.sh`: un programa que falla al ejecutarse en un módulo. El error sale en rojo y a la vista, y un clic
+  lleva a su línea.
+- `tests/parar.sh`: Parar un bucle sin fin. Necesita Dash con Ctrl-C en los bucles.
+- `tests/salir.sh`: salir con un programa ejecutándose y con otro parado en el depurador. No debe quedar nada vivo.
+  Arranca Forja él mismo.
+- `tests/sesion.sh`: abrir lo de la última vez, cerrar con cambios (Descartar) y una sesión con un disco que no
+  está, sin el requester de "Inserta el volumen". Arranca Forja él mismo.
+
 `tests/rexx.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/rexx.dash` maneja Forja por su puerto ARexx
 (ABRIR, ABIERTO, SELECCION, CAMBIAR, TEXTO, GUARDAR, COMPILAR, ERRORES, EJECUTAR). La prueba con Inferencia a la vez
 está en el repo de Inferencia: `FORJA=~/Projects/forja PERMISO=Si tests/usuario.sh <worktree> tests/juntos.dash`.

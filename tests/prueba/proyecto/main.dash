@@ -1,0 +1,16 @@
+# Un programa de prueba con varios ficheros (tests/proyecto.sh lo copia a "Mi juego", con un espacio)
+import "fisica.dash"
+import "lib/pantalla.dash"
+
+Main
+    y = 0
+    v = 0
+    k = 0
+    while k < 5
+        v = caer_v(v)
+        y = caer(y, v)
+        k = k + 1
+    end
+    Print titulo("Altura") + " #{y}"
+    Print "Fin"
+end

@@ -1,0 +1,151 @@
+# Lo primero de alguien nuevo: Forja sin fichero (la bienvenida), Amiga-N, escribir un programa con un if y un else
+# (la sangría sigue los bloques: Return tras Main, if o else entra un nivel; end y else vuelven), Ejecutar: pide dónde
+# guardarlo (el requester de ficheros: se escribe la ruta), lo compila y lo ejecuta. Lo arranca tests/nuevo.sh; anota
+# en DH0:Prueba/nuevo.txt y acaba con "TODO BIEN" si todo fue bien.
+
+const AMIGA = 8
+const RETURN = 0x44
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/nuevo.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String) -> Bool
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+    return cierto
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and input_active_title() != titulo
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return input_active_title() == titulo
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# El texto y el nombre del documento activo, de la sonda
+func texto() -> String
+    time_delay(25)
+    t = leer("RAM:forja-sonda.txt")
+    p = str_find(t, "\n")
+    if p < 0
+        return ""
+    end
+    return t[p + 1:]
+end
+
+func nombre() -> String
+    c = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
+    if c.length < 3
+        return "?"
+    end
+    return str_join_desde(c, 2)
+end
+
+func str_join_desde(c: [String], i: Int) -> String
+    t = ""
+    while i < c.length
+        if t != ""
+            t = t + " "
+        end
+        t = t + c[i]
+        i = i + 1
+    end
+    return t
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar("Forja"))
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        time_delay(30)
+        al_editor()
+        input_key(0x36, AMIGA)
+        time_delay(30)
+        ver("Amiga-N: un fichero sin nombre", nombre() == "sin nombre.dash", nombre())
+        # (Amiga-N trae un programa de ejemplo: todo elegido, lo escrito lo cambia)
+        input_key(0x20, AMIGA)
+        time_delay(10)
+        for l in ["Main", "Print \"hola\"", "if 1 < 2", "Print \"dentro\"", "else", "Print \"no\"", "end", "end"]
+            input_text(l)
+            input_key(RETURN, 0)
+            time_delay(5)
+        end
+        t = texto()
+        quiero = "Main\n    Print \"hola\"\n    if 1 < 2\n        Print \"dentro\"\n    else\n        Print \"no\"\n    end\nend\n"
+        ver("la sangría sigue los bloques", t == quiero or t == quiero + "\n", t)
+        input_key(0x12, AMIGA)
+        pedido = false
+        k = 0
+        while k < 60 and not pedido
+            if str_starts(input_active_title(), "Guardar")
+                pedido = true
+            end
+            time_delay(10)
+            k = k + 1
+        end
+        if ver("Ejecutar pide dónde guardar", pedido, input_active_title())
+            time_delay(30)
+            input_text("DH0:Prueba/hola.dash")
+            input_key(RETURN, 0)
+            # (ASL, con una ruta en File: el primer Return la reparte en Drawer y File; el segundo acepta)
+            time_delay(50)
+            if str_starts(input_active_title(), "Guardar")
+                input_key(RETURN, 0)
+            end
+            k = 0
+            while k < 900 and not str_contains(leer("RAM:forja-salida.txt"), "acabó con código")
+                time_delay(10)
+                k = k + 1
+            end
+            s = leer("RAM:forja-salida.txt")
+            ver("lo guarda en DH0:Prueba/hola.dash", str_contains(leer("DH0:Prueba/hola.dash"), "Print \"dentro\""), leer("DH0:Prueba/hola.dash"))
+            ver("la pestaña se llama hola.dash", nombre() == "hola.dash", nombre())
+            ver("y se ejecuta", str_contains(s, "hola") and str_contains(s, "dentro") and str_contains(s, "acabó con código 0"), s)
+        end
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+    activar("Forja")
+    al_editor()
+    input_key(0x10, AMIGA)
+end

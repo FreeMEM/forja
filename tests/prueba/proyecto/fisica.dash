@@ -1,0 +1,11 @@
+# La física del juego
+const GRAVEDAD = 2
+
+func caer_v(v: Int) -> Int
+    return v + GRAVEDAD
+end
+
+func caer(y: Int, v: Int) -> Int
+    nueva = y + v
+    return nueva
+end

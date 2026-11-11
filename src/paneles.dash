@@ -60,19 +60,34 @@ func proyecto_leer(cajon: String)
     if cajon != "" and not str_ends(cajon, ":")
         proyecto_ficheros.push("/")
     end
+    # los cajones primero y luego los ficheros, cada uno por orden alfabético (el disco los da en cualquier orden)
+    var cajones: [String] = []
+    var ficheros: [String] = []
     n = dir_read(cajon)
     i = 0
     while i < n
         nombre = dir_entry_name(i)
         if dir_entry_is_dir(i)
             if nombre != ".git"
-                proyecto_ficheros.push(nombre + "/")
+                cajones.push(nombre + "/")
             end
         elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui") or sp_extension(nombre)
-            proyecto_ficheros.push(nombre)
+            ficheros.push(nombre)
         end
         i = i + 1
     end
+    cajones.sort(_proyecto_antes)
+    ficheros.sort(_proyecto_antes)
+    for c in cajones
+        proyecto_ficheros.push(c)
+    end
+    for f in ficheros
+        proyecto_ficheros.push(f)
+    end
+end
+
+func _proyecto_antes(a: String, b: String) -> Int
+    return str_compare_locale(a, b, true)
 end
 
 func salida_anadir(texto: String, tipo: Int)
@@ -123,6 +138,76 @@ func salida_error_dashc(l: String) -> Bool
     salida_num.push(num)
     salida_col.push(col)
     return true
+end
+
+# Una línea de un programa que falla al ejecutarse: "Error: texto (en fichero:línea)" (el fichero, como lo dio
+# dashc: entero, o desde el cajón del programa). Si lo es, va como error con su sitio y devuelve true: un clic lleva
+# a la línea, como en los errores de compilar.
+func salida_error_programa(l: String, cajon: String) -> Bool
+    t = str_trim(l)
+    if not str_starts(t, "Error: ") or not str_ends(t, ")")
+        return false
+    end
+    p = str_find(t, " (en ")
+    if p < 0
+        return false
+    end
+    sitio = t[p + 5:t.length - 1]
+    i = sitio.length - 1
+    while i >= 0 and str_code(sitio, i) != 58
+        i = i - 1
+    end
+    if i <= 0
+        return false
+    end
+    num = Int(sitio[i + 1:])
+    ruta = sitio[0:i]
+    if num <= 0
+        return false
+    end
+    if str_find(ruta, ":") < 0
+        ruta = ruta_unir(cajon, ruta)
+    end
+    if salida_atras > 0
+        salida_atras = salida_atras + 1
+    end
+    salida_lineas.push(t)
+    salida_tipos.push(1)
+    salida_rutas.push(ruta)
+    salida_num.push(num)
+    salida_col.push(1)
+    return true
+end
+
+# La salida de un programa: cada línea, y las de un error de ejecución con su sitio. "exe failed returncode N" del
+# Shell no va: Forja ya dice con qué código acabó (y en 640x256, con dos líneas de salida, tapaba el error). Da la
+# línea del primer error, o -1.
+func salida_anadir_programa(texto: String, cajon: String, exe: String) -> Int
+    primero = -1
+    for l in str_split(texto, "\n")
+        if str_starts(l, exe + " failed returncode ")
+            continue
+        end
+        if salida_error_programa(l, cajon)
+            if primero < 0
+                primero = salida_lineas.length - 1
+            end
+        else
+            salida_anadir(l, 0)
+        end
+    end
+    return primero
+end
+
+# Que se vea la línea i de la salida (subiendo lo justo, si hace falta)
+func salida_mostrar(i: Int)
+    if i < 0
+        return
+    end
+    desde = salida_lineas.length - salida_caben - salida_atras
+    if i < desde
+        salida_atras = salida_atras_valido(salida_lineas.length - salida_caben - i)
+    end
 end
 
 # La línea de la salida en la y de la zona; -1 si no hay

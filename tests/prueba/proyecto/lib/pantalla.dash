@@ -1,0 +1,5 @@
+# Los textos de la pantalla
+func titulo(t: String) -> String
+    r = "== " + t + " =="
+    return r
+end

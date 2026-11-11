@@ -1,0 +1,165 @@
+# Salir de Forja con algo en marcha: un programa que tarda, ejecutándose, y otro parado en el depurador. Al salir no
+# debe quedar nada vivo (ni el programa ni Forja). Este usuario de prueba arranca Forja él mismo (DH0:Prueba/Forja) dos
+# veces; lo lanza tests/salir.sh. Anota en DH0:Prueba/salir.txt y acaba con "TODO BIEN" si todo fue bien.
+
+const AMIGA = 8
+const CTRL = 2
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const F9 = 0x58
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/salir.txt", registro)
+    Print texto
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# Las tareas de ahora que tengan ese texto en el nombre o en la orden
+func vivas(texto: String) -> String
+    t = ""
+    n = tasks_read()
+    i = 0
+    while i < n
+        nombre = task_entry_name(i)
+        orden = task_entry_command(i)
+        if str_contains(str_lower(nombre), texto) or str_contains(str_lower(orden), texto)
+            t = t + nombre + " (" + orden + ") "
+        end
+        i = i + 1
+    end
+    return t
+end
+
+func todas() -> String
+    t = ""
+    n = tasks_read()
+    i = 0
+    while i < n
+        t = t + task_entry_name(i) + "/" + task_entry_command(i) + "; "
+        i = i + 1
+    end
+    return t
+end
+
+# Arranca Forja y espera a su ventana
+func arrancar() -> Bool
+    env_set("FORJA_EDITOR", "", false)
+    env_set("FORJA_ESTADO", "", false)
+    run_command("Run >NIL: DH0:Prueba/Forja")
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    time_delay(20)
+    return n < 600
+end
+
+# Espera a que no quede Forja (hasta 20 s)
+func esperar_fin() -> Bool
+    n = 0
+    while n < 100 and window_find("Forja") != 0
+        time_delay(10)
+        n = n + 1
+    end
+    time_delay(100)
+    return window_find("Forja") == 0
+end
+
+func esperar_estado(e: String) -> Bool
+    n = 0
+    while n < 900 and env_get("FORJA_ESTADO") != e
+        time_delay(10)
+        n = n + 1
+    end
+    return env_get("FORJA_ESTADO") == e
+end
+
+Main
+    anotar("antes: " + todas())
+    # 1. salir mientras se ejecuta un programa que tarda
+    if not arrancar()
+        ver("Forja arranca", false, "")
+    else
+        al_editor()
+        input_key(0x12, AMIGA)
+        ver("se ejecuta", esperar_estado("ejecutando"), env_get("FORJA_ESTADO"))
+        time_delay(150)
+        ver("el programa corre", vivas("espera") != "", todas())
+        al_editor()
+        input_key(0x10, AMIGA)
+        ver("Forja se cierra ejecutando", esperar_fin(), "")
+        ver("sin el programa vivo", vivas("espera") == "", vivas("espera"))
+        ver("sin Forja viva", vivas("forja") == "", vivas("forja"))
+    end
+    # 2. salir con el programa parado en el depurador
+    if not arrancar()
+        ver("Forja arranca otra vez", false, "")
+    else
+        al_editor()
+        input_key(ARRIBA, CTRL)
+        input_key(ABAJO, 0)
+        input_key(ABAJO, 0)
+        input_key(F9, 0)
+        input_key(0x24, AMIGA)
+        n = 0
+        while n < 900 and not str_starts(env_get("FORJA_DEPURAR"), "3 ")
+            time_delay(10)
+            n = n + 1
+        end
+        ver("parado en el depurador", str_starts(env_get("FORJA_DEPURAR"), "3 "), env_get("FORJA_DEPURAR"))
+        anotar("depurando: " + vivas("espera"))
+        activar()
+        al_editor()
+        input_key(0x10, AMIGA)
+        ver("Forja se cierra depurando", esperar_fin(), "")
+        ver("sin el programa vivo tras depurar", vivas("espera") == "", vivas("espera"))
+        ver("sin Forja viva tras depurar", vivas("forja") == "", vivas("forja"))
+    end
+    anotar("después: " + todas())
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+end

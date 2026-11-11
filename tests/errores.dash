@@ -1,0 +1,110 @@
+# Un programa que falla al ejecutarse dentro de un módulo (tests/prueba/errores: un campo de nil en util.dash): la
+# salida enseña el error en rojo y un clic en él lleva a util.dash, a su línea. Lo arranca tests/errores.sh; anota en
+# DH0:Prueba/errores.txt y acaba con "TODO BIEN" si todo fue bien.
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/errores.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String) -> Bool
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+    return cierto
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func sonda() -> [String]
+    n = 0
+    while n < 30
+        c = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
+        if c.length >= 3 and c[0] != "" and c[2] != ""
+            return c
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return ["?", "?", "?"]
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and env_get("FORJA_SALIDA") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        time_delay(20)
+        input_move(campo("FORJA_EDITOR", 0) + 50, campo("FORJA_EDITOR", 1) + 50)
+        time_delay(5)
+        input_key(0x12, AMIGA)
+        k = 0
+        while k < 900 and not str_contains(leer("RAM:forja-salida.txt"), "acabó con código")
+            time_delay(10)
+            k = k + 1
+        end
+        s = leer("RAM:forja-salida.txt")
+        ver("el programa falla con código 20", str_contains(s, "acabó con código 20"), s)
+        lineas = str_split(s, "\n")
+        i = 0
+        error = -1
+        while i < lineas.length
+            if str_starts(lineas[i], "Error: ")
+                error = i
+            end
+            i = i + 1
+        end
+        if ver("el error sale en la salida", error >= 0, s)
+            anotar("  " + lineas[error])
+            time_delay(30)
+            fila = campo("FORJA_SALIDA", 2)
+            y = campo("FORJA_SALIDA", 1) + (error - campo("FORJA_SALIDA", 3)) * fila + fila / 2
+            input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
+            time_delay(40)
+            c = sonda()
+            ver("un clic en el error lleva a util.dash, a la línea 7", c[2] == "util.dash" and c[0] == "6", c[0] + " " + c[2] + "; salida " + env_get("FORJA_SALIDA") + ", fila del error #{error}, clic en y=#{y}")
+        end
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+    activar()
+    input_move(campo("FORJA_EDITOR", 0) + 50, campo("FORJA_EDITOR", 1) + 50)
+    time_delay(5)
+    input_key(0x10, AMIGA)
+end

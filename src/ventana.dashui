@@ -103,7 +103,7 @@
           },
           { "type": "balance", "name": "balance_salida" },
           {
-            "type": "hgroup", "name": "grupo_salida", "weight": 60,
+            "type": "hgroup", "name": "grupo_salida", "weight": 25,
             "children": [
               { "type": "canvas", "name": "salida", "min_width": 240, "min_height": 44 },
               { "type": "scrollbar", "name": "barra_salida", "vertical": true, "change": 9 }
