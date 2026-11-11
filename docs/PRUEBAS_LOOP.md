@@ -92,3 +92,32 @@ Rama: `clic-depurar`.
   - `tests/sesion.sh` (nuevo): abrir lo de la última vez y cerrar con cambios (Descartar).
     - Con un fichero de la sesión en un disco que no está, Forja se quedaba esperando en "Inserta el volumen" al
       arrancar. Ahora `sesion_abrir` lo hace sin esos requesters (`dos_requesters(false)`) y salta lo que no está.
+- 2026-11-11:
+  - `tests/sprites_cebolla.sh` fallaba también con la 0.6.0: la celda del sprite mide 4 píxeles en 640x256, y el punto
+    de la cebolla no cae en el píxel del centro. La prueba ahora busca en toda la celda.
+  - `tests/sprites_forja.sh`: desde un sprite se compila main.dash, el programa de red.dash, que es un módulo.
+  - `tests/clic.sh` también prueba arrastrar para elegir: de la línea 2 a la 3, comprobado con ARexx SELECCION.
+  - Las 25 pruebas de Forja pasan con el Dash de `ctrl-c`. Repaso a ojo en 3.2 con RTG: bien.
+  - Ctrl-C en Dash, coste medido con 300.000 vueltas:
+    - En cada vuelta de todo bucle, un `while` que cuenta pasaba de 232 a 825 ms en A1200 (3,5x).
+    - Ahora solo lo miran los `while` que pueden no acabar. Los `for` y los `while` que cuentan no pagan nada.
+    - El peor caso es un `while` que no cuenta y sin llamadas: de 522 a 1173 ms en A1200 sin memoria Fast, y de 2168 a
+      4155 ms en A500. Con alguna llamada dentro no se nota.
+  - Batería de Dash: 97 "timeout" seguidos a partir de `test_string_memory`, que sola pasa. Cada máquina tiene un tope
+    de tiempo por arranque (360 s en A1200, 700 s en A500), y el coste de antes lo sobrepasaba. Se repite con el
+    cambio.
+  - Topes de tiempo del runner de Dash: con main también fallaban las 30 últimas del A1200 por tiempo. Se suben en
+    la rama `ctrl-c` (A1200 540 s, A500 1100 s, OS 3.2 600 s), en un commit aparte.
+  - `tests/nuevo.sh` (nuevo): lo primero de alguien que empieza. Forja sin fichero, Amiga-N, escribir un programa
+    con if y else, Ejecutar, el requester de guardar (ASL: el primer Return reparte la ruta en Drawer y File, el
+    segundo acepta), compilar y ejecutar. Pasa.
+  - Sangría automática nueva, con las reglas de la extensión de VS Code:
+    - Return tras Main, func, if, else, while... entra un nivel.
+    - end, else y elif vuelven a la altura de su bloque, al escribir su última letra o al pulsar Return.
+    - `tests/teclas.sh` ahora escribe sin poner la sangría a mano.
+  - Fallo serio de Dash encontrado así: compilado con `./dash`, la sangría fallaba, y con `--gcc` iba bien.
+    - Una función con un bucle, copiada en línea a la izquierda de una resta, pisa el registro de la variable de la
+      derecha (`espacios(b) - v` da 0).
+    - Caso mínimo en scratchpad/repro/min.dash, pasado a freememlang-af, que lo arregla.
+    - En Forja se esquiva guardando antes la llamada en una variable.
+  - El título del requester de guardar ("Guardar ") ya se puede traducir.

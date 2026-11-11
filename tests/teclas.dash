@@ -54,7 +54,13 @@ func texto() -> String
 end
 
 func comprobar(paso: String, esperado: String)
+    # (Forja puede ir detrás de las teclas: hasta 3 s para que el texto llegue)
     t = texto()
+    n = 0
+    while t != esperado and n < 6
+        t = texto()
+        n = n + 1
+    end
     if t == esperado
         anotar("bien: " + paso)
     else
@@ -87,12 +93,11 @@ end
 Main
     if preparar()
         programa = "Main\n    Print \"hola\"\nend"
+        # (la sangría sigue los bloques: Return tras Main entra un nivel; end, al escribirlo, vuelve)
         input_text("Main")
         input_key(RETURN, 0)
-        input_key(TAB, 0)
         input_text("Print \"hola\"")
         input_key(RETURN, 0)
-        input_key(RETROCESO, 0)
         input_text("end")
         comprobar("escribir con sangría", programa)
 

@@ -685,13 +685,132 @@ func _espacios_delante(s: String) -> Int
     return n
 end
 
+# La primera palabra de una línea ya sin sangría ("func", "if", "end"...)
+func _primera_palabra(t: String) -> String
+    i = 0
+    while i < t.length and str_code(t, i) != 32 and str_code(t, i) != 40 and str_code(t, i) != 9
+        i = i + 1
+    end
+    return t[0:i]
+end
+
+# La línea sin el comentario del final (un " #" fuera de un texto) y sin blancos alrededor
+func _sin_nota(t: String) -> String
+    dentro = false
+    i = 0
+    while i < t.length
+        c = str_code(t, i)
+        if c == 34
+            dentro = not dentro
+        elif c == 35 and not dentro and (i == 0 or str_code(t, i - 1) == 32)
+            return str_trim(t[0:i])
+        end
+        i = i + 1
+    end
+    return str_trim(t)
+end
+
+# ¿Abre un bloque que acaba en end? (como increaseIndentPattern de la extensión de VS Code): func, if, elif, else,
+# while, for, struct, enum, Window, Main, EventLoop, On y @c, sin su end en la misma línea
+func _abre_bloque(linea: String) -> Bool
+    t = _sin_nota(linea)
+    p = _primera_palabra(t)
+    if str_starts(t, "@native") and str_contains(t, " func ")
+        p = "func"
+    end
+    for k in ["func", "if", "elif", "else", "while", "for", "struct", "enum", "Window", "Main", "EventLoop", "On", "@c"]
+        if p == k
+            return t != "end" and not str_ends(t, " end")
+        end
+    end
+    return false
+end
+
+# La línea con texto de antes de la n (desde 0), o -1
+func _anterior_con_texto(d: Documento, n: Int) -> Int
+    k = n - 1
+    while k >= 0 and str_trim(d.lineas[k]) == ""
+        k = k - 1
+    end
+    return k
+end
+
 func ed_nueva_linea(d: Documento)
     ed_borrar_seleccion(d)
-    sangria = _espacios_delante(d.lineas[d.cl])
+    linea = d.lineas[d.cl]
+    sangria = _espacios_delante(linea)
     if sangria > d.cc
         sangria = d.cc
     end
+    junto = false
+    # Return al final de una línea de código: la sangría sigue los bloques, como en la extensión de VS Code. Un end,
+    # else o elif vuelve a la altura de su bloque, y tras lo que abre un bloque (if, func, Main...) se entra un nivel.
+    if str_trim(linea[d.cc:]) == "" and str_trim(linea) != "" and es_codigo_dash(d)
+        if _bajar_cierre(d)
+            sangria = _espacios_delante(d.lineas[d.cl])
+            junto = true
+        end
+        if _abre_bloque(d.lineas[d.cl])
+            sangria = _espacios_delante(d.lineas[d.cl]) + SANGRIA
+        end
+    end
     _insertar(d, "\n" + _blancos(sangria), false)
+    if junto
+        d.deshacer[d.deshacer.length - 1].junto = true
+    end
+end
+
+# Un end, else o elif (la línea del cursor, el cursor al final) a la altura de su bloque: la de la línea de antes si
+# esa abre un bloque, si no un nivel menos. Solo baja, nunca sube. true si cambió algo (un paso de deshacer).
+func _bajar_cierre(d: Documento) -> Bool
+    linea = d.lineas[d.cl]
+    p = _primera_palabra(str_trim(linea))
+    if p != "end" and p != "else" and p != "elif"
+        return false
+    end
+    k = _anterior_con_texto(d, d.cl)
+    if k < 0
+        return false
+    end
+    # (la sangría de la línea, antes que la otra: con "_espacios_delante(linea) - objetivo", ./dash de Dash 2.10 copia
+    # en línea la función en el registro de objetivo, y la resta da 0)
+    actual = _espacios_delante(linea)
+    objetivo = _espacios_delante(d.lineas[k])
+    if not _abre_bloque(d.lineas[k])
+        objetivo = objetivo - SANGRIA
+    end
+    if objetivo < 0
+        objetivo = 0
+    end
+    quitar = actual - objetivo
+    if quitar <= 0
+        return false
+    end
+    cc = d.cc
+    d.al = d.cl
+    d.ac = 0
+    d.cc = quitar
+    ed_escribir(d, "")
+    d.cc = cc - quitar
+    return true
+end
+
+# Al escribir la última letra de un end, else o elif solos en su línea, baja a la altura de su bloque (como en VS
+# Code); deshacer (un paso) lo deja como estaba
+func ed_tras_letra(d: Documento, letra: String)
+    if (letra != "d" and letra != "e" and letra != "f") or not es_codigo_dash(d)
+        return
+    end
+    t = str_trim(d.lineas[d.cl])
+    if d.cc != d.lineas[d.cl].length or (t != "end" and t != "else" and t != "elif")
+        return
+    end
+    _bajar_cierre(d)
+end
+
+# La sangría de los bloques, solo en el código de Dash (no en un .dashui ni en otro texto)
+func es_codigo_dash(d: Documento) -> Bool
+    return d.sprite == nil and d.mapa == nil and not d.diseno and not str_ends(str_lower(d.nombre), ".dashui")
 end
 
 func ed_tabulador(d: Documento)
@@ -979,6 +1098,7 @@ func ed_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
         d.al = -1
     elif letra != "" and str_code(letra, 0) >= 32 and str_code(letra, 0) != 127
         ed_escribir(d, letra)
+        ed_tras_letra(d, letra)
     else
         return false
     end

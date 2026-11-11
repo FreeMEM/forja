@@ -355,7 +355,7 @@ func guardar_como(d: Documento) -> Bool
     elif d.mapa != nil
         patron = "#?.fmap"
     end
-    if not file_save_dialog("Guardar " + d.nombre, patron)
+    if not file_save_dialog(tr(458, "Guardar ") + d.nombre, patron)
         return false
     end
     return guardar_en(d, file_fullpath())

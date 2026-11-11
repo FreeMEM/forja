@@ -1,4 +1,4 @@
-## version $VER: Forja.catalog 1.0 (10.11.2026)
+## version $VER: Forja.catalog 1.0 (11.11.2026)
 ## language english
 ## codeset 0
 ;
@@ -1049,3 +1049,6 @@ Forja will close when it ends. If it has a window, close it.
 MSG_457
 _Quit|_Don't quit
 ; _Salir|_No salir
+MSG_458
+Save 
+; Guardar 
