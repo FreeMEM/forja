@@ -17,11 +17,11 @@ Rama: `clic-depurar`.
 
 ## Plan
 
-1. [ ] Los dos de David: clic en el editor depurando (`tests/clic.sh`) y clic en el panel de las variables.
-2. [ ] Proyecto de varios ficheros en un cajón con espacio (`tests/proyecto.sh`): ejecutar desde un módulo, guardar
+1. [x] Los dos de David: clic en el editor depurando (`tests/clic.sh`) y clic en el panel de las variables.
+2. [x] Proyecto de varios ficheros en un cajón con espacio (`tests/proyecto.sh`): ejecutar desde un módulo, guardar
    al ejecutar, error en otro fichero, depurar entre ficheros.
-3. [ ] Todas las pruebas que ya había, con lo nuevo.
-4. [ ] Más casos de uso:
+3. [x] Todas las pruebas que ya había, con lo nuevo.
+4. [x] Más casos de uso:
    - ficheros largos (más de 1000 líneas): escribir, rueda, barra, buscar;
    - cerrar pestañas con cambios y depurando;
    - error de ejecución en un módulo (código 20, el sitio);
@@ -33,7 +33,7 @@ Rama: `clic-depurar`.
    - cambiar un fichero mientras se depura;
    - seleccionar con el ratón y arrastrar;
    - deshacer muchas veces.
-5. [ ] Lo que salga de mirar con capturas (lo que una prueba no ve: parpadeos, cosas mal pintadas).
+5. [x] Lo que salga de mirar con capturas (lo que una prueba no ve: parpadeos, cosas mal pintadas).
 
 ## Bitácora
 
@@ -121,3 +121,27 @@ Rama: `clic-depurar`.
     - Caso mínimo en scratchpad/repro/min.dash, pasado a freememlang-af, que lo arregla.
     - En Forja se esquiva guardando antes la llamada en una variable.
   - El título del requester de guardar ("Guardar ") ya se puede traducir.
+  - Con el Dash de `ctrl-c`, las 26 pruebas de Forja pasan menos `salir`.
+    - El programa de esa prueba es un `for` con `time_delay`, y ya no miraba Ctrl-C.
+    - Arreglo: un bucle que llama a algo (función, builtin, Print) siempre lo mira. Al lado de la llamada no cuesta
+      nada.
+    - Un `for` o un `while` que cuenta, sin llamadas, sigue sin mirarlo. El bucle de prueba sigue en 231 ms.
+    - `test_ctrl_c` tiene un hijo "lento", un `for` con `time_delay`.
+  - freememlang-af arregló el fallo de registros en la rama `copia-registros` (c6adf97, sin subir).
+  - `REAL=1 tests/grande.sh`, con la CPU a la velocidad de un A1200 (68020 a 14 MHz, 8 MB de Fast) en vez de al
+    máximo:
+    - Dibujo entero: 58 ms. Una línea al escribir: 48 ms. Compilar y ejecutar 1505 líneas: 9,9 s. Todo bien.
+    - El bucle de prueba casi no cambia (232 ms al máximo y 260 ms a velocidad real), así que las medidas de antes
+      ya se parecían a un A1200 con Fast.
+  - Última vuelta, con el Dash de `ctrl-c`: batería de Dash 1483/1483, `dashc/tests` bien y las 26 pruebas de Forja
+    con TODO BIEN. Sin fallos nuevos: el bucle acaba aquí.
+
+## Lo que queda (para el usuario)
+
+- Publicar:
+  - Dash con Ctrl-C (rama `ctrl-c` de FreeMEMLang, 3 commits, más el arreglo de registros de freememlang-af en
+    `copia-registros`).
+  - Forja 0.6.1 (rama `clic-depurar`). Parar y Salir necesitan el Dash con Ctrl-C.
+- Decidir si vale el coste de Ctrl-C en un `while` muy apretado sin llamadas (hasta el doble), o se busca otra forma.
+- Sin probar: Forja abierta desde el Workbench con un icono de proyecto, y la actualización contra GitHub desde un
+  Amiga de verdad.
