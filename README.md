@@ -64,7 +64,11 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   marcha, lo para antes.
 - **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen; F5 seguir, F10 paso, F6 entrar, F7
   salir, con el puntero en cualquier sitio de la ventana, salvo si un campo de texto u otro gadget tiene el teclado
-  (lo contó David Martínez). A la izquierda, la pila y las variables. Al parar,
+  (lo contó David Martínez). A la izquierda, la pila y las variables, en árbol: un clic en el triángulo de una lista
+  o de un struct lo despliega (un elemento o un campo por línea, con sangría por nivel) y otro lo pliega; lo
+  desplegado sigue así entre pasos mientras la variable exista. Una lista enseña 100 elementos y "... N más" trae los
+  siguientes. El panel se mueve a lo alto y a lo ancho con sus barras, la rueda (con Mayúsculas, a lo ancho) y las
+  flechas (con Mayúsculas, de página en página) (idea de David Martínez). Al parar,
   Forja se pone delante: la ventana del programa se queda el teclado al abrirse. Si la línea de la parada ya se ve,
   el código no se mueve ni se repinta entero, ni salta al hacer clic en él o en las variables (lo contó David
   Martínez).

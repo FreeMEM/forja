@@ -1,0 +1,279 @@
+# Hace de usuario del árbol de las variables del depurador de Forja (idea de David Martínez): para en la línea 23
+# de arbol/main.dash, despliega con clics el struct nave y su campo pos (un struct dentro de otro), se desplaza a lo
+# ancho con las flechas y con la barra de abajo, da un paso (F5) y mira que lo desplegado sigue así, despliega la
+# lista de 150 números (enseña 100 y "... 50 más": un clic, el resto), baja con las flechas, despliega la lista de
+# naves y una de ellas, y pliega nave. Al acabar, el panel vuelve a ser el de los ficheros. Sale con Amiga-Q.
+# Lo arranca tests/arbol.sh; anota en DH0:Prueba/arbol.txt y guarda capturas (desplegado.png, ancho.png, lista.png).
+
+const AMIGA = 8
+const CTRL = 2
+const MAYUS = 1
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const DERECHA = 0x4E
+const IZQUIERDA = 0x4F
+const F5 = 0x54
+const F9 = 0x58
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/arbol.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+# Una variable de ENV: que Forja puede estar escribiendo justo ahora (entonces sale vacía): otra vez
+func leer(nombre: String) -> String
+    t = env_get(nombre)
+    n = 0
+    while t == "" and n < 10
+        time_delay(5)
+        t = env_get(nombre)
+        n = n + 1
+    end
+    return t
+end
+
+func variables() -> String
+    return leer("FORJA_VARIABLES")
+end
+
+# Espera a que las variables tengan ese texto (como mucho 5 s); da lo que haya
+func esperar_variables(que: String) -> String
+    n = 0
+    while n < 50
+        t = variables()
+        if str_contains(t, que)
+            return t
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return variables()
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(leer(nombre), " ")[i])
+end
+
+# FORJA_ARBOL: zona x, y, ancho, alto; primera fila, desplazado, alto de fila, lo ancho, lo que cabe; la y de cada fila
+func arbol(i: Int) -> Int
+    return campo("FORJA_ARBOL", i)
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+func al_panel()
+    input_move(arbol(0) + arbol(2) / 2, arbol(1) + arbol(3) / 2)
+    time_delay(5)
+end
+
+func esperar_parada(que: String) -> String
+    n = 0
+    while n < 900
+        e = env_get("FORJA_DEPURAR")
+        if str_starts(e, que)
+            return e
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return env_get("FORJA_DEPURAR")
+end
+
+# La fila (desde 0) que empieza por ese texto en el panel; -1 si no está
+func fila_de(inicio: String) -> Int
+    filas = str_split(variables(), "|")
+    i = 0
+    while i < filas.length
+        if str_starts(filas[i], inicio)
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Que se vea la fila i: con las flechas (Mayúsculas: de página en página) sobre el panel
+func a_la_vista(i: Int) -> Bool
+    n = 0
+    while n < 40
+        a = str_split(leer("FORJA_ARBOL"), " ")
+        desde = Int(a[4])
+        caben = a.length - 9
+        if i >= desde and i < desde + caben
+            return true
+        end
+        al_panel()
+        if i < desde
+            input_key(ARRIBA, MAYUS)
+        else
+            input_key(ABAJO, MAYUS)
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return false
+end
+
+# Un clic en la fila que empieza por ese texto (llevándola a la vista antes); falso si no está
+func clic_fila(inicio: String) -> Bool
+    i = fila_de(inicio)
+    if i < 0 or not a_la_vista(i)
+        anotar("  (no está a la vista: " + inicio + ")")
+        return false
+    end
+    a = str_split(leer("FORJA_ARBOL"), " ")
+    y = Int(a[1]) + Int(a[9 + i - Int(a[4])]) + Int(a[6]) / 2
+    x = Int(a[0]) + 30
+    input_move(x, y)
+    time_delay(5)
+    input_click(x, y, 0)
+    time_delay(20)
+    return true
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        # 1. un punto de parada en la línea 23 (dentro del while) y a depurar
+        al_editor()
+        input_key(ARRIBA, CTRL)
+        k = 0
+        while k < 22
+            input_key(ABAJO, 0)
+            k = k + 1
+        end
+        input_key(F9, 0)
+        input_key(0x24, AMIGA)
+        e = esperar_parada("3 23 ")
+        ver("para en el punto de la línea 23", str_starts(e, "3 23 Main"), e)
+        vs = variables()
+        ver("plegado: nave, numeros y flota con su +", str_contains(vs, "|+ nave = Nave(nombre: ") and str_contains(vs, "|+ numeros = [0, 2, 4, ") and str_contains(vs, "|+ flota = [Nave(") and str_contains(vs, "|j = 0|"), vs)
+
+        # 2. nave: sus campos (el nombre lleva una coma dentro de las comillas)
+        clic_fila("+ nave = ")
+        vs = esperar_variables("|- nave: Nave|")
+        ver("nave desplegada, campo a campo", str_contains(vs, "|- nave: Nave|  nombre = \"Halc") and str_contains(vs, "variables\"|  + pos = Punto(x: 3, y: 4)|  + carga = [10, 20, 30]|"), vs)
+        clic_fila("  + pos = ")
+        vs = esperar_variables("|  - pos: Punto|")
+        ver("pos desplegado dentro de nave", str_contains(vs, "|  - pos: Punto|    x = 3|    y = 4|  + carga"), vs)
+        clic_fila("  + carga = ")
+        vs = esperar_variables("|  - carga: [Int] (3)|")
+        ver("la lista carga, un elemento por línea", str_contains(vs, "|  - carga: [Int] (3)|    [0] = 10|    [1] = 20|    [2] = 30|+ numeros"), vs)
+        time_delay(100)
+        screen_save_png("DH0:Prueba/desplegado.png")
+
+        # 3. a lo ancho: el nombre no cabe
+        ver("lo desplegado no cabe a lo ancho", arbol(7) > arbol(8), leer("FORJA_ARBOL"))
+        al_panel()
+        input_key(DERECHA, 0)
+        input_key(DERECHA, 0)
+        time_delay(20)
+        ver("las flechas lo llevan a la derecha", arbol(5) == 8, leer("FORJA_ARBOL"))
+        time_delay(50)
+        screen_save_png("DH0:Prueba/ancho.png")
+        input_key(IZQUIERDA, MAYUS)
+        time_delay(20)
+        ver("Mayúsculas + izquierda, al principio", arbol(5) == 0, leer("FORJA_ARBOL"))
+        # la barra de abajo: un clic a su derecha avanza una página
+        bx = arbol(0) + arbol(2) * 2 / 3
+        by = arbol(1) + arbol(3) + 5
+        input_move(bx, by)
+        time_delay(5)
+        input_click(bx, by, 0)
+        time_delay(30)
+        ver("la barra de abajo lo mueve", arbol(5) > 0, leer("FORJA_ARBOL"))
+        al_panel()
+        input_key(IZQUIERDA, MAYUS)
+        time_delay(20)
+
+        # 4. un paso: lo desplegado sigue desplegado
+        input_key(F5, 0)
+        e = esperar_parada("3 23 ")
+        vs = esperar_variables("|j = 1|")
+        ver("F5: otra vez en la 23 con j = 1", str_starts(e, "3 23 Main") and str_contains(vs, "|j = 1|"), e + " " + vs)
+        ver("F5: nave, pos y carga siguen desplegados", str_contains(vs, "|- nave: Nave|") and str_contains(vs, "|  - pos: Punto|    x = 3|") and str_contains(vs, "|  - carga: [Int] (3)|"), vs)
+
+        # 5. una lista larga: 100 elementos y "... 50 más"
+        clic_fila("+ numeros = ")
+        vs = esperar_variables("|- numeros: [Int] (150)|")
+        ver("numeros desplegada: 100 y ... 50 más", str_contains(vs, "|- numeros: [Int] (150)|  [0] = 0|  [1] = 2|") and str_contains(vs, "|  [99] = 198|  ... 50 más|"), vs)
+        clic_fila("  ... 50 más")
+        vs = esperar_variables("|  [149] = 298|")
+        ver("un clic en ... 50 más: el resto", str_contains(vs, "|  [148] = 296|  [149] = 298|") and not str_contains(vs, "más|"), vs)
+        ver("abajo con las flechas", arbol(4) > 0, leer("FORJA_ARBOL"))
+        time_delay(50)
+        screen_save_png("DH0:Prueba/lista.png")
+        clic_fila("- numeros: ")
+        vs = esperar_variables("|+ numeros = ")
+        ver("numeros plegada", not str_contains(vs, "|  [149] = 298|"), vs)
+
+        # 6. una lista de structs y uno de ellos
+        clic_fila("+ flota = ")
+        vs = esperar_variables("|- flota: [Nave] (2)|")
+        ver("flota: una nave por línea", str_contains(vs, "|- flota: [Nave] (2)|  + [0] = Nave(nombre: \"Halc") and str_contains(vs, "|  + [1] = Nave(nombre: \"Bicho\", pos: Punto(x: 5, y: 6), carga: [])|"), vs)
+        clic_fila("  + [1] = ")
+        vs = esperar_variables("|  - [1]: Nave|")
+        ver("flota[1] por dentro (la lista vacía no se despliega)", str_contains(vs, "|  - [1]: Nave|    nombre = \"Bicho\"|    + pos = Punto(x: 5, y: 6)|    carga = []|"), vs)
+
+        # 7. plegar nave: fuera sus campos
+        clic_fila("- nave: ")
+        vs = esperar_variables("|+ nave = ")
+        ver("nave plegada", not str_contains(vs, "|  nombre = \"Halc") and str_contains(vs, "|- flota: [Nave] (2)|"), vs)
+        # un clic en j (no se despliega) no cambia nada ni abre nada
+        antes = variables()
+        clic_fila("j = ")
+        ver("un clic en j no cambia nada", variables() == antes and str_starts(leer("FORJA_DEPURAR"), "3 23 "), variables())
+
+        # 8. hasta el final: el panel vuelve a ser el de los ficheros
+        input_key(F5, 0)
+        vs = esperar_variables("|j = 2|")
+        ver("F5: j = 2, con flota y flota[1] aún desplegados", str_contains(vs, "|- flota: [Nave] (2)|") and str_contains(vs, "|  - [1]: Nave|"), vs)
+        input_key(F5, 0)
+        e = esperar_parada("4 ")
+        ver("F5: acaba", str_starts(e, "4 "), e)
+        n = 0
+        while n < 50 and env_get("FORJA_FICHEROS") == "(depurando)"
+            time_delay(10)
+            n = n + 1
+        end
+        ver("vuelve la lista de ficheros", str_contains(env_get("FORJA_FICHEROS"), "main.dash"), env_get("FORJA_FICHEROS"))
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    al_editor()
+    input_key(0x10, AMIGA)
+end

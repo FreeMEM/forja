@@ -92,7 +92,13 @@
               {
                 "type": "hgroup", "weight": 25,
                 "children": [
-                  { "type": "canvas", "name": "proyecto", "min_width": 100, "min_height": 80 },
+                  {
+                    "type": "vgroup",
+                    "children": [
+                      { "type": "canvas", "name": "proyecto", "min_width": 100, "min_height": 80 },
+                      { "type": "scrollbar", "name": "barra_variables", "vertical": false, "change": 23 }
+                    ]
+                  },
                   { "type": "scrollbar", "name": "barra_proyecto", "vertical": true, "change": 18 }
                 ]
               },

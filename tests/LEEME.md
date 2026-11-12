@@ -73,6 +73,13 @@ deshace (en un paso), rehace y guarda; después añade un objeto, lo mueve, lo q
 `tests/depurar.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/depurar.dash` pone un punto de parada con F9,
 depura (Amiga-G) y comprueba la línea, la pila y las variables con F10, F5, F6 y F7, y la salida al acabar.
 
+`tests/arbol.sh <worktree de Dash> <cajón con dashc.amiga> [captura.png]`: `tests/arbol.dash` prueba el árbol de las
+variables (idea de David Martínez) con `tests/prueba/arbol/main.dash`: despliega con clics un struct, uno dentro de
+otro y listas (la de 150 números enseña 100 y "... 50 más"), se desplaza a lo ancho con las flechas y con la barra
+de abajo y a lo alto con las flechas, y mira que lo desplegado sigue así tras F5. `ENV:FORJA_ARBOL` (con la sonda)
+da la zona del panel y la y de cada fila. Con `captura.png`, guarda `captura-desplegado.png`, `captura-ancho.png` y
+`captura-lista.png` (las hace el propio Amiga); `RTG=1`, en AmigaOS 3.2 con tarjeta gráfica (ventana grande y colores).
+
 `tests/depurar_ventana.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/depurar_ventana.dash` depura
 `tests/prueba/gravedad/main.dash` (`examples/fixed_gravedad.dash` de Dash, que abre su propia ventana): para en la
 línea 42, comprueba que Forja vuelve a ser la ventana activa (la del programa se queda el teclado al abrirse) y que F10
