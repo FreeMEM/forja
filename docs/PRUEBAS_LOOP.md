@@ -138,10 +138,13 @@ Rama: `clic-depurar`.
 
 ## Lo que queda (para el usuario)
 
-- Publicar:
-  - Dash con Ctrl-C (rama `ctrl-c` de FreeMEMLang, 3 commits, más el arreglo de registros de freememlang-af en
-    `copia-registros`).
-  - Forja 0.6.1 (rama `clic-depurar`). Parar y Salir necesitan el Dash con Ctrl-C.
-- Decidir si vale el coste de Ctrl-C en un `while` muy apretado sin llamadas (hasta el doble), o se busca otra forma.
+- Hecho el 2026-11-12: Dash 2.11.0 (PR #160, Ctrl-C con coste de +16 % en A1200 en el peor bucle) y Forja 0.6.1
+  publicadas.
 - Sin probar: Forja abierta desde el Workbench con un icono de proyecto, y la actualización contra GitHub desde un
   Amiga de verdad.
+
+## Ideas pedidas
+
+- **Variables del depurador en árbol** (David Martínez, grupo Dash Amiga, 2026-11-12): las listas se despliegan hacia
+  abajo, los structs también (campo a campo), y el panel se desplaza en horizontal además de en vertical cuando lo
+  desplegado no cabe. Al hacerlo: su nombre en el commit, en las notas de la versión y en "Gracias" de la web.
