@@ -53,7 +53,7 @@
 # ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen"; RAM:forja-vistas.txt, la primera línea de cada dibujo entero; ENV:FORJA_FICHEROS, "cajón|fila|fila..." del panel del proyecto.
 
 @catalog "Forja.catalog" 1 "español"
-@version "Forja 0.6.1"
+@version "Forja 0.6.2"
 
 import "tema.dash"
 import "editor.dash"
@@ -62,7 +62,7 @@ import "actualizar.dash"
 import "botones.dash"
 import "ventana.dashui"
 
-const VERSION = "0.6.1"
+const VERSION = "0.6.2"
 
 const EV_COMPILAR = 10
 const EV_EJECUTAR = 11
