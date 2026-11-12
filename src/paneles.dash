@@ -12,9 +12,37 @@ var proyecto_zona_x: Int = 0
 var proyecto_zona_y: Int = 0
 var proyecto_desde: Int = 0             # la primera entrada que se ve (la barra y la rueda la mueven)
 var proyecto_caben: Int = 1             # las que caben a la vez
-# Al depurar, el panel del proyecto enseña la pila y las variables (estas líneas)
-var depuracion_lineas: [String] = []
-var depuracion_tipos: [Int] = []      # 0 título, 1 normal, 2 la de ahora
+# Al depurar, el panel del proyecto enseña la pila y las variables, en árbol: las listas y los structs se
+# despliegan con un clic (idea de David Martínez)
+struct FilaDep
+    texto: String       # el título, la línea de la pila o el nombre ("lista", "[0]", "x")
+    tipo: Int           # 0 título, 1 pila, 2 la llamada de ahora, 3 variable, 4 "más elementos" de una lista
+    nivel: Int          # la sangría: 0 las variables, 1 sus elementos o campos...
+    expr: String        # lo que se pide a dbg_value ("lista[0].x")
+    clave: String       # la de depuracion_abiertos: "Main:lista[0]" ("*:" una global)
+    tipo_dash: String   # "Int", "[Nave]", "Nave"
+    valor: String       # el texto de dbg_value, si ya se pidió (solo se pide el de lo que se ve)
+    leido: Bool
+    total: Int          # una lista desplegada: cuántos elementos tiene
+end
+
+const DEP_ELEMENTOS = 100     # los elementos de una lista que se enseñan al desplegarla (y cada vez que se piden más)
+const DEP_SANGRIA = 12        # los píxeles de cada nivel
+const DEP_MARCA = 10          # el sitio del triángulo, delante de cada variable
+
+var depuracion: [FilaDep] = []
+var depuracion_abiertos: {String: Int} = {}   # lo desplegado, por su clave (en una lista, los elementos que se ven)
+var depuracion_desde: Int = 0       # la primera fila que se ve (la barra, la rueda y las flechas la mueven)
+var depuracion_caben: Int = 1
+var depuracion_dx: Int = 0          # lo desplazado a la derecha, en letras
+var depuracion_ancho: Int = 0       # la fila más ancha de las leídas, en letras
+var depuracion_ancho_caben: Int = 1 # las letras que caben a lo ancho
+var depuracion_ys: [Int] = []       # la y (desde la esquina de la zona) de cada fila que se ve, desde la primera
+var depuracion_fila: Int = 10
+var depuracion_zona_x: Int = 0
+var depuracion_zona_y: Int = 0
+var depuracion_zona_ancho: Int = 0
+var depuracion_zona_alto: Int = 0
 var salida_lineas: [String] = []
 var salida_tipos: [Int] = []      # 0 normal, 1 error, 2 bien
 var salida_rutas: [String] = []   # el fichero de un error ("" si no es un error con sitio)
@@ -296,7 +324,7 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_mode(0)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
-    if depuracion_lineas.length > 0
+    if depuracion.length > 0
         _depuracion_dibujar(x, y, ancho, alto)
         return
     end
@@ -338,26 +366,424 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
 end
 
 func _depuracion_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    usar_codigo()
+    fila = alto_letra + 2
+    depuracion_fila = fila
+    depuracion_zona_x = x
+    depuracion_zona_y = y
+    depuracion_zona_ancho = ancho
+    depuracion_zona_alto = alto
+    depuracion_ancho_caben = (ancho - 16) / ancho_letra
+    if depuracion_ancho_caben < 1
+        depuracion_ancho_caben = 1
+    end
+    _dep_medir()
+    depuracion_desde = dep_desde_valido(depuracion_desde)
+    depuracion_dx = dep_dx_valido(depuracion_dx)
+    dx = depuracion_dx * ancho_letra
+    depuracion_ys.clear()
     fy = y + 2
-    i = 0
-    while i < depuracion_lineas.length
-        if depuracion_tipos[i] == 0
-            _titulo(x, fy, ancho, depuracion_lineas[i])
-            fy = fy + TITULO_ALTO + 2
-        else
+    i = depuracion_desde
+    while i < depuracion.length
+        f = depuracion[i]
+        h = fila
+        if f.tipo == 0
+            h = TITULO_ALTO + 2
+        end
+        if fy + h > y + alto and depuracion_ys.length > 0
+            break
+        end
+        depuracion_ys.push(fy - y)
+        if f.tipo == 0
+            _titulo(x, fy, ancho, f.texto)
             usar_codigo()
-            if fy + alto_letra + 2 > y + alto
-                return
+        else
+            tx = x + 8 - dx
+            if f.tipo >= 3
+                tx = tx + f.nivel * DEP_SANGRIA
+                if dep_desplegable(f)
+                    _dep_triangulo(tx, fy + (fila - 7) / 2, dep_abierta(f))
+                end
+                tx = tx + DEP_MARCA
             end
             gfx_pen(tema.texto)
-            if depuracion_tipos[i] == 2
+            if f.tipo == 2
                 gfx_pen(tema.cursor)
+            elif f.tipo == 4
+                gfx_pen(tema.acento)
             end
-            gfx_text_at(x + 8, fy + base_letra, depuracion_lineas[i])
-            fy = fy + alto_letra + 2
+            gfx_text_at(tx, fy + base_letra, dep_texto(f))
+        end
+        fy = fy + h
+        i = i + 1
+    end
+    depuracion_caben = depuracion_ys.length
+    if depuracion_caben < 1
+        depuracion_caben = 1
+    end
+    # lo que se acaba de leer puede ser más ancho (para la barra de abajo)
+    _dep_medir()
+end
+
+# Un triángulo delante de una lista o un struct: hacia la derecha plegado, hacia abajo desplegado
+func _dep_triangulo(tx: Int, ty: Int, abierto: Bool)
+    gfx_pen(tema.acento)
+    k = 0
+    while k < 4
+        if abierto
+            gfx_line(tx + k, ty + 2 + k, tx + 6 - k, ty + 2 + k)
+        else
+            gfx_line(tx + 1 + k, ty + k, tx + 1 + k, ty + 6 - k)
+        end
+        k = k + 1
+    end
+end
+
+# La fila más ancha de las que ya tienen su valor, en letras
+func _dep_medir()
+    w = 0
+    for f in depuracion
+        if f.tipo != 0 and (f.tipo != 3 or f.leido)
+            l = dep_texto(f).length
+            if f.tipo >= 3
+                l = l + (f.nivel * DEP_SANGRIA + DEP_MARCA + ancho_letra - 1) / ancho_letra
+            end
+            if l > w
+                w = l
+            end
+        end
+    end
+    depuracion_ancho = w
+end
+
+# La primera fila que se ve, sin pasarse
+func dep_desde_valido(desde: Int) -> Int
+    maximo = depuracion.length - depuracion_caben
+    if desde > maximo
+        desde = maximo
+    end
+    if desde < 0
+        return 0
+    end
+    return desde
+end
+
+# Lo desplazado a la derecha (en letras), sin pasarse
+func dep_dx_valido(dx: Int) -> Int
+    maximo = depuracion_ancho + 1 - depuracion_ancho_caben
+    if dx > maximo
+        dx = maximo
+    end
+    if dx < 0
+        return 0
+    end
+    return dx
+end
+
+# La fila del panel de depuración en la y de la zona; -1 si no hay
+func dep_en(y: Int) -> Int
+    k = 0
+    while k < depuracion_ys.length
+        h = depuracion_fila
+        if depuracion[depuracion_desde + k].tipo == 0
+            h = TITULO_ALTO + 2
+        end
+        if y >= depuracion_ys[k] and y < depuracion_ys[k] + h
+            return depuracion_desde + k
+        end
+        k = k + 1
+    end
+    return -1
+end
+
+# --- El árbol de las variables ---
+
+func _dep_fila(texto: String, tipo: Int) -> FilaDep
+    return FilaDep(texto, tipo, 0, "", "", "", "", true, -1)
+end
+
+# El valor de una variable, la primera vez que hace falta (y solo con el programa parado)
+func _dep_leer(f: FilaDep)
+    if not f.leido and dbg_state() == 3
+        f.valor = dbg_value(0, f.expr)
+        f.leido = true
+    end
+end
+
+# ¿Se despliega? Una lista con algo o un struct con campos
+func dep_desplegable(f: FilaDep) -> Bool
+    if f.tipo != 3
+        return false
+    end
+    _dep_leer(f)
+    if str_starts(f.tipo_dash, "[")
+        return str_starts(f.valor, "[") and f.valor != "[]"
+    end
+    if str_starts(f.tipo_dash, "{") or f.tipo_dash == ""
+        return false
+    end
+    return str_starts(f.valor, f.tipo_dash + "(") and f.valor != f.tipo_dash + "()"
+end
+
+func dep_abierta(f: FilaDep) -> Bool
+    return f.tipo == 3 and depuracion_abiertos.has(f.clave) and dep_desplegable(f)
+end
+
+# Lo que enseña la fila: "x = 3"; desplegada, su tipo ("lista: [Nave] (2)", "p: Punto")
+func dep_texto(f: FilaDep) -> String
+    if f.tipo != 3
+        return f.texto
+    end
+    _dep_leer(f)
+    if dep_abierta(f)
+        if str_starts(f.tipo_dash, "[")
+            return f.texto + ": " + f.tipo_dash + " (#{f.total})"
+        end
+        return f.texto + ": " + f.tipo_dash
+    end
+    return f.texto + " = " + f.valor
+end
+
+# La fila como la ven las pruebas: dos espacios por nivel y "+ " o "- " delante de lo que se despliega
+func dep_linea(f: FilaDep) -> String
+    s = ""
+    k = 0
+    while k < f.nivel
+        s = s + "  "
+        k = k + 1
+    end
+    if dep_abierta(f)
+        s = s + "- "
+    elif dep_desplegable(f)
+        s = s + "+ "
+    end
+    return s + dep_texto(f)
+end
+
+# Una variable (y, si está desplegada, lo de dentro) al final de filas
+func _dep_variable(filas: [FilaDep], nombre: String, expr: String, clave: String, tipo: String, nivel: Int)
+    f = FilaDep(nombre, 3, nivel, expr, clave, tipo, "", false, -1)
+    filas.push(f)
+    if depuracion_abiertos.has(clave) and dep_desplegable(f)
+        for h in _dep_hijos(f)
+            filas.push(h)
+        end
+    end
+end
+
+# Lo de dentro de la fila f, en orden: los elementos de una lista o los campos de un struct
+func _dep_hijos(f: FilaDep) -> [FilaDep]
+    var hijos: [FilaDep] = []
+    if str_starts(f.tipo_dash, "[")
+        n = _dep_largo(f.expr)
+        f.total = n
+        interior = f.tipo_dash[1:f.tipo_dash.length - 1]
+        limite = depuracion_abiertos.get(f.clave, DEP_ELEMENTOS)
+        k = 0
+        while k < n and k < limite
+            _dep_variable(hijos, "[#{k}]", f.expr + "[#{k}]", f.clave + "[#{k}]", interior, f.nivel + 1)
+            k = k + 1
+        end
+        if n > limite
+            hijos.push(FilaDep(hueco(tr(459, "... %1 más"), "#{n - limite}"), 4, f.nivel + 1, "", f.clave, "", "", true, -1))
+        end
+    else
+        for campo in _dep_campos(f.valor, f.tipo_dash)
+            e = f.expr + "." + campo
+            _dep_variable(hijos, campo, e, f.clave + "." + campo, dbg_value_type(0, e), f.nivel + 1)
+        end
+    end
+    return hijos
+end
+
+# Cuántos elementos tiene la lista expr: el texto de dbg_value enseña 20 como mucho, así que se prueba [n]
+# (dbg_value_type da "" fuera de la lista), doblando y luego por mitades
+func _dep_largo(expr: String) -> Int
+    if dbg_value_type(0, expr + "[0]") == ""
+        return 0
+    end
+    bajo = 1      # hasta bajo - 1 hay; en alto, no (o aún no se sabe)
+    alto = 1
+    while dbg_value_type(0, expr + "[#{alto}]") != ""
+        bajo = alto + 1
+        alto = alto * 2
+    end
+    while bajo < alto
+        m = (bajo + alto) / 2
+        if dbg_value_type(0, expr + "[#{m}]") != ""
+            bajo = m + 1
+        else
+            alto = m
+        end
+    end
+    return bajo
+end
+
+# Los nombres de los campos del texto de un struct: Nave(nombre: "a, b", pos: Punto(x: 1, y: 2)) da nombre y pos
+func _dep_campos(valor: String, tipo: String) -> [String]
+    var campos: [String] = []
+    n = valor.length
+    i = tipo.length + 1
+    while i < n
+        p = i
+        while p < n and str_code(valor, p) != 58
+            p = p + 1
+        end
+        if p >= n
+            break
+        end
+        campos.push(valor[i:p])
+        # su valor, hasta la coma o el paréntesis de fuera (lo que va entre comillas no cuenta)
+        i = p + 2
+        nivel = 0
+        while i < n
+            c = str_code(valor, i)
+            if c == 34
+                i = i + 1
+                while i < n and str_code(valor, i) != 34
+                    if str_code(valor, i) == 92
+                        i = i + 1
+                    end
+                    i = i + 1
+                end
+            elif c == 40 or c == 91 or c == 123
+                nivel = nivel + 1
+            elif c == 41 or c == 93 or c == 125
+                if nivel == 0
+                    return campos
+                end
+                nivel = nivel - 1
+            elif c == 44 and nivel == 0
+                break
+            end
+            i = i + 1
+        end
+        i = i + 2
+    end
+    return campos
+end
+
+# La pila y las variables de la parada de ahora, con lo que estaba desplegado (si la variable sigue ahí)
+func dep_construir()
+    var filas: [FilaDep] = []
+    var funciones: [String] = []
+    filas.push(_dep_fila(tr(64, "PILA"), 0))
+    n = dbg_frames()
+    i = 0
+    while i < n
+        nf = dbg_frame_function(i)
+        funciones.push(nf)
+        if i == 0
+            filas.push(_dep_fila(nf + "  #{dbg_frame_line(i)}", 2))
+        else
+            filas.push(_dep_fila(nf + "  #{dbg_frame_line(i)}", 1))
         end
         i = i + 1
     end
+    # lo desplegado en una función que ya no está en la pila se olvida
+    for c in depuracion_abiertos.keys()
+        p = str_find(c, ":")
+        if p > 0 and c[0:p] != "*" and not _dep_en_lista(funciones, c[0:p])
+            depuracion_abiertos.remove(c)
+        end
+    end
+    filas.push(_dep_fila(tr(65, "VARIABLES"), 0))
+    funcion = ""
+    if n > 0
+        funcion = funciones[0]
+    end
+    n = dbg_vars(0)
+    k = 0
+    while k < n
+        nombre = dbg_var_name(0, k)
+        _dep_variable(filas, nombre, nombre, funcion + ":" + nombre, dbg_var_type(0, k), 0)
+        k = k + 1
+    end
+    n = dbg_globals()
+    if n > 0
+        filas.push(_dep_fila(tr(66, "GLOBALES"), 0))
+        g = 0
+        while g < n
+            nombre = dbg_global_name(g)
+            _dep_variable(filas, nombre, nombre, "*:" + nombre, dbg_value_type(0, nombre), 0)
+            g = g + 1
+        end
+    end
+    depuracion = filas
+end
+
+func _dep_en_lista(l: [String], s: String) -> Bool
+    for e in l
+        if e == s
+            return true
+        end
+    end
+    return false
+end
+
+# Un clic en la fila i: despliega o pliega una lista o un struct, o enseña más elementos de una lista. Verdadero si
+# cambió algo
+func dep_clic(i: Int) -> Bool
+    if i < 0 or i >= depuracion.length or dbg_state() != 3
+        return false
+    end
+    f = depuracion[i]
+    if f.tipo == 4
+        depuracion_abiertos[f.clave] = depuracion_abiertos.get(f.clave, DEP_ELEMENTOS) + DEP_ELEMENTOS
+        # su lista: la variable de antes con esa clave
+        j = i - 1
+        while j >= 0 and not (depuracion[j].tipo == 3 and depuracion[j].clave == f.clave)
+            j = j - 1
+        end
+        _dep_rehacer(j)
+        return true
+    end
+    if not dep_desplegable(f)
+        return false
+    end
+    if depuracion_abiertos.has(f.clave)
+        depuracion_abiertos.remove(f.clave)
+        _dep_rehacer(i)
+        return true
+    end
+    depuracion_abiertos[f.clave] = DEP_ELEMENTOS
+    _dep_rehacer(i)
+    # lo desplegado, a la vista: sube lo que haga falta para verlo, sin que la fila del clic se salga por arriba
+    ultima = i
+    while ultima + 1 < depuracion.length and depuracion[ultima + 1].tipo >= 3 and depuracion[ultima + 1].nivel > f.nivel
+        ultima = ultima + 1
+    end
+    if ultima >= depuracion_desde + depuracion_caben
+        depuracion_desde = ultima - depuracion_caben + 1
+        if depuracion_desde > i
+            depuracion_desde = i
+        end
+    end
+    return true
+end
+
+# Lo de dentro de la fila i otra vez: fuera lo de antes y, si está desplegada, lo suyo
+func _dep_rehacer(i: Int)
+    if i < 0
+        return
+    end
+    f = depuracion[i]
+    j = i + 1
+    while j < depuracion.length and depuracion[j].tipo >= 3 and depuracion[j].nivel > f.nivel
+        j = j + 1
+    end
+    var hijos: [FilaDep] = []
+    if dep_abierta(f)
+        hijos = _dep_hijos(f)
+    end
+    depuracion = depuracion[0:i + 1] + hijos + depuracion[j:]
+end
+
+# Al empezar a depurar, nada desplegado
+func dep_olvidar()
+    depuracion_abiertos.clear()
+    depuracion_desde = 0
+    depuracion_dx = 0
 end
 
 # La entrada del proyecto en la y de la zona; -1 si no hay

@@ -148,3 +148,13 @@ Rama: `clic-depurar`.
 - **Variables del depurador en árbol** (David Martínez, grupo Dash Amiga, 2026-11-12): las listas se despliegan hacia
   abajo, los structs también (campo a campo), y el panel se desplaza en horizontal además de en vertical cuando lo
   desplegado no cabe. Al hacerlo: su nombre en el commit, en las notas de la versión y en "Gracias" de la web.
+  **Hecho** (rama `arbol-variables`, 2026-11-12): cada lista o struct lleva un triángulo; un clic en su fila lo
+  despliega (un elemento o campo por línea, con sangría por nivel, y lo de dentro se despliega igual) y otro lo pliega.
+  Lo desplegado se guarda por función y camino ("Main:nave.pos") y sigue así entre pasos mientras esa función esté en
+  la pila. Solo se pide a `dbg_value` lo que se ve (y lo desplegado, para saber sus campos): los campos salen del
+  texto del struct y el largo de una lista probando `[n]` con `dbg_value_type`. Una lista enseña 100 elementos y
+  "... N más" trae otros 100. Barra de abajo nueva (solo al depurar), la de la derecha mueve las filas, la rueda (con
+  Mayúsculas, a lo ancho) y las flechas (con Mayúsculas, de página en página); al desplegar, sube para que se vea lo
+  desplegado. Prueba: `tests/arbol.sh` (con `tests/prueba/arbol/main.dash`); pasan también depurar, clic, proyecto,
+  depurar_ventana y botones. Visto de paso: `dbg_vars` da una variable "Int" (valor "?") en arbol/main.dash, cosa
+  de Dash.

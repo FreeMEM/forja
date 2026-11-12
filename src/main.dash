@@ -81,6 +81,7 @@ const EV_TIC = 7
 const EV_SALIDA = 8
 const EV_BARRA_SALIDA = 9
 const EV_BARRA_PROYECTO = 18
+const EV_BARRA_VARIABLES = 23  # la barra de abajo del panel de las variables (al depurar)
 const EV_ARRASTRE_SALIDA = 20
 const EV_COPIAR_SALIDA = 21
 const EV_GUARDAR_SALIDA = 22
@@ -118,6 +119,10 @@ const T_F6 = 0x55
 const T_F7 = 0x56
 const T_F9 = 0x58
 const T_F10 = 0x59
+const T_ARRIBA = 0x4C
+const T_ABAJO = 0x4D
+const T_DERECHA = 0x4E
+const T_IZQUIERDA = 0x4F
 const T_F1 = 0x50
 const T_HELP = 0x5F
 const T_ESPACIO = 0x40
@@ -195,6 +200,9 @@ var barra_salida_valor: Int = -1
 var barra_proyecto_total: Int = -1
 var barra_proyecto_caben: Int = -1
 var barra_proyecto_valor: Int = -1
+var barra_variables_total: Int = -1
+var barra_variables_caben: Int = -1
+var barra_variables_valor: Int = -1
 var completar_activo: Bool = true  # la lista para completar y la ayuda de los argumentos (preferencia)
 var indice_de: String = ""         # de qué fichero son los símbolos de codigo.dash, y de qué versión
 var indice_version: Int = -1
@@ -207,6 +215,7 @@ var lineas_antes: Int = -1         # cuántas líneas había entonces
 var sonda_completar: String = "-"
 var sonda_ayuda: String = "-"
 var sonda_botones: String = ""
+var sonda_arbol: String = ""
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -928,6 +937,7 @@ func empezar_depuracion()
         end
     end
     salida_vista = 0
+    dep_olvidar()
     avisar(tr(18, "Depurando ") + nombre_de(tarea_exe) + tr(19, " (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada)."), 0)
     poner_tarea(DEPURANDO)
     parada_atendida = false
@@ -993,41 +1003,9 @@ func al_parar()
             ed_ir_a(n, 1)
         end
     end
-    # la pila y las variables, en el panel de la izquierda
-    depuracion_lineas.clear()
-    depuracion_tipos.clear()
-    depuracion_lineas.push(tr(64, "PILA"))
-    depuracion_tipos.push(0)
-    i = 0
-    while i < dbg_frames()
-        depuracion_lineas.push(dbg_frame_function(i) + "  #{dbg_frame_line(i)}")
-        if i == 0
-            depuracion_tipos.push(2)
-        else
-            depuracion_tipos.push(1)
-        end
-        i = i + 1
-    end
-    depuracion_lineas.push(tr(65, "VARIABLES"))
-    depuracion_tipos.push(0)
-    k = 0
-    while k < dbg_vars(0)
-        nombre = dbg_var_name(0, k)
-        depuracion_lineas.push(nombre + " = " + dbg_value(0, nombre))
-        depuracion_tipos.push(1)
-        k = k + 1
-    end
-    if dbg_globals() > 0
-        depuracion_lineas.push(tr(66, "GLOBALES"))
-        depuracion_tipos.push(0)
-        g = 0
-        while g < dbg_globals()
-            nombre = dbg_global_name(g)
-            depuracion_lineas.push(nombre + " = " + dbg_value(0, nombre))
-            depuracion_tipos.push(1)
-            g = g + 1
-        end
-    end
+    # la pila y las variables, en el panel de la izquierda (en árbol: lo desplegado sigue desplegado)
+    dep_construir()
+    barra_variables_ver(true)
     mui_canvas_redraw(v.proyecto)
     if quieto
         if cursor_antes >= 0 and cursor_antes != n - 1
@@ -1045,8 +1023,8 @@ func al_acabar()
     avisar(hueco2(tr(68, "%1 acabó con código %2"), nombre_de(tarea_exe), "#{dbg_rc()}") + ".", 2)
     ed_dbg_ruta = ""
     ed_dbg_linea = 0
-    depuracion_lineas.clear()
-    depuracion_tipos.clear()
+    depuracion.clear()
+    barra_variables_ver(false)
     poner_tarea(NADA)
     mui_canvas_redraw(v.proyecto)
     redibujar()
@@ -1095,8 +1073,8 @@ func publicar_depuracion()
     end
     # las variables antes que el estado: quien espera el estado ya las encuentra
     t = ""
-    for l in depuracion_lineas
-        t = t + l + "|"
+    for f in depuracion
+        t = t + dep_linea(f) + "|"
     end
     env_set("FORJA_VARIABLES", t, false)
     # parado (3) solo cuando Forja ya ha recogido la parada (al_parar): si no, la prueba leería la línea nueva con las
@@ -1180,15 +1158,17 @@ end
 
 # Un clic en el panel del proyecto: un fichero se abre; un cajón se enseña
 func en_proyecto()
+    if depuracion.length > 0
+        en_depuracion()
+        return
+    end
     rueda = mui_canvas_wheel(v.proyecto)
-    if rueda != 0 and depuracion_lineas.length == 0
+    if rueda != 0
         proyecto_desde = proyecto_desde_valido(proyecto_desde - rueda * 3)
         mui_canvas_redraw(v.proyecto)
         return
     end
-    # al depurar, el panel enseña la pila y las variables: un clic ahí no es en la lista de ficheros que tapan
-    # (abría el de esa fila, lo contó David Martínez)
-    if mui_canvas_button(v.proyecto) != 1 or depuracion_lineas.length > 0
+    if mui_canvas_button(v.proyecto) != 1
         return
     end
     i = proyecto_en(mui_canvas_mouse_y(v.proyecto))
@@ -1207,6 +1187,60 @@ func en_proyecto()
         return
     end
     mui_canvas_redraw(v.proyecto)
+end
+
+# Al depurar, el panel enseña la pila y las variables: un clic despliega o pliega una lista o un struct (idea de
+# David Martínez); la rueda y las flechas lo mueven (con Mayúsculas, la rueda va a lo ancho y las flechas de página
+# en página). Un clic ahí no es en la lista de ficheros que tapan (abría el de esa fila, lo contó David Martínez).
+func en_depuracion()
+    rueda = mui_canvas_wheel(v.proyecto)
+    mayus = (mui_canvas_qualifiers(v.proyecto) & Q_MAYUS) != 0
+    tecla = mui_canvas_key(v.proyecto)
+    desde = depuracion_desde
+    dx = depuracion_dx
+    if rueda != 0 and mayus
+        dx = dx - rueda * 4
+    elif rueda != 0
+        desde = desde - rueda * 3
+    elif tecla >= 0
+        paso = 1
+        lado = 4
+        if mayus
+            paso = depuracion_caben
+            lado = depuracion_ancho_caben
+        end
+        if tecla == T_ARRIBA
+            desde = desde - paso
+        elif tecla == T_ABAJO
+            desde = desde + paso
+        elif tecla == T_IZQUIERDA
+            dx = dx - lado
+        elif tecla == T_DERECHA
+            dx = dx + lado
+        end
+    elif mui_canvas_button(v.proyecto) == 1
+        if dep_clic(dep_en(mui_canvas_mouse_y(v.proyecto)))
+            mui_canvas_redraw(v.proyecto)
+            publicar_depuracion()
+        end
+        return
+    end
+    desde = dep_desde_valido(desde)
+    dx = dep_dx_valido(dx)
+    if desde != depuracion_desde or dx != depuracion_dx
+        depuracion_desde = desde
+        depuracion_dx = dx
+        mui_canvas_redraw(v.proyecto)
+    end
+end
+
+# La barra de abajo del panel de las variables: solo al depurar
+var barra_variables_vista: Bool = false
+func barra_variables_ver(ver: Bool)
+    if ver != barra_variables_vista
+        barra_variables_vista = ver
+        mui_set_visible(v.barra_variables, ver)
+    end
 end
 
 # Las barras de la salida y del proyecto siguen a lo que se ve
@@ -1228,6 +1262,12 @@ func ajustar_barras_paneles()
     end
     caben = proyecto_caben
     total = proyecto_ficheros.length
+    primera = proyecto_desde
+    if depuracion.length > 0
+        caben = depuracion_caben
+        total = depuracion.length
+        primera = depuracion_desde
+    end
     if total < caben
         total = caben
     end
@@ -1237,9 +1277,26 @@ func ajustar_barras_paneles()
         mui_set_range(v.barra_proyecto, total, caben)
         barra_proyecto_valor = -1
     end
-    if proyecto_desde != barra_proyecto_valor
-        barra_proyecto_valor = proyecto_desde
-        mui_set_value(v.barra_proyecto, proyecto_desde)
+    if primera != barra_proyecto_valor
+        barra_proyecto_valor = primera
+        mui_set_value(v.barra_proyecto, primera)
+    end
+    if barra_variables_vista
+        caben = depuracion_ancho_caben
+        total = depuracion_ancho + 1
+        if total < caben
+            total = caben
+        end
+        if total != barra_variables_total or caben != barra_variables_caben
+            barra_variables_total = total
+            barra_variables_caben = caben
+            mui_set_range(v.barra_variables, total, caben)
+            barra_variables_valor = -1
+        end
+        if depuracion_dx != barra_variables_valor
+            barra_variables_valor = depuracion_dx
+            mui_set_value(v.barra_variables, depuracion_dx)
+        end
     end
 end
 
@@ -2057,12 +2114,22 @@ func publicar_sonda()
     for f in proyecto_ficheros
         lista = lista + "|" + f
     end
-    if depuracion_lineas.length > 0
+    if depuracion.length > 0
         lista = "(depurando)"
     end
     if lista != sonda_lista
         sonda_lista = lista
         env_set("FORJA_FICHEROS", lista, false)
+    end
+    # el árbol de las variables: la zona (x, y, ancho, alto), la primera fila, lo desplazado, el alto de fila, lo
+    # ancho, lo que cabe y la y de cada fila que se ve
+    a = "#{depuracion_zona_x} #{depuracion_zona_y} #{depuracion_zona_ancho} #{depuracion_zona_alto} #{depuracion_desde} #{depuracion_dx} #{depuracion_fila} #{depuracion_ancho} #{depuracion_ancho_caben}"
+    for ay in depuracion_ys
+        a = a + " #{ay}"
+    end
+    if a != sonda_arbol
+        sonda_arbol = a
+        env_set("FORJA_ARBOL", a, false)
     end
     b = bb_sonda()
     if b != sonda_botones
@@ -2563,11 +2630,25 @@ func atender(ev: Int)
             barra_salida_valor = desde
             mui_canvas_redraw(v.salida)
         end
+    elif ev == EV_BARRA_PROYECTO and depuracion.length > 0
+        desde = mui_get_value(v.barra_proyecto)
+        if desde != depuracion_desde
+            depuracion_desde = dep_desde_valido(desde)
+            barra_proyecto_valor = desde
+            mui_canvas_redraw(v.proyecto)
+        end
     elif ev == EV_BARRA_PROYECTO
         desde = mui_get_value(v.barra_proyecto)
         if desde != proyecto_desde
             proyecto_desde = proyecto_desde_valido(desde)
             barra_proyecto_valor = desde
+            mui_canvas_redraw(v.proyecto)
+        end
+    elif ev == EV_BARRA_VARIABLES
+        dx = mui_get_value(v.barra_variables)
+        if dx != depuracion_dx
+            depuracion_dx = dep_dx_valido(dx)
+            barra_variables_valor = dx
             mui_canvas_redraw(v.proyecto)
         end
     elif ev == EV_ELEGIR_DASHC
@@ -2673,6 +2754,7 @@ Main
         salida_anadir(tr(31, "Listo."), 2)
 
         ajustar_paneles()
+        mui_set_visible(v.barra_variables, false)     # la de abajo del panel de las variables, solo al depurar
         mui_window_open(v.window)
         abierta = true
         mui_canvas_set_pointer(v.editor, 1)

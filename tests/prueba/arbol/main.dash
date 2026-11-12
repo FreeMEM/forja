@@ -1,0 +1,26 @@
+# Datos para probar el árbol de las variables del depurador de Forja (tests/arbol.dash)
+
+struct Punto
+    x: Int
+    y: Int
+end
+
+struct Nave
+    nombre: String
+    pos: Punto
+    carga: [Int]
+end
+
+Main
+    nave = Nave("Halcón, con un nombre muy largo que no cabe en el panel de las variables", Punto(3, 4), [10, 20, 30])
+    var numeros: [Int] = []
+    for i in (0..149)
+        numeros.push(i * 2)
+    end
+    flota = [nave, Nave("Bicho", Punto(5, 6), [])]
+    j = 0
+    while j < 3
+        j = j + 1
+    end
+    Print "Vueltas: #{j}"
+end

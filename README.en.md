@@ -65,7 +65,11 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 - **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin; F5 continue, F10 step over, F6 step into,
   F7 step out, with the pointer anywhere in the window, unless a text field or another gadget has the keyboard
   (reported by David Martínez). On the left, the call stack and the
-  variables. When it stops, Forja comes to the front: the program's window takes the keyboard when it opens. If the
+  variables, as a tree: a click on the triangle of a list or a struct expands it (one element or field per line,
+  indented by level) and another collapses it; what is expanded stays so between steps while the variable exists. A
+  list shows 100 elements and "... N more" brings the next ones. The panel scrolls vertically and horizontally with
+  its scrollbars, the wheel (with Shift, horizontally) and the arrow keys (with Shift, a page at a time) (idea by
+  David Martínez). When it stops, Forja comes to the front: the program's window takes the keyboard when it opens. If the
   stop line is already in view, the code does not move or repaint as a whole, nor jumps when clicking on it or on the variables (reported by
   David Martínez).
 - **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;

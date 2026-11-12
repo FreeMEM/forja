@@ -1,4 +1,4 @@
-## version $VER: Forja.catalog 1.0 (11.11.2026)
+## version $VER: Forja.catalog 1.0 (12.11.2026)
 ## language english
 ## codeset 0
 ;
@@ -1052,3 +1052,6 @@ _Quit|_Don't quit
 MSG_458
 Save 
 ; Guardar 
+MSG_459
+... %1 more
+; ... %1 más
