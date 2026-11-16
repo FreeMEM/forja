@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""El paquete de Forja: el cajón Forja con sus iconos, y el .lha. dashc no va dentro: es de Dash.
+"""El paquete de Forja: el cajón Forja con sus iconos y sus extensiones (Extensiones/Git), y el .lha. dashc
+y dashgit no van dentro: son de Dash.
 
     python3 tools/paquete.py 0.1 [DASH_DIR]   →  build/paquete/Forja/...  y  build/forja-0.1.lha
 
@@ -63,6 +64,28 @@ def main():
     (caj / "LEEME.info").write_bytes(situar(info(documento(), WBPROJECT, herramienta="SYS:Utilities/MultiView"), 90, 6))
     (caj / "README.info").write_bytes(situar(info(documento(), WBPROJECT, herramienta="SYS:Utilities/MultiView"), 160, 6))
     shutil.copy(raiz / "LICENSE", caj / "LICENSE")
+    # las extensiones (extensiones/<X>/: su manifiesto y su programa) en Forja/Extensiones/<X>/; git es una de ellas,
+    # y lib/forja.dash para escribir más. Contar es el ejemplo: va en el repositorio, no en el paquete
+    for d in sorted((raiz / "extensiones").iterdir()):
+        man = d / "manifiesto.txt"
+        if not man.exists() or d.name == "Contar":
+            continue
+        prog, fuente = d.name, None
+        for linea in man.read_text().splitlines():
+            if linea.split("#")[0].strip().startswith("programa"):
+                prog = linea.split("=", 1)[1].split("#")[0].strip()
+        for f in d.glob("*.dash"):
+            if "\nMain" in f.read_text() or f.read_text().startswith("Main"):
+                fuente = f
+        if fuente is None:
+            continue
+        ext = caj / "Extensiones" / d.name
+        ext.mkdir(parents=True)
+        subprocess.run([str(dash / "dash"), str(fuente), "-o", str(ext / prog)], check=True)
+        os.chmod(ext / prog, 0o755)
+        (ext / "manifiesto.txt").write_bytes(man.read_text().encode("latin-1", "replace"))
+    (caj / "lib").mkdir()
+    shutil.copy(raiz / "lib/forja.dash", caj / "lib/forja.dash")
     # el catálogo inglés (tools/catalogos.py), junto al programa: PROGDIR:Catalogs/english
     subprocess.run([sys.executable, str(raiz / "tools/catalogos.py"), str(dash), "catalog"], check=True)
     shutil.copytree(build / "Catalogs", caj / "Catalogs")

@@ -37,14 +37,59 @@ var bb_pen_encima: Int = 0
 var bb_pen_fondo: Int = 0
 var bb_pen_raya: Int = 0
 
-# git (git_estado.dash): la rama y cuántos ficheros cambiaron, a la izquierda de Inferencia; un clic ahí da
-# BB_EV_GIT (el panel de cambios). Los pone main.dash; "" de rama: no se enseña nada
-const BB_EV_GIT = 89
-var bb_git_rama: String = ""
-var bb_git_cambios: Int = 0
-var bb_git_x: Int = -1      # dónde quedó (desde el borde de la zona) y su ancho; -1 si no se ve
-var bb_git_ancho: Int = 0
-var _bb_git_tramos: [Int] = []
+# Las zonas de las extensiones (ZONA, docs/EXTENSIONES.md), a la izquierda de Inferencia: un icono, un texto y un
+# detalle en otro color (git: la rama y "3 cambios"). Si no cabe el detalle, va el corto ("3"); si tampoco, solo el
+# texto; si tampoco, nada. Un clic ahí da BB_EV_ZONA, y bb_zona_clic dice de qué extensión.
+const BB_EV_ZONA = 89
+
+struct ZonaBarra
+    ext: String
+    icono: String
+    tramos: [Int]
+    texto: String
+    detalle: String
+    corto: String
+    x: Int              # dónde quedó (desde el borde de la zona) y su ancho; -1 si no se ve
+    ancho: Int
+end
+
+var bb_zonas: [ZonaBarra] = []
+var bb_zona_clic: String = ""
+
+# La zona de ext ("" de texto y de detalle: la quita); true si cambió
+func bb_zona_poner(ext: String, icono: String, texto: String, detalle: String, corto: String) -> Bool
+    i = 0
+    while i < bb_zonas.length
+        z = bb_zonas[i]
+        if z.ext == ext
+            if texto == "" and detalle == ""
+                bb_zonas.remove(i)
+                return true
+            end
+            if z.icono == icono and z.texto == texto and z.detalle == detalle and z.corto == corto
+                return false
+            end
+            if z.icono != icono
+                z.icono = icono
+                z.tramos = _bb_tramos(icono)
+            end
+            z.texto = texto
+            z.detalle = detalle
+            z.corto = corto
+            return true
+        end
+        i = i + 1
+    end
+    if texto == "" and detalle == ""
+        return false
+    end
+    bb_zonas.push(ZonaBarra(ext, icono, _bb_tramos(icono), texto, detalle, corto, -1, 0))
+    return true
+end
+
+func bb_zona_quitar(ext: String) -> Bool
+    return bb_zona_poner(ext, "", "", "", "")
+end
 
 # Los iconos, de 12 por 12: "#" es un píxel del color del botón
 func _bb_dibujo(nombre: String) -> [String]
@@ -74,8 +119,18 @@ end
 
 func _bb_tramos(icono: String) -> [Int]
     var t: [Int] = []
+    if icono == ""
+        return t
+    end
+    var filas: [String] = []
+    if str_contains(icono, "/")
+        # uno propio: 12 filas de 12, separadas por "/", con "#" los píxeles
+        filas = str_split(icono, "/")
+    else
+        filas = _bb_dibujo(icono)
+    end
     y = 0
-    for f in _bb_dibujo(icono)
+    for f in filas
         i = 0
         while i < f.length
             if str_code(f, i) == 35
@@ -263,53 +318,69 @@ func bb_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         end
         i = i + 1
     end
-    _bb_git(x, y, alto, bx + 8, derecha - 8)
+    _bb_zonas(x, y, alto, bx + 8, derecha - 8)
     usar_codigo()
 end
 
-# La rama y los cambios entre desde y hasta (x desde el borde de la zona), pegados a la derecha; si no caben, solo
-# la rama y el número; si tampoco, nada
-func _bb_git(x0: Int, y: Int, alto: Int, desde: Int, hasta: Int)
-    bb_git_x = -1
-    if bb_git_rama == ""
-        return
+# Las zonas entre desde y hasta (x desde el borde de la zona), de derecha a izquierda; cada una, con el detalle, con el
+# corto o sin nada, lo primero que quepa; si no cabe ni el texto, no se ve
+func _bb_zonas(x0: Int, y: Int, alto: Int, desde: Int, hasta: Int)
+    for z in bb_zonas
+        z.x = -1
+        detalle = z.detalle
+        ancho = _bb_zona_ancho(z, detalle)
+        if hasta - ancho < desde and z.corto != ""
+            detalle = z.corto
+            ancho = _bb_zona_ancho(z, detalle)
+        end
+        if hasta - ancho < desde
+            detalle = ""
+            ancho = _bb_zona_ancho(z, detalle)
+        end
+        if hasta - ancho < desde
+            continue
+        end
+        bx = hasta - ancho
+        z.x = bx
+        z.ancho = ancho
+        tx = bx
+        if z.tramos.length > 0
+            gfx_pen(bb_pen_apagado)
+            i = 0
+            while i + 2 < z.tramos.length
+                gfx_rect(x0 + bx + z.tramos[i], y + (alto - 12) / 2 + z.tramos[i + 2], x0 + bx + z.tramos[i + 1], y + (alto - 12) / 2 + z.tramos[i + 2])
+                i = i + 3
+            end
+            tx = bx + 16
+        end
+        base = y + (alto - font_height()) / 2 + font_baseline()
+        if z.texto != ""
+            gfx_pen(tema.texto)
+            gfx_text_at(x0 + tx, base, z.texto)
+        end
+        if detalle != ""
+            gfx_pen(tema.cursor)
+            gfx_text_at(x0 + hasta - font_text_width(detalle), base, detalle)
+        end
+        hasta = bx - 12
     end
-    if _bb_git_tramos.length == 0
-        _bb_git_tramos = _bb_tramos("rama")
+end
+
+func _bb_zona_ancho(z: ZonaBarra, detalle: String) -> Int
+    a = 0
+    if z.tramos.length > 0
+        a = 16
     end
-    cuenta = ""
-    if bb_git_cambios == 1
-        cuenta = tr(463, "1 cambio")
-    elif bb_git_cambios > 1
-        cuenta = hueco(tr(462, "%1 cambios"), "#{bb_git_cambios}")
+    if z.texto != ""
+        a = a + font_text_width(z.texto)
     end
-    ancho = 12 + 4 + font_text_width(bb_git_rama)
-    if cuenta != ""
-        ancho = ancho + 8 + font_text_width(cuenta)
+    if detalle != ""
+        if z.texto != ""
+            a = a + 8
+        end
+        a = a + font_text_width(detalle)
     end
-    if hasta - ancho < desde and bb_git_cambios > 0
-        cuenta = "#{bb_git_cambios}"
-        ancho = 12 + 4 + font_text_width(bb_git_rama) + 6 + font_text_width(cuenta)
-    end
-    if hasta - ancho < desde
-        return
-    end
-    bx = hasta - ancho
-    bb_git_x = bx
-    bb_git_ancho = ancho
-    gfx_pen(bb_pen_apagado)
-    i = 0
-    while i + 2 < _bb_git_tramos.length
-        gfx_rect(x0 + bx + _bb_git_tramos[i], y + (alto - 12) / 2 + _bb_git_tramos[i + 2], x0 + bx + _bb_git_tramos[i + 1], y + (alto - 12) / 2 + _bb_git_tramos[i + 2])
-        i = i + 3
-    end
-    base = y + (alto - font_height()) / 2 + font_baseline()
-    gfx_pen(tema.texto)
-    gfx_text_at(x0 + bx + 16, base, bb_git_rama)
-    if cuenta != ""
-        gfx_pen(tema.cursor)
-        gfx_text_at(x0 + hasta - font_text_width(cuenta), base, cuenta)
-    end
+    return a
 end
 
 func _bb_en(x: Int) -> Int
@@ -325,8 +396,11 @@ end
 
 # El evento del botón en esa x, o 0
 func bb_clic(x: Int) -> Int
-    if bb_git_x >= 0 and x >= bb_git_x and x < bb_git_x + bb_git_ancho
-        return BB_EV_GIT
+    for z in bb_zonas
+        if z.x >= 0 and x >= z.x and x < z.x + z.ancho
+            bb_zona_clic = z.ext
+            return BB_EV_ZONA
+        end
     end
     i = _bb_en(x)
     if i < 0 or not bb_botones[i].activo
@@ -358,8 +432,10 @@ func bb_sonda() -> String
         end
         t = t + " #{b.evento}:#{bb_zona_x + b.x}:#{b.ancho}:#{a}"
     end
-    if bb_git_x >= 0
-        t = t + " #{BB_EV_GIT}:#{bb_zona_x + bb_git_x}:#{bb_git_ancho}:1"
+    for z in bb_zonas
+        if z.x >= 0
+            t = t + " #{BB_EV_ZONA}:#{bb_zona_x + z.x}:#{z.ancho}:1"
+        end
     end
     return t
 end

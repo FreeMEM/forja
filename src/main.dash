@@ -62,8 +62,6 @@ import "actualizar.dash"
 import "botones.dash"
 import "extensiones.dash"
 import "ventana.dashui"
-import "git_cambios.dash"
-import "git.dashui"
 
 const VERSION = "0.6.5"
 
@@ -91,23 +89,8 @@ const EV_GUARDAR_SALIDA = 22
 const EV_ELEGIR_DASHC = 61
 const EV_ELEGIR_INFERENCIA = 62
 const EV_ELEGIR_EJECUTABLES = 76
-const EV_GIT_ESTADO = 63
-const EV_GIT_DIFERENCIAS = 64
-const EV_GIT_HISTORIAL = 65
-const EV_GIT_ANADIR = 66
-const EV_GIT_CONFIRMAR = 67
-const EV_GIT_TRAER = 68
-const EV_GIT_SUBIR = 69
-const EV_GC_CONFIRMAR = 80      # el panel Cambios (git.dashui, git_cambios.dash)
-const EV_GC_DIFERENCIAS = 81
-const EV_GC_TODO = 82
-const EV_GC_NADA = 83
-const EV_GC_CERRAR = 86
-const EV_GC_BARRA = 87
-const EV_GC_LISTA = 88
-const EV_GIT_CAMBIOS = 89       # = BB_EV_GIT: un clic en la rama de la barra
-const EV_GIT_FICHERO = 90       # Git > Diferencias de este fichero
-const GIT_TIC_MS = 1500         # con un repositorio, el tic mira así de a menudo si se volvió a Forja
+const EV_ZONA = 89              # = BB_EV_ZONA: un clic en la zona de una extensión en la barra de botones
+const EV_ACTIVADA = 90          # la ventana de Forja pasa a ser la activa (mui_on_activate): VUELTA
 const EV_DEFINICION = 72
 const EV_VOLVER = 73
 const EV_REFERENCIAS = 74
@@ -121,8 +104,7 @@ const EV_EXT_DOBLE = 182
 const EV_EXT_ACTIVAR = 183
 const EV_EXT_INSTALAR = 184
 const EV_EXT_CERRAR = 185
-const EV_EXT_MENU = 200        # las opciones de las extensiones en el menú: 200 a 211
-const ESPERA_GIT = 600000      # diez minutos como mucho para una orden de git (clonar o traer por la red)
+const EV_EXT_MENU = 200        # las opciones de las extensiones en el menú: 200 a 241 (EXT_TOTAL)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
 
@@ -130,7 +112,6 @@ const NADA = 0
 const COMPILANDO = 1
 const EJECUTANDO = 2
 const DEPURANDO = 3
-const GIT = 4
 # Teclas de función sobre el editor
 const T_F5 = 0x54
 const T_F6 = 0x55
@@ -185,11 +166,6 @@ var vb: Buscar = nil
 var vi: IrA = nil
 var vp: PrefForja = nil
 var vx: GestorExt = nil
-var vc: GitCambios = nil
-var vc_abierta: Bool = false
-var git_activa: Bool = true      # la ventana de Forja era la activa en el último tic
-var git_commit: Bool = false     # el git() en marcha es el commit del panel Cambios
-var sonda_git: String = ""
 var app: Int = 0
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
 var inferencia_espera: Int = 0      # tics esperando a que arranque Inferencia
@@ -366,7 +342,6 @@ func abrir_nuevo(ruta: String) -> Bool
         return false
     end
     ed_abrir_texto(nombre_de(ruta), ruta, texto)
-    git_pedir_rangos(ruta)
     return true
 end
 
@@ -391,7 +366,6 @@ func guardar_en(d: Documento, ruta: String) -> Bool
     d.cambiado = false
     avisar(tr(3, "Guardado: ") + ruta, 2)
     ext_suceso("GUARDADO", ruta)
-    git_guardado(ruta)
     if cajon_de(ruta) == proyecto_cajon
         proyecto_leer(proyecto_cajon)
         mui_canvas_redraw(v.proyecto)
@@ -459,7 +433,7 @@ func proyecto(ev: Int) -> Bool
             end
         end
     elif (ev == EV_GUARDAR or ev == EV_GUARDAR_COMO) and d != nil and d.vista != 0
-        avisar(tr(464, "Las diferencias son de solo lectura."), 1)
+        avisar(tr(464, "Esta pestaña es de solo lectura."), 1)
     elif ev == EV_GUARDAR and d != nil
         guardar(d)
     elif ev == EV_GUARDAR_COMO and d != nil
@@ -511,10 +485,6 @@ func dashc() -> String
     return programa_de_dash("Forja/dashc", "dash")
 end
 
-func dashgit() -> String
-    return programa_de_dash("Forja/dashgit", "dashgit")
-end
-
 func programa_de_dash(variable: String, orden: String) -> String
     c = env_get(variable)
     if c != ""
@@ -534,32 +504,6 @@ func programa_de_dash(variable: String, orden: String) -> String
     end
     dos_requesters(true)
     return c
-end
-
-# Una orden de dashgit en el cajón del proyecto, sin esperar; lo que escriba sale en la salida al acabar
-func git(orden: String)
-    if tarea != NADA
-        return
-    end
-    if proyecto_cajon == ""
-        avisar(tr(225, "Abre antes un fichero del proyecto."), 1)
-        return
-    end
-    for o in documentos
-        if o.cambiado and o.ruta != ""
-            guardar_en(o, o.ruta)
-        end
-    end
-    redibujar()
-    avisar("git " + orden, 0)
-    tarea_run = run_start(dashgit() + " -C \"" + proyecto_cajon + "\" " + orden, ESPERA_GIT)
-    if tarea_run == 0
-        avisar(tr(226, "No se puede ejecutar ") + dashgit() + tr(227, ". Pon su ruta en ENV:Forja/dashgit."), 1)
-        return
-    end
-    tarea_inicio = time_ms()
-    poner_tarea(GIT)
-    armar_tic(TIC_MS, EV_TIC)
 end
 
 # Un texto entre comillas para el Shell del Amiga (las comillas de dentro van como *")
@@ -641,7 +585,7 @@ func poner_tarea(t: Int)
         mui_canvas_redraw(v.botones)
     end
     if sonda
-        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando", "git"]
+        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
         env_set("FORJA_ESTADO", nombres[t], false)
     end
 end
@@ -827,8 +771,6 @@ end
 func tic()
     tic_armado = false
     ext_reposo()
-    ext_mirar_ventana()
-    git_tic()
     actualizar_tic()
     indice_en_reposo()
     d = ed_actual()
@@ -882,28 +824,6 @@ func tic()
     rc = run_rc()
     tarea_run = 0
     ms = time_ms() - tarea_inicio
-    if tarea == GIT
-        if str_trim(texto) != ""
-            salida_anadir(str_trim(texto), 0)
-        end
-        if rc == 0
-            avisar(tr(228, "Git: hecho en ") + segundos(ms) + ".", 2)
-        else
-            avisar(hueco(tr(229, "Git acabó con código %1."), "#{rc}"), 1)
-        end
-        poner_tarea(NADA)
-        if git_commit and rc == 0
-            mui_set_text(vc.mensaje, "")
-        end
-        git_commit = false
-        # traer o cambiar de rama puede cambiar los ficheros
-        proyecto_leer(proyecto_cajon)
-        # (un init o un clone pueden haber hecho el repositorio: se busca otra vez)
-        git_cajon = ""
-        git_pedir_estado()
-        redibujar()
-        return
-    end
     if tarea == COMPILANDO
         errores = 0
         errores_ultimos = ""
@@ -2131,7 +2051,7 @@ func en_editor() -> Int
         if otro != 0
             return otro
         end
-        if d.vista != 0 and git_tecla_vista(d, codigo, letra)
+        if d.vista != 0 and ext_tecla_vista(d, codigo, letra)
             return 0
         end
         if d.diseno
@@ -2384,252 +2304,6 @@ func sesion_abrir() -> Bool
     return abiertos > 0
 end
 
-# --- Git: el pegamento con git_estado.dash, git_cambios.dash y git_vista.dash ---
-# Lo que Forja da a git (y lo que tendría que dar la API de extensiones): el cajón del proyecto, avisos de guardar,
-# de abrir y de volver a Forja, un tic, la barra de botones, una letra por entrada del panel del proyecto, una marca
-# por línea del margen del editor, una pestaña de solo lectura, una ventana propia y órdenes en la salida.
-
-# Pinta lo que depende del estado: la barra, el panel del proyecto y la lista de cambios
-func git_al_dia()
-    rama = git_barra()
-    if rama != bb_git_rama or git_cambios != bb_git_cambios
-        bb_git_rama = rama
-        bb_git_cambios = git_cambios
-        if abierta
-            mui_canvas_redraw(v.botones)
-        end
-    end
-    if abierta and depuracion.length == 0
-        mui_canvas_redraw(v.proyecto)
-    end
-    if vc_abierta
-        if gc_sel >= git_lineas.length
-            gc_sel = -1
-        end
-        mui_set_range(vc.barra, git_lineas.length, gc_caben)
-        mui_canvas_redraw(vc.lista)
-    end
-end
-
-# Repinta las líneas de d (desde 0) que se ven, si d es el activo
-func repintar_marcas(d: Documento, lineas: [Int])
-    if not abierta or d != ed_actual() or d.cambiado
-        return
-    end
-    for n in lineas
-        if n >= d.primera and n < d.primera + ed_visibles and n < d.lineas.length
-            redibujar_linea(n)
-        end
-    end
-end
-
-# En cada tic: si se volvió a Forja, el estado otra vez; y lo que llegó de dashgit
-func git_tic()
-    if git_raiz == ""
-        return
-    end
-    activa = mui_window_active(v.window) == 1 or (vc_abierta and mui_window_active(vc.window) == 1)
-    if activa and not git_activa
-        # se volvió a Forja: quizá cambió algo fuera (ficheros nuevos, otro git): el cajón y el estado otra vez
-        if depuracion.length == 0
-            desde = proyecto_desde
-            proyecto_leer(proyecto_cajon)
-            proyecto_desde = proyecto_desde_valido(desde)
-        end
-        git_pedir_estado()
-    end
-    git_activa = activa
-    r = git_mirar()
-    while r != G_NADA
-        if r == G_ESTADO
-            git_al_dia()
-            for d in documentos
-                if d.vista == 0 and d.sprite == nil and d.mapa == nil and d.ruta != ""
-                    repintar_marcas(d, git_pedir_rangos(d.ruta))
-                end
-            end
-        elif r == G_RANGOS
-            cambiadas = git_rangos_poner(git_dato, git_texto)
-            for d in documentos
-                if str_lower(d.ruta) == str_lower(git_dato)
-                    repintar_marcas(d, cambiadas)
-                end
-            end
-        elif r == G_DIFF
-            if str_trim(git_texto) == ""
-                avisar(tr(465, "Sin diferencias con el último commit: ") + git_dato, 0)
-            else
-                ed_abrir_vista(nombre_de(git_dato) + tr(466, " (cambios)"), git_texto, 1)
-                ajustar_paneles()
-                redibujar()
-            end
-        elif r == G_ERROR
-            if str_trim(git_texto) != ""
-                salida_anadir(str_trim(git_texto), 1)
-            end
-            avisar(tr(467, "Git falló: ") + git_dato, 1)
-        end
-        r = git_mirar()
-    end
-    if sonda
-        s = git_sonda()
-        if s != sonda_git
-            sonda_git = s
-            env_set("FORJA_GIT", s, false)
-            env_set("FORJA_GIT_MS", "#{git_ms_estado} #{git_ms_rangos}", false)
-        end
-        if vc_abierta
-            sonda_cambios()
-        end
-    end
-end
-
-var _sonda_gc: String = ""
-func sonda_cambios()
-    c = gc_sonda()
-    if c != _sonda_gc
-        _sonda_gc = c
-        env_set("FORJA_GIT_CAMBIOS", c, false)
-    end
-end
-
-# "rama|cambios|marcas del panel|marcas del margen del fichero activo" (para ARexx y las pruebas)
-func git_sonda() -> String
-    m = ""
-    d = ed_actual()
-    if d != nil and d.vista == 0 and d.sprite == nil and d.mapa == nil and not d.cambiado
-        m = git_marcas_texto(d.ruta, d.lineas.length)
-    end
-    return bb_git_rama + "|#{bb_git_cambios}|" + proyecto_marcas() + "|" + m
-end
-
-# Las diferencias de un fichero (ruta desde la raíz del repositorio) en una pestaña
-func git_ver_diferencias(rel: String)
-    if rel == "" or git_raiz == ""
-        return
-    end
-    abs = ruta_unir(git_raiz, rel)
-    if git_xy_de(abs) == "??"
-        t = file_read_text(abs)
-        if t != nil
-            ed_abrir_vista(nombre_de(rel) + tr(466, " (cambios)"), gv_de_nuevo(rel, t), 1)
-            ajustar_paneles()
-            redibujar()
-        end
-        return
-    end
-    git_orden("diff HEAD -- " + entre_comillas(rel), G_DIFF, rel)
-    armar_tic(TIC_MS, EV_TIC)
-end
-
-# n y p: el trozo siguiente y el anterior; Return: a esa línea del fichero. true si era una de ellas
-func git_tecla_vista(d: Documento, codigo: Int, letra: String) -> Bool
-    l = str_lower(letra)
-    if l == "n" or l == "p"
-        i = gv_trozo(d.lineas, d.cl, l == "n")
-        if i >= 0
-            ed_ir_a(i + 1, 1)
-            redibujar()
-        end
-        return true
-    end
-    if codigo == T_RETURN or codigo == T_ENTER
-        sitio = gv_sitio(d.lineas, d.cl)
-        if sitio != "" and git_raiz != ""
-            p = str_split(sitio, "|")
-            ir_a_sitio(ruta_unir(git_raiz, p[0]), Int(p[1]), 1)
-        end
-        return true
-    end
-    return false
-end
-
-func git_panel_abrir()
-    if git_raiz == ""
-        avisar(tr(461, "El proyecto no está en un repositorio de git."), 1)
-    end
-    mui_window_open(vc.window)
-    vc_abierta = true
-    # el mensaje, listo para escribir
-    mui_set_active(vc.window, vc.mensaje)
-    git_pedir_estado()
-    git_al_dia()
-    armar_tic(TIC_MS, EV_TIC)
-end
-
-func git_confirmar()
-    m = str_trim(mui_get_text(vc.mensaje))
-    if m == ""
-        avisar(tr(468, "Escribe el mensaje del commit."), 1)
-        mui_set_active(vc.window, vc.mensaje)
-        return
-    end
-    if gc_preparados() == 0
-        mui_request(vc.window, tr(469, "Nada preparado"), tr(470, "Marca la casilla de los ficheros que van en el commit."), tr(471, "_Vale"))
-        return
-    end
-    if tarea != NADA
-        return
-    end
-    git_commit = true
-    git("commit -m " + entre_comillas(m))
-end
-
-# Los eventos de git: el menú, la rama de la barra y el panel Cambios
-func git_evento(ev: Int)
-    if ev == EV_GIT_CONFIRMAR or ev == EV_GIT_CAMBIOS
-        git_panel_abrir()
-    elif ev == EV_GC_CERRAR
-        mui_window_close(vc.window)
-        vc_abierta = false
-    elif ev == EV_GC_CONFIRMAR
-        git_confirmar()
-    elif ev == EV_GC_DIFERENCIAS
-        git_ver_diferencias(gc_ruta(gc_sel))
-    elif ev == EV_GC_TODO
-        git_orden("add -A", G_NADA, "")
-        armar_tic(TIC_MS, EV_TIC)
-    elif ev == EV_GC_NADA
-        git_orden("reset -q", G_NADA, "")
-        armar_tic(TIC_MS, EV_TIC)
-    elif ev == EV_GC_BARRA
-        desde = mui_get_value(vc.barra)
-        if desde != gc_desde
-            gc_desde = gc_desde_valido(desde)
-            mui_canvas_redraw(vc.lista)
-        end
-    elif ev == EV_GC_LISTA
-        rueda = mui_canvas_wheel(vc.lista)
-        if rueda != 0
-            gc_desde = gc_desde_valido(gc_desde - rueda * 3)
-            mui_set_value(vc.barra, gc_desde)
-            mui_canvas_redraw(vc.lista)
-        elif mui_canvas_button(vc.lista) == 1
-            o = gc_clic(mui_canvas_mouse_x(vc.lista), mui_canvas_mouse_y(vc.lista))
-            if o == "diff"
-                git_ver_diferencias(gc_ruta(gc_sel))
-            elif o != ""
-                git_orden(o, G_NADA, "")
-                armar_tic(TIC_MS, EV_TIC)
-            end
-            mui_canvas_redraw(vc.lista)
-        end
-    elif ev == EV_GIT_FICHERO
-        d = ed_actual()
-        if d == nil or d.ruta == "" or git_relativa(d.ruta) == "?"
-            avisar(tr(472, "Este fichero no está en el repositorio del proyecto."), 1)
-        else
-            if d.cambiado
-                guardar_en(d, d.ruta)
-            end
-            git_ver_diferencias(git_relativa(d.ruta))
-        end
-    end
-    if sonda and vc_abierta
-        sonda_cambios()
-    end
-end
-
 # --- Inferencia ---
 
 const PUERTO_INFERENCIA = "INFERENCIA.1"
@@ -2700,8 +2374,12 @@ end
 # --- Las extensiones (extensiones.dash, docs/EXTENSIONES.md) ---
 
 var abrir_delegado: Bool = false   # el último abrir() lo mandó a una extensión (EDITAR)
-var ext_items: [Int] = []          # las opciones del menú Extensiones (ext_m0...)
-var ext_cambio_de: String = ""     # el fichero escrito del que falta avisar CAMBIADO ("" ninguno)
+var ext_items: [Int] = []          # las opciones sueltas del menú Extensiones (ext_m0...)
+# Los menús propios de las extensiones (submenu = título), en la barra de menús tras Extensiones: su objeto (0 si no
+# hay) y de qué está hecho (título y opciones), para no rehacerlo si no cambió (con MUI 3.8 rehacerlo cierra y abre la
+# ventana)
+var ext_menus: [Int] = [0, 0, 0]
+var ext_menus_firma: [String] = ["", "", ""]
 var ext_elegida: Int = -1          # la elegida en el gestor
 
 # Su cajón: ENV:Forja/extensiones, o Extensiones junto a Forja (la ruta entera: PROGDIR: es de cada proceso)
@@ -2752,7 +2430,7 @@ func ext_tras_evento()
         ext_ranuras_cambiadas = false
         i = 0
         while i < ext_items.length
-            if i < ext_ranura_titulo.length
+            if i < ext_ranura_ext.length and ext_ranura_ext[i] >= 0
                 mui_set_text(ext_items[i], ext_ranura_titulo[i])
                 mui_set_enabled(ext_items[i], true)
             else
@@ -2761,6 +2439,7 @@ func ext_tras_evento()
             end
             i = i + 1
         end
+        ext_menus_al_dia()
     end
     if ext_dibujar and abierta
         ext_dibujar = false
@@ -2770,48 +2449,136 @@ func ext_tras_evento()
     end
 end
 
-# Se escribió en d: CAMBIADO cuando lleve REPOSO_MS sin escribir (si alguna lo pide)
+# Los menús propios de las extensiones: los que cambiaron se quitan y se vuelven a hacer (mui_menu_add)
+func ext_menus_al_dia()
+    s = 0
+    while s < EXT_SUBMENUS
+        firma = ""
+        if ext_sub_ext[s] >= 0
+            firma = ext_sub_titulo[s]
+            k = 0
+            while k < EXT_SUB_OPCIONES
+                r = EXT_RANURAS + s * EXT_SUB_OPCIONES + k
+                if ext_ranura_ext[r] >= 0
+                    firma = firma + "|#{r}:" + ext_ranura_titulo[r]
+                end
+                k = k + 1
+            end
+        end
+        if firma != ext_menus_firma[s]
+            ext_menus_firma[s] = firma
+            if ext_menus[s] != 0
+                mui_menu_remove(ext_menus[s])
+                ext_menus[s] = 0
+            end
+            if firma != ""
+                ext_menus[s] = mui_menu_add(v.window, ext_sub_titulo[s])
+                k = 0
+                while k < EXT_SUB_OPCIONES
+                    r = EXT_RANURAS + s * EXT_SUB_OPCIONES + k
+                    if ext_ranura_ext[r] >= 0
+                        mui_menu_item(ext_ranura_titulo[r], "", EV_EXT_MENU + r)
+                    end
+                    k = k + 1
+                end
+                mui_menu_end()
+            end
+        end
+        s = s + 1
+    end
+end
+
+# Se escribió en d: CAMBIADO a las que lo piden cuando lleven su pausa sin escribir
 func ext_tras_escribir(d: Documento)
     if not ext_alguna_pide("cambiado")
         return
     end
-    ext_cambio_de = d.ruta
-    if ext_cambio_de == ""
-        ext_cambio_de = d.nombre
+    r = d.ruta
+    if r == ""
+        r = d.nombre
     end
+    ext_escrito(r)
     if not tic_armado
-        armar_tic(REPOSO_MS, EV_TIC)
+        armar_tic(300, EV_TIC)
     end
 end
 
 func ext_reposo()
-    if ext_cambio_de == ""
-        return
+    falta = ext_cambiados()
+    if falta >= 0 and not tic_armado
+        armar_tic(falta + 20, EV_TIC)
     end
-    if time_ms() - ultimo_cambio < REPOSO_MS
-        if not tic_armado
-            armar_tic(REPOSO_MS, EV_TIC)
-        end
-        return
-    end
-    ext_suceso("CAMBIADO", ext_cambio_de)
-    ext_cambio_de = ""
 end
 
-# VUELTA: la ventana de Forja vuelve a ser la activa (quizá cambió algo fuera). Dash no tiene un evento de ventana
-# activada: se mira en el tic, cada EXT_VUELTA_MS, solo si alguna lo pide
-const EXT_VUELTA_MS = 1500
-var ext_ventana_activa: Bool = true
+# Que las marcas y las rayas de las extensiones sigan a su texto al escribir: se mira el documento activo antes y
+# después de cada evento y de cada orden ARexx; si cambió su número de líneas, se mueven las de después
+var _sm_doc: Documento = nil
+var _sm_lineas: Int = 0
+var _sm_cl: Int = 0
 
-func ext_mirar_ventana()
-    if not abierta or not ext_alguna_pide("vuelta")
+func seguir_antes()
+    _sm_doc = ed_actual()
+    if _sm_doc != nil
+        _sm_lineas = _sm_doc.lineas.length
+        _sm_cl = _sm_doc.cl
+    end
+end
+
+func seguir_despues()
+    d = _sm_doc
+    _sm_doc = nil
+    if d == nil or d.ruta == "" or (marcas_margen.length == 0 and marcas_rayas.length == 0)
         return
     end
-    activa = mui_window_active(v.window) == 1
-    if activa and not ext_ventana_activa
-        ext_suceso("VUELTA", "")
+    delta = d.lineas.length - _sm_lineas
+    if delta == 0
+        return
     end
-    ext_ventana_activa = activa
+    desde = _sm_cl
+    if d.cl < desde
+        desde = d.cl
+    end
+    quitadas = 1
+    puestas = 1 + delta
+    if delta < 0
+        quitadas = 1 - delta
+        puestas = 1
+    end
+    if marcas_mover(str_lower(d.ruta), desde + 1, quitadas, puestas) and abierta and d == ed_actual()
+        mui_canvas_redraw(v.editor)
+    end
+end
+
+# Un clic en la zona de la extensión id en la barra de botones: ZONA, a ella
+func ext_zona(id: String)
+    i = ext_buscar(id)
+    if i >= 0 and extensiones[i].estado != EXT_PARADA
+        ext_suceso_a(i, "ZONA")
+    end
+end
+
+# Una tecla en la vista de una extensión: TECLA tecla línea nombre, a ella (las flechas y Esc se quedan en Forja).
+# true si era suya.
+func ext_tecla_vista(d: Documento, codigo: Int, letra: String) -> Bool
+    if codigo == T_IZQUIERDA or codigo == T_DERECHA or codigo == T_ARRIBA or codigo == T_ABAJO or codigo == T_ESC
+        return false
+    end
+    i = ext_buscar(d.vista_ext)
+    t = letra
+    if codigo == T_RETURN or codigo == T_ENTER
+        t = "return"
+    elif codigo == T_TAB
+        t = "tab"
+    elif codigo == T_RETROCESO or codigo == T_SUPRIMIR
+        t = "borrar"
+    elif t == " "
+        t = "espacio"
+    end
+    if i < 0 or t == "" or extensiones[i].estado == EXT_PARADA
+        return true
+    end
+    ext_suceso_a(i, "TECLA " + t + " #{d.cl + 1} " + d.nombre)
+    return true
 end
 
 # Al salir: hasta 2 s atendiendo ARexx para que las que están en marcha recojan su SALIR. Una orden que llegara a un
@@ -3014,6 +2781,7 @@ end
 func orden_rexx(linea: String) -> String
     _rexx_rc = 0
     r = ""
+    seguir_antes()
     if str_starts(str_upper(linea), "LOTE\n")
         ls = str_split(linea, "\n")
         hechas = 0
@@ -3032,7 +2800,11 @@ func orden_rexx(linea: String) -> String
     else
         r = orden_una(linea)
     end
+    seguir_despues()
     ext_tras_evento()
+    if sonda
+        publicar_sonda()
+    end
     if _rexx_rc != 0
         mui_rexx_fail(_rexx_rc)
     end
@@ -3087,7 +2859,9 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
             return ""
         end
         tipo = "texto"
-        if d.sprite != nil
+        if d.vista != 0
+            tipo = "vista"
+        elif d.sprite != nil
             tipo = "sprite"
         elif d.mapa != nil
             tipo = "mapa"
@@ -3099,6 +2873,15 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
             cambiado = "1"
         end
         return d.ruta + "\n" + d.nombre + "\n" + cambiado + "\n" + tipo + "\n#{d.lineas.length}"
+    elif orden == "CAMBIADOS"
+        # los ficheros abiertos con cambios sin guardar (los que tienen ruta), uno por línea
+        t = ""
+        for d in documentos
+            if d.cambiado and d.ruta != "" and d.vista == 0
+                t = t + d.ruta + "\n"
+            end
+        end
+        return t
     elif orden == "ABIERTOS"
         t = ""
         for d in documentos
@@ -3190,6 +2973,8 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         else
             ed_cambiar_lineas(d, 1, d.lineas.length, t)
         end
+        ultimo_cambio = time_ms()
+        ext_tras_escribir(d)
         redibujar()
         return ""
     elif orden == "AVISO" and p.length >= 2
@@ -3209,6 +2994,68 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         return ""
     elif orden == "MARCAS" or orden == "MARCASPROYECTO"
         return orden_marcas(orden, linea)
+    elif orden == "RAYAS" and p.length == 2
+        # RAYAS fichero: las rayas que tiene, "línea:bits" (1 añadida, 2 cambiada, 4 quitadas encima, 8 debajo)
+        return rayas_texto(str_lower(p[1]))
+    elif orden == "RAYAS"
+        return orden_rayas(linea)
+    elif orden == "ZONA" and p.length == 1
+        # ZONA: las de todas, una por línea: "extensión|texto|detalle"
+        t = ""
+        for z in bb_zonas
+            t = t + z.ext + "|" + z.texto + "|" + z.detalle + "\n"
+        end
+        return t
+    elif orden == "ZONA"
+        # ZONA extensión icono|texto|detalle|corto: su zona en la barra de botones (sin nada más: la quita)
+        q = _partes(linea, 2)
+        partes = str_split(_resto, "|")
+        while partes.length < 4
+            partes.push("")
+        end
+        if bb_zona_poner(p[1], partes[0], partes[1], partes[2], partes[3]) and abierta
+            mui_canvas_redraw(v.botones)
+        end
+        return ""
+    elif orden == "VISTA" and p.length >= 3
+        # VISTA extensión "nombre", y en cada línea siguiente el color (un carácter) y el texto: una pestaña de solo
+        # lectura, delante (si ya tiene una con ese nombre, la vuelve a llenar)
+        ls = str_split(linea, "\n")
+        var textos: [String] = []
+        colores = ""
+        i = 1
+        while i < ls.length
+            l = ls[i]
+            if l == ""
+                colores = colores + " "
+                textos.push("")
+            else
+                colores = colores + l[0:1]
+                textos.push(str_replace(l[1:], "\t", "    "))
+            end
+            i = i + 1
+        end
+        cab = _partes(ls[0], 99)
+        ed_abrir_vista(p[1], cab[2], textos, colores)
+        ajustar_paneles()
+        redibujar()
+        return ""
+    elif orden == "TEXTODISCO"
+        # el texto como se guardaría (en UTF-8 si el fichero lo estaba)
+        d = _doc_texto(p, 1)
+        if d == nil
+            _rexx_falla(10)
+            return ""
+        end
+        return ed_texto_disco(d)
+    elif orden == "VERSION"
+        # cuántos cambios lleva el texto (sube con cada uno)
+        d = _doc_texto(p, 1)
+        if d == nil
+            _rexx_falla(10)
+            return ""
+        end
+        return "#{d.version}"
     elif orden == "MENU" and p.length >= 3
         # MENU extensión título|tecla|orden: una opción más en el menú Extensiones (su número; RC 5 si no caben)
         i = ext_buscar(p[1])
@@ -3225,6 +3072,42 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         return "#{r}"
     end
     _rexx_falla(10)
+    return ""
+end
+
+# RAYAS extensión fichero [versión], y en cada línea siguiente "línea símbolos" (+ añadida, ~ cambiada, - quitadas
+# encima, _ quitadas debajo): sus rayas en ese fichero (sin líneas, las quita). Con versión, solo si el texto sigue en
+# esa (VERSION): si no, RC 5 y no cambia nada (la extensión las pedirá otra vez).
+func orden_rayas(linea: String) -> String
+    lineas = str_split(linea, "\n")
+    cab = _partes(lineas[0], 99)
+    if cab.length < 3
+        _rexx_falla(10)
+        return ""
+    end
+    k = ed_buscar_ruta(cab[2])
+    if cab.length >= 4 and k >= 0 and "#{documentos[k].version}" != cab[3]
+        _rexx_falla(5)
+        return ""
+    end
+    var ns: [Int] = []
+    var ss: [String] = []
+    i = 1
+    while i < lineas.length
+        l = lineas[i]
+        i = i + 1
+        e = str_find(l, " ")
+        if l == "" or e < 0
+            continue
+        end
+        ns.push(Int(l[0:e]))
+        ss.push(str_trim(l[e + 1:]))
+    end
+    rayas_poner(cab[1], cab[2], ns, ss)
+    d = ed_actual()
+    if d != nil and str_lower(d.ruta) == str_lower(cab[2]) and abierta
+        mui_canvas_redraw(v.editor)
+    end
     return ""
 end
 
@@ -3319,10 +3202,20 @@ func orden_una(linea: String) -> String
             return ""
         end
         d = _documento(p[1])
+        antes = 0
+        if d != nil
+            antes = d.lineas.length
+        end
         if d == nil or not ed_cambiar_lineas(d, Int(p[2]), Int(p[3]), _resto)
             _rexx_falla(10)
             return ""
         end
+        # las marcas de después siguen a su texto
+        quitadas = Int(p[3]) - Int(p[2]) + 1
+        marcas_mover(str_lower(d.ruta), Int(p[2]), quitadas, quitadas + d.lineas.length - antes)
+        _sm_doc = nil
+        ultimo_cambio = time_ms()
+        ext_tras_escribir(d)
         redibujar()
         return ""
     elif orden == "GUARDAR"
@@ -3371,33 +3264,12 @@ func orden_una(linea: String) -> String
         redibujar()
         return ""
     elif orden == "ESTADO"
-        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando", "git"]
+        var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
         return nombres[tarea]
     elif orden == "ERRORES"
         return errores_ultimos
-    elif orden == "GIT"
-        # GIT orden de dashgit (status, add -A, commit -a -m "...", pull, push...): sin esperar; ESTADO da "git"
-        # mientras sigue, y SALIDA lo que escribió
-        if tarea != NADA
-            _rexx_falla(5)
-            return ""
-        end
-        resto = str_trim(linea[3:])
-        if resto == ""
-            _rexx_falla(10)
-            return ""
-        end
-        git(resto)
-        return ""
     elif orden == "SALIDA"
         return salida_texto(false)
-    elif orden == "CAMBIOS"
-        # el panel Cambios de git
-        git_evento(EV_GIT_CAMBIOS)
-        return ""
-    elif orden == "GITESTADO"
-        # "rama|cambios|marcas del panel|marcas del margen del fichero activo"
-        return git_sonda()
     elif orden == "ACTUALIZAR"
         # lo mismo que el menú: busca una versión nueva de Dash y, si la hay, pregunta si se instala
         act_pedir()
@@ -3410,12 +3282,24 @@ end
 # Lo que pide un evento de la ventana (lo que no es salir ni del menú Proyecto). Va aparte de Main para que Main
 # no pase de 32 KB: dashc 2.4 estropea un salto corto que tiene que crecer (ver el informe de la rama autocompletar).
 func atender(ev: Int)
-    if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_RANURAS
+    if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
         ext_menu(ev - EV_EXT_MENU)
     elif ev >= EV_EXT_GESTOR and ev <= EV_EXT_CERRAR
         gestor(ev)
     elif ev == EV_PROYECTO
         en_proyecto()
+    elif ev == EV_ZONA
+        ext_zona(bb_zona_clic)
+    elif ev == EV_ACTIVADA
+        # se volvió a Forja: quizá cambió algo fuera (ficheros nuevos): el panel del proyecto otra vez; y VUELTA a las
+        # extensiones que lo piden (git mira el estado)
+        if depuracion.length == 0 and proyecto_cajon != ""
+            desde = proyecto_desde
+            proyecto_leer(proyecto_cajon)
+            proyecto_desde = proyecto_desde_valido(desde)
+            mui_canvas_redraw(v.proyecto)
+        end
+        ext_suceso("VUELTA", "")
     elif ev == EV_ACTUALIZAR
         act_pedir()
         actualizar_mensajes()
@@ -3439,18 +3323,6 @@ func atender(ev: Int)
         mui_window_close(vi.window)
     elif ev == EV_IRA_CERRAR
         mui_window_close(vi.window)
-    elif ev == EV_GIT_ESTADO
-        git("status")
-    elif ev == EV_GIT_DIFERENCIAS
-        git("diff")
-    elif ev == EV_GIT_HISTORIAL
-        git("log --oneline -n 30")
-    elif ev == EV_GIT_ANADIR
-        git("add -A")
-    elif ev == EV_GIT_CONFIRMAR or ev == EV_GIT_CAMBIOS or (ev >= EV_GC_CONFIRMAR and ev <= EV_GIT_FICHERO)
-        git_evento(ev)
-    elif ev == EV_GIT_TRAER
-        git("pull")
     elif ev == EV_DEFINICION
         ir_definicion()
     elif ev == EV_VOLVER
@@ -3459,8 +3331,6 @@ func atender(ev: Int)
         referencias()
     elif ev == EV_COMPLETAR
         completar_ahora()
-    elif ev == EV_GIT_SUBIR
-        git("push")
     elif ev == EV_PREFERENCIAS
         preferencias_abrir()
     elif ev == EV_PREF_GUARDAR or ev == EV_PREF_USAR
@@ -3560,14 +3430,13 @@ Main
         vb = Buscar_create()
         vi = IrA_create()
         vp = PrefForja_create()
-        vc = GitCambios_create()
         vx = GestorExt_create()
         ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11]
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
             screen_make_default()
-            for w in [v.window, vb.window, vi.window, vp.window, vc.window, vx.window]
+            for w in [v.window, vb.window, vi.window, vp.window, vx.window]
                 mui_window_screen(w, PANTALLA)
             end
         end
@@ -3582,9 +3451,8 @@ Main
         mui_canvas_on_input(v.editor, EV_EDITOR)
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
         mui_canvas_on_input(v.proyecto, EV_PROYECTO)
-        mui_canvas_on_draw(vc.lista, gc_dibujar)
-        mui_canvas_on_input(vc.lista, EV_GC_LISTA)
-        git_programa = dashgit()
+        # VUELTA a las extensiones: la ventana de Forja vuelve a ser la activa
+        mui_on_activate(v.window, EV_ACTIVADA)
         mui_canvas_on_input(v.salida, EV_SALIDA)
         mui_canvas_on_drag(v.salida, EV_ARRASTRE_SALIDA)
         mui_canvas_take_tab(v.editor, true)
@@ -3600,6 +3468,8 @@ Main
 
         # las extensiones: sus opciones del menú, sus tipos de fichero y las que arrancan con Forja
         ext_leer_todas(ext_cajon_de_forja())
+        # sus menús propios, antes de abrir la ventana (con MUI 3.8, después habría que cerrarla y abrirla)
+        ext_menus_al_dia()
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
             ruta = arg(0)
@@ -3646,6 +3516,7 @@ Main
             if ev == 0
                 mirar_depuracion()
             end
+            seguir_antes()
             if ev == EV_EDITOR
                 otro = en_editor()
                 if otro != 0
@@ -3676,22 +3547,10 @@ Main
                 end
             end
             atender(ev)
+            seguir_despues()
             ext_tras_evento()
             ajustar_barra()
             ajustar_barras_paneles()
-            if git_mirar_cajon(proyecto_cajon)
-                git_al_dia()
-            end
-            if git_raiz != "" and not tic_armado
-                if git_ocupado()
-                    armar_tic(TIC_MS, EV_TIC)
-                else
-                    armar_tic(GIT_TIC_MS, EV_TIC)
-                end
-            end
-            if not tic_armado and ext_alguna_pide("vuelta")
-                armar_tic(EXT_VUELTA_MS, EV_TIC)
-            end
             if ed_actual() == nil and not tic_armado
                 armar_tic(500, EV_TIC)
             end

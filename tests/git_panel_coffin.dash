@@ -1,12 +1,23 @@
 # Lanza tests/git_panel.dash en la máquina coffin (MUI 3.8, 68040, RTG): copia el proyecto de prueba a RAM:Prueba,
 # pone las variables de Forja, arranca la prueba aparte y Forja, y al acabar escribe el registro. Lo usa
-# tests/git_panel_coffin.sh, que deja en DASHRUN: Forja, GitPanel, dashgit y los ficheros de juego/.
+# tests/git_panel_coffin.sh, que deja en DASHRUN: Forja, GitPanel, dashgit, la extensión Git (Git y manifiesto.txt) y
+# los ficheros de juego/.
 Main
-    run_command("C:MakeDir RAM:Prueba RAM:Prueba/juego ENV:Forja")
+    run_command("C:MakeDir RAM:Prueba RAM:Prueba/juego RAM:Prueba/Extensiones RAM:Prueba/Extensiones/Git")
+    # (en coffin ENV:Forja ya está: MakeDir para en el primero que falla)
+    run_command("C:MakeDir ENV:Forja")
     for f in ["main.dash", "red.dash", "ventana.dashui"]
         file_copy("DASHRUN:" + f, "RAM:Prueba/juego/" + f)
     end
+    # la extensión Git, en un cajón de extensiones propio
+    file_copy("DASHRUN:Git", "RAM:Prueba/Extensiones/Git/Git")
+    file_copy("DASHRUN:manifiesto.txt", "RAM:Prueba/Extensiones/Git/manifiesto.txt")
+    env_set("Forja/extensiones", "RAM:Prueba/Extensiones", false)
     env_set("Forja/dashgit", "DASHRUN:dashgit", false)
+    s = file_read_text("DASHRUN:servidor")
+    if s != nil
+        env_set("Forja/git_servidor", str_trim(s), false)
+    end
     env_set("FORJA_SONDA", "1", false)
     env_set("FORJA_PRUEBA", "RAM:Prueba/juego/main.dash", false)
     env_set("GITPANEL_DIR", "RAM:Prueba", false)

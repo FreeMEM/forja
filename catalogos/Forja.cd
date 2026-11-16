@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/git-panel/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/git-ext/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -380,16 +380,6 @@ MSG_223 (223//)
 El compilador de Dash
 MSG_224 (224//)
 Inferencia
-MSG_225 (225//)
-Abre antes un fichero del proyecto.
-MSG_226 (226//)
-No se puede ejecutar 
-MSG_227 (227//)
-. Pon su ruta en ENV:Forja/dashgit.
-MSG_228 (228//)
-Git: hecho en 
-MSG_229 (229//)
-Git acabó con código %1.
 MSG_230 (230//)
 No hay un nombre en el cursor.
 MSG_231 (231//)
@@ -516,20 +506,6 @@ MSG_356 (356//)
 Elegir...
 MSG_357 (357//)
 Elegir...
-MSG_358 (358//)
-Git (alfa)
-MSG_359 (359//)
-Estado
-MSG_360 (360//)
-Diferencias
-MSG_361 (361//)
-Historial
-MSG_362 (362//)
-Añadir los ficheros nuevos
-MSG_364 (364//)
-Traer del servidor (pull)
-MSG_365 (365//)
-Subir al servidor (push)
 MSG_369 (369//)
 Código
 MSG_370 (370//)
@@ -694,45 +670,71 @@ MSG_458 (458//)
 Guardar 
 MSG_459 (459//)
 ... %1 más
-MSG_460 (460//)
-Sin cambios.
-MSG_461 (461//)
-El proyecto no está en un repositorio de git.
-MSG_462 (462//)
-%1 cambios
-MSG_463 (463//)
-1 cambio
 MSG_464 (464//)
-Las diferencias son de solo lectura.
-MSG_465 (465//)
-Sin diferencias con el último commit: 
-MSG_466 (466//)
- (cambios)
-MSG_467 (467//)
-Git falló: 
-MSG_468 (468//)
-Escribe el mensaje del commit.
-MSG_469 (469//)
-Nada preparado
-MSG_470 (470//)
-Marca la casilla de los ficheros que van en el commit.
-MSG_471 (471//)
-_Vale
-MSG_472 (472//)
-Este fichero no está en el repositorio del proyecto.
-MSG_473 (473//)
-Cambios (Forja)
-MSG_474 (474//)
-Mensaje:
-MSG_475 (475//)
-_Diferencias
-MSG_476 (476//)
-_Preparar todo
-MSG_477 (477//)
-_Quitar todo
-MSG_478 (478//)
-C_onfirmar
-MSG_479 (479//)
-Cambios y confirmar...
-MSG_480 (480//)
-Diferencias de este fichero
+Esta pestaña es de solo lectura.
+MSG_600 (600//)
+no está su programa
+MSG_601 (601//)
+No se puede arrancar la extensión %1.
+MSG_602 (602//)
+La extensión %1 no ha llegado a empezar.
+MSG_603 (603//)
+La extensión %1 se ha cerrado.
+MSG_604 (604//)
+La extensión %1 no recoge sus avisos: se pierden los más viejos.
+MSG_605 (605//)
+No caben más opciones en el menú Extensiones (%1).
+MSG_606 (606//)
+(apagada)
+MSG_607 (607//)
+(en marcha)
+MSG_608 (608//)
+Autor: 
+MSG_609 (609//)
+Licencia: 
+MSG_610 (610//)
+Arranca: con su menú.
+MSG_611 (611//)
+Arranca: al abrir Forja.
+MSG_612 (612//)
+Arranca: con su menú o al abrir 
+MSG_613 (613//)
+No se sabe el nombre de la extensión.
+MSG_614 (614//)
+No se pudo copiar a %1.
+MSG_615 (615//)
+No tiene manifiesto.txt.
+MSG_616 (616//)
+Para un .lha hace falta C:LhA.
+MSG_617 (617//)
+El .lha no trae una extensión (falta manifiesto.txt).
+MSG_620 (620//)
+Extensiones
+MSG_621 (621//)
+Gestor de extensiones...
+MSG_622 (622//)
+Extensiones de Forja
+MSG_623 (623//)
+_Activar
+MSG_624 (624//)
+_Instalar...
+MSG_625 (625//)
+_Cerrar
+MSG_626 (626//)
+No hay extensiones. Se instalan con Instalar, o en %1.
+MSG_627 (627//)
+Desactivar
+MSG_628 (628//)
+Activar
+MSG_629 (629//)
+Instalar una extensión: su manifiesto.txt o un .lha
+MSG_630 (630//)
+, de 
+MSG_631 (631//)
+Una extensión es un programa: puede hacer cualquier cosa en tu Amiga.\nInstálala solo si te fías de quien la hizo.
+MSG_632 (632//)
+Instalar una extensión
+MSG_633 (633//)
+Instalar y _activar|_Instalar|_Cancelar
+MSG_634 (634//)
+Instalada la extensión %1.

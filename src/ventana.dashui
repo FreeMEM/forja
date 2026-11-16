@@ -39,21 +39,6 @@
           ]
         },
         {
-          "tr": 358, "title": "Git (alfa)",
-          "items": [
-            { "tr": 359, "label": "Estado", "event": 63 },
-            { "tr": 360, "label": "Diferencias", "event": 64 },
-            { "tr": 480, "label": "Diferencias de este fichero", "event": 90 },
-            { "tr": 361, "label": "Historial", "event": 65 },
-            { "separator": true },
-            { "tr": 362, "label": "Añadir los ficheros nuevos", "event": 66 },
-            { "tr": 479, "label": "Cambios y confirmar...", "event": 67 },
-            { "separator": true },
-            { "tr": 364, "label": "Traer del servidor (pull)", "event": 68 },
-            { "tr": 365, "label": "Subir al servidor (push)", "event": 69 }
-          ]
-        },
-        {
           "tr": 314, "title": "Edición",
           "items": [
             { "tr": 315, "label": "Deshacer", "key": "Z", "event": 43 },

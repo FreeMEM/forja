@@ -143,3 +143,32 @@ VS Code.
     de un menú MUI ya hecho (las libres quedan vacías y apagadas); `input_menu` no llega a los menús de MUI (la prueba
     usa `ENV:FORJA_EVENTO` con la sonda); un evento de ventana activada. Y quizá `lib/forja.dash` en la `lib/` de
     Dash (el `import "lib/forja.dash"` no cambiaría).
+- 2026-11-16, rama `git-ext`: **1.4, segunda parte: git es una extensión** (`extensiones/Git`, MIT; llama a dashgit
+  como programa aparte). Forja ya no tiene nada de git dentro (solo esconde el cajón `.git` en el proyecto): fuera el
+  menú Git, las órdenes ARexx `GIT`, `CAMBIOS` y `GITESTADO` (ahora en el puerto de la extensión, `FORJAEXT.GIT`), el
+  estado `git` de `ESTADO`, la zona de la rama, las letras, las rayas y la vista de diferencias propias.
+  - **La API crece (versión 2)** para que git quepa, de forma general: `ZONA` (una zona con icono, texto y detalle en
+    la barra de botones, con clic: suceso `ZONA`); menú propio (`submenu = Git` en el manifiesto: un menú más en la barra de
+    menús, hecho en marcha con `mui_menu_add` de Dash PR #182; 3 entre todas, de 10 opciones); `VISTA` (pestaña de solo lectura con un color por línea; sus teclas llegan
+    como `TECLA tecla línea nombre`); `RAYAS` (las rayas de git en el margen, con versión del texto para no poner unas
+    viejas); `TEXTODISCO`, `VERSION`, `CAMBIADOS`; `pausa` por extensión para `CAMBIADO` (y `CAMBIADO` también tras
+    escribir por ARexx). Las marcas y las rayas **siguen a su texto al escribir** (se mueven con las líneas).
+  - `VUELTA` sale de `mui_on_activate` (Dash PR #180), sin el tic de 1,5 s; al volver, Forja lee otra vez el cajón del
+    proyecto.
+  - **Marcas al escribir**: con `dashgit servidor` (rama `servidor` de dashgit), la extensión pide los rangos del texto
+    del editor sin guardar tras 0,6 s sin escribir. Se le habla por ficheros, no por `rexx_send` (que espera sin
+    límite): un servidor colgado no cuelga la extensión, y a los 20 s sigue sin él.
+  - El paquete (`tools/paquete.py`) lleva `Extensiones/Git` y `lib/forja.dash`.
+  - Tiempos de las rayas al escribir (repositorio de 4 ficheros, `tests/git_panel.sh`, de la última tecla a ver las
+    rayas, con la pausa de 0,6 s dentro): A1200 emulado a velocidad de A1200 (`REAL=1`) 1,2 s (los rangos en el
+    servidor, 0,3 s); a toda velocidad 1,3 s; coffin (68040 JIT) 0,7 s. De guardar a ver las letras y las rayas, 1,5 s
+    con `REAL=1` (antes, con dashgit aparte, 2,4 s). Teclear no se frena: Forja no espera a nadie y la extensión y el
+    servidor van a prioridad -1.
+  - Pruebas en la rama: `git_panel.sh` (MUI 5, A1200: normal y `REAL=1`; también `SERVIDOR=no`), `git_panel_coffin.sh`
+    (MUI 3.8: con y sin servidor), `extensiones.sh` (MUI 5 y MUI 3.8), `extensiones_base.sh` y el resto
+    (botones, teclas, ficheros, rexx, salir, proyecto, clic, buscar, sesion, compilar, errores, parar, salida, depurar,
+    completar, pantalla): TODO BIEN.
+  - **Falta en Forja**: catálogo inglés de la extensión Git (sus textos van en castellano); las 12 opciones sueltas de
+    Extensiones siguen fijas (podrían hacerse en marcha con `mui_menu_extend`); al salir, la extensión espera a que
+    acabe su servidor (si se colgara sin atender Ctrl-C, ella se quedaría; Forja no).
+  - **Falta en Dash**: `cx_wait` no despierta con el puerto ARexx (el servidor lo mira cada 200 ms).

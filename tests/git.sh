@@ -1,5 +1,5 @@
 #!/bin/bash
-# El menú Git de Forja: tests/git.dash maneja dashgit por ARexx (GIT y SALIDA) en FS-UAE, con push a un servidor
+# La extensión Git de Forja: tests/git.dash maneja dashgit por ARexx (GIT en FORJAEXT.GIT y SALIDA en FORJA.1) en FS-UAE, con push a un servidor
 # git del PC (tests/servidor_git.py de dashgit). Acaba con "TODO BIEN" si todo fue bien.
 #
 #   tests/git.sh DASH_DIR [DASHGIT_DIR [captura.png segundos...]]      (DASHGIT_DIR: por defecto ~/Projects/dashgit)
@@ -18,8 +18,10 @@ trap 'kill $srv 2>/dev/null; rm -rf "$tmp"' EXIT
 "$dash/dash" "$aqui/src/main.dash" -o "$tmp/Forja"
 cp -r "$HOME/.cache/dash-emu/sys31muisslweb" "$tmp/sys"
 chmod -R u+w "$tmp/sys"
-mkdir -p "$tmp/sys/Prueba" "$tmp/srv"
+mkdir -p "$tmp/sys/Prueba" "$tmp/srv" "$tmp/sys/Prueba/Extensiones/Git"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+cp "$aqui/extensiones/Git/manifiesto.txt" "$tmp/sys/Prueba/Extensiones/Git/"
+"$dash/dash" "$aqui/extensiones/Git/git.dash" -o "$tmp/sys/Prueba/Extensiones/Git/Git"
 "$dash/dash" "$aqui/tests/git.dash" -o "$tmp/sys/Prueba/Git"
 "$dash/dash" "$dg/src/main.dash" -o "$tmp/sys/C/dashgit"
 git init -q --bare "$tmp/srv/origen.git"
@@ -29,6 +31,7 @@ srv=$!
 {
   echo "C:MakeDir ENV:Forja"
   echo "SetEnv Forja/dashgit DH0:C/dashgit"
+  echo "SetEnv Forja/extensiones DH0:Prueba/Extensiones"
   echo "SetEnv SERVIDOR http://127.0.0.1:$puerto/origen.git"
   echo "SetEnv FORJA_SONDA 1"
   [ -n "$ESPERA" ] && echo "SetEnv ESPERA $ESPERA"

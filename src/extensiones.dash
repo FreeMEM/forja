@@ -16,6 +16,7 @@ import "tema.dash"
 import "marcas.dash"
 import "paneles.dash"
 import "editor.dash"
+import "botones.dash"
 
 const EXT_COLA_MAX = 64
 const EXT_PARADA = 0
@@ -23,7 +24,11 @@ const EXT_ARRANCANDO = 1
 const EXT_VIVA = 2
 const EXT_ESPERA_MS = 15000
 const EXT_RANURAS = 12          # las opciones del menú Extensiones (ventana.dashui: ext_m0 a ext_m11)
-const EXT_API = "1"             # la versión de la API (HOLA la da)
+const EXT_SUBMENUS = 3          # los submenús propios (ventana.dashui: ext_s0 a ext_s2) ...
+const EXT_SUB_OPCIONES = 10     # ... con 10 opciones cada uno (ext_s0_0 a ext_s0_9): las ranuras 12 a 41
+const EXT_TOTAL = 42            # todas las ranuras (eventos EV_EXT_MENU + ranura)
+const EXT_PAUSA = 1200          # sin escribir este tiempo, CAMBIADO (la extensión puede pedir otro: pausa)
+const EXT_API = "2"             # la versión de la API (HOLA la da): la 2 trae ZONA, VISTA, RAYAS, submenu, pausa
 const EXT_AVISOS = "ENV:Forja/Avisos"
 
 struct Extension
@@ -46,15 +51,25 @@ struct Extension
     avisos: Int           # cuántas veces se le ha avisado (lo que se escribe en su fichero)
     error: String         # por qué no se puede usar ("" si se puede)
     sin_respuesta: Bool   # ya se dijo que no responde
+    submenu: String = ""  # el título de su menú propio ("": sus opciones van sueltas en Extensiones)
+    pausa: Int = 1200     # cuánto sin escribir antes de CAMBIADO (ms)
+    cambio_visto: Int = 0 # el último cambio del que se le dio CAMBIADO (ext_cambio_n)
 end
 
 var extensiones: [Extension] = []
 var ext_cajon: String = ""
-# Las opciones del menú: de qué extensión es cada una (-1 libre), su orden y su título
+# Las opciones del menú (EXT_TOTAL ranuras: las sueltas y las de los submenús): de qué extensión es cada una (-1
+# libre), su orden y su título; y de qué extensión es cada submenú, con su título
 var ext_ranura_ext: [Int] = []
 var ext_ranura_orden: [String] = []
 var ext_ranura_titulo: [String] = []
+var ext_sub_ext: [Int] = []
+var ext_sub_titulo: [String] = []
 var ext_ranuras_cambiadas: Bool = false   # main.dash pone los títulos en el menú
+# Lo último escrito en el editor (para CAMBIADO): de qué fichero, cuántos cambios van y cuándo
+var ext_cambio_de: String = ""
+var ext_cambio_n: Int = 0
+var ext_cambio_ms: Int = 0
 # Las teclas de las extensiones: calificadores (Q_*), tecla en bruto y su ranura
 var ext_teclas_q: [Int] = []
 var ext_teclas_codigo: [Int] = []
@@ -110,6 +125,13 @@ func ext_leer_manifiesto(cajon: String, id: String) -> Extension
             e.descripcion = valor
         elif clave == "licencia"
             e.licencia = valor
+        elif clave == "submenu"
+            e.submenu = valor
+        elif clave == "pausa"
+            e.pausa = Int(valor)
+            if e.pausa < 300
+                e.pausa = 300
+            end
         elif clave == "programa"
             e.programa = ruta_unir(dir, valor)
         elif clave == "arranque"
@@ -274,6 +296,40 @@ func ext_suceso(tipo: String, dato: String)
     end
 end
 
+# Se escribió en un fichero (ruta, o el nombre si no se ha guardado): CAMBIADO a cada una que lo pide cuando lleve su
+# pausa sin escribir (ext_cambiados)
+func ext_escrito(ruta: String)
+    ext_cambio_de = ruta
+    ext_cambio_n = ext_cambio_n + 1
+    ext_cambio_ms = time_ms()
+end
+
+# Da CAMBIADO a las que ya llevan su pausa sin escribir; cuánto falta para la siguiente (ms), o -1 si ninguna espera
+func ext_cambiados() -> Int
+    if ext_cambio_de == ""
+        return -1
+    end
+    pasado = time_ms() - ext_cambio_ms
+    falta = -1
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.activa and e.estado != EXT_PARADA and e.cambio_visto != ext_cambio_n and ext_pide(e, "cambiado")
+            if pasado >= e.pausa
+                e.cambio_visto = ext_cambio_n
+                ext_suceso_a(i, "CAMBIADO " + ext_cambio_de)
+            elif falta < 0 or e.pausa - pasado < falta
+                falta = e.pausa - pasado
+            end
+        end
+        i = i + 1
+    end
+    if falta < 0
+        ext_cambio_de = ""
+    end
+    return falta
+end
+
 # ¿Alguna en marcha pide ese suceso?
 func ext_alguna_pide(tipo: String) -> Bool
     for e in extensiones
@@ -329,6 +385,7 @@ func ext_parada(i: Int)
     e.cola.clear()
     e.esperando = 0
     marcas_quitar_ext(e.id)
+    bb_zona_quitar(e.id)
     ext_dibujar = true
 end
 
@@ -345,6 +402,7 @@ func ext_despedir(i: Int)
     e.estado = EXT_PARADA
     e.esperando = 0
     marcas_quitar_ext(e.id)
+    bb_zona_quitar(e.id)
     ext_dibujar = true
 end
 
@@ -412,11 +470,27 @@ end
 
 # --- El menú y las teclas ---
 
-# Reparte las opciones del menú Extensiones entre las activas, por orden, y lee sus teclas
+# Reparte las opciones del menú Extensiones entre las activas, por orden, y lee sus teclas. Las que piden submenú
+# (submenu = título) tienen uno propio con sus opciones, mientras quede alguno libre.
 func ext_ranuras()
     ext_ranura_ext = []
     ext_ranura_orden = []
     ext_ranura_titulo = []
+    k = 0
+    while k < EXT_TOTAL
+        ext_ranura_ext.push(-1)
+        ext_ranura_orden.push("")
+        ext_ranura_titulo.push("")
+        k = k + 1
+    end
+    ext_sub_ext = []
+    ext_sub_titulo = []
+    k = 0
+    while k < EXT_SUBMENUS
+        ext_sub_ext.push(-1)
+        ext_sub_titulo.push("")
+        k = k + 1
+    end
     ext_teclas_q = []
     ext_teclas_codigo = []
     ext_teclas_ranura = []
@@ -433,9 +507,63 @@ func ext_ranuras()
     ext_ranuras_cambiadas = true
 end
 
-# Una opción más ("título|tecla|orden"); -1 si ya no caben
+# Cuántas opciones del menú están en uso
+func ext_ranuras_usadas() -> Int
+    n = 0
+    for r in ext_ranura_ext
+        if r >= 0
+            n = n + 1
+        end
+    end
+    return n
+end
+
+# El submenú de la extensión i (lo coge si no tiene); -1 si no pide uno o no quedan
+func _ext_submenu(i: Int) -> Int
+    if extensiones[i].submenu == ""
+        return -1
+    end
+    k = 0
+    while k < EXT_SUBMENUS
+        if ext_sub_ext[k] == i
+            return k
+        end
+        k = k + 1
+    end
+    k = 0
+    while k < EXT_SUBMENUS
+        if ext_sub_ext[k] < 0
+            ext_sub_ext[k] = i
+            ext_sub_titulo[k] = extensiones[i].submenu
+            return k
+        end
+        k = k + 1
+    end
+    return -1
+end
+
+# Una opción más ("título|tecla|orden"), en su submenú o suelta; su ranura, o -1 si ya no caben
 func ext_ranura_nueva(i: Int, m: String) -> Int
-    if ext_ranura_ext.length >= EXT_RANURAS
+    r = -1
+    s = _ext_submenu(i)
+    if s >= 0
+        k = 0
+        while k < EXT_SUB_OPCIONES and r < 0
+            if ext_ranura_ext[EXT_RANURAS + s * EXT_SUB_OPCIONES + k] < 0
+                r = EXT_RANURAS + s * EXT_SUB_OPCIONES + k
+            end
+            k = k + 1
+        end
+    else
+        k = 0
+        while k < EXT_RANURAS and r < 0
+            if ext_ranura_ext[k] < 0
+                r = k
+            end
+            k = k + 1
+        end
+    end
+    if r < 0
         _ext_decir(hueco(tr(605, "No caben más opciones en el menú Extensiones (%1)."), extensiones[i].nombre), 1)
         return -1
     end
@@ -449,7 +577,6 @@ func ext_ranura_nueva(i: Int, m: String) -> Int
     if partes.length >= 3
         orden = partes[2]
     end
-    r = ext_ranura_ext.length
     if tecla != ""
         q = ext_tecla_q(tecla)
         c = ext_tecla_codigo(tecla)
@@ -460,16 +587,16 @@ func ext_ranura_nueva(i: Int, m: String) -> Int
             titulo = titulo + "  (" + ext_tecla_texto(tecla) + ")"
         end
     end
-    ext_ranura_ext.push(i)
-    ext_ranura_orden.push(orden)
-    ext_ranura_titulo.push(titulo)
+    ext_ranura_ext[r] = i
+    ext_ranura_orden[r] = orden
+    ext_ranura_titulo[r] = titulo
     ext_ranuras_cambiadas = true
     return r
 end
 
 # Se eligió la opción r del menú (o su tecla): MENU orden a su extensión, arrancándola si hace falta
 func ext_menu(r: Int)
-    if r < 0 or r >= ext_ranura_ext.length
+    if r < 0 or r >= ext_ranura_ext.length or ext_ranura_ext[r] < 0
         return
     end
     i = ext_ranura_ext[r]

@@ -7,42 +7,58 @@ Decisión tomada: Forja llama a dashgit como **proceso aparte** (`run_start`). F
 importa ningún módulo de dashgit, solo lee lo que escribe.
 
 Decisión del usuario (2026-11-16): git será una **extensión** de Forja, como los editores de sprites y de mapas e
-Inferencia. El sistema de extensiones aún no existe. Por eso todo lo de git va en módulos propios con una interfaz
-estrecha (ver "Lo que la extensión necesita de Forja").
+Inferencia. **Hecho en la rama `git-ext`**: todo lo de git está en `extensiones/Git/` y habla con Forja solo por la
+API de extensiones (`docs/EXTENSIONES.md`); Forja no tiene nada de git dentro (salvo esconder el cajón `.git` en el
+panel del proyecto). La extensión es MIT: llama a dashgit como programa aparte.
 
 ## Qué hay
 
 - **La barra**: a la izquierda de Inferencia, un icono de rama, el nombre de la rama y "N cambios" (si no cabe,
   solo el número; si tampoco, nada). Un clic abre el panel Cambios. Se refresca al guardar, al volver a Forja
-  (cuando su ventana vuelve a ser la activa), tras cada orden de git y al cambiar de cajón en el panel del proyecto.
+  (cuando su ventana vuelve a ser la activa: `mui_on_activate`, sin mirar cada 1,5 s), tras cada orden de git y al
+  cambiar de cajón en el panel del proyecto. Es la `ZONA` de la extensión.
 - **El panel del proyecto**: una letra a la derecha de cada fichero con cambios: M (cambiado), A (nuevo en el
   índice), D (borrado), U (conflicto), ? (sin seguir). Los cajones llevan la letra que más pesa de lo que tienen
   dentro. Letra y color, no solo color (con 4 colores se distinguen).
-- **El margen del editor**: frente a HEAD, del fichero guardado: añadida (raya llena, verde), cambiada (raya a
-  trozos, azul), quitadas (un triángulo rojo arriba de la línea siguiente, o abajo de la última). Con cambios sin
-  guardar no se enseñan (serían de otro texto). Al llegar las marcas se repintan solo las líneas que cambian.
-- **El panel Cambios** (Git > Cambios y confirmar..., o clic en la rama): una fila por fichero con casilla
+- **El margen del editor**: frente a HEAD, del texto que hay en el editor (guardado o no): añadida (raya llena,
+  verde), cambiada (raya a trozos, azul), quitadas (un triángulo rojo arriba de la línea siguiente, o abajo de la
+  última). Son las `RAYAS` de la extensión. Al escribir, Forja las mueve con su texto; tras 0,6 s sin escribir
+  (`pausa = 600`, suceso `CAMBIADO`) la extensión pide el texto (`TEXTODISCO`) y su versión, el servidor de dashgit
+  lo compara con HEAD (`diff --rangos HEAD --texto -`) y llegan las de verdad (si el texto cambió entretanto, Forja
+  no las pone: `RAYAS ... versión`).
+- **El panel Cambios** (Git > Cambios y confirmar..., o clic en la rama), una ventana de la extensión: una fila por fichero con casilla
   (vacía: sin preparar; llena: preparado; media: preparado y con más cambios en el disco), letra y ruta. Clic en la
   casilla: `dashgit add` o `dashgit reset` de ese fichero (la fila cambia ya; el estado de verdad llega después).
   Clic en la ruta la elige; otro clic, o Diferencias, abre sus diferencias. Preparar todo (`add -A`), Quitar todo
   (`reset`), campo de mensaje y Confirmar (`commit -m`, solo lo preparado). Sustituye al `commit -a` ciego.
-- **La vista de diferencias**: una pestaña de solo lectura "fichero (cambios)" con `dashgit diff HEAD -- fichero`
-  (un fichero sin seguir sale entero como añadido). Colores por línea; `n` y `p` van al trozo siguiente y al
-  anterior; Return lleva a esa línea del fichero. Git > Diferencias de este fichero la abre para el activo.
-- ARexx: `CAMBIOS` abre el panel; `GITESTADO` da "rama|cambios|letras del panel|marcas del margen del activo".
+- **La vista de diferencias**: una pestaña de solo lectura "fichero (cambios)" (`VISTA`) con
+  `dashgit diff HEAD -- fichero` (un fichero sin seguir sale entero como añadido). Colores por línea; `n` y `p` van al
+  trozo siguiente y al anterior; Return lleva a esa línea del fichero (llegan como `TECLA`). Git > Diferencias de
+  este fichero la abre para el activo.
+- **El menú** Git, un menú propio en la barra de menús, tras Extensiones (`submenu = Git`; Forja lo hace con
+  `mui_menu_add`).
+- ARexx, en el puerto de la extensión (`FORJAEXT.GIT`): `GIT orden` (sin esperar; `ESTADO` da `git` mientras sigue),
+  `CAMBIOS` abre el panel; `GITESTADO` da "rama|cambios|letras del panel|rayas del margen del activo".
+- **dashgit servidor**: la extensión arranca `dashgit servidor FORJADASHGIT.n --dueno FORJAEXT.GIT` y le pide lo de
+  cada momento (status, rangos, diff, add, reset, commit) por ficheros (`ENV:dashgit/NOMBRE.pedido` y `.respuesta`),
+  no por `rexx_send`: así, si el servidor se cuelga, la extensión no se queda esperando (a los 20 s lo da por
+  perdido y sigue con un proceso por orden). Lo de la red (pull, push) y init van en un proceso aparte. Si el
+  dashgit no tiene servidor, todo va por procesos. `SetEnv Forja/git_servidor no` lo apaga.
 
 ## Módulos
 
 | Fichero | Qué |
 |---|---|
-| `src/git_estado.dash` | el estado: busca el repositorio, cola de órdenes de dashgit en segundo plano, lee `status --porcelain -b` y `diff --rangos`, da la rama, las letras y las marcas |
-| `src/git_cambios.dash` + `src/git.dashui` | el panel Cambios |
-| `src/git_vista.dash` | colores y saltos de la vista de diferencias |
-| `src/main.dash`, bloque "Git: el pegamento" | lo que une lo de arriba con Forja (`git_tic`, `git_evento`, `git_al_dia`...) |
+| `extensiones/Git/manifiesto.txt` | nombre, sucesos (activo, abierto, guardado, cambiado, proyecto, vuelta), `pausa = 600`, `submenu = Git` y su menú |
+| `extensiones/Git/git.dash` | el programa: los sucesos de Forja, su puerto ARexx, la zona, las letras, las rayas, la vista y el panel |
+| `extensiones/Git/estado.dash` | el estado: busca el repositorio, la cola de órdenes (por el servidor o por proceso), lee `status --porcelain -b` y `diff --rangos` |
+| `extensiones/Git/cambios.dash` + `git.dashui` | el panel Cambios |
+| `extensiones/Git/vista.dash` | colores y saltos de la vista de diferencias |
 
 ## Lo que la extensión necesita de Forja
 
-Es la lista de lo que la API de extensiones tiene que dar para que git salga de Forja:
+Es la lista de lo que la API de extensiones tenía que dar para que git saliera de Forja. Todo está, con estas
+salvedades: el tic es cosa de la extensión (`mui_timer` en su propio bucle) y la sonda la publica la extensión.
 
 1. **Avisos**: el cajón del proyecto cambió; se guardó un fichero (ruta); se abrió un fichero (ruta); Forja volvió a
    ser la ventana activa (hoy se mira con `mui_window_active` en un tic cada 1,5 s: Dash no tiene un evento de
@@ -65,13 +81,17 @@ Es la lista de lo que la API de extensiones tiene que dar para que git salga de 
 ## Pruebas
 
 `tests/git_panel.sh DASH_DIR [DASHGIT_DIR [captura.png segundos...]]` (FS-UAE, MUI 5, `DASH_KICKSTART`; DASHGIT_DIR
-por defecto `~/Projects/dashgit`, necesita la rama `salidas`). `tests/git_panel.dash` hace init y commit por ARexx;
-mira la barra (rama, 0 cambios); cambia dos líneas y guarda: 1 cambio, M en el panel y las marcas 1 (añadida) y 5
-(cambiada); escribe un fichero desde fuera, pone otra ventana delante y vuelve a Forja: sale con ?; abre el panel
+por defecto `~/Projects/dashgit`, necesita la rama `servidor`). Pone la extensión en `DH0:Prueba/Extensiones/Git`
+(`ENV:Forja/extensiones`). `tests/git_panel.dash` hace init y commit por el puerto de la extensión (`FORJAEXT.GIT`);
+mira la barra (rama, 0 cambios, la `ZONA`); cambia dos líneas y guarda: 1 cambio, M en el panel y las rayas 1
+(añadida) y 5 (cambiada); **sin guardar** mete una línea antes de la 3: las rayas siguen al texto al momento (la 5 pasa
+a la 6) y tras la pausa llegan las nuevas (1, 3 y 6), y mide lo que tardan seis veces (añadir una línea y volver
+atrás); guarda; escribe un fichero desde fuera, pone otra ventana delante y vuelve a Forja: sale con ?; abre el panel
 Cambios, marca con el ratón las casillas (add, add, reset), abre las diferencias con dos clics (con lo añadido y lo
 quitado), salta con n, va al código con Return, y confirma escribiendo el mensaje (Confirmar sin mensaje pone el
 cursor en el campo). El git del PC comprueba los commits y el estado. `SISTEMA=...` usa otro sistema de
-`~/.cache/dash-emu`.
+`~/.cache/dash-emu`; `SERVIDOR=no`, sin el servidor de dashgit; `REAL=1`, a la velocidad de un A1200.
+`tests/git_panel_coffin.sh` es la misma en la máquina coffin (MUI 3.8, 68040, RTG).
 
 ## Bitácora
 
@@ -99,10 +119,14 @@ cursor en el campo). El git del PC comprueba los commits y el estado. `SISTEMA=.
   (`/run/user/1000/dash-emu-red.lock`) lo tenían otras sesiones con baterías largas. No cambia lo que prueba
   (órdenes GIT por ARexx), salvo que la ventana vieja de "Confirmar los cambios" ya no existe.
 
+- 2026-11-17, rama `git-ext`: **git es la extensión `extensiones/Git`**, con `dashgit servidor` (rama `servidor`
+  de dashgit). Las rayas siguen a lo que se escribe, sin guardar. Tiempos en `docs/FORJA_LOOP.md` (de la última
+  tecla a las rayas: 1,2 s a velocidad de A1200, con 0,6 s de pausa). `tests/git_panel.sh` y `git_panel_coffin.sh`:
+  TODO BIEN, con y sin servidor. Visto al probar: el servidor perdía a veces una respuesta (carrera entre leer y
+  escribir el fichero); arreglado en dashgit, y la extensión reescribe el pedido si en 1,5 s no hay respuesta.
+
 ## Falta
 
 - Clic en una marca del margen: enseñar lo de antes y deshacer ese trozo.
 - Historial, ramas (cambiar, crear, borrar, fusionar), conflictos, credenciales, clonar (pasos 6 a 11 del análisis).
-- Que las marcas sigan las líneas mientras se escribe (hoy se esconden hasta guardar).
 - Aviso al iniciar git en un disco sin nombres largos (FFS).
-- Un evento de Dash para "la ventana se activó" (hoy se mira cada 1,5 s con un tic, solo si hay repositorio).

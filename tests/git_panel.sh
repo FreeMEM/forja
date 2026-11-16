@@ -1,8 +1,9 @@
 #!/bin/bash
-# Git en Forja (tests/git_panel.dash): barra, panel del proyecto, margen, panel Cambios y diferencias, en FS-UAE
-# con MUI 5. Acaba con "TODO BIEN" si todo fue bien; el git del PC comprueba el repositorio al final.
+# La extensión Git de Forja (tests/git_panel.dash): barra, panel del proyecto, rayas del margen (también sin
+# guardar), panel Cambios y diferencias, en FS-UAE con MUI 5. Acaba con "TODO BIEN" si todo fue bien; el git del PC comprueba el repositorio al final.
 #
 #   tests/git_panel.sh DASH_DIR [DASHGIT_DIR [captura.png segundos...]]   (DASHGIT_DIR: por defecto ~/Projects/dashgit)
+#   SERVIDOR=no ...     # sin el servidor de dashgit: un proceso por orden
 set -e
 dash=$1
 dg=${2:-$HOME/Projects/dashgit}
@@ -17,13 +18,17 @@ trap '[ -n "$GUARDAR" ] && cp -r "$tmp" "$GUARDAR"; rm -rf "$tmp"' EXIT
 "$dash/dash" "$aqui/src/main.dash" -o "$tmp/Forja"
 cp -r "$HOME/.cache/dash-emu/${SISTEMA:-sys31muisslweb}" "$tmp/sys"
 chmod -R u+w "$tmp/sys"
-mkdir -p "$tmp/sys/Prueba"
+mkdir -p "$tmp/sys/Prueba/Extensiones/Git"
 cp -r "$aqui/tests/prueba/juego" "$tmp/sys/Prueba/"
+cp "$aqui/extensiones/Git/manifiesto.txt" "$tmp/sys/Prueba/Extensiones/Git/"
+"$dash/dash" "$aqui/extensiones/Git/git.dash" -o "$tmp/sys/Prueba/Extensiones/Git/Git"
 "$dash/dash" "$aqui/tests/git_panel.dash" -o "$tmp/sys/Prueba/GitPanel"
 "$dash/dash" "$dg/src/main.dash" -o "$tmp/sys/C/dashgit"
 {
   echo "C:MakeDir ENV:Forja"
   echo "SetEnv Forja/dashgit DH0:C/dashgit"
+  echo "SetEnv Forja/extensiones DH0:Prueba/Extensiones"
+  [ -n "$SERVIDOR" ] && echo "SetEnv Forja/git_servidor $SERVIDOR"
   echo "SetEnv FORJA_SONDA 1"
   [ -n "$ESPERA" ] && echo "SetEnv ESPERA $ESPERA"
   [ -n "$PAUSA" ] && echo "SetEnv PAUSA $PAUSA"

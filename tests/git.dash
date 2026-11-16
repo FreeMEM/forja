@@ -1,4 +1,4 @@
-# Maneja dashgit desde Forja por su puerto ARexx (FORJA.1): GIT init, config, add, commit, status, diff, log y push
+# Maneja dashgit desde la extensión Git de Forja, por su puerto ARexx (FORJAEXT.GIT): GIT init, config, add, commit, status, diff, log y push
 # a un servidor git del PC. Lo arranca tests/git.sh; anota en DH0:Prueba/git.txt.
 
 const FORJA = "FORJA.1"
@@ -25,10 +25,15 @@ func rexx(orden: String) -> String
     return rexx_send(FORJA, orden)
 end
 
+# A la extensión Git (las órdenes de git y su ESTADO)
+func rgit(orden: String) -> String
+    return rexx_send("FORJAEXT.GIT", orden)
+end
+
 func esperar_libre()
     n = 0
     time_delay(10)
-    while n < 3000 and rexx("ESTADO") != "libre"
+    while n < 3000 and rgit("ESTADO") != "libre"
         time_delay(10)
         n = n + 1
     end
@@ -37,7 +42,7 @@ end
 # Una orden de git por Forja; lo que añadió a la salida
 func git(orden: String) -> String
     antes = rexx("SALIDA").length
-    rexx("GIT " + orden)
+    rgit("GIT " + orden)
     esperar_libre()
     s = rexx("SALIDA")
     if s.length > antes
@@ -53,6 +58,12 @@ Main
         n = n + 1
     end
     ver("el puerto contesta", n < 600, "")
+    n = 0
+    while n < 600 and rgit("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("la extensión Git contesta", n < 600, "")
     rexx("ABRIR \"" + MAIN + "\" 1")
     s = git("init")
     ver("init", str_contains(s, "Repositorio vac"), s)
@@ -74,7 +85,7 @@ Main
     ver("commit -a con comillas", str_contains(s, "segundo, con espacios"), s)
     s = git("log --oneline")
     ver("log", str_contains(s, "segundo, con espacios") and str_contains(s, "primero"), s)
-    ver("ESTADO libre al acabar", rexx("ESTADO") == "libre", rexx("ESTADO"))
+    ver("ESTADO libre al acabar", rexx("ESTADO") == "libre" and rgit("ESTADO") == "libre", rexx("ESTADO"))
     s = git("push origin main")
     ver("push", str_contains(s, "main -> main"), s)
     s = git("cosa-mala")

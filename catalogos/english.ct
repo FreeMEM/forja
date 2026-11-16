@@ -572,21 +572,6 @@ The Dash compiler
 MSG_224
 Inferencia
 ; Inferencia
-MSG_225
-Open a file of the project first.
-; Abre antes un fichero del proyecto.
-MSG_226
-Cannot run 
-; No se puede ejecutar 
-MSG_227
-. Set its path in ENV:Forja/dashgit.
-; . Pon su ruta en ENV:Forja/dashgit.
-MSG_228
-Git: done in 
-; Git: hecho en 
-MSG_229
-Git ended with code %1.
-; Git acabó con código %1.
 MSG_230
 There is no name at the cursor.
 ; No hay un nombre en el cursor.
@@ -776,27 +761,6 @@ Choose...
 MSG_357
 Choose...
 ; Elegir...
-MSG_358
-Git (alpha)
-; Git (alfa)
-MSG_359
-Status
-; Estado
-MSG_360
-Differences
-; Diferencias
-MSG_361
-History
-; Historial
-MSG_362
-Add the new files
-; Añadir los ficheros nuevos
-MSG_364
-Get from the server (pull)
-; Traer del servidor (pull)
-MSG_365
-Send to the server (push)
-; Subir al servidor (push)
 MSG_369
 Code
 ; Código
@@ -1043,66 +1007,105 @@ Save
 MSG_459
 ... %1 more
 ; ... %1 más
-MSG_460
-No changes.
-; Sin cambios.
-MSG_461
-The project is not in a git repository.
-; El proyecto no está en un repositorio de git.
-MSG_462
-%1 changes
-; %1 cambios
-MSG_463
-1 change
-; 1 cambio
 MSG_464
-Differences are read-only.
-; Las diferencias son de solo lectura.
-MSG_465
-No differences with the last commit: 
-; Sin diferencias con el último commit: 
-MSG_466
- (changes)
-;  (cambios)
-MSG_467
-Git failed: 
-; Git falló: 
-MSG_468
-Write the commit message.
-; Escribe el mensaje del commit.
-MSG_469
-Nothing staged
-; Nada preparado
-MSG_470
-Tick the box of the files that go into the commit.
-; Marca la casilla de los ficheros que van en el commit.
-MSG_471
-_OK
-; _Vale
-MSG_472
-This file is not in the project's repository.
-; Este fichero no está en el repositorio del proyecto.
-MSG_473
-Changes (Forja)
-; Cambios (Forja)
-MSG_474
-Message:
-; Mensaje:
-MSG_475
-_Differences
-; _Diferencias
-MSG_476
-_Stage all
-; _Preparar todo
-MSG_477
-_Unstage all
-; _Quitar todo
-MSG_478
-C_ommit
-; C_onfirmar
-MSG_479
-Changes and commit...
-; Cambios y confirmar...
-MSG_480
-Differences of this file
-; Diferencias de este fichero
+This tab is read-only.
+; Esta pestaña es de solo lectura.
+MSG_600
+
+; no está su programa
+MSG_601
+
+; No se puede arrancar la extensión %1.
+MSG_602
+
+; La extensión %1 no ha llegado a empezar.
+MSG_603
+
+; La extensión %1 se ha cerrado.
+MSG_604
+
+; La extensión %1 no recoge sus avisos: se pierden los más viejos.
+MSG_605
+
+; No caben más opciones en el menú Extensiones (%1).
+MSG_606
+
+; (apagada)
+MSG_607
+
+; (en marcha)
+MSG_608
+
+; Autor: 
+MSG_609
+
+; Licencia: 
+MSG_610
+
+; Arranca: con su menú.
+MSG_611
+
+; Arranca: al abrir Forja.
+MSG_612
+
+; Arranca: con su menú o al abrir 
+MSG_613
+
+; No se sabe el nombre de la extensión.
+MSG_614
+
+; No se pudo copiar a %1.
+MSG_615
+
+; No tiene manifiesto.txt.
+MSG_616
+
+; Para un .lha hace falta C:LhA.
+MSG_617
+
+; El .lha no trae una extensión (falta manifiesto.txt).
+MSG_620
+
+; Extensiones
+MSG_621
+
+; Gestor de extensiones...
+MSG_622
+
+; Extensiones de Forja
+MSG_623
+
+; _Activar
+MSG_624
+
+; _Instalar...
+MSG_625
+
+; _Cerrar
+MSG_626
+
+; No hay extensiones. Se instalan con Instalar, o en %1.
+MSG_627
+
+; Desactivar
+MSG_628
+
+; Activar
+MSG_629
+
+; Instalar una extensión: su manifiesto.txt o un .lha
+MSG_630
+
+; , de 
+MSG_631
+
+; Una extensión es un programa: puede hacer cualquier cosa en tu Amiga.\nInstálala solo si te fías de quien la hizo.
+MSG_632
+
+; Instalar una extensión
+MSG_633
+
+; Instalar y _activar|_Instalar|_Cancelar
+MSG_634
+
+; Instalada la extensión %1.

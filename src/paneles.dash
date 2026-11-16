@@ -2,7 +2,6 @@
 
 import "tema.dash"
 import "marcas.dash"
-import "git_estado.dash"
 
 const TITULO_ALTO = 18
 
@@ -363,36 +362,16 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
             nombre = tr(61, "/ (arriba)")
         end
         gfx_text_at(x + 12, fy + font_baseline(), nombre)
-        # git: la letra de lo que le pasa (M, A, D, U, ?), a la derecha; con 4 colores la letra basta
-        letra = git_letra(proyecto_cajon, f)
-        if letra != ""
-            lx = x + ancho - font_text_width(letra) - 6
-            gfx_pen(tema.fondo_panel)
-            gfx_rect(lx - 4, fy, x + ancho - 1, fy + fila - 2)
-            gfx_pen(tema.cursor)
-            if letra == "A"
-                gfx_pen(tema.bien)
-            elif letra == "U" or letra == "D"
-                gfx_pen(tema.error)
-            elif letra == "?"
-                gfx_pen(tema.tenue)
-            end
-            gfx_text_at(lx, fy + font_baseline(), letra)
-        end
         if marcas_proyecto.length > 0 and f != "/"
-            # las letras de las extensiones, a la izquierda de la de git; un cajón, por su ruta sin la raya
-            r = f
-            if str_ends(r, "/")
-                r = r[0:r.length - 1]
-            end
-            letras = marca_proyecto(str_lower(ruta_unir(proyecto_cajon, r)))
+            # las letras de las extensiones (git: M, A, D, U, ?), a la derecha; un cajón, por su ruta sin la raya.
+            # Con 4 colores la letra basta.
+            letras = _letras_de(f)
             if letras != ""
-                ex = x + ancho - 6
-                if letra != ""
-                    ex = x + ancho - font_text_width(letra) - 10
-                end
+                lx = x + ancho - font_text_width(letras) - 6
+                gfx_pen(tema.fondo_panel)
+                gfx_rect(lx - 4, fy, x + ancho - 1, fy + fila - 2)
                 gfx_pen(color_letra(letras[letras.length - 1:]))
-                gfx_text_at(ex - font_text_width(letras), fy + font_baseline(), letras)
+                gfx_text_at(lx, fy + font_baseline(), letras)
             end
         end
         fy = fy + fila
@@ -891,13 +870,24 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     end
 end
 
-# Para la sonda: las entradas del panel con marca de git ("letra:nombre")
+# Las letras de las extensiones de una entrada del panel (un cajón acaba en "/")
+func _letras_de(f: String) -> String
+    r = f
+    if str_ends(r, "/")
+        r = r[0:r.length - 1]
+    end
+    return marca_proyecto(str_lower(ruta_unir(proyecto_cajon, r)))
+end
+
+# Para la sonda: las entradas del panel con letras de las extensiones ("letras:nombre")
 func proyecto_marcas() -> String
     t = ""
     for f in proyecto_ficheros
-        l = git_letra(proyecto_cajon, f)
-        if l != ""
-            t = t + " " + l + ":" + f
+        if f != "/"
+            l = _letras_de(f)
+            if l != ""
+                t = t + " " + l + ":" + f
+            end
         end
     end
     return str_trim(t)
