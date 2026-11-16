@@ -174,6 +174,7 @@ func cuenta() -> String
 end
 
 Main
+    run_command("Run >NIL: DH0:Prueba/Forja")
     n = 0
     while n < 600 and rexx("ESTADO") != "libre"
         time_delay(10)
@@ -339,7 +340,17 @@ Main
     ver("Eco despierta y recoge lo último", eco_dice("despierta", 900) and eco_dice("GUARDADO " + MAIN, 100), eco())
 
     # --- El gestor ---
-    if menu(0) and activar("Extensiones de Forja")
+    abierto = false
+    intentos = 0
+    while not abierto and intentos < 3
+        m = menu(0)
+        abierto = activar("Extensiones de Forja")
+        if not abierto
+            anotar("el gestor no se ve (menú #{m}, ventana #{window_find("Extensiones de Forja")}, activa " + input_active_title() + ")")
+        end
+        intentos = intentos + 1
+    end
+    if abierto
         time_delay(50)
         screen_save_png("DH0:Prueba/gestor.png")
         # la primera de la lista es Contar: _Activar (que pone Desactivar) la apaga
@@ -353,6 +364,9 @@ Main
         ver("activarla: arranca otra vez", barra_dice("palabras", 300) and env_get("Forja/extensiones_apagadas") == "", rexx("BARRA"))
         activar("Extensiones de Forja")
         input_key(0x33, 0)
+        time_delay(25)
+        activar("Forja")
+        ver("VUELTA al volver a la ventana de Forja", eco_dice("VUELTA ", 100), eco())
     else
         ver("el gestor se abre", false, input_active_title())
     end

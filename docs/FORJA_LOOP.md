@@ -124,7 +124,8 @@ VS Code.
     en MUI 5 (A1200, 3.1) y MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`).
   - Lo que pide git-panel (`docs/GIT_LOOP.md` de su rama) y queda cubierto: guardado, abierto, cajón del proyecto
     (`PROYECTO`), letras en el proyecto, marcas en el margen, leer el fichero, abrir en una línea, la salida, sus
-    ventanas. **Falta**: un suceso "Forja vuelve a ser la ventana activa" (Dash no tiene ese evento), una zona propia
+    ventanas. También `VUELTA` (Forja vuelve a ser la ventana activa: se mira cada 1,5 s, como hace git, porque Dash no tiene ese
+    evento). **Falta**: una zona propia
     en la barra de botones con clic, un menú propio (hoy, opciones en Extensiones), y una pestaña de solo lectura con
     colores por línea y teclas propias (la vista de diferencias). Las marcas son letras (`+ ~ - !`), no rayas.
   - **Falta en Forja**: teclas de extensión fuera del editor; paneles dentro de la ventana; que las marcas sigan a las

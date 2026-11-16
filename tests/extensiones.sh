@@ -1,6 +1,6 @@
 #!/bin/sh
 # Las extensiones de Forja (tests/extensiones.dash), en FS-UAE: Contar (extensiones/Contar) y Eco
-# (tests/extensiones/Eco) en DH0:Extensiones, junto a Forja. Enseña lo que anotó; acaba con "TODO BIEN".
+# (tests/extensiones/Eco) en DH0:Prueba/Extensiones, junto a Forja. Enseña lo que anotó; acaba con "TODO BIEN".
 #
 #   tests/extensiones.sh DASH_DIR [DASHC_AMIGA] [capturas/]
 #
@@ -23,17 +23,17 @@ if [ -n "$RTG" ]; then
 else
   cp -r "$HOME/.cache/dash-emu/sys31muisslweb" "$tmp/sys"
 fi
-mkdir -p "$tmp/sys/Prueba" "$tmp/sys/Extensiones/Contar" "$tmp/sys/Extensiones/Eco"
-# Forja en DH0: (sus extensiones, en DH0:Extensiones); el programa de la prueba es el que espera el emulador, para que
-# pueda mirar qué queda tras salir de Forja
-"$dash/dash" "$aqui/src/main.dash" -o "$tmp/sys/Forja"
+mkdir -p "$tmp/sys/Prueba" "$tmp/sys/Prueba/Extensiones/Contar" "$tmp/sys/Prueba/Extensiones/Eco"
+# Forja en DH0:Prueba (sus extensiones, en DH0:Prueba/Extensiones). La prueba es el programa que espera el emulador y arranca
+# Forja ella misma (como tests/salir.sh), para poder mirar qué queda tras salir de Forja
+"$dash/dash" "$aqui/src/main.dash" -o "$tmp/sys/Prueba/Forja"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
 echo "un dibujo" > "$tmp/sys/Prueba/dibujo.eco"
 "$dash/dash" "$aqui/tests/extensiones.dash" -o "$tmp/Prueba"
-cp "$aqui/extensiones/Contar/manifiesto.txt" "$tmp/sys/Extensiones/Contar/"
-"$dash/dash" "$aqui/extensiones/Contar/contar.dash" -o "$tmp/sys/Extensiones/Contar/Contar"
-cp "$aqui/tests/extensiones/Eco/manifiesto.txt" "$tmp/sys/Extensiones/Eco/"
-"$dash/dash" "$aqui/tests/extensiones/Eco/eco.dash" -o "$tmp/sys/Extensiones/Eco/Eco"
+cp "$aqui/extensiones/Contar/manifiesto.txt" "$tmp/sys/Prueba/Extensiones/Contar/"
+"$dash/dash" "$aqui/extensiones/Contar/contar.dash" -o "$tmp/sys/Prueba/Extensiones/Contar/Contar"
+cp "$aqui/tests/extensiones/Eco/manifiesto.txt" "$tmp/sys/Prueba/Extensiones/Eco/"
+"$dash/dash" "$aqui/tests/extensiones/Eco/eco.dash" -o "$tmp/sys/Prueba/Extensiones/Eco/Eco"
 if [ -n "$dashc" ]; then
   mkdir -p "$tmp/sys/Dash"
   cp "$dashc/dashc.amiga" "$tmp/sys/Dash/dashc"
@@ -44,7 +44,6 @@ fi
   [ -z "$dashc" ] || echo "SetEnv Forja/dashc DH0:Dash/dashc"
   echo "SetEnv FORJA_SONDA 1"
   echo "SetEnv FORJA_PRUEBA DH0:Prueba/juego/main.dash"
-  echo "Run >NIL: DH0:Forja"
 } >> "$tmp/sys/S/Startup-Extra"
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-600} $maquina --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/Prueba" || true
 if [ -n "$capturas" ]; then

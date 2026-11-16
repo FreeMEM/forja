@@ -64,7 +64,9 @@ La extensión:
 2. Vigila el fichero `ENV:Forja/Avisos/<nombre>` (`file_notify`).
 3. Manda `HOLA <nombre>` a Forja.
 4. Cada vez que cambia ese fichero, manda `SUCESOS <nombre>` y atiende lo que le llega.
-5. Al acabar, `ADIOS <nombre>`. Forja quita sus marcas y su texto de la barra.
+5. Al acabar por su cuenta, `ADIOS <nombre>`: Forja quita sus marcas y su texto de la barra. Tras `SALIR` no hay que
+   mandar nada: Forja ya no la cuenta y, si se está cerrando, solo atiende 2 s más para que las extensiones recojan
+   su `SALIR`.
 
 `lib/forja.dash` hace todo eso. Una extensión mínima:
 
@@ -124,6 +126,7 @@ Cada uno es una línea: el tipo, un espacio y el dato.
 | `COMPILADO n` | Acabó de compilar: n errores (0 si compiló). Sus líneas, con `ERRORES`. | `compilado` |
 | `PROYECTO cajón` | Cambió el cajón del panel del proyecto. Llega también al arrancar. | `proyecto` |
 | `MARCA ruta línea` | Un clic en una marca suya del margen. | `marca` |
+| `VUELTA` | La ventana de Forja vuelve a ser la activa (quizá cambió algo fuera: git mira el estado). Se mira cada 1,5 s, solo si alguna lo pide. | `vuelta` |
 
 Un fichero sin guardar no tiene ruta: va su nombre ("sin nombre.dash").
 

@@ -68,9 +68,11 @@ func forja_empezar(nombre: String) -> Bool
     return true
 end
 
-# Se despide: Forja quita sus marcas y su texto de la barra
+# Se despide: Forja quita sus marcas y su texto de la barra. Tras SALIR no hace falta (y Forja quizá ya no atiende)
 func forja_acabar()
-    forja_orden("ADIOS " + forja_ext)
+    if forja_tipo != "SALIR"
+        forja_orden("ADIOS " + forja_ext)
+    end
 end
 
 # La señal del aviso de Forja, para mui_wait_event_signals

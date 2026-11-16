@@ -827,6 +827,7 @@ end
 func tic()
     tic_armado = false
     ext_reposo()
+    ext_mirar_ventana()
     git_tic()
     actualizar_tic()
     indice_en_reposo()
@@ -2797,6 +2798,41 @@ func ext_reposo()
     ext_cambio_de = ""
 end
 
+# VUELTA: la ventana de Forja vuelve a ser la activa (quizá cambió algo fuera). Dash no tiene un evento de ventana
+# activada: se mira en el tic, cada EXT_VUELTA_MS, solo si alguna lo pide
+const EXT_VUELTA_MS = 1500
+var ext_ventana_activa: Bool = true
+
+func ext_mirar_ventana()
+    if not abierta or not ext_alguna_pide("vuelta")
+        return
+    end
+    activa = mui_window_active(v.window) == 1
+    if activa and not ext_ventana_activa
+        ext_suceso("VUELTA", "")
+    end
+    ext_ventana_activa = activa
+end
+
+# Al salir: hasta 2 s atendiendo ARexx para que las que están en marcha recojan su SALIR. Una orden que llegara a un
+# puerto que ya no atiende nadie dejaría a la extensión esperando para siempre.
+func ext_esperar_salida()
+    t0 = time_ms()
+    while time_ms() - t0 < 2000
+        quedan = false
+        for e in extensiones
+            if e.estado != EXT_PARADA and e.cola.length > 0
+                quedan = true
+            end
+        end
+        if not quedan
+            return
+        end
+        mui_timer(100, EV_TIC)
+        mui_wait_event()
+    end
+end
+
 # Un clic en la marca de la línea n: MARCA ruta línea a la extensión de la marca (si pide "marca"); false si no hay
 func ext_clic_marca(d: Documento, n: Int) -> Bool
     if marca_en(str_lower(d.ruta), n) == ""
@@ -3653,6 +3689,9 @@ Main
                     armar_tic(GIT_TIC_MS, EV_TIC)
                 end
             end
+            if not tic_armado and ext_alguna_pide("vuelta")
+                armar_tic(EXT_VUELTA_MS, EV_TIC)
+            end
             if ed_actual() == nil and not tic_armado
                 armar_tic(500, EV_TIC)
             end
@@ -3679,6 +3718,7 @@ Main
             end
         end
         ext_salir()
+        ext_esperar_salida()
         mui_app_end()
         screen_close()
     end
