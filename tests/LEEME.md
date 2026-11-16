@@ -169,3 +169,15 @@ GitHub de mentira en el PC (un servidor HTTP local con la respuesta de la API y 
 estropeado no cambia nada, Cancelar tampoco, el bueno lo pone al día (y respeta lo que no trae), al día no pregunta y
 la consulta automática solo avisa, una vez al día. `GRANDE=build/dash-X.Y.Z-amiga.tar` usa uno de verdad (unos 70 s
 en el emulador; dos comprobaciones del contenido fallan, porque son del pequeño).
+
+Extensiones (`docs/EXTENSIONES.md`): `tests/extensiones_base.sh <worktree de Dash>` prueba `src/extensiones.dash` y
+`src/marcas.dash` sin ventana (manifiestos, apagadas, menú y teclas, tipos, la cola con su tope, el aviso en ENV:,
+marcas, la barra, activar e instalar desde un cajón). `tests/extensiones.sh <worktree de Dash> [<cajón con
+dashc.amiga>] [capturas/]`: `tests/extensiones.dash` pone en `DH0:Extensiones` la de ejemplo, Contar, y Eco
+(`tests/extensiones/Eco`, que apunta lo que le llega). Contar arranca con Forja y cuenta en la barra; su menú, su
+tecla (Ctrl Alt D) y CAMBIADO; la API por ARexx (y lo que cuesta una orden); Eco arranca con su menú y recibe MENU,
+GUARDADO, ABIERTO, ACTIVO, PROYECTO, EDITAR, MARCA (un clic en su marca), CERRADO y COMPILADO; Eco se cae (Forja lo
+dice y la vuelve a arrancar) y se cuelga (Forja sigue contestando); el gestor la desactiva y la activa. Con
+`capturas/`, guarda `marcas.png`, `gestor.png` y `gestor-apagada.png`. `input_menu` no llega a los menús de MUI: las
+opciones se eligen con la sonda (`ENV:FORJA_EVENTO` con su evento). Con MUI 3.8:
+`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/extensiones.sh ...`.

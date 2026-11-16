@@ -60,6 +60,7 @@ import "editor.dash"
 import "paneles.dash"
 import "actualizar.dash"
 import "botones.dash"
+import "extensiones.dash"
 import "ventana.dashui"
 import "git_cambios.dash"
 import "git.dashui"
@@ -114,6 +115,13 @@ const EV_COMPLETAR = 75
 const EV_ACTUALIZAR = 77
 const EV_BOTONES = 78          # un clic en la barra de botones
 const EV_BOTONES_MOVER = 79    # el puntero se movió sobre ella
+const EV_EXT_GESTOR = 180      # el gestor de extensiones (extensiones.dash) y lo de su ventana
+const EV_EXT_LISTA = 181
+const EV_EXT_DOBLE = 182
+const EV_EXT_ACTIVAR = 183
+const EV_EXT_INSTALAR = 184
+const EV_EXT_CERRAR = 185
+const EV_EXT_MENU = 200        # las opciones de las extensiones en el menú: 200 a 211
 const ESPERA_GIT = 600000      # diez minutos como mucho para una orden de git (clonar o traer por la red)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
@@ -176,6 +184,7 @@ var v: Principal = nil
 var vb: Buscar = nil
 var vi: IrA = nil
 var vp: PrefForja = nil
+var vx: GestorExt = nil
 var vc: GitCambios = nil
 var vc_abierta: Bool = false
 var git_activa: Bool = true      # la ventana de Forja era la activa en el último tic
@@ -307,11 +316,27 @@ end
 # Abre un fichero en una pestaña nueva, o va a la suya si ya está abierto. Una imagen IFF ILBM va al editor de
 # sprites.
 func abrir(ruta: String) -> Bool
+    abrir_delegado = false
     i = ed_buscar_ruta(ruta)
     if i >= 0
         activo = i
         return true
     end
+    # un tipo de fichero de una extensión: lo abre ella (EDITAR)
+    e = ext_para_fichero(ruta)
+    if e >= 0
+        ext_editar(e, ruta)
+        abrir_delegado = true
+        return false
+    end
+    if not abrir_nuevo(ruta)
+        return false
+    end
+    ext_suceso("ABIERTO", ruta)
+    return true
+end
+
+func abrir_nuevo(ruta: String) -> Bool
     l = str_lower(ruta)
     if not str_ends(l, ".dash") and not str_ends(l, ".dashui") and mp_es_mapa(ruta)
         m = mp_leer(ruta)
@@ -365,6 +390,7 @@ func guardar_en(d: Documento, ruta: String) -> Bool
     d.nombre = nombre_de(ruta)
     d.cambiado = false
     avisar(tr(3, "Guardado: ") + ruta, 2)
+    ext_suceso("GUARDADO", ruta)
     git_guardado(ruta)
     if cajon_de(ruta) == proyecto_cajon
         proyecto_leer(proyecto_cajon)
@@ -445,7 +471,12 @@ func proyecto(ev: Int) -> Bool
                 return false
             end
         end
+        cerrada = d.ruta
+        if cerrada == ""
+            cerrada = d.nombre
+        end
         ed_cerrar(activo)
+        ext_suceso("CERRADO", cerrada)
     elif ev == EV_SALIR
         n = cambiados()
         if n > 0
@@ -795,6 +826,8 @@ end
 
 func tic()
     tic_armado = false
+    ext_reposo()
+    ext_mirar_ventana()
     git_tic()
     actualizar_tic()
     indice_en_reposo()
@@ -881,6 +914,11 @@ func tic()
             elif l != ""
                 salida_anadir(l, 0)
             end
+        end
+        if rc != 0 and errores == 0
+            ext_suceso("COMPILADO", "1")
+        else
+            ext_suceso("COMPILADO", "#{errores}")
         end
         if rc != 0
             if errores == 1
@@ -2051,6 +2089,9 @@ func en_editor() -> Int
     elif mui_canvas_button(v.editor) == 1 and d.diseno
         dv_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
         redibujar()
+    elif mui_canvas_button(v.editor) == 1 and ed_ancho_marca > 0 and mui_canvas_mouse_x(v.editor) >= ed_x_marca(0) - 2 and mui_canvas_mouse_x(v.editor) < ed_margen - 4 and mui_canvas_mouse_y(v.editor) >= ALTO_PESTANAS and ext_clic_marca(d, ed_linea_en(d, mui_canvas_mouse_y(v.editor)))
+        # un clic en la marca de una extensión: MARCA a la suya
+        return 0
     elif mui_canvas_button(v.editor) == 1 and mui_canvas_mouse_x(v.editor) < ed_margen - 4 and mui_canvas_mouse_y(v.editor) >= ALTO_PESTANAS
         # un clic en el margen de los números: punto de parada
         alternar_punto(d, ed_linea_en(d, mui_canvas_mouse_y(v.editor)))
@@ -2069,6 +2110,12 @@ func en_editor() -> Int
             return 0
         end
         letra = mui_canvas_char(v.editor)
+        # las teclas de las extensiones (las de Forja van antes)
+        r = ext_tecla(codigo, teclas)
+        if r >= 0 and ((teclas & Q_AMIGA) == 0 or atajo(letra) == 0)
+            ext_menu(r)
+            return 0
+        end
         if (teclas & Q_AMIGA) != 0
             return atajo(letra)
         end
@@ -2120,6 +2167,7 @@ func en_editor() -> Int
                 if completar_activo and not tic_armado
                     armar_tic(REPOSO_MS, EV_TIC)
                 end
+                ext_tras_escribir(d)
             end
             if completar_activo
                 completar_despues(d, codigo, letra)
@@ -2649,6 +2697,256 @@ func inferencia_mandar() -> Bool
     return true
 end
 
+# --- Las extensiones (extensiones.dash, docs/EXTENSIONES.md) ---
+
+var abrir_delegado: Bool = false   # el último abrir() lo mandó a una extensión (EDITAR)
+var ext_items: [Int] = []          # las opciones del menú Extensiones (ext_m0...)
+var ext_cambio_de: String = ""     # el fichero escrito del que falta avisar CAMBIADO ("" ninguno)
+var ext_elegida: Int = -1          # la elegida en el gestor
+
+# Su cajón: ENV:Forja/extensiones, o Extensiones junto a Forja (la ruta entera: PROGDIR: es de cada proceso)
+func ext_cajon_de_forja() -> String
+    c = env_get("Forja/extensiones")
+    if c != ""
+        return c
+    end
+    dos_requesters(false)
+    dir_create("PROGDIR:Extensiones")
+    c = file_real_path("PROGDIR:Extensiones")
+    dos_requesters(true)
+    if c == ""
+        c = "PROGDIR:Extensiones"
+    end
+    return c
+end
+
+# Tras cada evento y cada orden ARexx: ACTIVO si cambió el fichero activo, los avisos, los mensajes, el menú y lo
+# que hay que redibujar
+func ext_tras_evento()
+    if extensiones.length == 0
+        return
+    end
+    d = ed_actual()
+    clave = ""
+    if d != nil
+        clave = d.ruta
+        if clave == ""
+            clave = d.nombre
+        end
+    end
+    if clave != ext_activo_antes
+        ext_activo_antes = clave
+        ext_suceso("ACTIVO", clave)
+    end
+    if proyecto_cajon != ext_proyecto_antes
+        ext_proyecto_antes = proyecto_cajon
+        ext_suceso("PROYECTO", proyecto_cajon)
+    end
+    ext_avisar()
+    while ext_mensajes.length > 0
+        avisar(ext_mensajes[0], ext_mensajes_tipo[0])
+        ext_mensajes.remove(0)
+        ext_mensajes_tipo.remove(0)
+    end
+    if ext_ranuras_cambiadas
+        ext_ranuras_cambiadas = false
+        i = 0
+        while i < ext_items.length
+            if i < ext_ranura_titulo.length
+                mui_set_text(ext_items[i], ext_ranura_titulo[i])
+                mui_set_enabled(ext_items[i], true)
+            else
+                mui_set_text(ext_items[i], "")
+                mui_set_enabled(ext_items[i], false)
+            end
+            i = i + 1
+        end
+    end
+    if ext_dibujar and abierta
+        ext_dibujar = false
+        mui_canvas_redraw(v.editor)
+        mui_canvas_redraw(v.proyecto)
+        mui_canvas_redraw(v.salida)
+    end
+end
+
+# Se escribió en d: CAMBIADO cuando lleve REPOSO_MS sin escribir (si alguna lo pide)
+func ext_tras_escribir(d: Documento)
+    if not ext_alguna_pide("cambiado")
+        return
+    end
+    ext_cambio_de = d.ruta
+    if ext_cambio_de == ""
+        ext_cambio_de = d.nombre
+    end
+    if not tic_armado
+        armar_tic(REPOSO_MS, EV_TIC)
+    end
+end
+
+func ext_reposo()
+    if ext_cambio_de == ""
+        return
+    end
+    if time_ms() - ultimo_cambio < REPOSO_MS
+        if not tic_armado
+            armar_tic(REPOSO_MS, EV_TIC)
+        end
+        return
+    end
+    ext_suceso("CAMBIADO", ext_cambio_de)
+    ext_cambio_de = ""
+end
+
+# VUELTA: la ventana de Forja vuelve a ser la activa (quizá cambió algo fuera). Dash no tiene un evento de ventana
+# activada: se mira en el tic, cada EXT_VUELTA_MS, solo si alguna lo pide
+const EXT_VUELTA_MS = 1500
+var ext_ventana_activa: Bool = true
+
+func ext_mirar_ventana()
+    if not abierta or not ext_alguna_pide("vuelta")
+        return
+    end
+    activa = mui_window_active(v.window) == 1
+    if activa and not ext_ventana_activa
+        ext_suceso("VUELTA", "")
+    end
+    ext_ventana_activa = activa
+end
+
+# Al salir: hasta 2 s atendiendo ARexx para que las que están en marcha recojan su SALIR. Una orden que llegara a un
+# puerto que ya no atiende nadie dejaría a la extensión esperando para siempre.
+func ext_esperar_salida()
+    t0 = time_ms()
+    while time_ms() - t0 < 2000
+        quedan = false
+        for e in extensiones
+            if e.estado != EXT_PARADA and e.cola.length > 0
+                quedan = true
+            end
+        end
+        if not quedan
+            return
+        end
+        mui_timer(100, EV_TIC)
+        mui_wait_event()
+    end
+end
+
+# Un clic en la marca de la línea n: MARCA ruta línea a la extensión de la marca (si pide "marca"); false si no hay
+func ext_clic_marca(d: Documento, n: Int) -> Bool
+    if marca_en(str_lower(d.ruta), n) == ""
+        return false
+    end
+    i = ext_buscar(marca_ext)
+    if i < 0 or not ext_pide(extensiones[i], "marca") or extensiones[i].estado == EXT_PARADA
+        return false
+    end
+    ext_suceso_a(i, "MARCA " + d.ruta + " #{n}")
+    return true
+end
+
+# --- El gestor de extensiones ---
+
+func gestor(ev: Int)
+    if ev == EV_EXT_GESTOR
+        gestor_lista()
+        mui_window_open(vx.window)
+    elif ev == EV_EXT_LISTA
+        ext_elegida = mui_get_value(vx.lista)
+        gestor_info()
+    elif ev == EV_EXT_ACTIVAR or ev == EV_EXT_DOBLE
+        if ext_elegida >= 0 and ext_elegida < extensiones.length
+            ext_activar(ext_elegida, not extensiones[ext_elegida].activa)
+            gestor_lista()
+        end
+    elif ev == EV_EXT_INSTALAR
+        gestor_instalar()
+    elif ev == EV_EXT_CERRAR
+        mui_window_close(vx.window)
+    end
+end
+
+func gestor_lista()
+    mui_list_quiet(vx.lista, true)
+    mui_list_clear(vx.lista)
+    for e in extensiones
+        mui_list_add(vx.lista, ext_linea(e))
+    end
+    mui_list_quiet(vx.lista, false)
+    if ext_elegida >= extensiones.length
+        ext_elegida = extensiones.length - 1
+    end
+    if ext_elegida < 0 and extensiones.length > 0
+        ext_elegida = 0
+    end
+    mui_set_value(vx.lista, ext_elegida)
+    gestor_info()
+end
+
+func gestor_info()
+    if ext_elegida < 0 or ext_elegida >= extensiones.length
+        mui_set_text(vx.info, hueco(tr(626, "No hay extensiones. Se instalan con Instalar, o en %1."), ext_cajon))
+        mui_set_enabled(vx.activar, false)
+        return
+    end
+    e = extensiones[ext_elegida]
+    mui_set_text(vx.info, ext_info(e))
+    mui_set_enabled(vx.activar, true)
+    if e.activa
+        mui_set_text(vx.activar, tr(627, "Desactivar"))
+    else
+        mui_set_text(vx.activar, tr(628, "Activar"))
+    end
+end
+
+# Instalar desde un cajón (se elige su manifiesto.txt) o un .lha: enseña qué es y pregunta antes de copiar
+func gestor_instalar()
+    if not file_open_dialog(tr(629, "Instalar una extensión: su manifiesto.txt o un .lha"), "(manifiesto.txt|#?.lha)")
+        return
+    end
+    ruta = file_fullpath()
+    dir = cajon_de(ruta)
+    if str_ends(str_lower(ruta), ".lha")
+        dir = ext_sacar_lha(ruta)
+        if dir == ""
+            avisar(ext_error_instalar, 1)
+            return
+        end
+    end
+    e = ext_leer_manifiesto(cajon_de(dir), nombre_de_cajon(dir))
+    if e == nil
+        avisar(tr(615, "No tiene manifiesto.txt."), 1)
+        ext_limpiar_lha()
+        return
+    end
+    texto = e.nombre + " " + e.version
+    if e.autor != ""
+        texto = texto + tr(630, ", de ") + e.autor
+    end
+    texto = texto + "\n\n" + e.descripcion + "\n\n" + tr(631, "Una extensión es un programa: puede hacer cualquier cosa en tu Amiga.\nInstálala solo si te fías de quien la hizo.")
+    r = mui_request(vx.window, tr(632, "Instalar una extensión"), texto, tr(633, "Instalar y _activar|_Instalar|_Cancelar"))
+    if r == 0
+        ext_limpiar_lha()
+        return
+    end
+    i = ext_instalar_cajon(dir)
+    ext_limpiar_lha()
+    if i < 0
+        avisar(ext_error_instalar, 1)
+        return
+    end
+    if r == 1
+        ext_activar(i, true)
+    else
+        ext_ranuras()
+        ext_guardar_apagadas()
+    end
+    avisar(hueco(tr(634, "Instalada la extensión %1."), extensiones[i].nombre), 2)
+    ext_elegida = i
+    gestor_lista()
+end
+
 # --- El puerto ARexx FORJA.1 ---
 
 # Las palabras de una orden: un argumento entre comillas puede llevar espacios. resto_desde dice desde qué
@@ -2701,16 +2999,291 @@ func _documento(ruta: String) -> Documento
     return ed_actual()
 end
 
+# El RC de la orden (o del lote): el mayor de los que pidió _rexx_falla
+var _rexx_rc: Int = 0
+
+func _rexx_falla(rc: Int)
+    if rc > _rexx_rc
+        _rexx_rc = rc
+    end
+end
+
+# Cada orden que llega a FORJA.1. LOTE y, en las líneas siguientes, una orden de una línea por cada una: sus
+# respuestas, separadas por el carácter 30 (RS), con RC 0 (con otro RC, ARexx no deja dar respuesta: la de una orden
+# que falla va vacía). Tras la orden: los avisos a las extensiones.
 func orden_rexx(linea: String) -> String
+    _rexx_rc = 0
+    r = ""
+    if str_starts(str_upper(linea), "LOTE\n")
+        ls = str_split(linea, "\n")
+        hechas = 0
+        i = 1
+        while i < ls.length
+            if ls[i] != ""
+                if hechas > 0
+                    r = r + str_char(30)
+                end
+                r = r + orden_una(ls[i])
+                hechas = hechas + 1
+            end
+            i = i + 1
+        end
+        _rexx_rc = 0
+    else
+        r = orden_una(linea)
+    end
+    ext_tras_evento()
+    if _rexx_rc != 0
+        mui_rexx_fail(_rexx_rc)
+    end
+    return r
+end
+
+# El documento de texto de una orden: el del fichero p[i] si lo trae (abierto), o el activo; nil si no lo hay o no es
+# de texto (un sprite, un mapa)
+func _doc_texto(p: [String], i: Int) -> Documento
+    var d: Documento = nil
+    if p.length > i and p[i] != ""
+        k = ed_buscar_ruta(p[i])
+        if k >= 0
+            d = documentos[k]
+        end
+    else
+        d = ed_actual()
+    end
+    if d == nil or d.sprite != nil or d.mapa != nil
+        return nil
+    end
+    return d
+end
+
+# El texto tras la orden (lo que sigue al primer espacio), tal cual: con sus espacios delante y sus saltos de línea
+func _tras_orden(linea: String) -> String
+    p = str_find(linea, " ")
+    if p < 0
+        return ""
+    end
+    return linea[p + 1:]
+end
+
+# Las órdenes para las extensiones (docs/EXTENSIONES.md)
+func orden_extension(orden: String, p: [String], linea: String) -> String
+    if orden == "HOLA" and p.length >= 2
+        r = ext_hola(p[1])
+        if r == ""
+            _rexx_falla(10)
+            return ""
+        end
+        return r + " " + VERSION
+    elif orden == "SUCESOS" and p.length >= 2
+        return ext_sucesos(p[1])
+    elif orden == "ADIOS" and p.length >= 2
+        ext_adios(p[1])
+        return ""
+    elif orden == "ACTIVO"
+        d = ed_actual()
+        if d == nil
+            _rexx_falla(5)
+            return ""
+        end
+        tipo = "texto"
+        if d.sprite != nil
+            tipo = "sprite"
+        elif d.mapa != nil
+            tipo = "mapa"
+        elif d.diseno
+            tipo = "dashui"
+        end
+        cambiado = "0"
+        if d.cambiado
+            cambiado = "1"
+        end
+        return d.ruta + "\n" + d.nombre + "\n" + cambiado + "\n" + tipo + "\n#{d.lineas.length}"
+    elif orden == "ABIERTOS"
+        t = ""
+        for d in documentos
+            if d.ruta != ""
+                t = t + d.ruta + "\n"
+            else
+                t = t + d.nombre + "\n"
+            end
+        end
+        return t
+    elif orden == "PROYECTO"
+        t = proyecto_cajon + "\n"
+        for f in proyecto_ficheros
+            if f != "/"
+                t = t + f + "\n"
+            end
+        end
+        return t
+    elif (orden == "LINEAS" and p.length >= 3) or (orden == "LINEA" and p.length >= 2)
+        # LINEAS desde hasta [fichero], LINEA n [fichero]: desde 1, las dos incluidas (lo que no está, fuera)
+        k = 3
+        a = Int(p[1])
+        b = a
+        if orden == "LINEAS"
+            b = Int(p[2])
+        else
+            k = 2
+        end
+        d = _doc_texto(p, k)
+        if d == nil
+            _rexx_falla(10)
+            return ""
+        end
+        if a < 1
+            a = 1
+        end
+        if b > d.lineas.length
+            b = d.lineas.length
+        end
+        t = ""
+        n = a
+        while n <= b
+            t = t + d.lineas[n - 1]
+            if n < b
+                t = t + "\n"
+            end
+            n = n + 1
+        end
+        return t
+    elif orden == "CURSOR"
+        d = _doc_texto(p, 99)
+        if d == nil
+            _rexx_falla(10)
+            return ""
+        end
+        if p.length >= 3
+            ed_poner_cursor(d, Int(p[1]), Int(p[2]))
+            redibujar()
+            return ""
+        end
+        return "#{d.cl + 1} #{d.cc + 1}"
+    elif orden == "ELEGIDO"
+        d = _doc_texto(p, 99)
+        if d == nil
+            _rexx_falla(10)
+            return ""
+        end
+        return ed_elegido(d) + "\n" + ed_seleccion(d)
+    elif orden == "ELEGIR" and p.length >= 5
+        d = _doc_texto(p, 99)
+        if d == nil
+            _rexx_falla(10)
+            return ""
+        end
+        ed_elegir(d, Int(p[1]), Int(p[2]), Int(p[3]), Int(p[4]))
+        redibujar()
+        return ""
+    elif orden == "INSERTAR" or orden == "ESCRIBIR"
+        # INSERTAR texto: en el cursor (en lugar de lo elegido); ESCRIBIR texto: el fichero entero. Con deshacer.
+        d = _doc_texto(p, 99)
+        if d == nil
+            _rexx_falla(10)
+            return ""
+        end
+        t = _tras_orden(linea)
+        if orden == "INSERTAR"
+            ed_escribir(d, t)
+            ed_seguir_cursor(d)
+        else
+            ed_cambiar_lineas(d, 1, d.lineas.length, t)
+        end
+        redibujar()
+        return ""
+    elif orden == "AVISO" and p.length >= 2
+        # AVISO tipo texto: una línea en la salida (0 normal, 1 error, 2 bien)
+        q = _partes(linea, 2)
+        avisar(_resto, Int(p[1]))
+        return ""
+    elif orden == "BARRA" and p.length == 1
+        return barra_texto()
+    elif orden == "BARRA" and p.length >= 2
+        # BARRA extensión texto: su texto en la barra ("": lo quita)
+        q = _partes(linea, 2)
+        barra_poner(p[1], _resto)
+        if abierta
+            mui_canvas_redraw(v.salida)
+        end
+        return ""
+    elif orden == "MARCAS" or orden == "MARCASPROYECTO"
+        return orden_marcas(orden, linea)
+    elif orden == "MENU" and p.length >= 3
+        # MENU extensión título|tecla|orden: una opción más en el menú Extensiones (su número; RC 5 si no caben)
+        i = ext_buscar(p[1])
+        if i < 0
+            _rexx_falla(10)
+            return ""
+        end
+        q = _partes(linea, 2)
+        r = ext_ranura_nueva(i, _resto)
+        if r < 0
+            _rexx_falla(5)
+            return ""
+        end
+        return "#{r}"
+    end
+    _rexx_falla(10)
+    return ""
+end
+
+# MARCAS extensión fichero, y en cada línea siguiente "línea símbolo": sus marcas en el margen de ese fichero (todas:
+# sin líneas, las quita). MARCASPROYECTO extensión, y "letras ruta" en cada línea: sus letras en el panel del proyecto.
+func orden_marcas(orden: String, linea: String) -> String
+    lineas = str_split(linea, "\n")
+    cab = _partes(lineas[0], 99)
+    if cab.length < 2 or (orden == "MARCAS" and cab.length < 3)
+        _rexx_falla(10)
+        return ""
+    end
+    var ns: [Int] = []
+    var ss: [String] = []
+    var rutas: [String] = []
+    i = 1
+    while i < lineas.length
+        l = lineas[i]
+        i = i + 1
+        e = str_find(l, " ")
+        if l == "" or e < 0
+            continue
+        end
+        if orden == "MARCAS"
+            ns.push(Int(l[0:e]))
+            ss.push(str_trim(l[e + 1:]))
+        else
+            ss.push(l[0:e])
+            rutas.push(l[e + 1:])
+        end
+    end
+    if orden == "MARCAS"
+        marcas_poner(cab[1], cab[2], ns, ss)
+        d = ed_actual()
+        if d != nil and str_lower(d.ruta) == str_lower(cab[2]) and abierta
+            mui_canvas_redraw(v.editor)
+        end
+    else
+        marcas_proyecto_poner(cab[1], rutas, ss)
+        if abierta
+            mui_canvas_redraw(v.proyecto)
+        end
+    end
+    return ""
+end
+
+func orden_una(linea: String) -> String
     p = _partes(linea, 99)
     if p.length == 0
-        mui_rexx_fail(10)
+        _rexx_falla(10)
         return ""
     end
     orden = str_upper(p[0])
     if orden == "ABRIR" and p.length >= 2
         if _documento(p[1]) == nil
-            mui_rexx_fail(10)
+            if abrir_delegado
+                return ""      # lo abre una extensión
+            end
+            _rexx_falla(10)
             return ""
         end
         if p.length >= 3
@@ -2723,17 +3296,18 @@ func orden_rexx(linea: String) -> String
             return "1"
         end
         return "0"
-    elif orden == "TEXTO" and p.length >= 2
-        i = ed_buscar_ruta(p[1])
-        if i < 0
-            mui_rexx_fail(10)
+    elif orden == "TEXTO"
+        # (sin fichero: el activo)
+        d = _doc_texto(p, 1)
+        if d == nil
+            _rexx_falla(10)
             return ""
         end
-        return ed_texto(documentos[i])
+        return ed_texto(d)
     elif orden == "SELECCION"
         d = ed_actual()
         if d == nil
-            mui_rexx_fail(10)
+            _rexx_falla(10)
             return ""
         end
         ed_lineas_seleccion(d)
@@ -2741,12 +3315,12 @@ func orden_rexx(linea: String) -> String
     elif orden == "CAMBIAR"
         p = _partes(linea, 4)
         if p.length < 4
-            mui_rexx_fail(10)
+            _rexx_falla(10)
             return ""
         end
         d = _documento(p[1])
         if d == nil or not ed_cambiar_lineas(d, Int(p[2]), Int(p[3]), _resto)
-            mui_rexx_fail(10)
+            _rexx_falla(10)
             return ""
         end
         redibujar()
@@ -2761,14 +3335,14 @@ func orden_rexx(linea: String) -> String
             end
         end
         if d == nil or d.ruta == "" or not guardar_en(d, d.ruta)
-            mui_rexx_fail(10)
+            _rexx_falla(10)
             return ""
         end
         redibujar()
         return ""
     elif orden == "COMPILAR" or orden == "EJECUTAR"
         if tarea != NADA
-            mui_rexx_fail(5)
+            _rexx_falla(5)
             return ""
         end
         errores_ultimos = ""
@@ -2778,7 +3352,7 @@ func orden_rexx(linea: String) -> String
         # BUSCAR texto: lo elige en el fichero activo y da su línea
         d = ed_actual()
         if d == nil or not ed_buscar(d, p[1], false, true)
-            mui_rexx_fail(5)
+            _rexx_falla(5)
             return ""
         end
         redibujar()
@@ -2786,7 +3360,7 @@ func orden_rexx(linea: String) -> String
     elif orden == "CAMBIARTODO" and p.length >= 3
         d = ed_actual()
         if d == nil
-            mui_rexx_fail(10)
+            _rexx_falla(10)
             return ""
         end
         n = ed_cambiar_todo(d, p[1], p[2], true)
@@ -2805,12 +3379,12 @@ func orden_rexx(linea: String) -> String
         # GIT orden de dashgit (status, add -A, commit -a -m "...", pull, push...): sin esperar; ESTADO da "git"
         # mientras sigue, y SALIDA lo que escribió
         if tarea != NADA
-            mui_rexx_fail(5)
+            _rexx_falla(5)
             return ""
         end
         resto = str_trim(linea[3:])
         if resto == ""
-            mui_rexx_fail(10)
+            _rexx_falla(10)
             return ""
         end
         git(resto)
@@ -2830,14 +3404,17 @@ func orden_rexx(linea: String) -> String
         actualizar_mensajes()
         return ""
     end
-    mui_rexx_fail(10)
-    return ""
+    return orden_extension(orden, p, linea)
 end
 
 # Lo que pide un evento de la ventana (lo que no es salir ni del menú Proyecto). Va aparte de Main para que Main
 # no pase de 32 KB: dashc 2.4 estropea un salto corto que tiene que crecer (ver el informe de la rama autocompletar).
 func atender(ev: Int)
-    if ev == EV_PROYECTO
+    if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_RANURAS
+        ext_menu(ev - EV_EXT_MENU)
+    elif ev >= EV_EXT_GESTOR and ev <= EV_EXT_CERRAR
+        gestor(ev)
+    elif ev == EV_PROYECTO
         en_proyecto()
     elif ev == EV_ACTUALIZAR
         act_pedir()
@@ -2984,11 +3561,13 @@ Main
         vi = IrA_create()
         vp = PrefForja_create()
         vc = GitCambios_create()
+        vx = GestorExt_create()
+        ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11]
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
             screen_make_default()
-            for w in [v.window, vb.window, vi.window, vp.window, vc.window]
+            for w in [v.window, vb.window, vi.window, vp.window, vc.window, vx.window]
                 mui_window_screen(w, PANTALLA)
             end
         end
@@ -3019,6 +3598,8 @@ Main
         completar_activo = env_get("Forja/completar") != "no"
         act_iniciar(env_get("Forja/buscar_dash") != "no" and env_get("FORJA_SONDA") == "")
 
+        # las extensiones: sus opciones del menú, sus tipos de fichero y las que arrancan con Forja
+        ext_leer_todas(ext_cajon_de_forja())
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
             ruta = arg(0)
@@ -3044,6 +3625,7 @@ Main
             armar_tic(REPOSO_MS, EV_TIC)
         end
         actualizar_armar()
+        ext_tras_evento()
         if sonda
             publicar_sonda()
             escribir_sonda()
@@ -3094,6 +3676,7 @@ Main
                 end
             end
             atender(ev)
+            ext_tras_evento()
             ajustar_barra()
             ajustar_barras_paneles()
             if git_mirar_cajon(proyecto_cajon)
@@ -3105,6 +3688,9 @@ Main
                 else
                     armar_tic(GIT_TIC_MS, EV_TIC)
                 end
+            end
+            if not tic_armado and ext_alguna_pide("vuelta")
+                armar_tic(EXT_VUELTA_MS, EV_TIC)
             end
             if ed_actual() == nil and not tic_armado
                 armar_tic(500, EV_TIC)
@@ -3121,8 +3707,18 @@ Main
                     env_set("FORJA_PREFERENCIAS", "", false)
                     preferencias_abrir()
                 end
+                # lo mismo con cualquier opción del menú, por su evento (los menús de MUI no se dejan elegir con
+                # input_menu): el menú Extensiones en tests/extensiones.dash
+                if env_get("FORJA_EVENTO") != ""
+                    e = Int(env_get("FORJA_EVENTO"))
+                    env_set("FORJA_EVENTO", "", false)
+                    atender(e)
+                    ext_tras_evento()
+                end
             end
         end
+        ext_salir()
+        ext_esperar_salida()
         mui_app_end()
         screen_close()
     end

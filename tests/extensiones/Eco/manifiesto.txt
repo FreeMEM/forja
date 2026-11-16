@@ -1,0 +1,12 @@
+# Eco: una extensión para tests/extensiones.dash. Apunta cada suceso que le llega en DH0:Prueba/eco.txt.
+nombre = Eco
+version = 0.1
+autor = las pruebas de Forja
+descripcion = Apunta los sucesos que le llegan. Puede caerse y colgarse a propósito.
+programa = Eco
+arranque = menu
+sucesos = abierto guardado cerrado activo compilado marca proyecto vuelta
+tipos = .eco
+menu = Eco | | eco
+menu = Caerse | | caerse
+menu = Colgarse | | colgarse

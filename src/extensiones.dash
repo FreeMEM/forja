@@ -1,0 +1,834 @@
+# Las extensiones de Forja (docs/EXTENSIONES.md): programas aparte, cada uno en Extensiones/<nombre>/ (junto a Forja)
+# con su manifiesto.txt, que hablan con Forja por su puerto ARexx.
+#
+#   ext_leer_todas("PROGDIR:Extensiones")   # al empezar: lee los manifiestos y arranca las de "arranque = inicio"
+#   ext_suceso("GUARDADO", ruta)            # a las que lo piden en "sucesos"
+#   ext_avisar()                            # tras atender un evento o una orden ARexx
+#
+# Forja nunca espera a una extensión: le guarda los sucesos en una cola y le avisa escribiendo
+# ENV:Forja/Avisos/<nombre>, que ella vigila con file_notify; los recoge con la orden SUCESOS. Así, una extensión
+# colgada no cuelga Forja: su cola tiene un tope y, si en EXT_ESPERA_MS no la recoge, Forja mira si sigue viva (su
+# puerto FORJAEXT.<NOMBRE>, que abre lib forja.dash) y lo dice en la salida.
+#
+# Sin ventana: tests/extensiones_base.dash lo prueba.
+
+import "tema.dash"
+import "marcas.dash"
+import "paneles.dash"
+import "editor.dash"
+
+const EXT_COLA_MAX = 64
+const EXT_PARADA = 0
+const EXT_ARRANCANDO = 1
+const EXT_VIVA = 2
+const EXT_ESPERA_MS = 15000
+const EXT_RANURAS = 12          # las opciones del menú Extensiones (ventana.dashui: ext_m0 a ext_m11)
+const EXT_API = "1"             # la versión de la API (HOLA la da)
+const EXT_AVISOS = "ENV:Forja/Avisos"
+
+struct Extension
+    id: String            # el nombre de su cajón
+    cajon: String
+    nombre: String
+    version: String
+    autor: String
+    descripcion: String
+    licencia: String
+    programa: String      # la ruta entera
+    arranque: String      # inicio, menu o tipo
+    sucesos: String       # los que pide, con espacios a los lados: " abierto guardado "
+    tipos: [String]       # los finales de los ficheros que abre (".spr"), en minúsculas
+    menus: [String]       # "título|tecla|orden"
+    activa: Bool
+    estado: Int           # EXT_PARADA, EXT_ARRANCANDO o EXT_VIVA
+    cola: [String]
+    esperando: Int        # time_ms del primer suceso sin recoger (0: ninguno)
+    avisos: Int           # cuántas veces se le ha avisado (lo que se escribe en su fichero)
+    error: String         # por qué no se puede usar ("" si se puede)
+    sin_respuesta: Bool   # ya se dijo que no responde
+end
+
+var extensiones: [Extension] = []
+var ext_cajon: String = ""
+# Las opciones del menú: de qué extensión es cada una (-1 libre), su orden y su título
+var ext_ranura_ext: [Int] = []
+var ext_ranura_orden: [String] = []
+var ext_ranura_titulo: [String] = []
+var ext_ranuras_cambiadas: Bool = false   # main.dash pone los títulos en el menú
+# Las teclas de las extensiones: calificadores (Q_*), tecla en bruto y su ranura
+var ext_teclas_q: [Int] = []
+var ext_teclas_codigo: [Int] = []
+var ext_teclas_ranura: [Int] = []
+var ext_por_avisar: Bool = false
+var ext_dibujar: Bool = false             # cambiaron marcas o la barra: main.dash redibuja
+# Lo que hay que decir en la salida (main.dash lo saca con avisar): texto y tipo (0 normal, 1 error, 2 bien)
+var ext_mensajes: [String] = []
+var ext_mensajes_tipo: [Int] = []
+var ext_activo_antes: String = "-"        # el fichero activo cuando se miró (ACTIVO)
+var ext_proyecto_antes: String = "-"      # el cajón del proyecto cuando se miró (PROYECTO)
+
+func _ext_decir(texto: String, tipo: Int)
+    ext_mensajes.push(texto)
+    ext_mensajes_tipo.push(tipo)
+end
+
+# --- El manifiesto ---
+
+# Lee Extensiones/<id>/manifiesto.txt; nil si no hay. Líneas "clave = valor"; # empieza una nota.
+func ext_leer_manifiesto(cajon: String, id: String) -> Extension
+    dir = ruta_unir(cajon, id)
+    texto = file_read_text(ruta_unir(dir, "manifiesto.txt"))
+    if texto == nil
+        return nil
+    end
+    if es_utf8(texto)
+        texto = utf8_to_latin1(texto)
+    end
+    var tipos: [String] = []
+    var menus: [String] = []
+    var cola: [String] = []
+    e = Extension(id, dir, id, "", "", "", "", ruta_unir(dir, id), "menu", " ", tipos, menus, true, EXT_PARADA, cola, 0, 0, "", false)
+    for linea in str_split(str_replace(texto, "\r", ""), "\n")
+        l = linea
+        p = str_find(l, "#")
+        if p >= 0
+            l = l[0:p]
+        end
+        p = str_find(l, "=")
+        if p < 0
+            continue
+        end
+        clave = str_lower(str_trim(l[0:p]))
+        valor = str_trim(l[p + 1:])
+        if clave == "nombre"
+            e.nombre = valor
+        elif clave == "version"
+            e.version = valor
+        elif clave == "autor"
+            e.autor = valor
+        elif clave == "descripcion"
+            e.descripcion = valor
+        elif clave == "licencia"
+            e.licencia = valor
+        elif clave == "programa"
+            e.programa = ruta_unir(dir, valor)
+        elif clave == "arranque"
+            e.arranque = str_lower(valor)
+        elif clave == "sucesos"
+            for s in str_split(str_lower(valor), " ")
+                if s != ""
+                    e.sucesos = e.sucesos + s + " "
+                end
+            end
+        elif clave == "tipos"
+            for t in str_split(str_lower(valor), " ")
+                # los de Dash son siempre de Forja
+                if t != "" and t != ".dash" and t != ".dashui"
+                    tipos.push(t)
+                end
+            end
+        elif clave == "menu"
+            partes = str_split(valor, "|")
+            titulo = str_trim(partes[0])
+            tecla = ""
+            orden = titulo
+            if partes.length >= 2
+                tecla = str_lower(str_trim(partes[1]))
+            end
+            if partes.length >= 3 and str_trim(partes[2]) != ""
+                orden = str_trim(partes[2])
+            end
+            if titulo != ""
+                menus.push(titulo + "|" + tecla + "|" + orden)
+            end
+        end
+    end
+    if not file_exists(e.programa)
+        e.error = tr(600, "no está su programa")
+    end
+    return e
+end
+
+# Lee todas las de ese cajón (las apagadas, de la preferencia Forja/extensiones_apagadas) y arranca las de inicio
+func ext_leer_todas(cajon: String)
+    ext_cajon = cajon
+    extensiones = []
+    dir_create("ENV:Forja")
+    dir_create(EXT_AVISOS)
+    apagadas = "|" + str_lower(env_get("Forja/extensiones_apagadas")) + "|"
+    n = dir_read(cajon)
+    var ids: [String] = []
+    i = 0
+    while i < n
+        if dir_entry_is_dir(i)
+            ids.push(dir_entry_name(i))
+        end
+        i = i + 1
+    end
+    for id in ids
+        e = ext_leer_manifiesto(cajon, id)
+        if e != nil
+            e.activa = not str_contains(apagadas, "|" + str_lower(id) + "|")
+            extensiones.push(e)
+        end
+    end
+    ext_ranuras()
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.activa and e.error == "" and e.arranque == "inicio"
+            ext_arrancar(i)
+        end
+        i = i + 1
+    end
+end
+
+func ext_buscar(id: String) -> Int
+    i = 0
+    l = str_lower(id)
+    while i < extensiones.length
+        if str_lower(extensiones[i].id) == l
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# --- Arrancar y avisar ---
+
+func ext_puerto(e: Extension) -> String
+    return "FORJAEXT." + str_upper(e.id)
+end
+
+func ext_arrancar(i: Int) -> Bool
+    e = extensiones[i]
+    if not e.activa or e.error != "" or e.estado != EXT_PARADA
+        return e.estado != EXT_PARADA
+    end
+    # su programa, con el puerto de Forja y su nombre (lib forja.dash los lee)
+    if not run_program("\"" + e.programa + "\" FORJA.1 \"" + e.id + "\"")
+        _ext_decir(hueco(tr(601, "No se puede arrancar la extensión %1."), e.nombre), 1)
+        return false
+    end
+    e.estado = EXT_ARRANCANDO
+    if e.esperando == 0
+        e.esperando = time_ms()
+    end
+    e.sin_respuesta = false
+    # lo que hay ahora: el fichero de delante y el cajón del proyecto (al abrir Forja, main.dash los manda luego)
+    if ext_activo_antes != "-" and ext_pide(e, "activo")
+        ext_suceso_a(i, "ACTIVO " + ext_activo_antes)
+    end
+    if ext_proyecto_antes != "-" and ext_pide(e, "proyecto")
+        ext_suceso_a(i, "PROYECTO " + ext_proyecto_antes)
+    end
+    return true
+end
+
+# ¿Tiene abierto su puerto? (lib forja.dash lo abre al empezar y se cierra al acabar, también si falla)
+func ext_viva(e: Extension) -> Bool
+    p = ext_puerto(e)
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == p
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+# ¿Pide ese suceso? (los que no se piden no se le guardan)
+func ext_pide(e: Extension, tipo: String) -> Bool
+    return str_contains(e.sucesos, " " + str_lower(tipo) + " ")
+end
+
+# Un suceso para una extensión: a su cola (y que se le avise)
+func ext_suceso_a(i: Int, linea: String)
+    e = extensiones[i]
+    if e.cola.length >= EXT_COLA_MAX
+        e.cola.remove(0)
+        if not e.sin_respuesta
+            e.sin_respuesta = true
+            _ext_decir(hueco(tr(604, "La extensión %1 no recoge sus avisos: se pierden los más viejos."), e.nombre), 1)
+        end
+    end
+    e.cola.push(linea)
+    if e.esperando == 0
+        e.esperando = time_ms()
+    end
+    ext_por_avisar = true
+end
+
+# Un suceso para las que lo piden y están en marcha (ABIERTO, GUARDADO, CERRADO, ACTIVO, CAMBIADO, COMPILADO)
+func ext_suceso(tipo: String, dato: String)
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.activa and e.estado != EXT_PARADA and ext_pide(e, tipo)
+            ext_suceso_a(i, tipo + " " + dato)
+        end
+        i = i + 1
+    end
+end
+
+# ¿Alguna en marcha pide ese suceso?
+func ext_alguna_pide(tipo: String) -> Bool
+    for e in extensiones
+        if e.activa and e.estado != EXT_PARADA and ext_pide(e, tipo)
+            return true
+        end
+    end
+    return false
+end
+
+# Escribe el fichero de aviso de las que tienen sucesos nuevos; mira las que no los recogen
+func ext_avisar()
+    ahora = time_ms()
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.esperando > 0 and e.estado != EXT_PARADA and ahora - e.esperando > EXT_ESPERA_MS
+            ext_sin_respuesta(i)
+        end
+        i = i + 1
+    end
+    if not ext_por_avisar
+        return
+    end
+    ext_por_avisar = false
+    for e in extensiones
+        if e.cola.length > 0 and e.estado != EXT_PARADA
+            e.avisos = e.avisos + 1
+            file_write_text(EXT_AVISOS + "/" + e.id, "#{e.avisos}\n")
+        end
+    end
+end
+
+# No recoge sus sucesos: si su puerto no está, se cerró (o no llegó a empezar); si está, estará ocupada (la cola
+# tiene tope: si se llena, se pierden los más viejos y se dice)
+func ext_sin_respuesta(i: Int)
+    e = extensiones[i]
+    e.esperando = time_ms()
+    if not ext_viva(e)
+        if e.estado == EXT_ARRANCANDO
+            _ext_decir(hueco(tr(602, "La extensión %1 no ha llegado a empezar."), e.nombre), 1)
+        else
+            _ext_decir(hueco(tr(603, "La extensión %1 se ha cerrado."), e.nombre), 1)
+        end
+        ext_parada(i)
+    end
+end
+
+# Se ha ido: lo suyo fuera de la ventana
+func ext_parada(i: Int)
+    e = extensiones[i]
+    e.estado = EXT_PARADA
+    e.cola.clear()
+    e.esperando = 0
+    marcas_quitar_ext(e.id)
+    ext_dibujar = true
+end
+
+# Que se vaya (al desactivarla o al instalar otra encima): solo le queda SALIR por recoger, y lo suyo sale ya de la
+# ventana. Forja la da por parada; si vuelve a pedir SUCESOS, se le da SALIR.
+func ext_despedir(i: Int)
+    e = extensiones[i]
+    if e.estado != EXT_PARADA
+        e.cola.clear()
+        e.cola.push("SALIR")
+        ext_por_avisar = true
+        ext_avisar()
+    end
+    e.estado = EXT_PARADA
+    e.esperando = 0
+    marcas_quitar_ext(e.id)
+    ext_dibujar = true
+end
+
+# Al salir de Forja: SALIR a las que están en marcha (no se las espera)
+func ext_salir()
+    i = 0
+    while i < extensiones.length
+        if extensiones[i].estado != EXT_PARADA
+            ext_suceso_a(i, "SALIR")
+        end
+        i = i + 1
+    end
+    ext_avisar()
+end
+
+# --- Lo que piden por ARexx ---
+
+# HOLA: ya está en marcha; da la versión de la API
+func ext_hola(id: String) -> String
+    i = ext_buscar(id)
+    if i < 0
+        return ""
+    end
+    e = extensiones[i]
+    e.estado = EXT_VIVA
+    e.sin_respuesta = false
+    e.esperando = 0
+    if e.cola.length > 0
+        e.esperando = time_ms()
+    end
+    return EXT_API
+end
+
+# SUCESOS: los que tiene guardados, uno por línea, y se vacía la cola
+func ext_sucesos(id: String) -> String
+    i = ext_buscar(id)
+    if i < 0
+        return ""
+    end
+    e = extensiones[i]
+    if not e.activa
+        # desactivada: que se vaya
+        e.cola.clear()
+        return "SALIR\n"
+    end
+    if e.estado == EXT_PARADA
+        e.estado = EXT_VIVA     # (arrancada a mano, o volvió tras no responder)
+    end
+    e.sin_respuesta = false
+    e.esperando = 0
+    t = ""
+    for s in e.cola
+        t = t + s + "\n"
+    end
+    e.cola.clear()
+    return t
+end
+
+func ext_adios(id: String)
+    i = ext_buscar(id)
+    if i >= 0
+        ext_parada(i)
+    end
+end
+
+# --- El menú y las teclas ---
+
+# Reparte las opciones del menú Extensiones entre las activas, por orden, y lee sus teclas
+func ext_ranuras()
+    ext_ranura_ext = []
+    ext_ranura_orden = []
+    ext_ranura_titulo = []
+    ext_teclas_q = []
+    ext_teclas_codigo = []
+    ext_teclas_ranura = []
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.activa and e.error == ""
+            for m in e.menus
+                ext_ranura_nueva(i, m)
+            end
+        end
+        i = i + 1
+    end
+    ext_ranuras_cambiadas = true
+end
+
+# Una opción más ("título|tecla|orden"); -1 si ya no caben
+func ext_ranura_nueva(i: Int, m: String) -> Int
+    if ext_ranura_ext.length >= EXT_RANURAS
+        _ext_decir(hueco(tr(605, "No caben más opciones en el menú Extensiones (%1)."), extensiones[i].nombre), 1)
+        return -1
+    end
+    partes = str_split(m, "|")
+    titulo = partes[0]
+    tecla = ""
+    orden = titulo
+    if partes.length >= 2
+        tecla = partes[1]
+    end
+    if partes.length >= 3
+        orden = partes[2]
+    end
+    r = ext_ranura_ext.length
+    if tecla != ""
+        q = ext_tecla_q(tecla)
+        c = ext_tecla_codigo(tecla)
+        if c >= 0
+            ext_teclas_q.push(q)
+            ext_teclas_codigo.push(c)
+            ext_teclas_ranura.push(r)
+            titulo = titulo + "  (" + ext_tecla_texto(tecla) + ")"
+        end
+    end
+    ext_ranura_ext.push(i)
+    ext_ranura_orden.push(orden)
+    ext_ranura_titulo.push(titulo)
+    ext_ranuras_cambiadas = true
+    return r
+end
+
+# Se eligió la opción r del menú (o su tecla): MENU orden a su extensión, arrancándola si hace falta
+func ext_menu(r: Int)
+    if r < 0 or r >= ext_ranura_ext.length
+        return
+    end
+    i = ext_ranura_ext[r]
+    e = extensiones[i]
+    if e.estado != EXT_PARADA and not ext_viva(e) and e.estado == EXT_VIVA
+        # se cayó sin decir adiós: se vuelve a arrancar
+        ext_parada(i)
+    end
+    ext_suceso_a(i, "MENU " + ext_ranura_orden[r])
+    if e.estado == EXT_PARADA
+        ext_arrancar(i)
+    end
+end
+
+# "ctrl alt d", "amiga m", "f3": los calificadores (Q_MAYUS 1, Q_CTRL 2, Q_ALT 4, Q_AMIGA 8)
+func ext_tecla_q(t: String) -> Int
+    q = 0
+    for p in str_split(t, " ")
+        if p == "shift" or p == "mayus"
+            q = q | 1
+        elif p == "ctrl"
+            q = q | 2
+        elif p == "alt"
+            q = q | 4
+        elif p == "amiga"
+            q = q | 8
+        end
+    end
+    return q
+end
+
+# La tecla en bruto de la última palabra (una letra, una cifra o f1 a f10); -1 si no se entiende
+func ext_tecla_codigo(t: String) -> Int
+    partes = str_split(t, " ")
+    k = partes[partes.length - 1]
+    filas = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]
+    inicios = [0x01, 0x10, 0x20, 0x31]
+    if k.length == 1
+        f = 0
+        while f < filas.length
+            p = str_find(filas[f], k)
+            if p >= 0
+                return inicios[f] + p
+            end
+            f = f + 1
+        end
+        return -1
+    end
+    if str_starts(k, "f") and k.length <= 3
+        n = Int(k[1:])
+        if n >= 1 and n <= 10
+            return 0x50 + n - 1
+        end
+    end
+    return -1
+end
+
+# Cómo se escribe en el menú: "Ctrl Alt D"
+func ext_tecla_texto(t: String) -> String
+    r = ""
+    for p in str_split(t, " ")
+        if p != ""
+            if r != ""
+                r = r + " "
+            end
+            r = r + str_upper(p[0:1]) + p[1:]
+        end
+    end
+    return r
+end
+
+# La ranura de una tecla (código en bruto y calificadores); -1 si no es de ninguna extensión
+func ext_tecla(codigo: Int, q: Int) -> Int
+    i = 0
+    while i < ext_teclas_codigo.length
+        if ext_teclas_codigo[i] == codigo and ext_teclas_q[i] == (q & 15)
+            return ext_teclas_ranura[i]
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# --- Tipos de fichero ---
+
+# La extensión (activa) que abre ese fichero, por su final; -1 si ninguna
+func ext_para_fichero(ruta: String) -> Int
+    l = str_lower(ruta)
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.activa and e.error == ""
+            for t in e.tipos
+                if str_ends(l, t)
+                    return i
+                end
+            end
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# EDITAR ruta a la extensión i, arrancándola si hace falta
+func ext_editar(i: Int, ruta: String)
+    e = extensiones[i]
+    if e.estado == EXT_VIVA and not ext_viva(e)
+        ext_parada(i)
+    end
+    ext_suceso_a(i, "EDITAR " + ruta)
+    if e.estado == EXT_PARADA
+        ext_arrancar(i)
+    end
+end
+
+# --- Activar, desactivar e instalar (el gestor) ---
+
+func ext_guardar_apagadas()
+    t = ""
+    for e in extensiones
+        if not e.activa
+            if t != ""
+                t = t + "|"
+            end
+            t = t + e.id
+        end
+    end
+    env_set("Forja/extensiones_apagadas", t, true)
+end
+
+func ext_activar(i: Int, si: Bool)
+    e = extensiones[i]
+    if e.activa == si
+        return
+    end
+    e.activa = si
+    if not si
+        ext_despedir(i)
+    end
+    ext_ranuras()
+    ext_guardar_apagadas()
+    if si and e.error == "" and e.arranque == "inicio"
+        ext_arrancar(i)
+    end
+end
+
+# La línea de la lista del gestor
+func ext_linea(e: Extension) -> String
+    t = e.nombre
+    if e.version != ""
+        t = t + " " + e.version
+    end
+    if not e.activa
+        return t + "  " + tr(606, "(apagada)")
+    end
+    if e.error != ""
+        return t + "  (" + e.error + ")"
+    end
+    if e.estado == EXT_VIVA
+        return t + "  " + tr(607, "(en marcha)")
+    end
+    return t
+end
+
+# Lo que dice el gestor de la extensión elegida
+func ext_info(e: Extension) -> String
+    t = _ext_partir(e.descripcion, 60)
+    if e.autor != ""
+        t = t + "\n" + tr(608, "Autor: ") + e.autor
+    end
+    if e.licencia != ""
+        t = t + "    " + tr(609, "Licencia: ") + e.licencia
+    end
+    cuando = tr(610, "Arranca: con su menú.")
+    if e.arranque == "inicio"
+        cuando = tr(611, "Arranca: al abrir Forja.")
+    elif e.tipos.length > 0
+        cuando = tr(612, "Arranca: con su menú o al abrir ") + _ext_unir(e.tipos, " ") + "."
+    end
+    return t + "\n" + cuando
+end
+
+# Un texto en líneas de como mucho ancho letras, partidas por los espacios (para el gestor en 640 x 256)
+func _ext_partir(t: String, ancho: Int) -> String
+    r = ""
+    linea = ""
+    for p in str_split(t, " ")
+        if linea != "" and linea.length + 1 + p.length > ancho
+            r = r + linea + "\n"
+            linea = p
+        elif linea == ""
+            linea = p
+        else
+            linea = linea + " " + p
+        end
+    end
+    return r + linea
+end
+
+func _ext_unir(l: [String], sep: String) -> String
+    t = ""
+    for s in l
+        if t != ""
+            t = t + sep
+        end
+        t = t + s
+    end
+    return t
+end
+
+# El cajón con manifiesto.txt de lo que hay en dir (él mismo o uno de dentro, un nivel); "" si ninguno
+func ext_cajon_con_manifiesto(dir: String) -> String
+    if file_exists(ruta_unir(dir, "manifiesto.txt"))
+        return dir
+    end
+    n = dir_read(dir)
+    var ds: [String] = []
+    i = 0
+    while i < n
+        if dir_entry_is_dir(i)
+            ds.push(ruta_unir(dir, dir_entry_name(i)))
+        end
+        i = i + 1
+    end
+    for d in ds
+        if file_exists(ruta_unir(d, "manifiesto.txt"))
+            return d
+        end
+    end
+    return ""
+end
+
+# Copia el cajón de una extensión (con su manifiesto) a Extensiones/<nombre de su cajón>; su número, o -1 (en
+# ext_error_instalar, por qué)
+var ext_error_instalar: String = ""
+
+func ext_instalar_cajon(dir: String) -> Int
+    ext_error_instalar = ""
+    id = nombre_de_cajon(dir)
+    if id == ""
+        ext_error_instalar = tr(613, "No se sabe el nombre de la extensión.")
+        return -1
+    end
+    dir_create(ext_cajon)
+    destino = ruta_unir(ext_cajon, id)
+    if str_lower(destino) != str_lower(dir) and not ext_copiar_cajon(dir, destino)
+        ext_error_instalar = hueco(tr(614, "No se pudo copiar a %1."), destino)
+        return -1
+    end
+    e = ext_leer_manifiesto(ext_cajon, id)
+    if e == nil
+        ext_error_instalar = tr(615, "No tiene manifiesto.txt.")
+        return -1
+    end
+    i = ext_buscar(id)
+    if i >= 0
+        # ya estaba: la nueva en su lugar (parada, para que arranque la nueva)
+        ext_despedir(i)
+        extensiones[i] = e
+    else
+        extensiones.push(e)
+        i = extensiones.length - 1
+    end
+    e.activa = false
+    return i
+end
+
+# Copia un cajón entero (con los de dentro), con los bits y las notas de cada fichero; false si algo no se pudo
+func ext_copiar_cajon(origen: String, destino: String) -> Bool
+    dir_create(destino)
+    n = dir_read(origen)
+    if n < 0
+        return false
+    end
+    var nombres: [String] = []
+    var cajones: [Bool] = []
+    i = 0
+    while i < n
+        nombres.push(dir_entry_name(i))
+        cajones.push(dir_entry_is_dir(i))
+        i = i + 1
+    end
+    bien = true
+    i = 0
+    while i < nombres.length
+        o = ruta_unir(origen, nombres[i])
+        d = ruta_unir(destino, nombres[i])
+        if cajones[i]
+            if not ext_copiar_cajon(o, d)
+                bien = false
+            end
+        elif not file_copy(o, d)
+            bien = false
+        else
+            file_copy_attrs(o, d)
+        end
+        i = i + 1
+    end
+    return bien
+end
+
+# Un .lha: se descomprime en T:ForjaInstalar con C:LhA (o C:lha) y da el cajón de la extensión que trae ("" si no
+# trae ninguna: ext_error_instalar dice por qué). ext_limpiar_lha() lo borra después.
+const EXT_TMP = "T:ForjaInstalar"
+
+func ext_sacar_lha(archivo: String) -> String
+    ext_error_instalar = ""
+    lha = ""
+    for c in ["C:LhA", "C:lha", "C:Lha"]
+        if lha == "" and file_exists(c)
+            lha = c
+        end
+    end
+    if lha == ""
+        ext_error_instalar = tr(616, "Para un .lha hace falta C:LhA.")
+        return ""
+    end
+    ext_limpiar_lha()
+    dir_create(EXT_TMP)
+    run_capture(lha + " -q x \"" + archivo + "\" \"" + EXT_TMP + "/\"", 120000)
+    dir = ext_cajon_con_manifiesto(EXT_TMP)
+    if dir == ""
+        ext_error_instalar = tr(617, "El .lha no trae una extensión (falta manifiesto.txt).")
+        return ""
+    end
+    if dir == EXT_TMP
+        # el manifiesto suelto: la extensión se llama como el .lha
+        nombre = nombre_de_cajon(archivo)
+        if str_ends(str_lower(nombre), ".lha")
+            nombre = nombre[0:nombre.length - 4]
+        end
+        ext_copiar_cajon(EXT_TMP, "T:ForjaInstalar-" + nombre)
+        run_capture("C:Delete \"" + EXT_TMP + "\" ALL QUIET FORCE", 60000)
+        ext_copiar_cajon("T:ForjaInstalar-" + nombre, ruta_unir(EXT_TMP, nombre))
+        run_capture("C:Delete \"T:ForjaInstalar-" + nombre + "\" ALL QUIET FORCE", 60000)
+        dir = ruta_unir(EXT_TMP, nombre)
+    end
+    return dir
+end
+
+func ext_limpiar_lha()
+    if file_exists(EXT_TMP)
+        run_capture("C:Delete \"" + EXT_TMP + "\" ALL QUIET FORCE", 60000)
+    end
+end
+
+# El último nombre de una ruta ("Work:a/Contar/" -> "Contar")
+func nombre_de_cajon(ruta: String) -> String
+    r = ruta
+    while str_ends(r, "/")
+        r = r[0:r.length - 1]
+    end
+    i = r.length - 1
+    while i >= 0
+        c = r[i:i + 1]
+        if c == "/" or c == ":"
+            return r[i + 1:]
+        end
+        i = i - 1
+    end
+    return r
+end

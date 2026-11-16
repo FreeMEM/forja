@@ -1,0 +1,46 @@
+# Contar: la extensión de ejemplo de Forja (docs/EXTENSIONES.md). Cuenta las líneas y las palabras del fichero
+# activo y lo pone en la barra de Forja; Extensiones > Contar las palabras lo dice en la salida, e Insertar la fecha
+# (Ctrl Alt D) la escribe en el cursor.
+#
+#   ./dash extensiones/Contar/contar.dash -o Extensiones/Contar/Contar    (desde el cajón de Forja)
+
+import "lib/forja.dash"
+
+# "120 líneas, 431 palabras" del texto del fichero activo ("" si no hay ninguno de texto)
+func contar() -> String
+    t = forja_texto("")
+    if forja_rc != 0
+        return ""
+    end
+    lineas = str_split(t, "\n").length
+    palabras = 0
+    for p in str_split(str_replace(t, "\n", " "), " ")
+        if p != ""
+            palabras = palabras + 1
+        end
+    end
+    return "#{lineas} líneas, #{palabras} palabras"
+end
+
+Main
+    if not forja_empezar("Contar")
+        Print "Contar es una extensión de Forja: la arranca Forja."
+    else
+        while forja_suceso(0) != "SALIR"
+            if forja_tipo == "MENU" and forja_dato == "fecha"
+                forja_insertar(date_text("%d-%m-%Y"))
+            elif forja_tipo == "MENU" and forja_dato == "contar"
+                c = contar()
+                if c == ""
+                    forja_aviso_tipo("Contar: no hay un fichero de texto abierto.", 1)
+                else
+                    forja_aviso(forja_fichero() + ": " + c + ".")
+                    forja_barra(c)
+                end
+            elif forja_tipo == "ACTIVO" or forja_tipo == "GUARDADO" or forja_tipo == "CAMBIADO"
+                forja_barra(contar())
+            end
+        end
+        forja_acabar()
+    end
+end

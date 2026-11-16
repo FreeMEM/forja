@@ -1,0 +1,37 @@
+# Eco: una extensión para tests/extensiones.dash. Apunta en DH0:Prueba/eco.txt cada suceso que le llega. Con su menú
+# Caerse acaba sin despedirse (como si fallara); con Colgarse, deja de recoger sus sucesos 40 segundos.
+
+import "lib/forja.dash"
+
+var registro: String = ""
+
+func apuntar(s: String)
+    registro = registro + s + "\n"
+    n = 0
+    while not file_write_text("DH0:Prueba/eco.txt", registro) and n < 20
+        time_delay(2)
+        n = n + 1
+    end
+end
+
+Main
+    if forja_empezar("Eco")
+        apuntar("HOLA " + forja_version)
+        caida = false
+        while not caida
+            s = forja_suceso(0)
+            apuntar(s)
+            if s == "SALIR"
+                break
+            elif s == "MENU caerse"
+                caida = true
+            elif s == "MENU colgarse"
+                time_delay(50 * 40)
+                apuntar("despierta")
+            end
+        end
+        if not caida
+            forja_acabar()
+        end
+    end
+end

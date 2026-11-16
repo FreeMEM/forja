@@ -1,0 +1,383 @@
+# Las extensiones de Forja en el emulador (docs/EXTENSIONES.md), como un usuario y por ARexx:
+#   - Contar (extensiones/Contar) arranca con Forja y pone la cuenta en la barra; su menú la dice en la salida; su
+#     tecla (Ctrl Alt D) mete la fecha en el cursor; al escribir, la cuenta sigue (CAMBIADO);
+#   - la API: ACTIVO, LINEAS, LINEA, CURSOR, ELEGIR, ELEGIDO, INSERTAR, LOTE, AVISO, BARRA, PROYECTO, ABIERTOS,
+#     MARCAS y MARCASPROYECTO (con capturas);
+#   - Eco (tests/extensiones/Eco) arranca al elegir su menú y apunta los sucesos: MENU, GUARDADO, ABIERTO, ACTIVO,
+#     CERRADO, EDITAR (un .eco, que no abre Forja), MARCA (un clic en su marca) y COMPILADO;
+#   - una extensión que cae (Forja lo dice y la vuelve a arrancar con su menú) y otra colgada (Forja sigue
+#     contestando, su cola tiene tope);
+#   - el gestor: desactivar Contar (se va y se guarda en la preferencia) y volver a activarla.
+# Lo arranca tests/extensiones.sh; anota en DH0:Prueba/extensiones.txt.
+
+const FORJA = "FORJA.1"
+const MAIN = "DH0:Prueba/juego/main.dash"
+const RED = "DH0:Prueba/juego/red.dash"
+const ECO = "DH0:Prueba/dibujo.eco"
+const AMIGA = 8
+const ALT = 4
+const CTRL = 2
+const M_EXT = 5            # el menú Extensiones
+const M_CONTAR = 2         # sus opciones: gestor, raya, Contar las palabras, Insertar la fecha, Eco, Caerse, Colgarse
+const M_ECO = 4
+const M_CAERSE = 5
+const M_COLGARSE = 6
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/extensiones.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and input_active_title() != titulo
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return input_active_title() == titulo
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+# El puntero sobre el editor de Forja (activa): el teclado va a él
+func al_editor() -> Bool
+    if not activar("Forja")
+        return false
+    end
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+    return true
+end
+
+# Una opción del menú Extensiones. input_menu no sirve con los menús de MUI: con la sonda, ENV:FORJA_EVENTO lleva el
+# evento de la opción (180 el gestor, 200 y siguientes las de las extensiones), y una tecla (Esc) lo hace mirar
+func menu(item: Int) -> Bool
+    ev = 180
+    if item >= 2
+        ev = 200 + item - 2
+    end
+    env_set("FORJA_EVENTO", "#{ev}", false)
+    if not al_editor()
+        return false
+    end
+    input_key(0x45, 0)
+    time_delay(10)
+    return env_get("FORJA_EVENTO") == ""
+end
+
+# Lo que apuntó Eco
+func eco() -> String
+    t = file_read_text("DH0:Prueba/eco.txt")
+    n = 0
+    while t == nil and n < 5 and file_exists("DH0:Prueba/eco.txt")
+        time_delay(2)
+        t = file_read_text("DH0:Prueba/eco.txt")
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+# Espera (hasta decimas décimas) a que Eco apunte esa línea
+func eco_dice(linea: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        if str_contains("\n" + eco(), "\n" + linea + "\n")
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+func barra_dice(texto: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        if str_contains(rexx("BARRA"), texto)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+func salida_dice(texto: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        if str_contains(rexx("SALIDA"), texto)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+func puerto(nombre: String) -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func sin_puerto(nombre: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas and puerto(nombre)
+        time_delay(5)
+        n = n + 1
+    end
+    return not puerto(nombre)
+end
+
+# Lo que cuenta Contar, con el texto que tiene Forja
+func cuenta() -> String
+    t = rexx("TEXTO")
+    lineas = str_split(t, "\n").length
+    palabras = 0
+    for p in str_split(str_replace(t, "\n", " "), " ")
+        if p != ""
+            palabras = palabras + 1
+        end
+    end
+    return "#{lineas} líneas, #{palabras} palabras"
+end
+
+Main
+    run_command("Run >NIL: DH0:Prueba/Forja")
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("el puerto contesta", n < 600, "")
+    n = 0
+    while n < 200 and env_get("FORJA_EDITOR") == ""
+        time_delay(5)
+        n = n + 1
+    end
+
+    # --- Contar ---
+    ver("Contar arranca con Forja y pone la cuenta en la barra", barra_dice(cuenta(), 300), rexx("BARRA") + " / " + cuenta())
+    ver("su puerto FORJAEXT.CONTAR", puerto("FORJAEXT.CONTAR"), "")
+    ver("Extensiones > Contar las palabras", menu(M_CONTAR) and salida_dice(MAIN + ": " + cuenta() + ".", 100), rexx("SALIDA"))
+    rexx("CURSOR 1 1")
+    fecha = date_text("%d-%m-%Y")
+    if al_editor()
+        input_key(0x22, CTRL + ALT)
+    end
+    n = 0
+    while n < 60 and not str_starts(rexx("LINEA 1"), fecha)
+        time_delay(5)
+        n = n + 1
+    end
+    ver("Ctrl Alt D mete la fecha en el cursor", str_starts(rexx("LINEA 1"), fecha), rexx("LINEA 1"))
+    antes = cuenta()
+    if al_editor()
+        input_text(" hola mundo")
+    end
+    ver("al escribir, la cuenta sigue (CAMBIADO)", barra_dice(cuenta(), 200) and cuenta() != antes, rexx("BARRA") + " / " + cuenta())
+
+    # --- La API ---
+    a = str_split(rexx("ACTIVO"), "\n")
+    ver("ACTIVO", a.length == 5 and a[0] == MAIN and a[1] == "main.dash" and a[2] == "1" and a[3] == "texto", rexx("ACTIVO"))
+    t = str_split(rexx("TEXTO"), "\n")
+    ver("LINEAS 2 3", rexx("LINEAS 2 3") == t[1] + "\n" + t[2], rexx("LINEAS 2 3"))
+    ver("LINEA de otro fichero (abierto)", rexx("ABRIR " + RED) == "" and rexx("ABRIR " + MAIN) == "" and rexx("LINEA 1 " + RED) != "", "rc #{rexx_rc()}")
+    rexx("CURSOR 2 3")
+    ver("CURSOR", rexx("CURSOR") == "2 3", rexx("CURSOR"))
+    rexx("CURSOR 2 999")
+    ver("CURSOR más allá del final de la línea: al final", rexx("CURSOR") == "2 #{t[1].length + 1}", rexx("CURSOR"))
+    rexx("ELEGIR 2 1 2 5")
+    ver("ELEGIR y ELEGIDO", rexx("ELEGIDO") == "2 1 2 5\n" + t[1][0:4], rexx("ELEGIDO"))
+    rexx("INSERTAR     uno\n    dos\n")
+    ver("INSERTAR en lugar de lo elegido, con espacios y saltos", rexx("LINEAS 2 4") == "    uno\n    dos\n" + t[1][4:], rexx("LINEAS 2 4"))
+    # deshacer (Amiga-Z) lo de INSERTAR: de una vez
+    al_editor()
+    input_key(0x31, AMIGA)
+    time_delay(25)
+    ver("y vuelve lo de antes", rexx("LINEA 2") == t[1], rexx("LINEA 2"))
+    l = str_split(rexx("LOTE\nESTADO\n\nCURSOR\nNOEXISTE\nLINEA 2"), str_char(30))
+    ver("LOTE: cuatro respuestas (vacía la que no existe), RC 0", l.length == 4 and l[0] == "libre" and l[2] == "" and l[3] == t[1] and rexx_rc() == 0, "#{l.length} rc #{rexx_rc()}")
+    # lo que cuesta una orden (con REAL=1, en un A1200): una sola, tres sueltas y tres en un lote
+    t0 = time_ms()
+    i = 0
+    while i < 20
+        rexx("CURSOR")
+        i = i + 1
+    end
+    t1 = time_ms()
+    i = 0
+    while i < 20
+        rexx("ACTIVO")
+        rexx("CURSOR")
+        rexx("LINEA 2")
+        i = i + 1
+    end
+    t2 = time_ms()
+    i = 0
+    while i < 20
+        rexx("LOTE\nACTIVO\nCURSOR\nLINEA 2")
+        i = i + 1
+    end
+    t3 = time_ms()
+    anotar("una orden: #{(t1 - t0) / 20} ms; tres sueltas: #{(t2 - t1) / 20} ms; tres en un lote: #{(t3 - t2) / 20} ms")
+    rexx("AVISO 2 Hola desde la prueba")
+    ver("AVISO", salida_dice("Hola desde la prueba", 20), "")
+    rexx("BARRA Prueba rama main")
+    ver("BARRA", str_contains(rexx("BARRA"), "rama main") and str_contains(rexx("BARRA"), "palabras"), rexx("BARRA"))
+    p = str_split(rexx("PROYECTO"), "\n")
+    ver("PROYECTO", p[0] == "DH0:Prueba/juego" and str_contains(rexx("PROYECTO"), "\nred.dash\n"), rexx("PROYECTO"))
+    ver("ABIERTOS", rexx("ABIERTOS") == MAIN + "\n" + RED + "\n", rexx("ABIERTOS"))
+    rexx("MARCAS Prueba " + MAIN + "\n2 +\n3 +\n5 ~\n7 -\n9 !")
+    rexx("MARCASPROYECTO Prueba\nM " + MAIN + "\n? " + RED)
+    ver("MARCAS y MARCASPROYECTO", rexx_rc() == 0, "rc #{rexx_rc()}")
+    time_delay(25)
+    screen_save_png("DH0:Prueba/marcas.png")
+    rexx("BARRA Prueba")
+    ver("BARRA sin texto la quita", not str_contains(rexx("BARRA"), "rama main"), rexx("BARRA"))
+
+    # --- Eco: arranca con su menú ---
+    file_delete("DH0:Prueba/eco.txt")
+    ver("Eco no está hasta que se elige su menú", not puerto("FORJAEXT.ECO"), "")
+    ver("Extensiones > Eco la arranca", menu(M_ECO) and eco_dice("MENU eco", 200), eco())
+    ver("Eco saluda con la versión de Forja", str_starts(eco(), "HOLA 0."), eco())
+    ver("al arrancar le llegan el fichero activo y el proyecto", eco_dice("ACTIVO " + MAIN, 20) and eco_dice("PROYECTO DH0:Prueba/juego", 20), eco())
+    rexx("GUARDAR " + MAIN)
+    ver("GUARDADO", eco_dice("GUARDADO " + MAIN, 60), eco())
+    rexx("ABRIR " + RED)
+    ver("ACTIVO al cambiar de pestaña", eco_dice("ACTIVO " + RED, 60), eco())
+    ver("un .eco lo abre Eco (EDITAR), no Forja", rexx("ABRIR " + ECO) == "" and rexx_rc() == 0 and eco_dice("EDITAR " + ECO, 60) and rexx("ABIERTO " + ECO) == "0", eco())
+    # un clic en su marca: MARCA a ella
+    rexx("ABRIR " + MAIN)
+    rexx("MARCAS Eco " + MAIN + "\n4 !")
+    time_delay(25)
+    if al_editor()
+        # (la columna de las marcas, entre los números y el texto: ENV:FORJA_VISTA da el margen y el alto de fila)
+        input_key(0x45, 0)
+        time_delay(10)
+        v = str_split(env_get("FORJA_VISTA"), " ")
+        primera = Int(v[0])
+        fila = Int(v[1])
+        margen = Int(v[2])
+        input_click(campo("FORJA_EDITOR", 0) + margen - 10, campo("FORJA_EDITOR", 1) + 18 + 2 + (3 - primera) * fila + fila / 2, 0)
+    end
+    ver("un clic en su marca: MARCA", eco_dice("MARCA " + MAIN + " 4", 60), eco() + " / " + env_get("FORJA_VISTA"))
+    # cerrar la pestaña de red.dash (Amiga-W)
+    rexx("ABRIR " + RED)
+    if al_editor()
+        input_key(0x11, AMIGA)
+    end
+    ver("CERRADO", eco_dice("CERRADO " + RED, 60), eco())
+    if file_exists("DH0:Dash/dashc")
+        rexx("ABRIR " + MAIN)
+        rexx("COMPILAR")
+        n = 0
+        while n < 1800 and not str_contains(eco(), "\nCOMPILADO ")
+            time_delay(10)
+            n = n + 1
+        end
+        ver("COMPILADO (con los errores de la fecha metida arriba)", str_contains(eco(), "\nCOMPILADO ") and not str_contains(eco(), "\nCOMPILADO 0"), eco())
+    end
+
+    # --- Una extensión que cae ---
+    ver("Eco se cae (sin despedirse)", menu(M_CAERSE) and sin_puerto("FORJAEXT.ECO", 100), "")
+    rexx("GUARDAR " + MAIN)
+    time_delay(50 * 16)
+    rexx("GUARDAR " + MAIN)
+    ver("Forja lo dice cuando no recoge sus sucesos", salida_dice("La extensión Eco se ha cerrado.", 40), rexx("SALIDA"))
+    file_delete("DH0:Prueba/eco.txt")
+    ver("su menú la vuelve a arrancar", menu(M_ECO) and eco_dice("MENU eco", 200), eco())
+
+    # --- Una extensión colgada ---
+    menu(M_COLGARSE)
+    ver("Eco se cuelga", eco_dice("MENU colgarse", 100), eco())
+    peor = 0
+    i = 0
+    while i < 70
+        t0 = time_ms()
+        rexx("GUARDAR " + MAIN)
+        rexx("ESTADO")
+        ms = time_ms() - t0
+        if ms > peor
+            peor = ms
+        end
+        i = i + 1
+    end
+    anotar("con Eco colgada, lo más que tardó GUARDAR y ESTADO: #{peor} ms")
+    ver("Forja sigue contestando", peor < 2000, "#{peor} ms")
+    ver("y dice que Eco no recoge sus avisos", salida_dice("La extensión Eco no recoge sus avisos", 20), rexx("SALIDA"))
+    ver("Eco despierta y recoge lo último", eco_dice("despierta", 900) and eco_dice("GUARDADO " + MAIN, 100), eco())
+
+    # --- El gestor ---
+    abierto = false
+    intentos = 0
+    while not abierto and intentos < 3
+        m = menu(0)
+        abierto = activar("Extensiones de Forja")
+        if not abierto
+            anotar("el gestor no se ve (menú #{m}, ventana #{window_find("Extensiones de Forja")}, activa " + input_active_title() + ")")
+        end
+        intentos = intentos + 1
+    end
+    if abierto
+        time_delay(50)
+        screen_save_png("DH0:Prueba/gestor.png")
+        # la primera de la lista es Contar: _Activar (que pone Desactivar) la apaga
+        input_key(0x20, 0)
+        time_delay(25)
+        ver("desactivar Contar: se va y quita lo suyo de la barra", sin_puerto("FORJAEXT.CONTAR", 100) and not str_contains(rexx("BARRA"), "palabras"), rexx("BARRA"))
+        ver("guardado en la preferencia", env_get("Forja/extensiones_apagadas") == "Contar", env_get("Forja/extensiones_apagadas"))
+        screen_save_png("DH0:Prueba/gestor-apagada.png")
+        activar("Extensiones de Forja")
+        input_key(0x20, 0)
+        ver("activarla: arranca otra vez", barra_dice("palabras", 300) and env_get("Forja/extensiones_apagadas") == "", rexx("BARRA"))
+        activar("Extensiones de Forja")
+        input_key(0x33, 0)
+        time_delay(25)
+        activar("Forja")
+        ver("VUELTA al volver a la ventana de Forja", eco_dice("VUELTA ", 100), eco())
+    else
+        ver("el gestor se abre", false, input_active_title())
+    end
+
+    rexx("QUIT")
+    ver("Forja se cierra", sin_puerto("FORJA.1", 200), "")
+    ver("al salir, Contar se va", sin_puerto("FORJAEXT.CONTAR", 40), "")
+    ver("y Eco también", sin_puerto("FORJAEXT.ECO", 40), "")
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+end
