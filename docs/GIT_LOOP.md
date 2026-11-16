@@ -84,9 +84,20 @@ cursor en el campo). El git del PC comprueba los commits y el estado. `SISTEMA=.
   quedaba colgado al abrirse; solo, en otro arranque, abre bien. No lo he investigado: para "otra ventana delante"
   se usa la de buscar de Forja (Amiga-F). Así no se prueba la vuelta desde otro programa, aunque el mecanismo es el
   mismo (`mui_window_active` de la ventana principal).
-- Tiempos (A1200 emulado a toda velocidad, repositorio de 4 ficheros): `status --porcelain -b` 1,1 s y
-  `diff --rangos` 1,1 s; de guardar a ver las marcas, 2,6 s. En coffin (68040 JIT), 1,4 s el status y 1,5 s todo.
-  Casi todo es arrancar dashgit (390 KB) y leer el índice.
+- Tiempos (repositorio de 4 ficheros, medidos por Forja con su reloj): A1200 emulado a toda velocidad,
+  `status --porcelain -b` 1,1 s y `diff --rangos` 1,1 s, de guardar a ver las marcas 2,6 s; con `REAL=1` (68020 a
+  la velocidad de un A1200) 1,1 s, 0,8 s y 2,4 s; en coffin (68040 JIT), 1,5 s de guardar a las marcas. Casi todo es
+  arrancar dashgit (390 KB) y leer el índice. No probado en un Amiga de verdad.
+- Decisión pendiente (para el usuario): para el margen basta con el proceso aparte, porque solo se pide al guardar,
+  al abrir y al volver a Forja, en segundo plano, y la ventana no se para. Si se quiere que las marcas sigan al
+  escribir (sin guardar), 1-2 s por llamada es demasiado: entonces conviene el modo servidor (`dashgit servidor`
+  que se queda abierto y contesta por ARexx, sin arrancar ni leer el índice cada vez). No está hecho.
+- Con los 4 colores del Workbench 3.1 la vista de diferencias sale toda del mismo color (se distingue por el + y el
+  -); con más colores (coffin) va en verde, rojo y azul. Las letras del panel y las formas del margen sí se
+  distinguen con 4 colores.
+- Sin probar: `tests/git.sh` (la prueba vieja del menú Git con un servidor del PC): el cerrojo de red
+  (`/run/user/1000/dash-emu-red.lock`) lo tenían otras sesiones con baterías largas. No cambia lo que prueba
+  (órdenes GIT por ARexx), salvo que la ventana vieja de "Confirmar los cambios" ya no existe.
 
 ## Falta
 
