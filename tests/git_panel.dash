@@ -185,10 +185,13 @@ Main
     rexx("CAMBIAR " + MAIN + " 1 0 \"# cambiado desde Forja\"")
     t0 = time_ms()
     rexx("GUARDAR " + MAIN)
-    s = esperar_git("|1:1 5:2#")
+    s = esperar_git("|1|M:main.dash|1:1 5:2#")
     ms = time_ms() - t0
     ver("al guardar: 1 cambio, M en el panel y marcas en el margen", str_starts(s, "main|1|M:main.dash|1:1 5:2"), s)
-    anotar("  (de guardar a las marcas: #{ms} ms; status, diff --rangos (ms) y servidor (2 listo): " + env_get("FORJA_GIT_MS") + ")")
+    anotar("  (de guardar a las letras y las rayas: #{ms} ms; status, diff --rangos (ms) y servidor (2 listo): " + env_get("FORJA_GIT_MS") + ")")
+    if env_get("FORJA_GIT_SERVIDOR") != ""
+        anotar("  (servidor: " + env_get("FORJA_GIT_SERVIDOR") + ")")
+    end
     # sin guardar: una línea nueva antes de la 3. Las rayas siguen a su texto enseguida (la 5 pasa a la 6) y, tras
     # la pausa sin escribir, llegan las nuevas (la 3, añadida)
     t0 = time_ms()

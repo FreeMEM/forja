@@ -81,13 +81,17 @@ cosa de la extensión (`mui_timer` en su propio bucle) y la sonda la publica la 
 ## Pruebas
 
 `tests/git_panel.sh DASH_DIR [DASHGIT_DIR [captura.png segundos...]]` (FS-UAE, MUI 5, `DASH_KICKSTART`; DASHGIT_DIR
-por defecto `~/Projects/dashgit`, necesita la rama `salidas`). `tests/git_panel.dash` hace init y commit por ARexx;
-mira la barra (rama, 0 cambios); cambia dos líneas y guarda: 1 cambio, M en el panel y las marcas 1 (añadida) y 5
-(cambiada); escribe un fichero desde fuera, pone otra ventana delante y vuelve a Forja: sale con ?; abre el panel
+por defecto `~/Projects/dashgit`, necesita la rama `servidor`). Pone la extensión en `DH0:Prueba/Extensiones/Git`
+(`ENV:Forja/extensiones`). `tests/git_panel.dash` hace init y commit por el puerto de la extensión (`FORJAEXT.GIT`);
+mira la barra (rama, 0 cambios, la `ZONA`); cambia dos líneas y guarda: 1 cambio, M en el panel y las rayas 1
+(añadida) y 5 (cambiada); **sin guardar** mete una línea antes de la 3: las rayas siguen al texto al momento (la 5 pasa
+a la 6) y tras la pausa llegan las nuevas (1, 3 y 6), y mide lo que tardan seis veces (añadir una línea y volver
+atrás); guarda; escribe un fichero desde fuera, pone otra ventana delante y vuelve a Forja: sale con ?; abre el panel
 Cambios, marca con el ratón las casillas (add, add, reset), abre las diferencias con dos clics (con lo añadido y lo
 quitado), salta con n, va al código con Return, y confirma escribiendo el mensaje (Confirmar sin mensaje pone el
 cursor en el campo). El git del PC comprueba los commits y el estado. `SISTEMA=...` usa otro sistema de
-`~/.cache/dash-emu`.
+`~/.cache/dash-emu`; `SERVIDOR=no`, sin el servidor de dashgit; `REAL=1`, a la velocidad de un A1200.
+`tests/git_panel_coffin.sh` es la misma en la máquina coffin (MUI 3.8, 68040, RTG).
 
 ## Bitácora
 

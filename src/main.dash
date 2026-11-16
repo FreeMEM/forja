@@ -2764,6 +2764,9 @@ func orden_rexx(linea: String) -> String
     end
     seguir_despues()
     ext_tras_evento()
+    if sonda
+        publicar_sonda()
+    end
     if _rexx_rc != 0
         mui_rexx_fail(_rexx_rc)
     end

@@ -173,10 +173,16 @@ func segundos(ms: Int) -> String
     return "#{ms / 1000},#{(ms % 1000) / 100} s"
 end
 
+var motivo_dicho: String = ""
+
 # Lo que llegó de dashgit
 func mirar()
     if srv_mirar()
         armar_tic(300)
+    end
+    if srv_motivo != motivo_dicho
+        motivo_dicho = srv_motivo
+        forja_aviso_tipo("Git: sin el servidor de dashgit (" + srv_motivo + "): cada orden irá en un proceso, más lento.", 1)
     end
     r = git_mirar()
     while r != G_NADA
@@ -500,6 +506,7 @@ func publicar_sonda()
     if s != sonda_antes
         sonda_antes = s
         env_set("FORJA_GIT_MS", s, false)
+        env_set("FORJA_GIT_SERVIDOR", srv_motivo, false)
     end
     if vc_abierta
         c = gc_sonda()

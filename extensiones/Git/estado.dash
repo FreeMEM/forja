@@ -66,6 +66,7 @@ var srv_aviso: Int = 0             # el file_notify de su respuesta
 var srv_n: Int = 0                 # el número del último pedido
 var srv_dueno: String = ""         # el puerto de la extensión (el servidor se va si desaparece)
 var srv_quitado: Bool = false      # no usar el servidor (preferencia o pruebas)
+var srv_motivo: String = ""        # por qué se perdió (para la sonda y la salida)
 
 func _unir(cajon: String, nombre: String) -> String
     if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
@@ -230,8 +231,16 @@ func srv_mirar() -> Bool
         srv_estado = 2
         return false
     end
-    if run_ready(srv_run) or time_ms() - srv_desde > SRV_ARRANQUE
+    if run_ready(srv_run)
         # este dashgit no tiene servidor, o no arranca: cada orden, un proceso
+        t = str_trim(run_finish(srv_run))
+        srv_run = 0
+        srv_motivo = "acabó con código #{run_rc()}: " + t
+        srv_perdido()
+        return false
+    end
+    if time_ms() - srv_desde > SRV_ARRANQUE
+        srv_motivo = "no abrió su puerto en #{SRV_ARRANQUE} ms"
         srv_perdido()
         return false
     end
@@ -440,6 +449,7 @@ func git_mirar() -> Int
         # por el servidor: su respuesta (o, si tarda demasiado, se da por colgado y la orden va por proceso)
         if not _srv_respuesta_leer()
             if time_ms() - _inicio > SRV_ESPERA
+                srv_motivo = "no contestó en #{SRV_ESPERA} ms: " + _run_orden
                 srv_perdido()
                 _en_marcha = false
                 o = _run_orden
