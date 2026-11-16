@@ -1,0 +1,105 @@
+# Forja: el bucle hacia el mejor IDE del Amiga
+
+Plan y bitácora del bucle que empezó el 2026-11-16. El análisis de partida está en `docs/IDE_ANALISIS.md`.
+
+## Decisiones del usuario (2026-11-16)
+
+- Forja es para el Amiga. En Linux y en DashOS, el "Forja" es la extensión de VS Code de Dash. Forja no tendrá
+  versión para DashOS.
+- Forja tendrá un **sistema de extensiones**. Serán extensiones:
+  - dashgit (git);
+  - los editores de sprites y de mapas;
+  - Inferencia, como un copiloto: lee el código y los ficheros del proyecto y escribe en el editor.
+- Dash tendrá **ensamblador en línea**, para demos.
+- La memoria mínima la fija esta sesión (ver más abajo).
+
+## Cómo son las extensiones (diseño de partida)
+
+- **Una extensión es un programa aparte**, en `Forja/Extensiones/<nombre>/`, con un manifiesto. Así:
+  - cada una tiene su licencia (dashgit es GPLv2 y Forja es MIT);
+  - se cargan solo cuando hacen falta;
+  - si una cae, Forja sigue en pie en lo posible.
+- **El manifiesto** dice:
+  - nombre, versión, autor y descripción;
+  - qué añade: menús, teclas, tipos de fichero que abre, paneles;
+  - cuándo se arranca: al abrir Forja, con su menú o con un tipo de fichero.
+- **Habla con Forja por su puerto ARexx**, con una API documentada y un módulo de Dash para usarla. La API cubre:
+  - leer y escribir el texto del editor;
+  - el cursor y la selección;
+  - los ficheros del proyecto;
+  - la barra de estado;
+  - marcas en el proyecto y en el margen;
+  - avisos de "guardado", "abierto" y "cerrado";
+  - añadir entradas de menú.
+- **La extensión pinta sus propias ventanas** (MUI).
+- **Gestor de extensiones en Forja:** lista, activar y desactivar, e instalar desde un .lha.
+
+## Memoria mínima
+
+- **Mínimo:** 68020, 2 MB de chip y 4 MB de fast, con AmigaOS 3.1 y MUI 3.8. Es un A1200 con una ampliación
+  pequeña.
+- **Recomendado:** 8 MB de fast o más, para usar git e Inferencia a la vez que se compila.
+- **Por qué:**
+  - las extensiones se cargan solo al usarlas;
+  - la ayuda se lee del disco a trozos, sin cargarla entera;
+  - hay que medir cuánta memoria usa Forja hoy y dejar un tope en las pruebas (paso 0.3).
+
+## Plan
+
+Cada paso dice de quién es: **[F]** Forja, **[D]** Dash, **[G]** dashgit, **[I]** Inferencia, **[V]** extensión de
+VS Code.
+
+### Fase 0. Base
+- 0.1 [F] Probar Forja en la máquina CoffinOS emulada y apuntar lo que falle.
+- 0.2 [F] Borrar las ramas ya fusionadas (`git log main..rama` vacío) y sus worktrees.
+- 0.3 [F] Medir la memoria de Forja con un proyecto mediano y fijar el tope.
+
+### Fase 1. Sistema de extensiones
+- 1.1 [F] Manifiesto, carga, ciclo de vida y gestor de extensiones.
+- 1.2 [F] API por ARexx (la lista de arriba) y su documentación, `docs/EXTENSIONES.md`.
+- 1.3 [F] Un módulo de Dash para escribir extensiones, más una extensión de ejemplo con su prueba.
+- 1.4 [G][F] Git como extensión: las salidas para máquinas de dashgit, la rama en la barra, marcas, panel de
+  cambios y diferencias. Ya está empezado, en módulos que luego pasan a la extensión.
+- 1.5 [F] Editores de sprites y de mapas como extensiones.
+- 1.6 [I][F] Inferencia como copiloto:
+  - pregunta sobre la selección o el fichero;
+  - escribe o cambia código en el editor, con vista previa y "aceptar";
+  - lee los ficheros del proyecto;
+  - explica un error de compilación.
+
+### Fase 2. Editor cómodo
+- 2.1 Resaltado sacado de la gramática de Dash.
+- 2.2 Comentar, duplicar, mover y borrar líneas; resaltar el paréntesis o el bloque que hace pareja; cerrar solos
+  los paréntesis y el `end`.
+- 2.3 Buscar con expresiones regulares y en todo el proyecto.
+- 2.4 Esquema del fichero y abrir un fichero por su nombre.
+- 2.5 Marcadores y saltar al siguiente error con una tecla.
+- 2.6 Renombrar.
+- 2.7 Plegado.
+- 2.8 Teclas, colores y fuente a elegir.
+
+### Fase 3. Proyecto y documentación
+- 3.1 [F] Fichero de proyecto `.forja` con opciones y argumentos.
+- 3.2 [F] Plantillas de proyecto: orden, MUI, juego y demo.
+- 3.3 [D] Ayuda generada desde Dash: un fichero con índice, más AmigaGuide, metida en el paquete del Amiga.
+- 3.4 [F] Panel de ayuda: la ficha entera, búsqueda, enlaces y un botón "Probar".
+- 3.5 [D] Opción "solo comprobar", y [F] errores marcados en el código al guardar.
+
+### Fase 4. Depurar y medir
+- 4.1 Puntos de parada con condición, vigilar variables y ver el valor bajo el ratón.
+- 4.2 Perfil y memcheck con vista propia.
+- 4.3 Medir y acelerar lo que tarda en compilar en el Amiga.
+
+### Fase 5. Demos, juegos y 3D
+- 5.1 [D] Ensamblador en línea, por los dos caminos de Dash.
+- 5.2 [F] Herramientas de demos: pistas de sincronía, visor de MOD, editor de copper y medidor de rasterlines.
+- 5.3 [D] Prueba de MiniGL en el emulador y, si va, funciones `gl_*`.
+
+### Fase 6. VS Code
+- 6.1 [V] Lo que la extensión de VS Code necesita para ser "el Forja" de Linux y DashOS: compilar con
+  `--dashos` y probar en QEMU, depurar, la ayuda, los editores de `.dashui`.
+
+## Bitácora
+
+- 2026-11-16: análisis hecho (`docs/IDE_ANALISIS.md`) y decisiones del usuario. En marcha el 1.4 (ramas `salidas`
+  de dashgit y `git-panel` de Forja).
