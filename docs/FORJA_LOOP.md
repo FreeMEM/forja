@@ -148,8 +148,8 @@ VS Code.
   menú Git, las órdenes ARexx `GIT`, `CAMBIOS` y `GITESTADO` (ahora en el puerto de la extensión, `FORJAEXT.GIT`), el
   estado `git` de `ESTADO`, la zona de la rama, las letras, las rayas y la vista de diferencias propias.
   - **La API crece (versión 2)** para que git quepa, de forma general: `ZONA` (una zona con icono, texto y detalle en
-    la barra de botones, con clic: suceso `ZONA`); menú propio (`submenu = Git` en el manifiesto: un submenú dentro de
-    Extensiones, 3 huecos de 10 opciones); `VISTA` (pestaña de solo lectura con un color por línea; sus teclas llegan
+    la barra de botones, con clic: suceso `ZONA`); menú propio (`submenu = Git` en el manifiesto: un menú más en la barra de
+    menús, hecho en marcha con `mui_menu_add` de Dash PR #182; 3 entre todas, de 10 opciones); `VISTA` (pestaña de solo lectura con un color por línea; sus teclas llegan
     como `TECLA tecla línea nombre`); `RAYAS` (las rayas de git en el margen, con versión del texto para no poner unas
     viejas); `TEXTODISCO`, `VERSION`, `CAMBIADOS`; `pausa` por extensión para `CAMBIADO` (y `CAMBIADO` también tras
     escribir por ARexx). Las marcas y las rayas **siguen a su texto al escribir** (se mueven con las líneas).

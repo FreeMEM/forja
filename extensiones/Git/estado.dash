@@ -67,6 +67,10 @@ var srv_n: Int = 0                 # el número del último pedido
 var srv_dueno: String = ""         # el puerto de la extensión (el servidor se va si desaparece)
 var srv_quitado: Bool = false      # no usar el servidor (preferencia o pruebas)
 var srv_motivo: String = ""        # por qué se perdió (para la sonda y la salida)
+var srv_pedido_texto: String = ""  # el último pedido, para escribirlo otra vez si no contesta
+var srv_escrito: Int = 0           # cuándo se escribió
+const SRV_OTRA_VEZ = 1500          # sin respuesta en este tiempo, el pedido se escribe otra vez (mismo número: el
+                                   # servidor no lo repite si ya lo hizo; el aviso de un fichero se puede perder)
 
 func _unir(cajon: String, nombre: String) -> String
     if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
@@ -298,7 +302,9 @@ func _empezar(orden: String, tipo: Int, dato: String, cuerpo: String) -> Bool
     if _por_servidor(orden)
         srv_n = srv_n + 1
         # (el cuerpo: el texto de --texto -)
-        file_write_text(_srv_pedido(), "#{srv_n}\n" + linea + "\n" + cuerpo)
+        srv_pedido_texto = "#{srv_n}\n" + linea + "\n" + cuerpo
+        file_write_text(_srv_pedido(), srv_pedido_texto)
+        srv_escrito = time_ms()
         _run = 0
         _en_marcha = true
         git_por_servidor = true
@@ -396,6 +402,35 @@ func _siguiente()
     end
 end
 
+# Si el servidor sigue (su puerto y su proceso), para decir por qué se perdió
+func _srv_vivo() -> String
+    t = "sin puerto"
+    if _puerto_existe(srv_nombre)
+        t = "con puerto"
+    end
+    if srv_run != 0 and run_ready(srv_run)
+        o = str_trim(run_finish(srv_run))
+        srv_run = 0
+        return t + ", acabó con código #{run_rc()}: " + o
+    end
+    # ¿atiende su puerto ARexx? (sin quedarse colgado si no)
+    r = rexx_send_wait(srv_nombre, "VERSION", 2000)
+    return t + ", sigue en marcha; por ARexx: " + r + " (rc #{rexx_rc()})"
+end
+
+# El principio y el final de un fichero del servidor (para decir por qué se perdió)
+func _srv_ver(f: String) -> String
+    t = file_read_text(f)
+    if t == nil
+        return "no está"
+    end
+    t = str_replace(t, "\n", "/")
+    if t.length > 60
+        return t[:30] + "..." + t[t.length - 30:]
+    end
+    return t
+end
+
 # La respuesta del servidor, si llegó entera: true y git_texto, git_rc; false si aún no
 func _srv_respuesta_leer() -> Bool
     t = file_read_text(_srv_respuesta())
@@ -448,8 +483,12 @@ func git_mirar() -> Int
     else
         # por el servidor: su respuesta (o, si tarda demasiado, se da por colgado y la orden va por proceso)
         if not _srv_respuesta_leer()
+            if time_ms() - srv_escrito > SRV_OTRA_VEZ and time_ms() - _inicio < SRV_ESPERA
+                file_write_text(_srv_pedido(), srv_pedido_texto)
+                srv_escrito = time_ms()
+            end
             if time_ms() - _inicio > SRV_ESPERA
-                srv_motivo = "no contestó en #{SRV_ESPERA} ms: " + _run_orden
+                srv_motivo = "no contestó en #{SRV_ESPERA} ms: " + _run_orden + " (pedido #{srv_n}; " + _srv_ver(_srv_respuesta()) + "; pedido: " + _srv_ver(_srv_pedido()) + "; " + _srv_vivo() + ")"
                 srv_perdido()
                 _en_marcha = false
                 o = _run_orden

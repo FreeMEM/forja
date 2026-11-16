@@ -127,7 +127,7 @@ alfa**: aún hay mucho que probar, así que ten copia de lo importante.
   Clic en la casilla, `add` o `reset` de ese fichero; dos clics en el nombre, sus diferencias.
 - Las diferencias se abren en una pestaña de solo lectura, con colores: `n` y `p` van al trozo siguiente y al
   anterior, y Return lleva a esa línea del fichero.
-- Su menú (Extensiones > Git): estado, diferencias, historial, añadir los nuevos, Cambios y confirmar, traer (pull) y
+- Su menú, Git, en la barra de menús: estado, diferencias, historial, añadir los nuevos, Cambios y confirmar, traer (pull) y
   subir (push). Antes guarda lo que haya sin guardar, y lo que escribe dashgit sale en la salida.
 
 Para que sea rápido, la extensión deja dashgit abierto (`dashgit servidor`) y le pide lo que necesita sin arrancarlo
@@ -147,8 +147,8 @@ hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas pr
 
 ### Extensiones
 
-Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones (o un menú suyo
-dentro), teclas, marcas y rayas en el margen, letras en el proyecto, una zona en la barra de botones, un texto en la
+Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones (o un menú suyo en
+la barra), teclas, marcas y rayas en el margen, letras en el proyecto, una zona en la barra de botones, un texto en la
 barra, pestañas de solo lectura o un editor para un tipo de fichero. Git es una de ellas. Hablan con Forja por ARexx;
 si una cae o se cuelga, Forja sigue. Extensiones > Gestor de extensiones... las enseña, las activa o las desactiva y
 las instala desde un cajón o un `.lha`. La de ejemplo, Contar, cuenta las líneas y las palabras del fichero y mete

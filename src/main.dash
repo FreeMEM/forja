@@ -2374,8 +2374,12 @@ end
 # --- Las extensiones (extensiones.dash, docs/EXTENSIONES.md) ---
 
 var abrir_delegado: Bool = false   # el último abrir() lo mandó a una extensión (EDITAR)
-var ext_items: [Int] = []          # las opciones del menú Extensiones (ext_m0... y las de los submenús, ext_s0_0...)
-var ext_subs: [Int] = []           # los submenús propios de las extensiones (ext_s0...)
+var ext_items: [Int] = []          # las opciones sueltas del menú Extensiones (ext_m0...)
+# Los menús propios de las extensiones (submenu = título), en la barra de menús tras Extensiones: su objeto (0 si no
+# hay) y de qué está hecho (título y opciones), para no rehacerlo si no cambió (con MUI 3.8 rehacerlo cierra y abre la
+# ventana)
+var ext_menus: [Int] = [0, 0, 0]
+var ext_menus_firma: [String] = ["", "", ""]
 var ext_elegida: Int = -1          # la elegida en el gestor
 
 # Su cajón: ENV:Forja/extensiones, o Extensiones junto a Forja (la ruta entera: PROGDIR: es de cada proceso)
@@ -2435,18 +2439,52 @@ func ext_tras_evento()
             end
             i = i + 1
         end
-        i = 0
-        while i < ext_subs.length
-            mui_set_text(ext_subs[i], ext_sub_titulo[i])
-            mui_set_enabled(ext_subs[i], ext_sub_ext[i] >= 0)
-            i = i + 1
-        end
+        ext_menus_al_dia()
     end
     if ext_dibujar and abierta
         ext_dibujar = false
         mui_canvas_redraw(v.editor)
         mui_canvas_redraw(v.proyecto)
         mui_canvas_redraw(v.salida)
+    end
+end
+
+# Los menús propios de las extensiones: los que cambiaron se quitan y se vuelven a hacer (mui_menu_add)
+func ext_menus_al_dia()
+    s = 0
+    while s < EXT_SUBMENUS
+        firma = ""
+        if ext_sub_ext[s] >= 0
+            firma = ext_sub_titulo[s]
+            k = 0
+            while k < EXT_SUB_OPCIONES
+                r = EXT_RANURAS + s * EXT_SUB_OPCIONES + k
+                if ext_ranura_ext[r] >= 0
+                    firma = firma + "|#{r}:" + ext_ranura_titulo[r]
+                end
+                k = k + 1
+            end
+        end
+        if firma != ext_menus_firma[s]
+            ext_menus_firma[s] = firma
+            if ext_menus[s] != 0
+                mui_menu_remove(ext_menus[s])
+                ext_menus[s] = 0
+            end
+            if firma != ""
+                ext_menus[s] = mui_menu_add(v.window, ext_sub_titulo[s])
+                k = 0
+                while k < EXT_SUB_OPCIONES
+                    r = EXT_RANURAS + s * EXT_SUB_OPCIONES + k
+                    if ext_ranura_ext[r] >= 0
+                        mui_menu_item(ext_ranura_titulo[r], "", EV_EXT_MENU + r)
+                    end
+                    k = k + 1
+                end
+                mui_menu_end()
+            end
+        end
+        s = s + 1
     end
 end
 
@@ -3244,7 +3282,7 @@ end
 # Lo que pide un evento de la ventana (lo que no es salir ni del menú Proyecto). Va aparte de Main para que Main
 # no pase de 32 KB: dashc 2.4 estropea un salto corto que tiene que crecer (ver el informe de la rama autocompletar).
 func atender(ev: Int)
-    if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_RANURAS
+    if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
         ext_menu(ev - EV_EXT_MENU)
     elif ev >= EV_EXT_GESTOR and ev <= EV_EXT_CERRAR
         gestor(ev)
@@ -3393,11 +3431,7 @@ Main
         vi = IrA_create()
         vp = PrefForja_create()
         vx = GestorExt_create()
-        ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11,
-                     v.ext_s0_0, v.ext_s0_1, v.ext_s0_2, v.ext_s0_3, v.ext_s0_4, v.ext_s0_5, v.ext_s0_6, v.ext_s0_7, v.ext_s0_8, v.ext_s0_9,
-                     v.ext_s1_0, v.ext_s1_1, v.ext_s1_2, v.ext_s1_3, v.ext_s1_4, v.ext_s1_5, v.ext_s1_6, v.ext_s1_7, v.ext_s1_8, v.ext_s1_9,
-                     v.ext_s2_0, v.ext_s2_1, v.ext_s2_2, v.ext_s2_3, v.ext_s2_4, v.ext_s2_5, v.ext_s2_6, v.ext_s2_7, v.ext_s2_8, v.ext_s2_9]
-        ext_subs = [v.ext_s0, v.ext_s1, v.ext_s2]
+        ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11]
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
@@ -3434,6 +3468,8 @@ Main
 
         # las extensiones: sus opciones del menú, sus tipos de fichero y las que arrancan con Forja
         ext_leer_todas(ext_cajon_de_forja())
+        # sus menús propios, antes de abrir la ventana (con MUI 3.8, después habría que cerrarla y abrirla)
+        ext_menus_al_dia()
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
             ruta = arg(0)

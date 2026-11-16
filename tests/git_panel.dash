@@ -225,6 +225,9 @@ Main
     end
     ver("añadir y quitar una línea, tres veces", str_ends(s, "|1:1 3:1 6:2"), s)
     anotar("  (de escribir a las rayas: #{total / 6} ms de media en 6 veces; " + env_get("FORJA_GIT_MS") + ")")
+    if env_get("FORJA_GIT_SERVIDOR") != ""
+        anotar("  (servidor: " + env_get("FORJA_GIT_SERVIDOR") + ")")
+    end
     rexx("GUARDAR " + MAIN)
     s = esperar_git("|1|M:main.dash|1:1 3:1 6:2#")
     ver("guardado con la línea nueva", str_starts(s, "main|1|M:main.dash|1:1 3:1 6:2"), s)
@@ -244,9 +247,10 @@ Main
     ver("Forja delante otra vez", activar("Forja"), input_active_title())
     s = esperar_git("?:nuevo.dash")
     ver("al volver a Forja: el nuevo con ?", str_contains(s, "|2|") and str_contains(s, "?:nuevo.dash"), s)
-    # el panel Cambios
-    rgit("CAMBIOS")
-    time_delay(50)
+    # el panel Cambios, desde el menú Git (el sexto de la barra: Proyecto, Programa, Edición, Código, Extensiones, Git)
+    activar("Forja")
+    ver("el menú Git en la barra de menús", input_menu(5, 5, 5), "")
+    time_delay(100)
     ver("el panel Cambios se abre", activar("Cambios"), input_active_title())
     ver("las filas", esperar_fila(" M main.dash") and esperar_fila("?? nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
     clic_fila(fila_de("main.dash"), true)

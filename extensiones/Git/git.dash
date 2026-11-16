@@ -4,7 +4,7 @@
 #
 # Lo que pone en Forja: la rama y "N cambios" en la barra de botones (un clic abre el panel Cambios), una letra en cada
 # fichero y cajón cambiado del proyecto (M, A, D, U, ?), las rayas del margen (lo cambiado frente a HEAD, también
-# mientras se escribe, sin guardar), su menú Git (dentro de Extensiones) y la vista de las diferencias (n, p, Return).
+# mientras se escribe, sin guardar), su menú Git (en la barra de menús) y la vista de las diferencias (n, p, Return).
 # El panel Cambios es una ventana suya.
 #
 #   ./dash extensiones/Git/git.dash -o Extensiones/Git/Git    (desde el cajón de Forja)
@@ -239,8 +239,8 @@ func mirar()
     if git_por_proceso()
         armar_tic(TIC_MS)
     elif git_ocupado()
-        # el servidor avisa al contestar; esto es por si no contesta
-        armar_tic(1000)
+        # el servidor avisa al contestar; esto es por si no contesta (o se perdió el aviso del pedido)
+        armar_tic(500)
     end
     if sonda
         publicar_sonda()

@@ -124,7 +124,7 @@ alpha**: there is still a lot to test, so keep a copy of what matters.
   triangle). They follow what you type, unsaved: they move with their lines, and after a pause the real ones arrive.
 - The Changes panel: one row per file with its box (staged or not), the message and Confirmar (commit).
 - Differences open in a read-only tab with colours: `n` and `p` go to the next and previous hunk, Return to that line.
-- Its menu (Extensiones > Git): status, differences, history, add the new files, changes and commit, pull and push.
+- Its Git menu, in the menu bar: status, differences, history, add the new files, changes and commit, pull and push.
 
 To be fast, the extension keeps dashgit open (`dashgit servidor`) instead of starting it each time. If that dashgit
 has no server, or stops answering, each command runs as a separate process. `SetEnv Forja/git_servidor no` turns it
@@ -142,7 +142,7 @@ batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md) (in Spanish). The Git exten
 ### Extensions
 
 Separate programs in the `Extensiones` drawer next to Forja that add entries to the Extensiones menu (or a menu of
-their own inside it), keys, marks and bars in the margin, letters in the project panel, a zone in the button bar, a
+their own in the menu bar), keys, marks and bars in the margin, letters in the project panel, a zone in the button bar, a
 text in the bar, read-only tabs, or an editor for a file type. Git is one of them. They talk to Forja over ARexx;
 if one crashes or hangs, Forja carries on. Extensiones > Gestor de extensiones... lists them, turns them on or off and
 installs them from a drawer or an `.lha`. The example one, Contar, counts the lines and words of the file and inserts

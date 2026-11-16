@@ -26,7 +26,7 @@ panel del proyecto). La extensión es MIT: llama a dashgit como programa aparte.
   (`pausa = 600`, suceso `CAMBIADO`) la extensión pide el texto (`TEXTODISCO`) y su versión, el servidor de dashgit
   lo compara con HEAD (`diff --rangos HEAD --texto -`) y llegan las de verdad (si el texto cambió entretanto, Forja
   no las pone: `RAYAS ... versión`).
-- **El panel Cambios** (Extensiones > Git > Cambios y confirmar..., o clic en la rama), una ventana de la extensión: una fila por fichero con casilla
+- **El panel Cambios** (Git > Cambios y confirmar..., o clic en la rama), una ventana de la extensión: una fila por fichero con casilla
   (vacía: sin preparar; llena: preparado; media: preparado y con más cambios en el disco), letra y ruta. Clic en la
   casilla: `dashgit add` o `dashgit reset` de ese fichero (la fila cambia ya; el estado de verdad llega después).
   Clic en la ruta la elige; otro clic, o Diferencias, abre sus diferencias. Preparar todo (`add -A`), Quitar todo
@@ -35,7 +35,8 @@ panel del proyecto). La extensión es MIT: llama a dashgit como programa aparte.
   `dashgit diff HEAD -- fichero` (un fichero sin seguir sale entero como añadido). Colores por línea; `n` y `p` van al
   trozo siguiente y al anterior; Return lleva a esa línea del fichero (llegan como `TECLA`). Git > Diferencias de
   este fichero la abre para el activo.
-- **El menú** Git, un menú propio dentro de Extensiones (`submenu = Git`).
+- **El menú** Git, un menú propio en la barra de menús, tras Extensiones (`submenu = Git`; Forja lo hace con
+  `mui_menu_add`).
 - ARexx, en el puerto de la extensión (`FORJAEXT.GIT`): `GIT orden` (sin esperar; `ESTADO` da `git` mientras sigue),
   `CAMBIOS` abre el panel; `GITESTADO` da "rama|cambios|letras del panel|rayas del margen del activo".
 - **dashgit servidor**: la extensión arranca `dashgit servidor FORJADASHGIT.n --dueno FORJAEXT.GIT` y le pide lo de
@@ -57,8 +58,7 @@ panel del proyecto). La extensión es MIT: llama a dashgit como programa aparte.
 ## Lo que la extensión necesita de Forja
 
 Es la lista de lo que la API de extensiones tenía que dar para que git saliera de Forja. Todo está, con estas
-salvedades: el menú propio va dentro de Extensiones (no en la barra de menús: Dash no lo permite aún), el tic es
-cosa de la extensión (`mui_timer` en su propio bucle) y la sonda la publica la extensión.
+salvedades: el tic es cosa de la extensión (`mui_timer` en su propio bucle) y la sonda la publica la extensión.
 
 1. **Avisos**: el cajón del proyecto cambió; se guardó un fichero (ruta); se abrió un fichero (ruta); Forja volvió a
    ser la ventana activa (hoy se mira con `mui_window_active` en un tic cada 1,5 s: Dash no tiene un evento de

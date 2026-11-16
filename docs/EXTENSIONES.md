@@ -46,7 +46,7 @@ En el cajón `Extensiones` junto a Forja, una por cajón:
 | `arranque` | `inicio`: arranca con Forja. `menu` (por defecto): la primera vez que se elige su menú, se pulsa su tecla o se abre uno de sus tipos de fichero. |
 | `sucesos` | Los avisos que quiere (ver Sucesos). Los demás no se le guardan. |
 | `menu` | Una opción del menú: `título \| tecla \| orden`. La tecla y la orden pueden faltar; sin orden, es el título. Puede haber varias. |
-| `submenu` | El título de su menú propio (`submenu = Git`): sus opciones van ahí, dentro de Extensiones, y no sueltas. |
+| `submenu` | El título de su menú propio (`submenu = Git`): un menú más en la barra de menús, tras Extensiones, con sus opciones (10 como mucho). Hay 3 entre todas; si no quedan, van sueltas en Extensiones. |
 | `pausa` | Cuántos milisegundos sin escribir antes de `CAMBIADO` (por defecto 1200; 300 como poco). |
 | `tipos` | Los ficheros que abre ella, por su final: `.spr .bob`. Forja no los abre: se los pasa con `EDITAR`. Los `.dash` y `.dashui` son siempre de Forja. |
 
@@ -146,7 +146,7 @@ Las de "el fichero activo" valen solo con un fichero de texto delante (no con un
 
 | Orden | Respuesta |
 |-------|-----------|
-| `HOLA nombre` | La versión de la API y la de Forja: `2 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, submenu, pausa...). |
+| `HOLA nombre` | La versión de la API y la de Forja: `2 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...). |
 | `SUCESOS nombre` | Sus sucesos, uno por línea, y la cola queda vacía. |
 | `ADIOS nombre` | Se va. Forja quita sus marcas y su texto. |
 | `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 10 en cada menú propio). |
@@ -279,10 +279,8 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
 ## Lo que falta
 
 - Teclas de las extensiones fuera del editor (con el puntero en el proyecto o la salida).
-- El menú tiene 12 opciones sueltas para todas las extensiones y 3 menús propios de 10 opciones, todos dentro de
-  Extensiones. Los libres quedan vacíos y apagados. Un menú propio en la barra de menús (como "Git" al lado de
-  "Código") no se puede: Dash no cambia el título de un menú ya hecho (`mui_set_text` pone `MUIA_Menuitem_Title`,
-  y un menú lleva `MUIA_Menu_Title`) ni añade menús a una ventana abierta (MUI 5 lo permite con
-  `MUIM_Menustrip_InitChange`/`ExitChange`). Se pidió a Dash.
+- Las 12 opciones sueltas de Extensiones son fijas: las libres quedan vacías y apagadas. Los menús propios ya se
+  hacen en marcha (`mui_menu_add`, Dash PR #182); las sueltas podrían ir igual (`mui_menu_extend`). Con MUI 3.8,
+  añadir o quitar un menú con la ventana abierta la cierra y la abre (los del arranque se hacen antes de abrirla).
 - Paneles propios dentro de la ventana de Forja: hoy cada extensión pinta sus ventanas.
 - Probar la instalación desde un `.lha` en el emulador (no tiene `C:LhA`).
