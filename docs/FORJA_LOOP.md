@@ -128,6 +128,14 @@ VS Code.
     evento). **Falta**: una zona propia
     en la barra de botones con clic, un menú propio (hoy, opciones en Extensiones), y una pestaña de solo lectura con
     colores por línea y teclas propias (la vista de diferencias). Las marcas son letras (`+ ~ - !`), no rayas.
+  - Unida `main` (git-panel): las letras de las extensiones van a la izquierda de la de git y su columna del margen
+    delante de la raya de git. `tests/git_panel.sh` y `git_panel_coffin.sh` siguen dando TODO BIEN.
+  - Todas las pruebas de Forja pasan en la rama (rexx, buscar, sesion, compilar, salir, salida, depurar, clic,
+    proyecto, errores, parar, botones, git_panel, git_panel_coffin, ficheros, teclas, sprites_forja, completar,
+    mapas_forja, pantalla y las de base) salvo `tests/diseno.sh` ("cambiar label"), que falla igual en `main`
+    (e01544c): no es de esta rama.
+  - Visto en la prueba con MUI 3.8: el gestor no se abrió hasta el tercer intento (el evento llegó; la ventana no
+    estaba). La prueba reintenta; falta saber por qué.
   - **Falta en Forja**: teclas de extensión fuera del editor; paneles dentro de la ventana; que las marcas sigan a las
     líneas al escribir; el catálogo inglés de los textos nuevos (tr 600 a 634); probar instalar un `.lha` (el
     emulador no tiene `C:LhA`).
