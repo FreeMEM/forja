@@ -119,10 +119,14 @@ cursor en el campo). El git del PC comprueba los commits y el estado. `SISTEMA=.
   (`/run/user/1000/dash-emu-red.lock`) lo tenían otras sesiones con baterías largas. No cambia lo que prueba
   (órdenes GIT por ARexx), salvo que la ventana vieja de "Confirmar los cambios" ya no existe.
 
+- 2026-11-17, rama `git-ext`: **git es la extensión `extensiones/Git`**, con `dashgit servidor` (rama `servidor`
+  de dashgit). Las rayas siguen a lo que se escribe, sin guardar. Tiempos en `docs/FORJA_LOOP.md` (de la última
+  tecla a las rayas: 1,2 s a velocidad de A1200, con 0,6 s de pausa). `tests/git_panel.sh` y `git_panel_coffin.sh`:
+  TODO BIEN, con y sin servidor. Visto al probar: el servidor perdía a veces una respuesta (carrera entre leer y
+  escribir el fichero); arreglado en dashgit, y la extensión reescribe el pedido si en 1,5 s no hay respuesta.
+
 ## Falta
 
 - Clic en una marca del margen: enseñar lo de antes y deshacer ese trozo.
 - Historial, ramas (cambiar, crear, borrar, fusionar), conflictos, credenciales, clonar (pasos 6 a 11 del análisis).
-- Que las marcas sigan las líneas mientras se escribe (hoy se esconden hasta guardar).
 - Aviso al iniciar git en un disco sin nombres largos (FFS).
-- Un evento de Dash para "la ventana se activó" (hoy se mira cada 1,5 s con un tic, solo si hay repositorio).

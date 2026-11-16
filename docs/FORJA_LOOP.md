@@ -159,3 +159,16 @@ VS Code.
     del editor sin guardar tras 0,6 s sin escribir. Se le habla por ficheros, no por `rexx_send` (que espera sin
     límite): un servidor colgado no cuelga la extensión, y a los 20 s sigue sin él.
   - El paquete (`tools/paquete.py`) lleva `Extensiones/Git` y `lib/forja.dash`.
+  - Tiempos de las rayas al escribir (repositorio de 4 ficheros, `tests/git_panel.sh`, de la última tecla a ver las
+    rayas, con la pausa de 0,6 s dentro): A1200 emulado a velocidad de A1200 (`REAL=1`) 1,2 s (los rangos en el
+    servidor, 0,3 s); a toda velocidad 1,3 s; coffin (68040 JIT) 0,7 s. De guardar a ver las letras y las rayas, 1,5 s
+    con `REAL=1` (antes, con dashgit aparte, 2,4 s). Teclear no se frena: Forja no espera a nadie y la extensión y el
+    servidor van a prioridad -1.
+  - Pruebas en la rama: `git_panel.sh` (MUI 5, A1200: normal y `REAL=1`; también `SERVIDOR=no`), `git_panel_coffin.sh`
+    (MUI 3.8: con y sin servidor), `extensiones.sh` (MUI 5 y MUI 3.8), `extensiones_base.sh` y el resto
+    (botones, teclas, ficheros, rexx, salir, proyecto, clic, buscar, sesion, compilar, errores, parar, salida, depurar,
+    completar, pantalla): TODO BIEN.
+  - **Falta en Forja**: catálogo inglés de la extensión Git (sus textos van en castellano); las 12 opciones sueltas de
+    Extensiones siguen fijas (podrían hacerse en marcha con `mui_menu_extend`); al salir, la extensión espera a que
+    acabe su servidor (si se colgara sin atender Ctrl-C, ella se quedaría; Forja no).
+  - **Falta en Dash**: `cx_wait` no despierta con el puerto ARexx (el servidor lo mira cada 200 ms).
