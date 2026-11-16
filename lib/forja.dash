@@ -45,8 +45,14 @@ func forja_empezar(nombre: String) -> Bool
     end
     # que no le quite tiempo a Forja (se puede subir con task_priority)
     task_priority(-1)
-    if not rexx_port("FORJAEXT." + str_upper(forja_ext))
-        return false
+    # (si la de antes aún se está yendo, se espera un poco a que suelte el puerto)
+    n = 0
+    while not rexx_port("FORJAEXT." + str_upper(forja_ext))
+        n = n + 1
+        if n > 15
+            return false
+        end
+        time_delay(10)
     end
     dir_create("ENV:Forja")
     dir_create("ENV:Forja/Avisos")

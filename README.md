@@ -124,7 +124,16 @@ El cajón `.git` no se ve en el panel del proyecto.
 Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, `SELECCION`,
 `CAMBIAR fichero desde hasta texto`, `GUARDAR [fichero]`, `COMPILAR`, `EJECUTAR`, `ESTADO`, `ERRORES`,
 `BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea`, `GIT orden de dashgit` (sin esperar: `ESTADO` da `git`
-mientras sigue) y `SALIDA` (el texto de la salida).
+mientras sigue) y `SALIDA` (el texto de la salida). Para las extensiones hay más (el cursor, lo elegido, insertar,
+marcas, la barra, por lotes): [docs/EXTENSIONES.md](docs/EXTENSIONES.md).
+
+### Extensiones
+
+Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones, teclas, marcas
+en el margen y en el proyecto, un texto en la barra o un editor para un tipo de fichero. Hablan con Forja por ARexx;
+si una cae o se cuelga, Forja sigue. Extensiones > Gestor de extensiones... las enseña, las activa o las desactiva y
+las instala desde un cajón o un `.lha`. La de ejemplo, Contar, cuenta las líneas y las palabras del fichero y mete
+la fecha con Ctrl Alt D. Cómo escribir una, con `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md).
 
 ## Compilar
 

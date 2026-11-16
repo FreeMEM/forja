@@ -103,3 +103,34 @@ VS Code.
 
 - 2026-11-16: análisis hecho (`docs/IDE_ANALISIS.md`) y decisiones del usuario. En marcha el 1.4 (ramas `salidas`
   de dashgit y `git-panel` de Forja).
+- 2026-11-16, rama `extensiones`: **1.1 a 1.3 hechos** (sistema de extensiones). Diseño final y API en
+  `docs/EXTENSIONES.md`. Lo que cambia frente al diseño de partida:
+  - **Forja no manda órdenes ARexx a las extensiones.** `rexx_send` espera la respuesta sin límite: una extensión
+    colgada colgaría Forja. Los sucesos esperan en una cola por extensión (64 como mucho) y Forja avisa escribiendo
+    `ENV:Forja/Avisos/<nombre>`; la extensión lo vigila con `file_notify` y los recoge con `SUCESOS`. Sin gastar
+    nada mientras espera y sin consultas periódicas.
+  - Una extensión está viva si tiene su puerto `FORJAEXT.<NOMBRE>` (se cierra solo al acabar, también si falla).
+    Si en 15 s no recoge sus sucesos y no está su puerto, Forja dice que se ha cerrado y la vuelve a arrancar con su
+    menú.
+  - Manifiesto `manifiesto.txt` (`clave = valor`), no JSON: más fácil de escribir en el Amiga.
+  - El menú es "Extensiones", con 12 opciones para todas (Dash no añade opciones a un menú ya hecho).
+  - La "barra de estado" es la derecha del título de la salida.
+  - Órdenes por lotes: `LOTE`. Medido en el emulador a velocidad de A1200: una orden 5 ms, tres sueltas 17 ms, tres
+    en un lote 11 ms. Con una extensión colgada, Forja sigue contestando (lo peor, 0,3 s guardando 70 veces).
+  - Piezas: `src/extensiones.dash` (manifiestos, cola, menú, teclas, tipos, gestor, instalar),
+    `src/marcas.dash` (marcas del margen y del proyecto, la barra), en `src/main.dash` las órdenes ARexx y los
+    sucesos; `lib/forja.dash` para escribirlas; `extensiones/Contar` de ejemplo.
+  - Pruebas: `tests/extensiones_base.sh` (sin ventana) y `tests/extensiones.sh` (con Contar y `tests/extensiones/Eco`),
+    en MUI 5 (A1200, 3.1) y MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`).
+  - Lo que pide git-panel (`docs/GIT_LOOP.md` de su rama) y queda cubierto: guardado, abierto, cajón del proyecto
+    (`PROYECTO`), letras en el proyecto, marcas en el margen, leer el fichero, abrir en una línea, la salida, sus
+    ventanas. **Falta**: un suceso "Forja vuelve a ser la ventana activa" (Dash no tiene ese evento), una zona propia
+    en la barra de botones con clic, un menú propio (hoy, opciones en Extensiones), y una pestaña de solo lectura con
+    colores por línea y teclas propias (la vista de diferencias). Las marcas son letras (`+ ~ - !`), no rayas.
+  - **Falta en Forja**: teclas de extensión fuera del editor; paneles dentro de la ventana; que las marcas sigan a las
+    líneas al escribir; el catálogo inglés de los textos nuevos (tr 600 a 634); probar instalar un `.lha` (el
+    emulador no tiene `C:LhA`).
+  - **Falta en Dash** (apuntado, sin rodeos): `rexx_send` con tiempo de espera o sin esperar; añadir y quitar opciones
+    de un menú MUI ya hecho (las libres se ven como filas vacías); `input_menu` no llega a los menús de MUI (la prueba
+    usa `ENV:FORJA_EVENTO` con la sonda); un evento de ventana activada. Y quizá `lib/forja.dash` en la `lib/` de
+    Dash (el `import "lib/forja.dash"` no cambiaría).

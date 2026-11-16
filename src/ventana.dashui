@@ -271,14 +271,13 @@
       "name": "GestorExt",
       "tr": 622, "title": "Extensiones de Forja",
       "id": 20,
-      "size": [60, 40],
+      "size": [80, 70],
       "close": 185,
-      "background": [20, 20, 24],
       "root": {
         "type": "vgroup",
         "children": [
           { "type": "list", "name": "lista", "change": 181, "double": 182, "weight": 100 },
-          { "type": "text", "name": "info", "text": "", "weight": 0, "color": [220, 220, 210] },
+          { "type": "text", "name": "info", "text": "", "weight": 0 },
           {
             "type": "hgroup",
             "children": [

@@ -8,6 +8,8 @@
 #
 # Cada extensión cambia solo lo suyo: poner sustituye todas sus marcas de ese fichero (o del proyecto).
 
+import "tema.dash"
+
 struct MarcasFichero
     ext: String
     ruta: String          # en minúsculas
@@ -187,4 +189,18 @@ func marcas_quitar_ext(ext: String)
     var vacio: [String] = []
     marcas_proyecto_poner(ext, vacio, vacio)
     barra_poner(ext, "")
+end
+
+# El color de una letra del panel del proyecto: A añadido, D y U (borrado, conflicto) y ! error, M y ~ cambiado,
+# ? sin seguir; las demás, el del acento
+func color_letra(l: String) -> Int
+    u = str_upper(l)
+    if u == "A" or u == "+"
+        return tema.bien
+    elif u == "D" or u == "U" or u == "!" or u == "-"
+        return tema.error
+    elif u == "?"
+        return tema.tenue
+    end
+    return tema.acento
 end

@@ -100,7 +100,7 @@ func proyecto_leer(cajon: String)
             if nombre != ".git"
                 cajones.push(nombre + "/")
             end
-        elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui") or sp_extension(nombre)
+        elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui") or sp_extension(nombre) or ext_para_fichero(nombre) >= 0
             ficheros.push(nombre)
         end
         i = i + 1
@@ -362,11 +362,15 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
             nombre = tr(61, "/ (arriba)")
         end
         gfx_text_at(x + 12, fy + font_baseline(), nombre)
-        if marcas_proyecto.length > 0 and not str_ends(f, "/")
-            # las letras de las extensiones (git: M, A, ?), a la derecha
-            letras = marca_proyecto(str_lower(ruta_unir(proyecto_cajon, f)))
+        if marcas_proyecto.length > 0 and f != "/"
+            # las letras de las extensiones (git: M, A, ?), a la derecha; un cajón, por su ruta sin la raya
+            r = f
+            if str_ends(r, "/")
+                r = r[0:r.length - 1]
+            end
+            letras = marca_proyecto(str_lower(ruta_unir(proyecto_cajon, r)))
             if letras != ""
-                gfx_pen(tema.acento)
+                gfx_pen(color_letra(letras[letras.length - 1:]))
                 gfx_text_at(x + ancho - 6 - font_text_width(letras), fy + font_baseline(), letras)
             end
         end

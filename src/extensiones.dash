@@ -65,6 +65,7 @@ var ext_dibujar: Bool = false             # cambiaron marcas o la barra: main.da
 var ext_mensajes: [String] = []
 var ext_mensajes_tipo: [Int] = []
 var ext_activo_antes: String = "-"        # el fichero activo cuando se miró (ACTIVO)
+var ext_proyecto_antes: String = "-"      # el cajón del proyecto cuando se miró (PROYECTO)
 
 func _ext_decir(texto: String, tipo: Int)
     ext_mensajes.push(texto)
@@ -215,6 +216,13 @@ func ext_arrancar(i: Int) -> Bool
         e.esperando = time_ms()
     end
     e.sin_respuesta = false
+    # lo que hay ahora: el fichero de delante y el cajón del proyecto (al abrir Forja, main.dash los manda luego)
+    if ext_activo_antes != "-" and ext_pide(e, "activo")
+        ext_suceso_a(i, "ACTIVO " + ext_activo_antes)
+    end
+    if ext_proyecto_antes != "-" and ext_pide(e, "proyecto")
+        ext_suceso_a(i, "PROYECTO " + ext_proyecto_antes)
+    end
     return true
 end
 
@@ -324,6 +332,22 @@ func ext_parada(i: Int)
     ext_dibujar = true
 end
 
+# Que se vaya (al desactivarla o al instalar otra encima): solo le queda SALIR por recoger, y lo suyo sale ya de la
+# ventana. Forja la da por parada; si vuelve a pedir SUCESOS, se le da SALIR.
+func ext_despedir(i: Int)
+    e = extensiones[i]
+    if e.estado != EXT_PARADA
+        e.cola.clear()
+        e.cola.push("SALIR")
+        ext_por_avisar = true
+        ext_avisar()
+    end
+    e.estado = EXT_PARADA
+    e.esperando = 0
+    marcas_quitar_ext(e.id)
+    ext_dibujar = true
+end
+
 # Al salir de Forja: SALIR a las que están en marcha (no se las espera)
 func ext_salir()
     i = 0
@@ -361,6 +385,11 @@ func ext_sucesos(id: String) -> String
         return ""
     end
     e = extensiones[i]
+    if not e.activa
+        # desactivada: que se vaya
+        e.cola.clear()
+        return "SALIR\n"
+    end
     if e.estado == EXT_PARADA
         e.estado = EXT_VIVA     # (arrancada a mano, o volvió tras no responder)
     end
@@ -577,11 +606,8 @@ func ext_activar(i: Int, si: Bool)
         return
     end
     e.activa = si
-    if not si and e.estado != EXT_PARADA
-        # que se vaya; lo suyo sale ya de la ventana
-        ext_suceso_a(i, "SALIR")
-        ext_avisar()
-        ext_parada(i)
+    if not si
+        ext_despedir(i)
     end
     ext_ranuras()
     ext_guardar_apagadas()
@@ -610,7 +636,7 @@ end
 
 # Lo que dice el gestor de la extensión elegida
 func ext_info(e: Extension) -> String
-    t = e.descripcion
+    t = _ext_partir(e.descripcion, 60)
     if e.autor != ""
         t = t + "\n" + tr(608, "Autor: ") + e.autor
     end
@@ -623,7 +649,24 @@ func ext_info(e: Extension) -> String
     elif e.tipos.length > 0
         cuando = tr(612, "Arranca: con su menú o al abrir ") + _ext_unir(e.tipos, " ") + "."
     end
-    return t + "\n" + cuando + "\n" + e.cajon
+    return t + "\n" + cuando
+end
+
+# Un texto en líneas de como mucho ancho letras, partidas por los espacios (para el gestor en 640 x 256)
+func _ext_partir(t: String, ancho: Int) -> String
+    r = ""
+    linea = ""
+    for p in str_split(t, " ")
+        if linea != "" and linea.length + 1 + p.length > ancho
+            r = r + linea + "\n"
+            linea = p
+        elif linea == ""
+            linea = p
+        else
+            linea = linea + " " + p
+        end
+    end
+    return r + linea
 end
 
 func _ext_unir(l: [String], sep: String) -> String
@@ -684,12 +727,7 @@ func ext_instalar_cajon(dir: String) -> Int
     i = ext_buscar(id)
     if i >= 0
         # ya estaba: la nueva en su lugar (parada, para que arranque la nueva)
-        antes = extensiones[i]
-        if antes.estado != EXT_PARADA
-            ext_suceso_a(i, "SALIR")
-            ext_avisar()
-            ext_parada(i)
-        end
+        ext_despedir(i)
         extensiones[i] = e
     else
         extensiones.push(e)

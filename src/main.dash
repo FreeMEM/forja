@@ -2459,6 +2459,10 @@ func ext_tras_evento()
         ext_activo_antes = clave
         ext_suceso("ACTIVO", clave)
     end
+    if proyecto_cajon != ext_proyecto_antes
+        ext_proyecto_antes = proyecto_cajon
+        ext_suceso("PROYECTO", proyecto_cajon)
+    end
     ext_avisar()
     while ext_mensajes.length > 0
         avisar(ext_mensajes[0], ext_mensajes_tipo[0])
@@ -2691,11 +2695,12 @@ func _rexx_falla(rc: Int)
 end
 
 # Cada orden que llega a FORJA.1. LOTE y, en las líneas siguientes, una orden de una línea por cada una: sus
-# respuestas, separadas por el carácter 30 (RS); el RC, el mayor. Tras la orden: los avisos a las extensiones.
+# respuestas, separadas por el carácter 30 (RS), con RC 0 (con otro RC, ARexx no deja dar respuesta: la de una orden
+# que falla va vacía). Tras la orden: los avisos a las extensiones.
 func orden_rexx(linea: String) -> String
     _rexx_rc = 0
     r = ""
-    if linea.length >= 4 and str_upper(linea[0:4]) == "LOTE" and (linea.length == 4 or linea[4:5] == "\n")
+    if str_starts(str_upper(linea), "LOTE\n")
         ls = str_split(linea, "\n")
         hechas = 0
         i = 1
@@ -2709,6 +2714,7 @@ func orden_rexx(linea: String) -> String
             end
             i = i + 1
         end
+        _rexx_rc = 0
     else
         r = orden_una(linea)
     end
@@ -3278,6 +3284,8 @@ Main
         completar_activo = env_get("Forja/completar") != "no"
         act_iniciar(env_get("Forja/buscar_dash") != "no" and env_get("FORJA_SONDA") == "")
 
+        # las extensiones: sus opciones del menú, sus tipos de fichero y las que arrancan con Forja
+        ext_leer_todas(ext_cajon_de_forja())
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
             ruta = arg(0)
@@ -3303,8 +3311,6 @@ Main
             armar_tic(REPOSO_MS, EV_TIC)
         end
         actualizar_armar()
-        # las extensiones: sus opciones del menú y las que arrancan con Forja
-        ext_leer_todas(ext_cajon_de_forja())
         ext_tras_evento()
         if sonda
             publicar_sonda()
@@ -3373,6 +3379,14 @@ Main
                 if env_get("FORJA_PREFERENCIAS") != ""
                     env_set("FORJA_PREFERENCIAS", "", false)
                     preferencias_abrir()
+                end
+                # lo mismo con cualquier opción del menú, por su evento (los menús de MUI no se dejan elegir con
+                # input_menu): el menú Extensiones en tests/extensiones.dash
+                if env_get("FORJA_EVENTO") != ""
+                    e = Int(env_get("FORJA_EVENTO"))
+                    env_set("FORJA_EVENTO", "", false)
+                    atender(e)
+                    ext_tras_evento()
                 end
             end
         end

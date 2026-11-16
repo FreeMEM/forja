@@ -125,6 +125,16 @@ Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO 
 (selection), `CAMBIAR file from to text` (change lines), `GUARDAR [file]` (save), `COMPILAR` (build), `EJECUTAR`
 (run), `ESTADO` (state), `ERRORES` (errors), `BUSCAR text` (find), `CAMBIARTODO find replace`, `IRA line` (go to),
 `GIT dashgit command` (without waiting: `ESTADO` says `git` while it runs) and `SALIDA` (the output text).
+Extensions have more (cursor, selection, insert, marks, the bar, batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md)
+(in Spanish).
+
+### Extensions
+
+Separate programs in the `Extensiones` drawer next to Forja that add entries to the Extensiones menu, keys, marks in
+the margin and in the project panel, a text in the bar, or an editor for a file type. They talk to Forja over ARexx;
+if one crashes or hangs, Forja carries on. Extensiones > Gestor de extensiones... lists them, turns them on or off and
+installs them from a drawer or an `.lha`. The example one, Contar, counts the lines and words of the file and inserts
+the date with Ctrl Alt D. How to write one with `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md).
 
 ## Build
 
