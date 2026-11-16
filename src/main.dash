@@ -62,6 +62,8 @@ import "actualizar.dash"
 import "botones.dash"
 import "extensiones.dash"
 import "ventana.dashui"
+import "git_cambios.dash"
+import "git.dashui"
 
 const VERSION = "0.6.5"
 
@@ -96,8 +98,16 @@ const EV_GIT_ANADIR = 66
 const EV_GIT_CONFIRMAR = 67
 const EV_GIT_TRAER = 68
 const EV_GIT_SUBIR = 69
-const EV_GIT_MENSAJE = 70
-const EV_GIT_CERRAR = 71
+const EV_GC_CONFIRMAR = 80      # el panel Cambios (git.dashui, git_cambios.dash)
+const EV_GC_DIFERENCIAS = 81
+const EV_GC_TODO = 82
+const EV_GC_NADA = 83
+const EV_GC_CERRAR = 86
+const EV_GC_BARRA = 87
+const EV_GC_LISTA = 88
+const EV_GIT_CAMBIOS = 89       # = BB_EV_GIT: un clic en la rama de la barra
+const EV_GIT_FICHERO = 90       # Git > Diferencias de este fichero
+const GIT_TIC_MS = 1500         # con un repositorio, el tic mira así de a menudo si se volvió a Forja
 const EV_DEFINICION = 72
 const EV_VOLVER = 73
 const EV_REFERENCIAS = 74
@@ -174,8 +184,12 @@ var v: Principal = nil
 var vb: Buscar = nil
 var vi: IrA = nil
 var vp: PrefForja = nil
-var vg: GitMensaje = nil
 var vx: GestorExt = nil
+var vc: GitCambios = nil
+var vc_abierta: Bool = false
+var git_activa: Bool = true      # la ventana de Forja era la activa en el último tic
+var git_commit: Bool = false     # el git() en marcha es el commit del panel Cambios
+var sonda_git: String = ""
 var app: Int = 0
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
 var inferencia_espera: Int = 0      # tics esperando a que arranque Inferencia
@@ -352,6 +366,7 @@ func abrir_nuevo(ruta: String) -> Bool
         return false
     end
     ed_abrir_texto(nombre_de(ruta), ruta, texto)
+    git_pedir_rangos(ruta)
     return true
 end
 
@@ -376,6 +391,7 @@ func guardar_en(d: Documento, ruta: String) -> Bool
     d.cambiado = false
     avisar(tr(3, "Guardado: ") + ruta, 2)
     ext_suceso("GUARDADO", ruta)
+    git_guardado(ruta)
     if cajon_de(ruta) == proyecto_cajon
         proyecto_leer(proyecto_cajon)
         mui_canvas_redraw(v.proyecto)
@@ -442,6 +458,8 @@ func proyecto(ev: Int) -> Bool
                 mui_canvas_redraw(v.proyecto)
             end
         end
+    elif (ev == EV_GUARDAR or ev == EV_GUARDAR_COMO) and d != nil and d.vista != 0
+        avisar(tr(464, "Las diferencias son de solo lectura."), 1)
     elif ev == EV_GUARDAR and d != nil
         guardar(d)
     elif ev == EV_GUARDAR_COMO and d != nil
@@ -809,6 +827,7 @@ end
 func tic()
     tic_armado = false
     ext_reposo()
+    git_tic()
     actualizar_tic()
     indice_en_reposo()
     d = ed_actual()
@@ -872,8 +891,15 @@ func tic()
             avisar(hueco(tr(229, "Git acabó con código %1."), "#{rc}"), 1)
         end
         poner_tarea(NADA)
+        if git_commit and rc == 0
+            mui_set_text(vc.mensaje, "")
+        end
+        git_commit = false
         # traer o cambiar de rama puede cambiar los ficheros
         proyecto_leer(proyecto_cajon)
+        # (un init o un clone pueden haber hecho el repositorio: se busca otra vez)
+        git_cajon = ""
+        git_pedir_estado()
         redibujar()
         return
     end
@@ -1373,7 +1399,7 @@ func clave_de(d: Documento) -> String
 end
 
 func es_codigo(d: Documento) -> Bool
-    return d != nil and d.sprite == nil and d.mapa == nil and not d.diseno
+    return d != nil and d.sprite == nil and d.mapa == nil and not d.diseno and d.vista == 0
 end
 
 # Los símbolos al día: los de los ficheros abiertos (con lo que tienen sin guardar) y lo que importa el activo
@@ -1788,6 +1814,9 @@ func edicion(ev: Int)
         redibujar()
         return
     end
+    if d.vista != 0 and ev != EV_COPIAR and ev != EV_TODO
+        return
+    end
     if ev == EV_CORTAR or ev == EV_COPIAR
         s = ed_seleccion(d)
         if s != ""
@@ -2101,6 +2130,9 @@ func en_editor() -> Int
         if otro != 0
             return otro
         end
+        if d.vista != 0 and git_tecla_vista(d, codigo, letra)
+            return 0
+        end
         if d.diseno
             if dv_tecla(codigo, teclas, letra)
                 ed_aplicar_diseno(d)
@@ -2349,6 +2381,252 @@ func sesion_abrir() -> Bool
     end
     dos_requesters(true)
     return abiertos > 0
+end
+
+# --- Git: el pegamento con git_estado.dash, git_cambios.dash y git_vista.dash ---
+# Lo que Forja da a git (y lo que tendría que dar la API de extensiones): el cajón del proyecto, avisos de guardar,
+# de abrir y de volver a Forja, un tic, la barra de botones, una letra por entrada del panel del proyecto, una marca
+# por línea del margen del editor, una pestaña de solo lectura, una ventana propia y órdenes en la salida.
+
+# Pinta lo que depende del estado: la barra, el panel del proyecto y la lista de cambios
+func git_al_dia()
+    rama = git_barra()
+    if rama != bb_git_rama or git_cambios != bb_git_cambios
+        bb_git_rama = rama
+        bb_git_cambios = git_cambios
+        if abierta
+            mui_canvas_redraw(v.botones)
+        end
+    end
+    if abierta and depuracion.length == 0
+        mui_canvas_redraw(v.proyecto)
+    end
+    if vc_abierta
+        if gc_sel >= git_lineas.length
+            gc_sel = -1
+        end
+        mui_set_range(vc.barra, git_lineas.length, gc_caben)
+        mui_canvas_redraw(vc.lista)
+    end
+end
+
+# Repinta las líneas de d (desde 0) que se ven, si d es el activo
+func repintar_marcas(d: Documento, lineas: [Int])
+    if not abierta or d != ed_actual() or d.cambiado
+        return
+    end
+    for n in lineas
+        if n >= d.primera and n < d.primera + ed_visibles and n < d.lineas.length
+            redibujar_linea(n)
+        end
+    end
+end
+
+# En cada tic: si se volvió a Forja, el estado otra vez; y lo que llegó de dashgit
+func git_tic()
+    if git_raiz == ""
+        return
+    end
+    activa = mui_window_active(v.window) == 1 or (vc_abierta and mui_window_active(vc.window) == 1)
+    if activa and not git_activa
+        # se volvió a Forja: quizá cambió algo fuera (ficheros nuevos, otro git): el cajón y el estado otra vez
+        if depuracion.length == 0
+            desde = proyecto_desde
+            proyecto_leer(proyecto_cajon)
+            proyecto_desde = proyecto_desde_valido(desde)
+        end
+        git_pedir_estado()
+    end
+    git_activa = activa
+    r = git_mirar()
+    while r != G_NADA
+        if r == G_ESTADO
+            git_al_dia()
+            for d in documentos
+                if d.vista == 0 and d.sprite == nil and d.mapa == nil and d.ruta != ""
+                    repintar_marcas(d, git_pedir_rangos(d.ruta))
+                end
+            end
+        elif r == G_RANGOS
+            cambiadas = git_rangos_poner(git_dato, git_texto)
+            for d in documentos
+                if str_lower(d.ruta) == str_lower(git_dato)
+                    repintar_marcas(d, cambiadas)
+                end
+            end
+        elif r == G_DIFF
+            if str_trim(git_texto) == ""
+                avisar(tr(465, "Sin diferencias con el último commit: ") + git_dato, 0)
+            else
+                ed_abrir_vista(nombre_de(git_dato) + tr(466, " (cambios)"), git_texto, 1)
+                ajustar_paneles()
+                redibujar()
+            end
+        elif r == G_ERROR
+            if str_trim(git_texto) != ""
+                salida_anadir(str_trim(git_texto), 1)
+            end
+            avisar(tr(467, "Git falló: ") + git_dato, 1)
+        end
+        r = git_mirar()
+    end
+    if sonda
+        s = git_sonda()
+        if s != sonda_git
+            sonda_git = s
+            env_set("FORJA_GIT", s, false)
+            env_set("FORJA_GIT_MS", "#{git_ms_estado} #{git_ms_rangos}", false)
+        end
+        if vc_abierta
+            sonda_cambios()
+        end
+    end
+end
+
+var _sonda_gc: String = ""
+func sonda_cambios()
+    c = gc_sonda()
+    if c != _sonda_gc
+        _sonda_gc = c
+        env_set("FORJA_GIT_CAMBIOS", c, false)
+    end
+end
+
+# "rama|cambios|marcas del panel|marcas del margen del fichero activo" (para ARexx y las pruebas)
+func git_sonda() -> String
+    m = ""
+    d = ed_actual()
+    if d != nil and d.vista == 0 and d.sprite == nil and d.mapa == nil and not d.cambiado
+        m = git_marcas_texto(d.ruta, d.lineas.length)
+    end
+    return bb_git_rama + "|#{bb_git_cambios}|" + proyecto_marcas() + "|" + m
+end
+
+# Las diferencias de un fichero (ruta desde la raíz del repositorio) en una pestaña
+func git_ver_diferencias(rel: String)
+    if rel == "" or git_raiz == ""
+        return
+    end
+    abs = ruta_unir(git_raiz, rel)
+    if git_xy_de(abs) == "??"
+        t = file_read_text(abs)
+        if t != nil
+            ed_abrir_vista(nombre_de(rel) + tr(466, " (cambios)"), gv_de_nuevo(rel, t), 1)
+            ajustar_paneles()
+            redibujar()
+        end
+        return
+    end
+    git_orden("diff HEAD -- " + entre_comillas(rel), G_DIFF, rel)
+    armar_tic(TIC_MS, EV_TIC)
+end
+
+# n y p: el trozo siguiente y el anterior; Return: a esa línea del fichero. true si era una de ellas
+func git_tecla_vista(d: Documento, codigo: Int, letra: String) -> Bool
+    l = str_lower(letra)
+    if l == "n" or l == "p"
+        i = gv_trozo(d.lineas, d.cl, l == "n")
+        if i >= 0
+            ed_ir_a(i + 1, 1)
+            redibujar()
+        end
+        return true
+    end
+    if codigo == T_RETURN or codigo == T_ENTER
+        sitio = gv_sitio(d.lineas, d.cl)
+        if sitio != "" and git_raiz != ""
+            p = str_split(sitio, "|")
+            ir_a_sitio(ruta_unir(git_raiz, p[0]), Int(p[1]), 1)
+        end
+        return true
+    end
+    return false
+end
+
+func git_panel_abrir()
+    if git_raiz == ""
+        avisar(tr(461, "El proyecto no está en un repositorio de git."), 1)
+    end
+    mui_window_open(vc.window)
+    vc_abierta = true
+    # el mensaje, listo para escribir
+    mui_set_active(vc.window, vc.mensaje)
+    git_pedir_estado()
+    git_al_dia()
+    armar_tic(TIC_MS, EV_TIC)
+end
+
+func git_confirmar()
+    m = str_trim(mui_get_text(vc.mensaje))
+    if m == ""
+        avisar(tr(468, "Escribe el mensaje del commit."), 1)
+        mui_set_active(vc.window, vc.mensaje)
+        return
+    end
+    if gc_preparados() == 0
+        mui_request(vc.window, tr(469, "Nada preparado"), tr(470, "Marca la casilla de los ficheros que van en el commit."), tr(471, "_Vale"))
+        return
+    end
+    if tarea != NADA
+        return
+    end
+    git_commit = true
+    git("commit -m " + entre_comillas(m))
+end
+
+# Los eventos de git: el menú, la rama de la barra y el panel Cambios
+func git_evento(ev: Int)
+    if ev == EV_GIT_CONFIRMAR or ev == EV_GIT_CAMBIOS
+        git_panel_abrir()
+    elif ev == EV_GC_CERRAR
+        mui_window_close(vc.window)
+        vc_abierta = false
+    elif ev == EV_GC_CONFIRMAR
+        git_confirmar()
+    elif ev == EV_GC_DIFERENCIAS
+        git_ver_diferencias(gc_ruta(gc_sel))
+    elif ev == EV_GC_TODO
+        git_orden("add -A", G_NADA, "")
+        armar_tic(TIC_MS, EV_TIC)
+    elif ev == EV_GC_NADA
+        git_orden("reset -q", G_NADA, "")
+        armar_tic(TIC_MS, EV_TIC)
+    elif ev == EV_GC_BARRA
+        desde = mui_get_value(vc.barra)
+        if desde != gc_desde
+            gc_desde = gc_desde_valido(desde)
+            mui_canvas_redraw(vc.lista)
+        end
+    elif ev == EV_GC_LISTA
+        rueda = mui_canvas_wheel(vc.lista)
+        if rueda != 0
+            gc_desde = gc_desde_valido(gc_desde - rueda * 3)
+            mui_set_value(vc.barra, gc_desde)
+            mui_canvas_redraw(vc.lista)
+        elif mui_canvas_button(vc.lista) == 1
+            o = gc_clic(mui_canvas_mouse_x(vc.lista), mui_canvas_mouse_y(vc.lista))
+            if o == "diff"
+                git_ver_diferencias(gc_ruta(gc_sel))
+            elif o != ""
+                git_orden(o, G_NADA, "")
+                armar_tic(TIC_MS, EV_TIC)
+            end
+            mui_canvas_redraw(vc.lista)
+        end
+    elif ev == EV_GIT_FICHERO
+        d = ed_actual()
+        if d == nil or d.ruta == "" or git_relativa(d.ruta) == "?"
+            avisar(tr(472, "Este fichero no está en el repositorio del proyecto."), 1)
+        else
+            if d.cambiado
+                guardar_en(d, d.ruta)
+            end
+            git_ver_diferencias(git_relativa(d.ruta))
+        end
+    end
+    if sonda and vc_abierta
+        sonda_cambios()
+    end
 end
 
 # --- Inferencia ---
@@ -3077,6 +3355,13 @@ func orden_una(linea: String) -> String
         return ""
     elif orden == "SALIDA"
         return salida_texto(false)
+    elif orden == "CAMBIOS"
+        # el panel Cambios de git
+        git_evento(EV_GIT_CAMBIOS)
+        return ""
+    elif orden == "GITESTADO"
+        # "rama|cambios|marcas del panel|marcas del margen del fichero activo"
+        return git_sonda()
     elif orden == "ACTUALIZAR"
         # lo mismo que el menú: busca una versión nueva de Dash y, si la hay, pregunta si se instala
         act_pedir()
@@ -3126,18 +3411,8 @@ func atender(ev: Int)
         git("log --oneline -n 30")
     elif ev == EV_GIT_ANADIR
         git("add -A")
-    elif ev == EV_GIT_CONFIRMAR
-        mui_set_text(vg.mensaje, "")
-        mui_window_open(vg.window)
-        mui_set_active(vg.window, vg.mensaje)
-    elif ev == EV_GIT_MENSAJE
-        m = str_trim(mui_get_text(vg.mensaje))
-        if m != ""
-            mui_window_close(vg.window)
-            git("commit -a -m " + entre_comillas(m))
-        end
-    elif ev == EV_GIT_CERRAR
-        mui_window_close(vg.window)
+    elif ev == EV_GIT_CONFIRMAR or ev == EV_GIT_CAMBIOS or (ev >= EV_GC_CONFIRMAR and ev <= EV_GIT_FICHERO)
+        git_evento(ev)
     elif ev == EV_GIT_TRAER
         git("pull")
     elif ev == EV_DEFINICION
@@ -3249,14 +3524,14 @@ Main
         vb = Buscar_create()
         vi = IrA_create()
         vp = PrefForja_create()
-        vg = GitMensaje_create()
+        vc = GitCambios_create()
         vx = GestorExt_create()
         ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11]
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
             screen_make_default()
-            for w in [v.window, vb.window, vi.window, vp.window, vg.window, vx.window]
+            for w in [v.window, vb.window, vi.window, vp.window, vc.window, vx.window]
                 mui_window_screen(w, PANTALLA)
             end
         end
@@ -3271,6 +3546,9 @@ Main
         mui_canvas_on_input(v.editor, EV_EDITOR)
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
         mui_canvas_on_input(v.proyecto, EV_PROYECTO)
+        mui_canvas_on_draw(vc.lista, gc_dibujar)
+        mui_canvas_on_input(vc.lista, EV_GC_LISTA)
+        git_programa = dashgit()
         mui_canvas_on_input(v.salida, EV_SALIDA)
         mui_canvas_on_drag(v.salida, EV_ARRASTRE_SALIDA)
         mui_canvas_take_tab(v.editor, true)
@@ -3365,6 +3643,16 @@ Main
             ext_tras_evento()
             ajustar_barra()
             ajustar_barras_paneles()
+            if git_mirar_cajon(proyecto_cajon)
+                git_al_dia()
+            end
+            if git_raiz != "" and not tic_armado
+                if git_ocupado()
+                    armar_tic(TIC_MS, EV_TIC)
+                else
+                    armar_tic(GIT_TIC_MS, EV_TIC)
+                end
+            end
             if ed_actual() == nil and not tic_armado
                 armar_tic(500, EV_TIC)
             end

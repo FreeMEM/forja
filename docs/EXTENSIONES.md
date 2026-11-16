@@ -256,7 +256,7 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
 ## Lo que falta
 
 - Teclas de las extensiones fuera del editor (con el puntero en el proyecto o la salida).
-- El menú tiene 12 opciones para todas las extensiones. Las libres se ven como filas vacías en gris: Dash no puede
+- El menú tiene 12 opciones para todas las extensiones. Las libres quedan vacías y apagadas: Dash no puede
   añadir ni quitar opciones de un menú ya hecho (se pidió `mui_menu_add` / `mui_menu_remove`).
 - Paneles propios dentro de la ventana de Forja: hoy cada extensión pinta sus ventanas.
 - Que las marcas sigan a las líneas al escribir.

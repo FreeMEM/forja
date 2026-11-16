@@ -1,0 +1,103 @@
+# Git en Forja: la vista de las diferencias de un fichero, en una pestaña de solo lectura del editor. Cada línea va
+# de un color según lo que es (la pone el editor con gv_clase); n y p van al trozo siguiente y al anterior, y Return
+# lleva a esa línea del fichero.
+
+const GV_NORMAL = 0
+const GV_ANADIDA = 1
+const GV_QUITADA = 2
+const GV_TROZO = 3
+const GV_CABECERA = 4
+
+func gv_clase(l: String) -> Int
+    if str_starts(l, "@@")
+        return GV_TROZO
+    end
+    if str_starts(l, "+++ ") or str_starts(l, "--- ") or str_starts(l, "diff ") or str_starts(l, "index ") or str_starts(l, "new file") or str_starts(l, "deleted file") or str_starts(l, "Binary")
+        return GV_CABECERA
+    end
+    if str_starts(l, "+")
+        return GV_ANADIDA
+    end
+    if str_starts(l, "-")
+        return GV_QUITADA
+    end
+    return GV_NORMAL
+end
+
+# El trozo (línea "@@") siguiente o anterior a la línea desde; -1 si no hay
+func gv_trozo(lineas: [String], desde: Int, adelante: Bool) -> Int
+    paso = -1
+    if adelante
+        paso = 1
+    end
+    i = desde + paso
+    while i >= 0 and i < lineas.length
+        if str_starts(lineas[i], "@@")
+            return i
+        end
+        i = i + paso
+    end
+    return -1
+end
+
+# El fichero ("+++ b/ruta", ruta desde la raíz del repositorio) y la línea (desde 1) del lado nuevo que tocan a la
+# línea n de la vista: "ruta|línea"; "" si no se sabe
+func gv_sitio(lineas: [String], n: Int) -> String
+    if n < 0 or n >= lineas.length
+        return ""
+    end
+    # el trozo de encima y cuántas líneas del lado nuevo hay entre él y n
+    i = n
+    while i >= 0 and not str_starts(lineas[i], "@@")
+        i = i - 1
+    end
+    if i < 0
+        return ""
+    end
+    mas = str_find(lineas[i], " +")
+    if mas < 0
+        return ""
+    end
+    resto = lineas[i][mas + 2:]
+    fin = 0
+    while fin < resto.length and str_code(resto, fin) >= 48 and str_code(resto, fin) <= 57
+        fin = fin + 1
+    end
+    linea = str_to_int(resto[:fin], 10)
+    k = i + 1
+    while k < n
+        if not str_starts(lineas[k], "-")
+            linea = linea + 1
+        end
+        k = k + 1
+    end
+    # el fichero: la línea "+++ " de encima
+    j = i
+    while j >= 0 and not str_starts(lineas[j], "+++ ")
+        j = j - 1
+    end
+    if j < 0
+        return ""
+    end
+    ruta = lineas[j][4:]
+    if str_starts(ruta, "b/")
+        ruta = ruta[2:]
+    end
+    if linea < 1
+        linea = 1
+    end
+    return ruta + "|#{linea}"
+end
+
+# El texto de la vista para un fichero que git no sigue: todo como añadido
+func gv_de_nuevo(ruta: String, texto: String) -> String
+    var ls: [String] = str_split(str_replace(texto, "\r\n", "\n"), "\n")
+    if ls.length > 0 and ls[ls.length - 1] == ""
+        ls.remove(ls.length - 1)
+    end
+    r = "diff --git a/" + ruta + " b/" + ruta + "\n--- /dev/null\n+++ b/" + ruta + "\n@@ -0,0 +1,#{ls.length} @@\n"
+    for l in ls
+        r = r + "+" + l + "\n"
+    end
+    return r
+end

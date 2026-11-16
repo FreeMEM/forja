@@ -131,6 +131,6 @@ VS Code.
     líneas al escribir; el catálogo inglés de los textos nuevos (tr 600 a 634); probar instalar un `.lha` (el
     emulador no tiene `C:LhA`).
   - **Falta en Dash** (apuntado, sin rodeos): `rexx_send` con tiempo de espera o sin esperar; añadir y quitar opciones
-    de un menú MUI ya hecho (las libres se ven como filas vacías); `input_menu` no llega a los menús de MUI (la prueba
+    de un menú MUI ya hecho (las libres quedan vacías y apagadas); `input_menu` no llega a los menús de MUI (la prueba
     usa `ENV:FORJA_EVENTO` con la sonda); un evento de ventana activada. Y quizá `lib/forja.dash` en la `lib/` de
     Dash (el `import "lib/forja.dash"` no cambiaría).

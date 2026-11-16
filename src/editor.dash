@@ -15,6 +15,8 @@ import "sprites.dash"
 import "mapas.dash"
 import "codigo.dash"
 import "marcas.dash"
+import "git_estado.dash"
+import "git_vista.dash"
 
 const ALTO_PESTANAS = 18
 const LISTA_FILAS = 8      # las filas de la lista para completar
@@ -70,6 +72,7 @@ struct Documento
     sprite: Sprite        # un sprite o un BOB (sprites.dash); nil en los de texto
     mapa: Mapa = nil      # un mapa de tiles (mapas.dash); nil en los demás
     version: Int = 0      # sube con cada cambio del texto (codigo.dash vuelve a leerlo si cambió)
+    vista: Int = 0        # 1: una vista de solo lectura de las diferencias de git (git_vista.dash)
 end
 
 var documentos: [Documento] = []
@@ -153,6 +156,27 @@ func ed_abrir_texto(nombre: String, ruta: String, texto: String)
     var pp: [Int] = []
     documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno, pp, nil))
     activo = documentos.length - 1
+end
+
+# Una pestaña de solo lectura (las diferencias de git: tipo 1); si ya hay una con ese nombre, la vuelve a llenar
+func ed_abrir_vista(nombre: String, texto: String, tipo: Int)
+    i = 0
+    for d in documentos
+        if d.vista == tipo and d.nombre == nombre
+            d.lineas = _lineas_de(texto)
+            d.primera = 0
+            d.cl = 0
+            d.cc = 0
+            d.al = -1
+            d.version = d.version + 1
+            activo = i
+            return
+        end
+        i = i + 1
+    end
+    ed_abrir_texto(nombre, "", texto)
+    documentos[activo].vista = tipo
+    documentos[activo].diseno = false
 end
 
 # Una pestaña con el editor de sprites
@@ -862,7 +886,7 @@ end
 
 # La sangría de los bloques, solo en el código de Dash (no en un .dashui ni en otro texto)
 func es_codigo_dash(d: Documento) -> Bool
-    return d.sprite == nil and d.mapa == nil and not d.diseno and not str_ends(str_lower(d.nombre), ".dashui")
+    return d.sprite == nil and d.mapa == nil and not d.diseno and d.vista == 0 and not str_ends(str_lower(d.nombre), ".dashui")
 end
 
 func ed_tabulador(d: Documento)
@@ -1113,6 +1137,10 @@ func ed_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
         return false
     end
     mayus = (teclas & Q_MAYUS) != 0
+    if d.vista != 0 and codigo != T_IZQUIERDA and codigo != T_DERECHA and codigo != T_ARRIBA and codigo != T_ABAJO and codigo != T_ESC
+        # una vista de solo lectura: solo moverse
+        return false
+    end
     if codigo == T_IZQUIERDA or codigo == T_DERECHA or codigo == T_ARRIBA or codigo == T_ABAJO
         if mayus and d.al < 0
             d.al = d.cl
@@ -1291,6 +1319,11 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
         gfx_pen(tema.error)
         gfx_rect(x + 2, fy + 2, x + 7, fy + ed_alto_fila - 3)
     end
+    # git: lo cambiado frente a HEAD (del fichero guardado), a la derecha del margen; con 4 colores se distinguen
+    # por la forma: añadida, una raya llena; cambiada, una raya a trozos; quitadas, un triángulo
+    if d.vista == 0 and d.ruta != "" and not d.cambiado
+        _marca_git(git_marca(d.ruta, n, d.lineas.length), x + ed_margen - 9, fy)
+    end
     if parada
         # una flecha en el margen (con 4 colores el fondo de la línea no se distingue)
         gfx_pen(tema.cursor)
@@ -1317,7 +1350,27 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
     end
     # los trozos de color que caen en las columnas que se ven
     hasta_col = d.izquierda + ed_columnas + 1
-    if linea != ""
+    if linea != "" and d.vista != 0
+        clase = gv_clase(linea)
+        gfx_pen(tema.texto)
+        if clase == GV_ANADIDA
+            gfx_pen(tema.bien)
+        elif clase == GV_QUITADA
+            gfx_pen(tema.error)
+        elif clase == GV_TROZO
+            gfx_pen(tema.acento)
+        elif clase == GV_CABECERA
+            gfx_pen(tema.tenue)
+        end
+        a = d.izquierda
+        b = linea.length
+        if b > hasta_col
+            b = hasta_col
+        end
+        if b > a
+            gfx_text_at(tx, base, linea[a:b])
+        end
+    elif linea != ""
         sx_partir(linea)
         k = 0
         while k < sx_desde.length
@@ -1350,7 +1403,7 @@ end
 
 # La x de la columna de las marcas de las extensiones (x: la de la zona)
 func ed_x_marca(x: Int) -> Int
-    return x + ed_margen - 4 - MARGEN_TEXTO - ed_ancho_marca + 2
+    return x + ed_margen - 4 - MARGEN_TEXTO - ed_ancho_marca
 end
 
 # El color de una marca, por su símbolo: + añadido, - quitado, ~ y * cambiado, ! error; las demás, texto
@@ -1363,6 +1416,36 @@ func color_marca(m: String) -> Int
         return tema.acento
     end
     return tema.texto
+end
+
+func _marca_git(m: Int, mx: Int, fy: Int)
+    if m == 0
+        return
+    end
+    if (m & M_ANADIDA) != 0
+        gfx_pen(tema.bien)
+        gfx_rect(mx, fy, mx + 2, fy + ed_alto_fila - 1)
+    elif (m & M_CAMBIADA) != 0
+        gfx_pen(tema.acento)
+        k = 0
+        while k < ed_alto_fila
+            gfx_rect(mx, fy + k, mx + 2, fy + k + 1)
+            k = k + 3
+        end
+    end
+    if (m & M_QUITADA) != 0
+        gfx_pen(tema.error)
+        gfx_rect(mx, fy, mx + 4, fy)
+        gfx_rect(mx, fy + 1, mx + 2, fy + 1)
+        gfx_rect(mx, fy + 2, mx, fy + 2)
+    end
+    if (m & M_QUITADA_FIN) != 0
+        b = fy + ed_alto_fila - 1
+        gfx_pen(tema.error)
+        gfx_rect(mx, b, mx + 4, b)
+        gfx_rect(mx, b - 1, mx + 2, b - 1)
+        gfx_rect(mx, b - 2, mx, b - 2)
+    end
 end
 
 # El editor de ventanas lee el documento si no es el que tiene (o si se le pide otra vez)
