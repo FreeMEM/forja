@@ -1,6 +1,7 @@
 # El panel del proyecto (los ficheros del cajón) y el de la salida (lo que dice dashc).
 
 import "tema.dash"
+import "marcas.dash"
 
 const TITULO_ALTO = 18
 
@@ -361,6 +362,14 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
             nombre = tr(61, "/ (arriba)")
         end
         gfx_text_at(x + 12, fy + font_baseline(), nombre)
+        if marcas_proyecto.length > 0 and not str_ends(f, "/")
+            # las letras de las extensiones (git: M, A, ?), a la derecha
+            letras = marca_proyecto(str_lower(ruta_unir(proyecto_cajon, f)))
+            if letras != ""
+                gfx_pen(tema.acento)
+                gfx_text_at(x + ancho - 6 - font_text_width(letras), fy + font_baseline(), letras)
+            end
+        end
         fy = fy + fila
     end
 end
@@ -804,6 +813,17 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_pen(tema.fondo_salida)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     _titulo(x, y, ancho, tr(62, "SALIDA"))
+    # la barra de las extensiones (docs/EXTENSIONES.md: BARRA), a la derecha del título
+    barra = barra_texto()
+    if barra != ""
+        usar_panel(0)
+        while barra.length > 0 and font_text_width(barra) > ancho - 98
+            barra = barra[0:barra.length - 1]
+        end
+        bx = x + ancho - 8 - font_text_width(barra)
+        gfx_pen(tema.texto)
+        gfx_text_at(bx, y + (TITULO_ALTO - font_height()) / 2 + font_baseline(), barra)
+    end
     usar_codigo()
     fila = alto_letra + 2
     cabe = (alto - TITULO_ALTO - 4) / fila

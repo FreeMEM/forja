@@ -79,6 +79,25 @@
             { "tr": 372, "label": "Volver", "key": "U", "event": 73 },
             { "tr": 373, "label": "Dónde se usa", "key": "H", "event": 74 }
           ]
+        },
+        {
+          "tr": 620, "title": "Extensiones",
+          "items": [
+            { "tr": 621, "label": "Gestor de extensiones...", "event": 180 },
+            { "separator": true },
+            { "name": "ext_m0", "label": "", "event": 200, "disabled": true },
+            { "name": "ext_m1", "label": "", "event": 201, "disabled": true },
+            { "name": "ext_m2", "label": "", "event": 202, "disabled": true },
+            { "name": "ext_m3", "label": "", "event": 203, "disabled": true },
+            { "name": "ext_m4", "label": "", "event": 204, "disabled": true },
+            { "name": "ext_m5", "label": "", "event": 205, "disabled": true },
+            { "name": "ext_m6", "label": "", "event": 206, "disabled": true },
+            { "name": "ext_m7", "label": "", "event": 207, "disabled": true },
+            { "name": "ext_m8", "label": "", "event": 208, "disabled": true },
+            { "name": "ext_m9", "label": "", "event": 209, "disabled": true },
+            { "name": "ext_m10", "label": "", "event": 210, "disabled": true },
+            { "name": "ext_m11", "label": "", "event": 211, "disabled": true }
+          ]
         }
       ],
       "root": {
@@ -243,6 +262,30 @@
               { "type": "button", "name": "pusar", "tr": 350, "label": "_Usar", "event": 58, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "space" },
               { "type": "button", "name": "pcancelar", "tr": 351, "label": "_Cancelar", "event": 59, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "GestorExt",
+      "tr": 622, "title": "Extensiones de Forja",
+      "id": 20,
+      "size": [60, 40],
+      "close": 185,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          { "type": "list", "name": "lista", "change": 181, "double": 182, "weight": 100 },
+          { "type": "text", "name": "info", "text": "", "weight": 0, "color": [220, 220, 210] },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "activar", "tr": 623, "label": "_Activar", "event": 183, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "instalar", "tr": 624, "label": "_Instalar...", "event": 184, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "space" },
+              { "type": "button", "name": "gcerrar", "tr": 625, "label": "_Cerrar", "event": 185, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           }
         ]

@@ -1,0 +1,116 @@
+# Prueba de src/extensiones.dash y src/marcas.dash sin ventana: manifiestos, extensiones apagadas, opciones del menú
+# y teclas, tipos de fichero, la cola de sucesos (con su tope), el aviso en ENV:, marcas, la barra, activar y
+# desactivar, e instalar desde un cajón. tests/extensiones_base.sh la ejecuta.
+
+import "../src/extensiones.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso
+        fallos = fallos + 1
+    end
+end
+
+Main
+    dir_create("DH0:Ext")
+    dir_create("DH0:Ext/Uno")
+    dir_create("DH0:Ext/Dos")
+    dir_create("DH0:Ext/Vacio")
+    # (en UTF-8, como lo escribiría un PC; # empieza una nota)
+    file_write_text("DH0:Ext/Uno/manifiesto.txt", "# una de prueba\nnombre = Úno\nversion = 1.2\nautor = Ana\ndescripcion = Hace cosas\nprograma = UnoProg\narranque = menu\nsucesos = guardado  CAMBIADO\ntipos = .spr .dash .Bob\nmenu = Contar | | contar\nmenu = Fecha | ctrl alt d | fecha   # con tecla\nmenu = Sin orden\n")
+    file_write_text("DH0:Ext/Uno/UnoProg", "x")
+    file_write_text("DH0:Ext/Dos/manifiesto.txt", "nombre = Dos\nmenu = Dos\ntipos = .doc\n")
+    env_set("Forja/extensiones_apagadas", "dos", false)
+    ext_leer_todas("DH0:Ext")
+    ver("dos extensiones (sin el cajón sin manifiesto)", extensiones.length == 2)
+    u = ext_buscar("Uno")
+    d = ext_buscar("dos")
+    ver("se buscan por su cajón", u >= 0 and d >= 0)
+    e = extensiones[u]
+    ver("nombre en Latin-1, versión, autor", e.nombre == "Úno" and e.version == "1.2" and e.autor == "Ana")
+    ver("programa en su cajón", e.programa == "DH0:Ext/Uno/UnoProg" and e.error == "")
+    ver("sucesos", ext_pide(e, "guardado") and ext_pide(e, "cambiado") and not ext_pide(e, "abierto"))
+    ver("tipos, sin los de Dash", e.tipos.length == 2 and e.tipos[0] == ".spr" and e.tipos[1] == ".bob")
+    ver("tres menús", e.menus.length == 3 and e.menus[1] == "Fecha|ctrl alt d|fecha" and e.menus[2] == "Sin orden||Sin orden")
+    ver("Dos, apagada (preferencia) y sin programa", not extensiones[d].activa and extensiones[d].error != "")
+    ver("las opciones del menú: solo las de Uno", ext_ranura_titulo.length == 3 and ext_ranura_orden[0] == "contar")
+    ver("la tecla en el título", ext_ranura_titulo[1] == "Fecha  (Ctrl Alt D)")
+    ver("Ctrl Alt D es la opción 1", ext_tecla(0x22, 6) == 1 and ext_tecla(0x22, 2) == -1 and ext_tecla(0x22, 6 + 16) == 1)
+    ver("teclas en bruto", ext_tecla_codigo("f3") == 0x52 and ext_tecla_codigo("amiga m") == 0x37 and ext_tecla_codigo("ctrl 1") == 0x01 and ext_tecla_codigo("ctrl ñ") == -1)
+    ver("calificadores", ext_tecla_q("shift ctrl alt amiga x") == 15)
+    ver("tipo de fichero de una activa", ext_para_fichero("DH0:a/b.SPR") == u and ext_para_fichero("DH0:a/b.doc") == -1 and ext_para_fichero("x.dash") == -1)
+
+    # la cola: solo si está en marcha y lo pide
+    ext_suceso("GUARDADO", "DH0:a.dash")
+    ver("parada: no se le guarda nada", e.cola.length == 0)
+    e.estado = EXT_VIVA
+    ext_suceso("GUARDADO", "DH0:a.dash")
+    ext_suceso("ABIERTO", "DH0:a.dash")
+    ver("lo que pide, sí; lo que no, no", e.cola.length == 1 and e.cola[0] == "GUARDADO DH0:a.dash" and ext_por_avisar)
+    ext_avisar()
+    ver("el aviso en ENV:Forja/Avisos/Uno", file_read_text("ENV:Forja/Avisos/Uno") == "1\n" and not ext_por_avisar)
+    ver("SUCESOS los da y vacía la cola", ext_sucesos("uno") == "GUARDADO DH0:a.dash\n" and e.cola.length == 0)
+    ver("SUCESOS sin nada", ext_sucesos("Uno") == "")
+    i = 0
+    while i < 70
+        ext_suceso("CAMBIADO", "DH0:a.dash #{i}")
+        i = i + 1
+    end
+    ver("la cola tiene tope (se van los más viejos)", e.cola.length == EXT_COLA_MAX and e.cola[0] == "CAMBIADO DH0:a.dash 6")
+    ver("y se dice una vez", ext_mensajes.length == 1 and str_contains(ext_mensajes[0], "no recoge"))
+    ext_sucesos("Uno")
+    ver("HOLA da la versión de la API", ext_hola("Uno") == EXT_API and ext_hola("Nadie") == "")
+    ver("sin su puerto no está viva", not ext_viva(e))
+
+    # marcas
+    marcas_poner("Uno", "DH0:A.dash", [9, 2, 5], ["~", "-", "+"])
+    ver("marcas en orden", marca_en("dh0:a.dash", 2) == "-" and marca_en("dh0:a.dash", 5) == "+" and marca_en("dh0:a.dash", 9) == "~" and marca_en("dh0:a.dash", 3) == "")
+    ver("de quién es", marca_en("dh0:a.dash", 5) == "+" and marca_ext == "Uno")
+    marcas_poner("Otra", "DH0:A.dash", [3], ["!"])
+    ver("dos extensiones en el mismo fichero", marca_en("dh0:a.dash", 3) == "!" and marca_en("dh0:a.dash", 2) == "-" and marcas_hay("dh0:a.dash") and not marcas_hay("dh0:b.dash"))
+    marcas_poner("Uno", "DH0:A.dash", [7], ["+"])
+    ver("poner sustituye las suyas", marca_en("dh0:a.dash", 2) == "" and marca_en("dh0:a.dash", 7) == "+" and marca_en("dh0:a.dash", 3) == "!")
+    marcas_proyecto_poner("Uno", ["DH0:j/Main.dash", "DH0:j/b.dash"], ["M", "?"])
+    marcas_proyecto_poner("Otra", ["DH0:j/main.dash"], ["E"])
+    ver("letras en el proyecto", marca_proyecto("dh0:j/main.dash") == "ME" and marca_proyecto("dh0:j/b.dash") == "?" and marca_proyecto("dh0:j/c.dash") == "")
+    barra_poner("Uno", "rama main")
+    barra_poner("Otra", "3 errores")
+    ver("la barra", barra_texto() == "rama main  |  3 errores")
+    barra_poner("Uno", "")
+    ver("quitar de la barra", barra_texto() == "3 errores")
+    barra_poner("Uno", "otra vez")
+    marcas_quitar_ext("Uno")
+    ver("lo de una extensión que se va", marca_en("dh0:a.dash", 7) == "" and marca_en("dh0:a.dash", 3) == "!" and marca_proyecto("dh0:j/main.dash") == "E" and barra_texto() == "3 errores")
+
+    # activar y desactivar (preferencia)
+    ext_activar(u, false)
+    ver("desactivar: guardado en la preferencia y sin opciones", env_get("Forja/extensiones_apagadas") == "Dos|Uno" and ext_ranura_titulo.length == 0 and ext_para_fichero("x.spr") == -1)
+    ext_activar(u, true)
+    ver("activar", env_get("Forja/extensiones_apagadas") == "Dos" and ext_ranura_titulo.length == 3)
+
+    # instalar desde un cajón (con uno dentro)
+    dir_create("DH0:Fuera")
+    dir_create("DH0:Fuera/Tres")
+    dir_create("DH0:Fuera/Tres/datos")
+    file_write_text("DH0:Fuera/Tres/manifiesto.txt", "nombre = Tres\nprograma = Tres\n")
+    file_write_text("DH0:Fuera/Tres/Tres", "x")
+    file_write_text("DH0:Fuera/Tres/datos/a.txt", "hola")
+    t = ext_cajon_con_manifiesto("DH0:Fuera")
+    ver("el cajón con manifiesto, un nivel dentro", t == "DH0:Fuera/Tres")
+    k = ext_instalar_cajon(t)
+    ver("instalada (apagada hasta que se diga)", k == 2 and extensiones[k].nombre == "Tres" and not extensiones[k].activa)
+    ver("copiada con lo de dentro", file_read_text("DH0:Ext/Tres/datos/a.txt") == "hola" and file_exists("DH0:Ext/Tres/Tres"))
+    k2 = ext_instalar_cajon("DH0:Fuera/Tres")
+    ver("otra vez: en su sitio, no repetida", k2 == 2 and extensiones.length == 3)
+    ver("nombre del cajón", nombre_de_cajon("Work:a/Contar/") == "Contar" and nombre_de_cajon("RAM:Eco") == "Eco")
+
+    if fallos == 0
+        Print "TODO BIEN"
+    else
+        Print "FALLOS: #{fallos}"
+    end
+end

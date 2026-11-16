@@ -1,0 +1,190 @@
+# Lo que las extensiones ponen en la ventana de Forja (docs/EXTENSIONES.md): marcas en el margen del editor, letras
+# en el panel del proyecto y textos en la barra (el título de la salida).
+#
+#   marcas_poner("Git", "Work:juego/main.dash", [3, 4, 10], ["+", "+", "~"])
+#   marca_en(str_lower(ruta), 3)          # "+" ("" si no hay)
+#   marcas_proyecto_poner("Git", ["Work:juego/main.dash"], ["M"])
+#   barra_poner("Contar", "120 líneas")
+#
+# Cada extensión cambia solo lo suyo: poner sustituye todas sus marcas de ese fichero (o del proyecto).
+
+struct MarcasFichero
+    ext: String
+    ruta: String          # en minúsculas
+    lineas: [Int]         # desde 1, en orden
+    simbolos: [String]    # un carácter cada una
+end
+
+struct MarcasProyecto
+    ext: String
+    letras: {String: String}    # ruta en minúsculas -> sus letras
+end
+
+var marcas_margen: [MarcasFichero] = []
+var marcas_proyecto: [MarcasProyecto] = []
+var barra_exts: [String] = []
+var barra_textos: [String] = []
+var marca_ext: String = ""      # de qué extensión es lo último que dio marca_en
+
+func _marcas_antes(a: Int, b: Int) -> Int
+    return a - b
+end
+
+# Las marcas de ext en el fichero ruta: lineas (desde 1) con su símbolo. Sin líneas, las quita.
+func marcas_poner(ext: String, ruta: String, lineas: [Int], simbolos: [String])
+    r = str_lower(ruta)
+    i = 0
+    while i < marcas_margen.length
+        if marcas_margen[i].ext == ext and marcas_margen[i].ruta == r
+            marcas_margen.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    if lineas.length == 0
+        return
+    end
+    n = lineas.length
+    if n > 4096
+        n = 4096
+    end
+    # en orden de línea (para buscarlas a saltos al dibujar)
+    var ls: [Int] = []
+    var ss: [String] = []
+    var orden: [Int] = []
+    k = 0
+    while k < n
+        orden.push(lineas[k] * 4096 + k)
+        k = k + 1
+    end
+    orden.sort(_marcas_antes)
+    for o in orden
+        j = o % 4096
+        ls.push(lineas[j])
+        s = " "
+        if j < simbolos.length and simbolos[j] != ""
+            s = simbolos[j][0:1]
+        end
+        ss.push(s)
+    end
+    marcas_margen.push(MarcasFichero(ext, r, ls, ss))
+end
+
+# ¿Tiene marcas el fichero (ruta en minúsculas)?
+func marcas_hay(r: String) -> Bool
+    if r == ""
+        return false
+    end
+    for m in marcas_margen
+        if m.ruta == r
+            return true
+        end
+    end
+    return false
+end
+
+# El símbolo de la línea n (desde 1) del fichero r (en minúsculas), "" si no tiene; su extensión, en marca_ext
+func marca_en(r: String, n: Int) -> String
+    marca_ext = ""
+    if r == ""
+        return ""
+    end
+    for m in marcas_margen
+        if m.ruta == r
+            a = 0
+            b = m.lineas.length - 1
+            while a <= b
+                c = (a + b) / 2
+                if m.lineas[c] == n
+                    marca_ext = m.ext
+                    return m.simbolos[c]
+                elif m.lineas[c] < n
+                    a = c + 1
+                else
+                    b = c - 1
+                end
+            end
+        end
+    end
+    return ""
+end
+
+# Las letras de ext en el panel del proyecto: sustituyen todas las suyas
+func marcas_proyecto_poner(ext: String, rutas: [String], letras: [String])
+    i = 0
+    while i < marcas_proyecto.length
+        if marcas_proyecto[i].ext == ext
+            marcas_proyecto.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    if rutas.length == 0
+        return
+    end
+    var d: {String: String} = {}
+    k = 0
+    while k < rutas.length
+        if k < letras.length
+            d[str_lower(rutas[k])] = letras[k]
+        end
+        k = k + 1
+    end
+    marcas_proyecto.push(MarcasProyecto(ext, d))
+end
+
+# Las letras de un fichero del proyecto (ruta en minúsculas), de todas las extensiones; "" si ninguna
+func marca_proyecto(r: String) -> String
+    t = ""
+    for m in marcas_proyecto
+        t = t + m.letras.get(r, "")
+    end
+    return t
+end
+
+func barra_poner(ext: String, texto: String)
+    i = 0
+    while i < barra_exts.length
+        if barra_exts[i] == ext
+            if texto == ""
+                barra_exts.remove(i)
+                barra_textos.remove(i)
+            else
+                barra_textos[i] = texto
+            end
+            return
+        end
+        i = i + 1
+    end
+    if texto != ""
+        barra_exts.push(ext)
+        barra_textos.push(texto)
+    end
+end
+
+# Lo de todas las extensiones, para la barra ("" si nada)
+func barra_texto() -> String
+    t = ""
+    for s in barra_textos
+        if t != ""
+            t = t + "  |  "
+        end
+        t = t + s
+    end
+    return t
+end
+
+# Lo de una extensión que se va: sus marcas y su texto
+func marcas_quitar_ext(ext: String)
+    i = 0
+    while i < marcas_margen.length
+        if marcas_margen[i].ext == ext
+            marcas_margen.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    var vacio: [String] = []
+    marcas_proyecto_poner(ext, vacio, vacio)
+    barra_poner(ext, "")
+end

@@ -1,0 +1,295 @@
+# forja.dash: para escribir extensiones de Forja en Dash. La API entera está en docs/EXTENSIONES.md de Forja.
+#
+#   import "lib/forja.dash"
+#
+#   Main
+#       if not forja_empezar("Contar")
+#           Print "Es una extensión de Forja: la arranca Forja."
+#       else
+#           while forja_suceso(0) != "SALIR"     # espera sin gastar nada hasta el siguiente
+#               if forja_tipo == "MENU"
+#                   forja_aviso("Me han elegido: " + forja_dato)
+#               end
+#           end
+#           forja_acabar()
+#       end
+#   end
+#
+# Con ventanas MUI: mui_wait_event_signals(forja_senal()) da 0 cuando hay sucesos; se leen con forja_suceso(-1), que
+# no espera.
+#
+# Cómo va: Forja no espera nunca a una extensión. Le guarda los sucesos y le avisa escribiendo
+# ENV:Forja/Avisos/<nombre>, que esta vigila (file_notify); entonces los recoge con SUCESOS. Las órdenes a Forja sí
+# esperan su respuesta (rexx_send), y Forja contesta enseguida. El puerto FORJAEXT.<NOMBRE> le dice a Forja que la
+# extensión sigue viva; se cierra solo al acabar, también si el programa falla.
+
+var forja_puerto: String = "FORJA.1"
+var forja_ext: String = ""        # su nombre: el de su cajón en Extensiones/
+var forja_tipo: String = ""       # el último suceso: MENU, EDITAR, ABIERTO, GUARDADO, CERRADO, ACTIVO...
+var forja_dato: String = ""       # lo que lo acompaña: la orden del menú, la ruta del fichero...
+var forja_version: String = ""    # la de Forja (de HOLA)
+var forja_rc: Int = 0             # el RC de la última orden: 0 bien, 5 o 10 si Forja no pudo, -1 si Forja no está
+var _forja_cola: [String] = []
+var _forja_vigilado: Int = 0
+var _forja_hay: Bool = true       # recoger los sucesos sin esperar al aviso (al empezar)
+
+# Empieza: lee de los argumentos el puerto de Forja y su nombre (los pone Forja al arrancarla; sin ellos, FORJA.1 y
+# nombre), abre su puerto y saluda. false si Forja no está o la extensión ya estaba en marcha.
+func forja_empezar(nombre: String) -> Bool
+    forja_ext = nombre
+    if arg_count() >= 1
+        forja_puerto = arg(0)
+    end
+    if arg_count() >= 2
+        forja_ext = arg(1)
+    end
+    # que no le quite tiempo a Forja (se puede subir con task_priority)
+    task_priority(-1)
+    if not rexx_port("FORJAEXT." + str_upper(forja_ext))
+        return false
+    end
+    dir_create("ENV:Forja")
+    dir_create("ENV:Forja/Avisos")
+    _forja_vigilado = file_notify("ENV:Forja/Avisos/" + forja_ext)
+    r = forja_orden("HOLA " + forja_ext)
+    if forja_rc != 0
+        return false
+    end
+    p = str_find(r, " ")
+    if p >= 0
+        forja_version = r[p + 1:]
+    end
+    return true
+end
+
+# Se despide: Forja quita sus marcas y su texto de la barra
+func forja_acabar()
+    forja_orden("ADIOS " + forja_ext)
+end
+
+# La señal del aviso de Forja, para mui_wait_event_signals
+func forja_senal() -> Int
+    return file_notify_signal()
+end
+
+# El siguiente suceso ("MENU fecha", "GUARDADO Work:a/b.dash"...; también en forja_tipo y forja_dato). Si no hay,
+# espera hasta ms milisegundos (0: sin límite; -1: no espera) y da "". "SALIR" si Forja se cierra, si ya no está o
+# con Ctrl-C: entonces la extensión acaba.
+func forja_suceso(ms: Int) -> String
+    if _forja_cola.length == 0
+        if _forja_hay or (_forja_vigilado > 0 and file_changed(_forja_vigilado))
+            _forja_recoger()
+        end
+    end
+    while _forja_cola.length == 0 and ms >= 0
+        espera = ms
+        if espera == 0
+            espera = 3600000
+        end
+        if _forja_vigilado == 0 and espera > 500
+            espera = 500
+        end
+        r = cx_wait(espera)
+        if r == -1
+            _forja_cola.push("SALIR")
+        elif _forja_vigilado > 0 and file_changed(_forja_vigilado)
+            _forja_recoger()
+        elif _forja_vigilado == 0
+            # sin el aviso (no se pudo vigilar el fichero): se pregunta cada medio segundo
+            _forja_recoger()
+        end
+        if _forja_cola.length == 0 and ms > 0
+            break
+        end
+    end
+    if _forja_cola.length == 0
+        forja_tipo = ""
+        forja_dato = ""
+        return ""
+    end
+    s = _forja_cola[0]
+    _forja_cola.remove(0)
+    p = str_find(s, " ")
+    if p < 0
+        forja_tipo = s
+        forja_dato = ""
+    else
+        forja_tipo = s[0:p]
+        forja_dato = s[p + 1:]
+    end
+    return s
+end
+
+func _forja_recoger()
+    _forja_hay = false
+    t = forja_orden("SUCESOS " + forja_ext)
+    if forja_rc == -1
+        _forja_cola.push("SALIR")
+        return
+    end
+    for l in str_split(t, "\n")
+        if l != ""
+            _forja_cola.push(l)
+        end
+    end
+end
+
+# Una orden cualquiera a Forja (docs/EXTENSIONES.md): su respuesta; el RC en forja_rc
+func forja_orden(orden: String) -> String
+    r = rexx_send(forja_puerto, orden)
+    forja_rc = rexx_rc()
+    return r
+end
+
+# Varias órdenes de una línea en un solo viaje: sus respuestas, en el mismo orden
+func forja_lote(ordenes: [String]) -> [String]
+    t = "LOTE"
+    for o in ordenes
+        t = t + "\n" + o
+    end
+    r = forja_orden(t)
+    return str_split(r, str_char(30))
+end
+
+# --- Leer ---
+
+# El fichero activo: ruta ("" si no se ha guardado), nombre, cambiado (0/1), tipo (texto, dashui, sprite, mapa) y
+# líneas, una por línea; "" si no hay ninguno
+func forja_activo() -> String
+    return forja_orden("ACTIVO")
+end
+
+# La ruta del fichero activo ("" sin guardar o sin ninguno)
+func forja_fichero() -> String
+    return str_split(forja_activo(), "\n")[0]
+end
+
+# Todo el texto del fichero activo (o del que se diga, si está abierto: ruta "")
+func forja_texto(ruta: String) -> String
+    if ruta == ""
+        return forja_orden("TEXTO")
+    end
+    return forja_orden("TEXTO \"" + ruta + "\"")
+end
+
+# Las líneas desde..hasta (desde 1) del fichero activo
+func forja_lineas(desde: Int, hasta: Int) -> String
+    return forja_orden("LINEAS #{desde} #{hasta}")
+end
+
+func forja_linea(n: Int) -> String
+    return forja_orden("LINEA #{n}")
+end
+
+# El cursor: forja_cursor_linea y forja_cursor_columna (desde 1)
+var forja_cursor_linea: Int = 0
+var forja_cursor_columna: Int = 0
+
+func forja_cursor() -> Bool
+    r = str_split(forja_orden("CURSOR"), " ")
+    if forja_rc != 0 or r.length < 2
+        return false
+    end
+    forja_cursor_linea = Int(r[0])
+    forja_cursor_columna = Int(r[1])
+    return true
+end
+
+# Lo elegido, tal cual ("" si nada)
+func forja_seleccion() -> String
+    r = forja_orden("ELEGIDO")
+    p = str_find(r, "\n")
+    if p < 0
+        return ""
+    end
+    return r[p + 1:]
+end
+
+# El cajón del proyecto y sus ficheros (los cajones acaban en "/"): el primero es el cajón
+func forja_proyecto() -> [String]
+    var r: [String] = []
+    for l in str_split(forja_orden("PROYECTO"), "\n")
+        if l != "" or r.length == 0
+            r.push(l)
+        end
+    end
+    return r
+end
+
+# --- Escribir (todo con deshacer en Forja) ---
+
+# En el cursor, en lugar de lo elegido
+func forja_insertar(texto: String) -> Bool
+    forja_orden("INSERTAR " + texto)
+    return forja_rc == 0
+end
+
+# El texto entero del fichero activo
+func forja_escribir(texto: String) -> Bool
+    forja_orden("ESCRIBIR " + texto)
+    return forja_rc == 0
+end
+
+# Las líneas desde..hasta del fichero ruta (hasta = desde - 1: mete texto antes de la línea desde)
+func forja_cambiar(ruta: String, desde: Int, hasta: Int, texto: String) -> Bool
+    forja_orden("CAMBIAR \"" + ruta + "\" #{desde} #{hasta} \"" + texto + "\"")
+    return forja_rc == 0
+end
+
+func forja_ir(linea: Int, columna: Int)
+    forja_orden("CURSOR #{linea} #{columna}")
+end
+
+func forja_elegir(l1: Int, c1: Int, l2: Int, c2: Int)
+    forja_orden("ELEGIR #{l1} #{c1} #{l2} #{c2}")
+end
+
+func forja_abrir(ruta: String, linea: Int) -> Bool
+    forja_orden("ABRIR \"" + ruta + "\" #{linea}")
+    return forja_rc == 0
+end
+
+# --- La ventana de Forja ---
+
+# Una línea en la salida: tipo 0 normal, 1 error, 2 bien
+func forja_aviso_tipo(texto: String, tipo: Int)
+    forja_orden("AVISO #{tipo} " + texto)
+end
+
+func forja_aviso(texto: String)
+    forja_aviso_tipo(texto, 0)
+end
+
+# Su texto en la barra (a la derecha del título de la salida); "" lo quita
+func forja_barra(texto: String)
+    forja_orden("BARRA " + forja_ext + " " + texto)
+end
+
+# Sus marcas en el margen de un fichero: líneas (desde 1) y un símbolo cada una (+ añadida, - quitada, ~ cambiada,
+# ! error; con otros, el color del texto). Sustituyen las suyas de ese fichero; sin líneas, las quita.
+func forja_marcas(ruta: String, lineas: [Int], simbolos: [String])
+    t = "MARCAS " + forja_ext + " \"" + ruta + "\""
+    i = 0
+    while i < lineas.length
+        t = t + "\n#{lineas[i]} " + simbolos[i]
+        i = i + 1
+    end
+    forja_orden(t)
+end
+
+# Sus letras en el panel del proyecto (rutas enteras): sustituyen todas las suyas
+func forja_marcas_proyecto(rutas: [String], letras: [String])
+    t = "MARCASPROYECTO " + forja_ext
+    i = 0
+    while i < rutas.length
+        t = t + "\n" + letras[i] + " " + rutas[i]
+        i = i + 1
+    end
+    forja_orden(t)
+end
+
+# Una opción más en el menú Extensiones ("ctrl alt d", "f3"... o "" sin tecla): elegirla da MENU orden
+func forja_menu(titulo: String, tecla: String, orden: String) -> Bool
+    forja_orden("MENU " + forja_ext + " " + titulo + "|" + tecla + "|" + orden)
+    return forja_rc == 0
+end

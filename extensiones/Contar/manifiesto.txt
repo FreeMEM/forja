@@ -1,0 +1,11 @@
+# Contar: la extensión de ejemplo de Forja (docs/EXTENSIONES.md)
+nombre = Contar
+version = 1.0
+autor = FreeMEM
+licencia = MIT
+descripcion = Cuenta las líneas y las palabras del fichero activo y lo pone en la barra. Inserta la fecha en el cursor.
+programa = Contar
+arranque = inicio
+sucesos = activo guardado cambiado
+menu = Contar las palabras | | contar
+menu = Insertar la fecha | ctrl alt d | fecha

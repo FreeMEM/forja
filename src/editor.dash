@@ -14,6 +14,7 @@ import "diseno.dash"
 import "sprites.dash"
 import "mapas.dash"
 import "codigo.dash"
+import "marcas.dash"
 
 const ALTO_PESTANAS = 18
 const LISTA_FILAS = 8      # las filas de la lista para completar
@@ -110,6 +111,10 @@ var ed_sel_desde: Int = 0
 var ed_sel_hasta: Int = 0
 var _fin_l: Int = 0
 var _fin_c: Int = 0
+# Las marcas de las extensiones (marcas.dash) del fichero que se dibuja: su ruta en minúsculas y el ancho de su
+# columna en el margen (0 si no tiene)
+var ed_marca_ruta: String = ""
+var ed_ancho_marca: Int = 0
 var _l1: Int = 0
 var _c1: Int = 0
 var _l2: Int = 0
@@ -293,6 +298,53 @@ func ed_cambiar_lineas(d: Documento, desde: Int, hasta: Int, texto: String) -> B
     end
     ed_seguir_cursor(d)
     return true
+end
+
+# La selección exacta, "l1 c1 l2 c2" (desde 1, en orden); sin selección, el cursor dos veces
+func ed_elegido(d: Documento) -> String
+    if not ed_hay_seleccion(d)
+        return "#{d.cl + 1} #{d.cc + 1} #{d.cl + 1} #{d.cc + 1}"
+    end
+    _orden(d)
+    return "#{_l1 + 1} #{_c1 + 1} #{_l2 + 1} #{_c2 + 1}"
+end
+
+# Una línea (desde 0) dentro del documento
+func _linea_valida(d: Documento, l: Int) -> Int
+    if l < 0
+        return 0
+    end
+    if l > d.lineas.length - 1
+        return d.lineas.length - 1
+    end
+    return l
+end
+
+func _columna_valida(d: Documento, l: Int, c: Int) -> Int
+    if c < 0
+        return 0
+    end
+    if c > d.lineas[l].length
+        return d.lineas[l].length
+    end
+    return c
+end
+
+# El cursor a la línea l y la columna c (desde 1), sin selección, y a la vista
+func ed_poner_cursor(d: Documento, l: Int, c: Int)
+    d.cl = _linea_valida(d, l - 1)
+    d.cc = _columna_valida(d, d.cl, c - 1)
+    d.al = -1
+    ed_seguir_cursor(d)
+end
+
+# Elige de (l1, c1) a (l2, c2), desde 1; el cursor queda en (l2, c2)
+func ed_elegir(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int)
+    d.al = _linea_valida(d, l1 - 1)
+    d.ac = _columna_valida(d, d.al, c1 - 1)
+    d.cl = _linea_valida(d, l2 - 1)
+    d.cc = _columna_valida(d, d.cl, c2 - 1)
+    ed_seguir_cursor(d)
 end
 
 # Las líneas de la selección (desde 1) en ed_sel_desde y ed_sel_hasta; sin selección, la del cursor
@@ -1255,7 +1307,14 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
         gfx_pen(tema.texto)
     end
     base = fy + 1 + base_letra
-    gfx_text_at(x + ed_margen - 4 - MARGEN_TEXTO - num.length * ancho_letra, base, num)
+    gfx_text_at(x + ed_margen - 4 - MARGEN_TEXTO - ed_ancho_marca - num.length * ancho_letra, base, num)
+    if ed_ancho_marca > 0
+        m = marca_en(ed_marca_ruta, n + 1)
+        if m != ""
+            gfx_pen(color_marca(m))
+            gfx_text_at(ed_x_marca(x), base, m)
+        end
+    end
     # los trozos de color que caen en las columnas que se ven
     hasta_col = d.izquierda + ed_columnas + 1
     if linea != ""
@@ -1287,6 +1346,23 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
             gfx_rect(cx - 1, fy, cx, fy + ed_alto_fila - 1)
         end
     end
+end
+
+# La x de la columna de las marcas de las extensiones (x: la de la zona)
+func ed_x_marca(x: Int) -> Int
+    return x + ed_margen - 4 - MARGEN_TEXTO - ed_ancho_marca + 2
+end
+
+# El color de una marca, por su símbolo: + añadido, - quitado, ~ y * cambiado, ! error; las demás, texto
+func color_marca(m: String) -> Int
+    if m == "+"
+        return tema.bien
+    elif m == "-" or m == "!"
+        return tema.error
+    elif m == "~" or m == "*"
+        return tema.acento
+    end
+    return tema.texto
 end
 
 # El editor de ventanas lee el documento si no es el que tiene (o si se le pide otra vez)
@@ -1484,7 +1560,12 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     if cifras < 3
         cifras = 3
     end
-    ed_margen = (cifras + 1) * ancho_letra + MARGEN_TEXTO
+    ed_marca_ruta = str_lower(d.ruta)
+    ed_ancho_marca = 0
+    if marcas_hay(ed_marca_ruta)
+        ed_ancho_marca = ancho_letra
+    end
+    ed_margen = (cifras + 1) * ancho_letra + MARGEN_TEXTO + ed_ancho_marca
     ed_columnas = (ancho - ed_margen - 4) / ancho_letra
     if ed_columnas < 1
         ed_columnas = 1
