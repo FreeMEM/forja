@@ -1,6 +1,7 @@
 # El panel del proyecto (los ficheros del cajón) y el de la salida (lo que dice dashc).
 
 import "tema.dash"
+import "git_estado.dash"
 
 const TITULO_ALTO = 18
 
@@ -361,6 +362,22 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
             nombre = tr(61, "/ (arriba)")
         end
         gfx_text_at(x + 12, fy + font_baseline(), nombre)
+        # git: la letra de lo que le pasa (M, A, D, U, ?), a la derecha; con 4 colores la letra basta
+        letra = git_letra(proyecto_cajon, f)
+        if letra != ""
+            lx = x + ancho - font_text_width(letra) - 6
+            gfx_pen(tema.fondo_panel)
+            gfx_rect(lx - 4, fy, x + ancho - 1, fy + fila - 2)
+            gfx_pen(tema.cursor)
+            if letra == "A"
+                gfx_pen(tema.bien)
+            elif letra == "U" or letra == "D"
+                gfx_pen(tema.error)
+            elif letra == "?"
+                gfx_pen(tema.tenue)
+            end
+            gfx_text_at(lx, fy + font_baseline(), letra)
+        end
         fy = fy + fila
     end
 end
@@ -844,4 +861,16 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         fy = fy + fila
         i = i + 1
     end
+end
+
+# Para la sonda: las entradas del panel con marca de git ("letra:nombre")
+func proyecto_marcas() -> String
+    t = ""
+    for f in proyecto_ficheros
+        l = git_letra(proyecto_cajon, f)
+        if l != ""
+            t = t + " " + l + ":" + f
+        end
+    end
+    return str_trim(t)
 end

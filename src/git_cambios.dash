@@ -1,0 +1,205 @@
+# Git en Forja: el panel "Cambios" (la ventana GitCambios de git.dashui). Una fila por fichero con cambios: la
+# casilla dice si va en el commit (preparado en el índice), la letra qué le pasa (M, A, D, U, ?) y la ruta. Un clic
+# en la casilla lo prepara o lo quita (dashgit add / reset); un clic en la ruta la elige y otro clic en la elegida
+# abre sus diferencias.
+#
+#   gc_dibujar(x, y, ancho, alto)        # desde el mui_canvas_on_draw de la lista
+#   orden = gc_clic(x, y)                # la orden de dashgit que toca ("" nada, "diff" las diferencias)
+#   gc_ruta(gc_sel)                      # la ruta (desde la raíz del repositorio) de la fila elegida
+
+import "tema.dash"
+import "git_estado.dash"
+
+const GC_CASILLA = 18     # el ancho de la columna de la casilla
+
+var gc_sel: Int = -1
+var gc_desde: Int = 0
+var gc_caben: Int = 1
+var gc_fila: Int = 12
+var gc_y0: Int = 4
+var gc_zona_x: Int = 0
+var gc_zona_y: Int = 0
+
+# 0 sin preparar, 1 preparado, 2 a medias (preparado y con más cambios en el disco)
+func gc_preparado(xy: String) -> Int
+    x = xy[:1]
+    y = xy[1:2]
+    if x == " " or x == "?"
+        return 0
+    end
+    if y != " "
+        return 2
+    end
+    return 1
+end
+
+func gc_ruta(i: Int) -> String
+    if i < 0 or i >= git_lineas.length
+        return ""
+    end
+    return git_lineas[i][3:]
+end
+
+func gc_xy(i: Int) -> String
+    if i < 0 or i >= git_lineas.length
+        return ""
+    end
+    return git_lineas[i][:2]
+end
+
+# Cuántos ficheros van en el commit
+func gc_preparados() -> Int
+    n = 0
+    for l in git_lineas
+        if gc_preparado(l[:2]) != 0
+            n = n + 1
+        end
+    end
+    return n
+end
+
+func gc_desde_valido(d: Int) -> Int
+    m = git_lineas.length - gc_caben
+    if m < 0
+        m = 0
+    end
+    if d > m
+        return m
+    end
+    if d < 0
+        return 0
+    end
+    return d
+end
+
+func _gc_color(letra: String) -> Int
+    if letra == "A"
+        return tema.bien
+    elif letra == "U" or letra == "D"
+        return tema.error
+    elif letra == "?"
+        return tema.tenue
+    end
+    return tema.cursor
+end
+
+func gc_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    gfx_mode(0)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_codigo()
+    gc_zona_x = x
+    gc_zona_y = y
+    gc_fila = alto_letra + 4
+    gc_y0 = 4
+    gc_caben = (alto - gc_y0) / gc_fila
+    if gc_caben < 1
+        gc_caben = 1
+    end
+    gc_desde = gc_desde_valido(gc_desde)
+    if git_lineas.length == 0
+        gfx_pen(tema.tenue)
+        t = tr(460, "Sin cambios.")
+        if git_raiz == ""
+            t = tr(461, "El proyecto no está en un repositorio de git.")
+        end
+        gfx_text_at(x + 8, y + gc_y0 + 2 + base_letra, t)
+        return
+    end
+    fy = y + gc_y0
+    i = gc_desde
+    while i < git_lineas.length and fy + gc_fila <= y + alto
+        xy = gc_xy(i)
+        if i == gc_sel
+            gfx_pen(tema.seleccion)
+            gfx_rect(x + GC_CASILLA, fy, x + ancho - 1, fy + gc_fila - 1)
+        end
+        # la casilla: hueca sin preparar, llena preparado, media a medias
+        cx = x + 4
+        cy = fy + (gc_fila - 10) / 2
+        gfx_pen(tema.texto)
+        gfx_rect(cx, cy, cx + 9, cy)
+        gfx_rect(cx, cy + 9, cx + 9, cy + 9)
+        gfx_rect(cx, cy, cx, cy + 9)
+        gfx_rect(cx + 9, cy, cx + 9, cy + 9)
+        p = gc_preparado(xy)
+        if p == 1
+            gfx_pen(tema.bien)
+            gfx_rect(cx + 2, cy + 2, cx + 7, cy + 7)
+        elif p == 2
+            gfx_pen(tema.bien)
+            gfx_rect(cx + 2, cy + 5, cx + 7, cy + 7)
+        end
+        letra = git_letra_xy(xy)
+        base = fy + (gc_fila - alto_letra) / 2 + base_letra
+        gfx_pen(_gc_color(letra))
+        gfx_text_at(x + GC_CASILLA + 4, base, letra)
+        gfx_pen(tema.texto)
+        gfx_text_at(x + GC_CASILLA + 4 + 2 * ancho_letra, base, gc_ruta(i))
+        fy = fy + gc_fila
+        i = i + 1
+    end
+end
+
+func gc_en(y: Int) -> Int
+    if y < gc_y0
+        return -1
+    end
+    i = gc_desde + (y - gc_y0) / gc_fila
+    if i >= git_lineas.length
+        return -1
+    end
+    return i
+end
+
+# Un clic en la lista (x, y desde la esquina de la zona): la orden de dashgit que toca, "diff" para ver las
+# diferencias de la elegida, o "". La fila cambia ya (el estado de verdad llega después).
+func gc_clic(x: Int, y: Int) -> String
+    i = gc_en(y)
+    if i < 0
+        return ""
+    end
+    xy = gc_xy(i)
+    ruta = gc_ruta(i)
+    if x < GC_CASILLA
+        x0 = xy[:1]
+        y0 = xy[1:2]
+        nuevo = ""
+        orden = ""
+        if gc_preparado(xy) == 1
+            # fuera del commit
+            orden = "reset -q -- " + git_comillas(ruta)
+            if xy == "A "
+                nuevo = "??"
+            else
+                nuevo = " " + x0
+            end
+        else
+            orden = "add -- " + git_comillas(ruta)
+            if xy == "??"
+                nuevo = "A "
+            elif x0 != " "
+                nuevo = x0 + " "
+            else
+                nuevo = y0 + " "
+            end
+        end
+        git_lineas[i] = nuevo + " " + ruta
+        return orden
+    end
+    if i == gc_sel
+        return "diff"
+    end
+    gc_sel = i
+    return ""
+end
+
+# Para la sonda: la zona, el alto de fila, la primera que se ve, la elegida y las filas ("XY ruta")
+func gc_sonda() -> String
+    t = "#{gc_zona_x} #{gc_zona_y + gc_y0} #{gc_fila} #{gc_desde} #{gc_sel}"
+    for l in git_lineas
+        t = t + "|" + l
+    end
+    return t
+end
