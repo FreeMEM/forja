@@ -154,6 +154,11 @@ func a_la_salida(orden: String)
         return
     end
     if proyecto == ""
+        # (puede que su suceso PROYECTO aún no haya llegado)
+        proyecto = forja_proyecto()[0]
+        git_mirar_cajon(proyecto)
+    end
+    if proyecto == ""
         forja_aviso_tipo("Abre antes un fichero del proyecto.", 1)
         return
     end

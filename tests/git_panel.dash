@@ -172,6 +172,12 @@ Main
     rexx("ABRIR \"" + MAIN + "\" 1")
     s = git("init")
     ver("init", str_contains(s, "Repositorio vac"), s)
+    if fallos > 0
+        # sin repositorio no tiene sentido seguir: la salida entera, y fuera
+        anotar(rexx("SALIDA"))
+        rexx("QUIT")
+        return
+    end
     git("config user.name Forja")
     git("config user.email forja@amiga")
     git("add -A")

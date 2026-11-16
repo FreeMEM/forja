@@ -3,7 +3,9 @@
 # tests/git_panel_coffin.sh, que deja en DASHRUN: Forja, GitPanel, dashgit, la extensión Git (Git y manifiesto.txt) y
 # los ficheros de juego/.
 Main
-    run_command("C:MakeDir RAM:Prueba RAM:Prueba/juego ENV:Forja RAM:Prueba/Extensiones RAM:Prueba/Extensiones/Git")
+    run_command("C:MakeDir RAM:Prueba RAM:Prueba/juego RAM:Prueba/Extensiones RAM:Prueba/Extensiones/Git")
+    # (en coffin ENV:Forja ya está: MakeDir para en el primero que falla)
+    run_command("C:MakeDir ENV:Forja")
     for f in ["main.dash", "red.dash", "ventana.dashui"]
         file_copy("DASHRUN:" + f, "RAM:Prueba/juego/" + f)
     end
