@@ -75,3 +75,23 @@ cursor en el campo). El git del PC comprueba los commits y el estado. `SISTEMA=.
 
 ## Bitácora
 
+- 2026-11-16: todo lo de arriba. `tests/git_panel.sh`: TODO BIEN en el A1200 emulado con OS 3.1 y MUI 5
+  (`sys31muisslweb`). `tests/git_panel_coffin.sh` (la misma prueba en la máquina coffin de Dash: 68040, RTG, MUI
+  3.8, lanzada por `tests/git_panel_coffin.dash`): TODO BIEN. Siguen bien `tests/ficheros.sh` y `tests/teclas.sh`.
+- La prueba fallaba al azar por leer `ENV:FORJA_GIT_CAMBIOS` mientras Forja la escribía (salía vacía): la sonda
+  ahora solo la escribe cuando cambia.
+- En la prueba, un `Window` de Dash abierto desde el programa de prueba (lanzado con `Run >NIL:` junto a Forja) se
+  quedaba colgado al abrirse; solo, en otro arranque, abre bien. No lo he investigado: para "otra ventana delante"
+  se usa la de buscar de Forja (Amiga-F). Así no se prueba la vuelta desde otro programa, aunque el mecanismo es el
+  mismo (`mui_window_active` de la ventana principal).
+- Tiempos (A1200 emulado a toda velocidad, repositorio de 4 ficheros): `status --porcelain -b` 1,1 s y
+  `diff --rangos` 1,1 s; de guardar a ver las marcas, 2,6 s. En coffin (68040 JIT), 1,4 s el status y 1,5 s todo.
+  Casi todo es arrancar dashgit (390 KB) y leer el índice.
+
+## Falta
+
+- Clic en una marca del margen: enseñar lo de antes y deshacer ese trozo.
+- Historial, ramas (cambiar, crear, borrar, fusionar), conflictos, credenciales, clonar (pasos 6 a 11 del análisis).
+- Que las marcas sigan las líneas mientras se escribe (hoy se esconden hasta guardar).
+- Aviso al iniciar git en un disco sin nombres largos (FFS).
+- Un evento de Dash para "la ventana se activó" (hoy se mira cada 1,5 s con un tic, solo si hay repositorio).

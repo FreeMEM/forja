@@ -19,6 +19,7 @@ trap 'rm -rf "$tmp"' EXIT
 "$dash/dash" "$dg/src/main.dash" -o "$tmp/dashgit"
 "$dash/dash" "$aqui/tests/git_panel_coffin.dash" -o "$tmp/Lanzar"
 files=""
+if [ -n "$PAUSA" ]; then echo "$PAUSA" > "$tmp/pausa"; files="--file $tmp/pausa"; fi
 for f in Forja GitPanel dashgit; do files="$files --file $tmp/$f"; done
 for f in main.dash red.dash ventana.dashui; do files="$files --file $aqui/tests/prueba/juego/$f"; done
-cd "$dash" && python3 tools/emu_run.py --machine coffin --timeout ${TIEMPO:-400} $files $shots "$tmp/Lanzar" 2>&1 | iconv -f latin1 -t utf-8
+cd "$dash" && python3 tools/emu_run.py --machine coffin --timeout ${TIEMPO:-400} $files $shots "$tmp/Lanzar" 2>&1

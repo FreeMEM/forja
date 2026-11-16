@@ -128,6 +128,14 @@ func esperar_fila(texto: String) -> Bool
     return false
 end
 
+# Con PAUSA=segundos, se para ahí (para las capturas)
+func pausa()
+    p = Int(env_get("PAUSA"))
+    if p > 0
+        time_delay(p * 50)
+    end
+end
+
 func sonda_nombre() -> String
     t = file_read_text("RAM:forja-sonda.txt")
     if t == nil
@@ -168,6 +176,7 @@ Main
     ms = time_ms() - t0
     ver("al guardar: 1 cambio, M en el panel y marcas en el margen", str_starts(s, "main|1|M:main.dash|1:1 5:2"), s)
     anotar("  (de guardar a las marcas: #{ms} ms; status y diff --rangos: " + env_get("FORJA_GIT_MS") + " ms)")
+    pausa()
     # un fichero nuevo hecho fuera de Forja: se ve al volver a Forja
     file_write_text(CAJON + "/nuevo.dash", "Main\n    Print \"nuevo\"\nend\n")
     # otra ventana delante (la de buscar, con Amiga-F) y Forja otra vez: Forja mira si su ventana vuelve a ser
@@ -192,6 +201,7 @@ Main
     ver("la casilla prepara main.dash (add)", esperar_fila("M  main.dash"), env_get("FORJA_GIT_CAMBIOS"))
     clic_fila(fila_de("nuevo.dash"), true)
     ver("la casilla prepara nuevo.dash", esperar_fila("A  nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
+    pausa()
     clic_fila(fila_de("nuevo.dash"), true)
     ver("y otra vez lo quita (reset)", esperar_fila("?? nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
     # las diferencias: dos clics en el nombre
@@ -214,6 +224,7 @@ Main
     time_delay(20)
     l = sonda_nombre()
     ver("n va al primer trozo", str_starts(l, "4 "), l)
+    pausa()
     input_key(0x4D, 0)      # abajo: la línea añadida
     time_delay(10)
     input_key(0x44, 0)      # Return

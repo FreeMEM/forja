@@ -10,8 +10,10 @@ Main
     env_set("FORJA_SONDA", "1", false)
     env_set("FORJA_PRUEBA", "RAM:Prueba/juego/main.dash", false)
     env_set("GITPANEL_DIR", "RAM:Prueba", false)
-    if env_get("ESPERA") == ""
-        env_set("ESPERA", "", false)
+    # PAUSA=segundos de git_panel_coffin.sh (para las capturas)
+    p = file_read_text("DASHRUN:pausa")
+    if p != nil
+        env_set("PAUSA", str_trim(p), false)
     end
     run_program("DASHRUN:GitPanel")
     run_command("DASHRUN:Forja")
