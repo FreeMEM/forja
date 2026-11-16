@@ -15,8 +15,6 @@ import "sprites.dash"
 import "mapas.dash"
 import "codigo.dash"
 import "marcas.dash"
-import "git_estado.dash"
-import "git_vista.dash"
 
 const ALTO_PESTANAS = 18
 const LISTA_FILAS = 8      # las filas de la lista para completar
@@ -72,7 +70,9 @@ struct Documento
     sprite: Sprite        # un sprite o un BOB (sprites.dash); nil en los de texto
     mapa: Mapa = nil      # un mapa de tiles (mapas.dash); nil en los demás
     version: Int = 0      # sube con cada cambio del texto (codigo.dash vuelve a leerlo si cambió)
-    vista: Int = 0        # 1: una vista de solo lectura de las diferencias de git (git_vista.dash)
+    vista: Int = 0        # 1: una pestaña de solo lectura de una extensión (VISTA, docs/EXTENSIONES.md)
+    vista_ext: String = ""    # de qué extensión es la vista
+    colores: String = ""      # el color de cada línea de la vista: un carácter por línea (ed_color_vista)
 end
 
 var documentos: [Documento] = []
@@ -158,12 +158,14 @@ func ed_abrir_texto(nombre: String, ruta: String, texto: String)
     activo = documentos.length - 1
 end
 
-# Una pestaña de solo lectura (las diferencias de git: tipo 1); si ya hay una con ese nombre, la vuelve a llenar
-func ed_abrir_vista(nombre: String, texto: String, tipo: Int)
+# Una pestaña de solo lectura de la extensión ext, con un color por línea (colores: un carácter por línea, ver
+# ed_color_vista); si ya tiene una con ese nombre, la vuelve a llenar
+func ed_abrir_vista(ext: String, nombre: String, lineas: [String], colores: String)
     i = 0
     for d in documentos
-        if d.vista == tipo and d.nombre == nombre
-            d.lineas = _lineas_de(texto)
+        if d.vista != 0 and d.vista_ext == ext and d.nombre == nombre
+            d.lineas = lineas
+            d.colores = colores
             d.primera = 0
             d.cl = 0
             d.cc = 0
@@ -174,9 +176,31 @@ func ed_abrir_vista(nombre: String, texto: String, tipo: Int)
         end
         i = i + 1
     end
-    ed_abrir_texto(nombre, "", texto)
-    documentos[activo].vista = tipo
-    documentos[activo].diseno = false
+    var d1: [Cambio] = []
+    var d2: [Cambio] = []
+    var pp: [Int] = []
+    if lineas.length == 0
+        lineas.push("")
+    end
+    documentos.push(Documento(nombre, "", lineas, 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, nil, nil, 0, 1, ext, colores))
+    activo = documentos.length - 1
+end
+
+# El color de una línea de una vista, por su carácter: + verde (añadido), - rojo (quitado), @ el del acento, # tenue,
+# ! amarillo; los demás, el del texto
+func ed_color_vista(c: String) -> Int
+    if c == "+"
+        return tema.bien
+    elif c == "-"
+        return tema.error
+    elif c == "@"
+        return tema.acento
+    elif c == "#"
+        return tema.tenue
+    elif c == "!"
+        return tema.cursor
+    end
+    return tema.texto
 end
 
 # Una pestaña con el editor de sprites
@@ -1319,10 +1343,10 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
         gfx_pen(tema.error)
         gfx_rect(x + 2, fy + 2, x + 7, fy + ed_alto_fila - 3)
     end
-    # git: lo cambiado frente a HEAD (del fichero guardado), a la derecha del margen; con 4 colores se distinguen
-    # por la forma: añadida, una raya llena; cambiada, una raya a trozos; quitadas, un triángulo
-    if d.vista == 0 and d.ruta != "" and not d.cambiado
-        _marca_git(git_marca(d.ruta, n, d.lineas.length), x + ed_margen - 9, fy)
+    # las rayas de las extensiones (git: lo cambiado frente a HEAD), a la derecha del margen; con 4 colores se
+    # distinguen por la forma: añadida, una raya llena; cambiada, una raya a trozos; quitadas, un triángulo
+    if d.vista == 0 and marcas_rayas.length > 0
+        _raya(raya_en(ed_marca_ruta, n + 1), x + ed_margen - 9, fy)
     end
     if parada
         # una flecha en el margen (con 4 colores el fondo de la línea no se distingue)
@@ -1351,16 +1375,9 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
     # los trozos de color que caen en las columnas que se ven
     hasta_col = d.izquierda + ed_columnas + 1
     if linea != "" and d.vista != 0
-        clase = gv_clase(linea)
         gfx_pen(tema.texto)
-        if clase == GV_ANADIDA
-            gfx_pen(tema.bien)
-        elif clase == GV_QUITADA
-            gfx_pen(tema.error)
-        elif clase == GV_TROZO
-            gfx_pen(tema.acento)
-        elif clase == GV_CABECERA
-            gfx_pen(tema.tenue)
+        if n < d.colores.length
+            gfx_pen(ed_color_vista(d.colores[n:n + 1]))
         end
         a = d.izquierda
         b = linea.length
@@ -1418,14 +1435,14 @@ func color_marca(m: String) -> Int
     return tema.texto
 end
 
-func _marca_git(m: Int, mx: Int, fy: Int)
+func _raya(m: Int, mx: Int, fy: Int)
     if m == 0
         return
     end
-    if (m & M_ANADIDA) != 0
+    if (m & R_ANADIDA) != 0
         gfx_pen(tema.bien)
         gfx_rect(mx, fy, mx + 2, fy + ed_alto_fila - 1)
-    elif (m & M_CAMBIADA) != 0
+    elif (m & R_CAMBIADA) != 0
         gfx_pen(tema.acento)
         k = 0
         while k < ed_alto_fila
@@ -1433,13 +1450,13 @@ func _marca_git(m: Int, mx: Int, fy: Int)
             k = k + 3
         end
     end
-    if (m & M_QUITADA) != 0
+    if (m & R_QUITADA) != 0
         gfx_pen(tema.error)
         gfx_rect(mx, fy, mx + 4, fy)
         gfx_rect(mx, fy + 1, mx + 2, fy + 1)
         gfx_rect(mx, fy + 2, mx, fy + 2)
     end
-    if (m & M_QUITADA_FIN) != 0
+    if (m & R_QUITADA_FIN) != 0
         b = fy + ed_alto_fila - 1
         gfx_pen(tema.error)
         gfx_rect(mx, b, mx + 4, b)

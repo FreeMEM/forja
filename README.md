@@ -17,8 +17,9 @@ castellano o en inglés, según el idioma de las Preferencias de Locale (el cat�
   todo listo. Forja busca el compilador en `ENV:Forja/dashc` (en Preferencias, con un botón para elegirlo), si no en
   `DASH:dash` y si no como `dash` en el camino de órdenes.
 - Para el botón Inferencia, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
-- Para el menú Git, [dashgit](https://github.com/FreeMEM/dashgit): Forja lo busca en `ENV:Forja/dashgit`, si no en
-  `DASH:dashgit` y si no como `dashgit` en el camino de órdenes. Para traer y subir por https, AmiSSL y una pila TCP/IP.
+- Para git (la extensión Git), [dashgit](https://github.com/FreeMEM/dashgit) con su orden `servidor`: se busca en
+  `ENV:Forja/dashgit`, si no en `DASH:dashgit` y si no como `dashgit` en el camino de órdenes. Para traer y subir por
+  https, AmiSSL y una pila TCP/IP.
 - Los colores de la sintaxis se ven mejor con más de 4 colores en la pantalla.
 
 ## Uso
@@ -113,24 +114,42 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 
 ### Git
 
-El menú Git usa [dashgit](https://github.com/FreeMEM/dashgit) en el cajón del proyecto. **dashgit está en alfa**:
-aún hay mucho que probar, así que ten copia de lo importante. El menú tiene estado, diferencias,
-historial, añadir los ficheros nuevos, confirmar los cambios (pide el mensaje), traer del servidor (pull, que
-fusiona si hace falta) y subir (push). Antes guarda lo que haya sin guardar, y lo que escribe dashgit sale en la salida.
+Git es una extensión (`Extensiones/Git`), que usa [dashgit](https://github.com/FreeMEM/dashgit). **dashgit está en
+alfa**: aún hay mucho que probar, así que ten copia de lo importante.
+
+- En la barra de botones, a la izquierda de Inferencia, la rama y "N cambios"; un clic abre el panel Cambios.
+- En el panel del proyecto, una letra en cada fichero o cajón con cambios: M (cambiado), A (nuevo en el índice),
+  D (borrado), U (conflicto), ? (sin seguir).
+- En el margen del editor, rayas frente al último commit: añadida (raya llena, verde), cambiada (a trozos, azul) y
+  quitadas (un triángulo rojo). Siguen a lo que escribes, sin guardar: al meter o quitar líneas se mueven con su
+  texto, y tras una pausa sin escribir llegan las de verdad.
+- El panel Cambios: una fila por fichero con su casilla (preparado o no para el commit), el mensaje y Confirmar.
+  Clic en la casilla, `add` o `reset` de ese fichero; dos clics en el nombre, sus diferencias.
+- Las diferencias se abren en una pestaña de solo lectura, con colores: `n` y `p` van al trozo siguiente y al
+  anterior, y Return lleva a esa línea del fichero.
+- Su menú (Extensiones > Git): estado, diferencias, historial, añadir los nuevos, Cambios y confirmar, traer (pull) y
+  subir (push). Antes guarda lo que haya sin guardar, y lo que escribe dashgit sale en la salida.
+
+Para que sea rápido, la extensión deja dashgit abierto (`dashgit servidor`) y le pide lo que necesita sin arrancarlo
+cada vez. Si ese dashgit no tiene servidor, o deja de contestar, cada orden va en un proceso aparte, más lento.
+`SetEnv Forja/git_servidor no` lo apaga.
+
 El cajón `.git` no se ve en el panel del proyecto.
 
 ### ARexx
 
 Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, `SELECCION`,
 `CAMBIAR fichero desde hasta texto`, `GUARDAR [fichero]`, `COMPILAR`, `EJECUTAR`, `ESTADO`, `ERRORES`,
-`BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea`, `GIT orden de dashgit` (sin esperar: `ESTADO` da `git`
-mientras sigue) y `SALIDA` (el texto de la salida). Para las extensiones hay más (el cursor, lo elegido, insertar,
-marcas, la barra, por lotes): [docs/EXTENSIONES.md](docs/EXTENSIONES.md).
+`BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea` y `SALIDA` (el texto de la salida). Para las extensiones
+hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas propias, por lotes):
+[docs/EXTENSIONES.md](docs/EXTENSIONES.md). La extensión Git tiene su puerto, `FORJAEXT.GIT`: `GIT orden de dashgit`
+(sin esperar: su `ESTADO` da `git` mientras sigue), `CAMBIOS` y `GITESTADO`.
 
 ### Extensiones
 
-Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones, teclas, marcas
-en el margen y en el proyecto, un texto en la barra o un editor para un tipo de fichero. Hablan con Forja por ARexx;
+Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones (o un menú suyo
+dentro), teclas, marcas y rayas en el margen, letras en el proyecto, una zona en la barra de botones, un texto en la
+barra, pestañas de solo lectura o un editor para un tipo de fichero. Git es una de ellas. Hablan con Forja por ARexx;
 si una cae o se cuelga, Forja sigue. Extensiones > Gestor de extensiones... las enseña, las activa o las desactiva y
 las instala desde un cajón o un `.lha`. La de ejemplo, Contar, cuenta las líneas y las palabras del fichero y mete
 la fecha con Ctrl Alt D. Cómo escribir una, con `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md).

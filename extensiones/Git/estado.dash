@@ -1,0 +1,658 @@
+# La extensión Git de Forja: el estado del repositorio (rama, ficheros cambiados, letras del proyecto y rayas del
+# margen) con dashgit. dashgit es GPLv2 y esta extensión MIT: no importa sus módulos, lo usa como programa aparte.
+#
+# Dos maneras de hablar con dashgit:
+#   - el servidor (dashgit servidor NOMBRE --dueno FORJAEXT.GIT): se queda abierto y contesta sin el coste de arrancar.
+#     Se le habla por ficheros (ENV:dashgit/NOMBRE.pedido y .respuesta) y no por rexx_send, que espera sin límite:
+#     así un servidor colgado no cuelga la extensión. Si no contesta en SRV_ESPERA, se da por perdido y se sigue sin él.
+#   - un proceso por orden (run_start), para lo que va por la red (pull, push, clone) y si no hay servidor.
+#
+#   git_programa = "DH0:C/dashgit"
+#   git_mirar_cajon(cajon)                 # cambió el cajón del proyecto: busca su repositorio y pide el estado
+#   git_pedir_estado()                     # al guardar, al volver a Forja, tras una orden
+#   git_orden("add -- \"x\"", G_NADA, "", "")   # una orden en cola (tras ella, el estado otra vez)
+#   r = git_mirar()                        # G_NADA, G_ESTADO, G_DIFF, G_RANGOS, G_SALIDA o G_ERROR
+#   git_letra_xy("M ")                     # la letra de unas letras de status: M, A, D, U o ?
+
+const G_NADA = 0
+const G_ESTADO = 1      # llegó el estado (git_rama, git_cambios, git_lineas)
+const G_DIFF = 2        # llegó un diff pedido con git_orden(..., G_DIFF, dato): git_texto, git_dato
+const G_RANGOS = 3      # llegaron los rangos de un fichero (diff --rangos): git_texto, git_dato (la ruta|versión)
+const G_ERROR = 4       # una orden acabó mal: git_texto (lo que escribió) y git_dato (la orden)
+const G_SALIDA = 5      # acabó una orden para la salida (G_SALIDA en git_orden): git_texto, git_rc, git_dato
+
+const G_ESPERA = 120000     # dos minutos como mucho para una orden por proceso
+const G_ESPERA_RED = 600000 # diez para lo que va por la red
+const SRV_ESPERA = 20000    # sin respuesta del servidor en este tiempo: colgado
+const SRV_ARRANQUE = 8000   # lo que se le espera al arrancar
+
+var git_programa: String = "dashgit"
+var git_raiz: String = ""          # el cajón con .git ("" si el proyecto no está en un repositorio)
+var git_cajon: String = ""         # el cajón del proyecto de la última vez (para ver si cambió)
+var git_rama: String = ""          # la rama ("" sin estado aún); "(suelto)" con HEAD suelto
+var git_cambios: Int = 0           # los ficheros con cambios (también los que no se siguen)
+var git_leido: Bool = false        # hay estado leído de este repositorio
+var git_lineas: [String] = []      # las líneas de status --porcelain (sin la de la rama): "XY ruta"
+var _xy: {String: String} = {}     # ruta desde la raíz (en minúsculas) -> sus dos letras
+
+# lo que llegó con git_mirar
+var git_texto: String = ""
+var git_dato: String = ""
+var git_rc: Int = 0
+var git_ms: Int = 0                # lo que tardó
+var git_ms_estado: Int = 0         # lo que tardó el último status y los últimos rangos (para la sonda)
+var git_ms_rangos: Int = 0
+var git_por_servidor: Bool = false # la última orden fue por el servidor
+
+# la cola: una orden a la vez
+var _run: Int = 0                  # el run_start de la orden en marcha (0: ninguna por proceso)
+var _en_marcha: Bool = false
+var _run_tipo: Int = 0
+var _run_dato: String = ""
+var _run_orden: String = ""
+var _inicio: Int = 0
+var _cola: [String] = []
+var _cola_tipo: [Int] = []
+var _cola_dato: [String] = []
+var _cola_cuerpo: [String] = []
+var _estado_pendiente: Bool = false
+
+# el servidor
+var srv_nombre: String = ""
+var srv_run: Int = 0
+var srv_estado: Int = 0            # 0 ninguno, 1 arrancando, 2 listo, 3 perdido (no se vuelve a usar)
+var srv_desde: Int = 0
+var srv_aviso: Int = 0             # el file_notify de su respuesta
+var srv_n: Int = 0                 # el número del último pedido
+var srv_dueno: String = ""         # el puerto de la extensión (el servidor se va si desaparece)
+var srv_quitado: Bool = false      # no usar el servidor (preferencia o pruebas)
+
+func _unir(cajon: String, nombre: String) -> String
+    if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
+        return cajon + nombre
+    end
+    return cajon + "/" + nombre
+end
+
+func _padre(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/"
+            return ruta[0:i]
+        end
+        if c == ":"
+            if i == ruta.length - 1
+                return ""
+            end
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
+
+# El cajón con .git que contiene a cajon (él o uno de arriba); "" si no hay
+func git_buscar_raiz(cajon: String) -> String
+    c = cajon
+    dos_requesters(false)
+    vueltas = 0
+    while c != "" and vueltas < 30
+        if file_exists(_unir(c, ".git/HEAD"))
+            dos_requesters(true)
+            return c
+        end
+        c = _padre(c)
+        vueltas = vueltas + 1
+    end
+    dos_requesters(true)
+    return ""
+end
+
+# Una ruta del Amiga a una ruta desde la raíz del repositorio, con "/"; "?" si está fuera
+func git_relativa(ruta: String) -> String
+    if git_raiz == ""
+        return "?"
+    end
+    if str_lower(ruta) == str_lower(git_raiz)
+        return ""
+    end
+    pre = git_raiz
+    if not str_ends(pre, ":") and not str_ends(pre, "/")
+        pre = pre + "/"
+    end
+    if str_starts(str_lower(ruta), str_lower(pre))
+        return ruta[pre.length:]
+    end
+    return "?"
+end
+
+func git_absoluta(rel: String) -> String
+    return _unir(git_raiz, rel)
+end
+
+# Si el cajón del proyecto cambió: busca su repositorio y, si es otro, olvida lo de antes y pide el estado. true si
+# cambió de repositorio.
+func git_mirar_cajon(cajon: String) -> Bool
+    if cajon == git_cajon
+        return false
+    end
+    git_cajon = cajon
+    raiz = git_buscar_raiz(cajon)
+    if raiz == git_raiz
+        return false
+    end
+    git_raiz = raiz
+    git_leido = false
+    git_rama = ""
+    git_cambios = 0
+    git_lineas = []
+    _xy = {}
+    if raiz != ""
+        srv_arrancar()
+        git_pedir_estado()
+    end
+    return true
+end
+
+func git_comillas(t: String) -> String
+    return "\"" + str_replace(str_replace(t, "*", "**"), "\"", "*\"") + "\""
+end
+
+# --- El servidor ---
+
+func _puerto_existe(nombre: String) -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func _srv_pedido() -> String
+    return "ENV:dashgit/" + srv_nombre + ".pedido"
+end
+
+func _srv_respuesta() -> String
+    return "ENV:dashgit/" + srv_nombre + ".respuesta"
+end
+
+# Arranca el servidor de dashgit, si no está ya (no espera: srv_mirar dice cuándo está listo)
+func srv_arrancar()
+    if srv_quitado or srv_estado == 1 or srv_estado == 2
+        return
+    end
+    # un nombre libre; los que quedaran de antes (de otra vez de la extensión) se despiden
+    k = 1
+    srv_nombre = ""
+    while k <= 9 and srv_nombre == ""
+        n = "FORJADASHGIT." + "#{k}"
+        if _puerto_existe(n)
+            dir_create("ENV:dashgit")
+            file_write_text("ENV:dashgit/" + n + ".pedido", "999999\nADIOS\n")
+        else
+            srv_nombre = n
+        end
+        k = k + 1
+    end
+    if srv_nombre == ""
+        srv_estado = 3
+        return
+    end
+    dir_create("ENV:dashgit")
+    file_delete(_srv_respuesta())
+    if srv_aviso == 0
+        srv_aviso = file_notify(_srv_respuesta())
+    end
+    orden = git_programa + " servidor " + srv_nombre
+    if srv_dueno != ""
+        orden = orden + " --dueno " + srv_dueno
+    end
+    srv_run = run_start(orden, 0)
+    if srv_run == 0
+        srv_estado = 3
+        return
+    end
+    srv_estado = 1
+    srv_desde = time_ms()
+end
+
+# Mira si el servidor ya está (o si no llegó a estar); true si hay que seguir mirando (arrancando)
+func srv_mirar() -> Bool
+    if srv_estado != 1
+        return false
+    end
+    if _puerto_existe(srv_nombre)
+        srv_estado = 2
+        return false
+    end
+    if run_ready(srv_run) or time_ms() - srv_desde > SRV_ARRANQUE
+        # este dashgit no tiene servidor, o no arranca: cada orden, un proceso
+        srv_perdido()
+        return false
+    end
+    return true
+end
+
+func srv_perdido()
+    srv_estado = 3
+    if srv_run != 0
+        run_break(srv_run)
+    end
+end
+
+# Al acabar la extensión: que se vaya (sin esperarle)
+func srv_adios()
+    if srv_estado == 1 or srv_estado == 2
+        srv_n = srv_n + 1
+        file_write_text(_srv_pedido(), "#{srv_n}\nADIOS\n")
+    end
+    if srv_run != 0
+        run_break(srv_run)
+    end
+end
+
+func srv_listo() -> Bool
+    return srv_estado == 2
+end
+
+# Lo que va por el servidor: lo local (lo de la red, en un proceso aparte)
+func _por_servidor(orden: String) -> Bool
+    if not srv_listo()
+        return false
+    end
+    p = str_split(str_trim(orden), " ")
+    o = p[0]
+    return o != "clone" and o != "fetch" and o != "pull" and o != "push" and o != "init"
+end
+
+# --- La cola ---
+
+func _empezar(orden: String, tipo: Int, dato: String, cuerpo: String) -> Bool
+    _run_tipo = tipo
+    _run_dato = dato
+    _run_orden = orden
+    _inicio = time_ms()
+    # en el repositorio; sin él (init, clone), en el cajón del proyecto
+    base = git_raiz
+    if base == ""
+        base = git_cajon
+    end
+    linea = "-C " + git_comillas(base) + " " + orden
+    if base == ""
+        linea = orden
+    end
+    if _por_servidor(orden)
+        srv_n = srv_n + 1
+        # (el cuerpo: el texto de --texto -)
+        file_write_text(_srv_pedido(), "#{srv_n}\n" + linea + "\n" + cuerpo)
+        _run = 0
+        _en_marcha = true
+        git_por_servidor = true
+        return true
+    end
+    git_por_servidor = false
+    o = linea
+    if cuerpo != ""
+        # sin servidor, el texto va en un fichero
+        file_write_text("T:forja-git-texto", cuerpo)
+        o = str_replace(o, "--texto -", "--texto T:forja-git-texto")
+    end
+    espera = G_ESPERA
+    if str_starts(orden, "pull") or str_starts(orden, "push") or str_starts(orden, "fetch") or str_starts(orden, "clone")
+        espera = G_ESPERA_RED
+    end
+    _run = run_start(git_programa + " " + o, espera)
+    if _run == 0
+        return false
+    end
+    _en_marcha = true
+    return true
+end
+
+# Pide el estado (status --porcelain -b); si hay algo en marcha, al acabar la cola
+func git_pedir_estado()
+    if git_raiz == ""
+        return
+    end
+    if _en_marcha or _cola.length > 0
+        _estado_pendiente = true
+        return
+    end
+    _estado_pendiente = false
+    _empezar("status --porcelain -b", G_ESTADO, "", "")
+end
+
+# Una orden de dashgit en cola. tipo: G_NADA (al acabar, el estado otra vez), G_DIFF, G_RANGOS, G_SALIDA (git_mirar
+# da su salida, con dato). cuerpo: el texto para --texto - ("" ninguno).
+func git_orden(orden: String, tipo: Int, dato: String, cuerpo: String)
+    if git_raiz == "" and git_cajon == ""
+        return
+    end
+    if _en_marcha
+        # unos rangos del mismo fichero que esperan: los nuevos los sustituyen
+        if tipo == G_RANGOS
+            i = 0
+            while i < _cola.length
+                if _cola_tipo[i] == G_RANGOS and _cola_dato[i] == dato
+                    _cola[i] = orden
+                    _cola_cuerpo[i] = cuerpo
+                    return
+                end
+                i = i + 1
+            end
+        end
+        _cola.push(orden)
+        _cola_tipo.push(tipo)
+        _cola_dato.push(dato)
+        _cola_cuerpo.push(cuerpo)
+        return
+    end
+    if not _empezar(orden, tipo, dato, cuerpo)
+        git_texto = "No se puede ejecutar " + git_programa
+        git_dato = orden
+    end
+end
+
+# Si hay algo en marcha o en cola (para mirar a menudo)
+func git_ocupado() -> Bool
+    return _en_marcha or _cola.length > 0
+end
+
+# Si va algo por proceso (para mirarlo con un tic: el servidor avisa él)
+func git_por_proceso() -> Bool
+    return _run != 0
+end
+
+func _siguiente()
+    while _cola.length > 0
+        orden = _cola[0]
+        tipo = _cola_tipo[0]
+        dato = _cola_dato[0]
+        cuerpo = _cola_cuerpo[0]
+        _cola.remove(0)
+        _cola_tipo.remove(0)
+        _cola_dato.remove(0)
+        _cola_cuerpo.remove(0)
+        if _empezar(orden, tipo, dato, cuerpo)
+            return
+        end
+    end
+    if _estado_pendiente
+        git_pedir_estado()
+    end
+end
+
+# La respuesta del servidor, si llegó entera: true y git_texto, git_rc; false si aún no
+func _srv_respuesta_leer() -> Bool
+    t = file_read_text(_srv_respuesta())
+    if t == nil
+        return false
+    end
+    fin = "FIN #{srv_n}"
+    p = str_find(t, "\n")
+    if p < 0
+        return false
+    end
+    cab = str_split(t[:p], " ")
+    if cab.length < 2 or cab[0] != "#{srv_n}"
+        return false
+    end
+    resto = t[p + 1:]
+    # la última línea (sin el salto del final) tiene que ser FIN n
+    q = resto.length
+    if q > 0 and resto[q - 1:q] == "\n"
+        q = q - 1
+    end
+    k = q - 1
+    while k >= 0 and resto[k:k + 1] != "\n"
+        k = k - 1
+    end
+    if resto[k + 1:q] != fin
+        return false
+    end
+    git_rc = Int(cab[1])
+    if k < 0
+        git_texto = ""
+    else
+        git_texto = resto[:k + 1]
+    end
+    return true
+end
+
+# Mira si acabó lo que estaba en marcha: G_NADA si no hay nada nuevo
+func git_mirar() -> Int
+    if not _en_marcha
+        return G_NADA
+    end
+    if _run != 0
+        if not run_ready(_run)
+            return G_NADA
+        end
+        git_texto = run_finish(_run)
+        git_rc = run_rc()
+        _run = 0
+    else
+        # por el servidor: su respuesta (o, si tarda demasiado, se da por colgado y la orden va por proceso)
+        if not _srv_respuesta_leer()
+            if time_ms() - _inicio > SRV_ESPERA
+                srv_perdido()
+                _en_marcha = false
+                o = _run_orden
+                if str_contains(o, "--texto -")
+                    # (el texto ya no está: esos rangos se pedirán otra vez)
+                    _siguiente()
+                    return G_NADA
+                end
+                _empezar(o, _run_tipo, _run_dato, "")
+            end
+            return G_NADA
+        end
+    end
+    _en_marcha = false
+    tipo = _run_tipo
+    git_dato = _run_dato
+    git_ms = time_ms() - _inicio
+    if tipo == G_ESTADO
+        git_ms_estado = git_ms
+        if git_rc == 0
+            _leer_estado(git_texto)
+        else
+            # un disco sin nombres largos, un repositorio roto...: sin marcas
+            git_leido = false
+            git_rama = ""
+        end
+        _siguiente()
+        return G_ESTADO
+    end
+    if tipo == G_RANGOS
+        git_ms_rangos = git_ms
+    end
+    if git_rc != 0 and tipo != G_RANGOS and tipo != G_SALIDA
+        git_dato = _run_orden
+        _estado_pendiente = true
+        _siguiente()
+        return G_ERROR
+    end
+    if tipo == G_NADA or tipo == G_SALIDA
+        _estado_pendiente = true
+    end
+    _siguiente()
+    return tipo
+end
+
+# --- El estado ---
+
+# La letra de unas letras de status: U (conflicto), A (nuevo en el índice), D (borrado), M (cambiado), ? (sin seguir)
+func git_letra_xy(xy: String) -> String
+    if xy == "??"
+        return "?"
+    end
+    if str_contains(xy, "U") or xy == "AA" or xy == "DD"
+        return "U"
+    end
+    if xy[:1] == "A"
+        return "A"
+    end
+    if xy[:1] == "D" or xy[1:2] == "D"
+        return "D"
+    end
+    return "M"
+end
+
+# La que gana para un cajón con varias dentro
+func _peso(l: String) -> Int
+    if l == "U"
+        return 5
+    elif l == "M"
+        return 4
+    elif l == "D"
+        return 3
+    elif l == "A"
+        return 2
+    elif l == "?"
+        return 1
+    end
+    return 0
+end
+
+func _leer_estado(texto: String)
+    git_rama = ""
+    git_cambios = 0
+    git_lineas = []
+    _xy = {}
+    for l in str_split(texto, "\n")
+        if str_starts(l, "## ")
+            r = l[3:]
+            p = str_find(r, "...")
+            if p >= 0
+                r = r[:p]
+            end
+            if str_starts(r, "No commits yet on ")
+                r = r[18:]
+            elif r == "HEAD (no branch)"
+                r = "(suelto)"
+            end
+            git_rama = r
+        elif l.length > 3 and l[2:3] == " "
+            git_lineas.push(l)
+            git_cambios = git_cambios + 1
+            _xy[str_lower(l[3:])] = l[:2]
+        end
+    end
+    git_leido = true
+end
+
+func _ultima_barra(s: String) -> Int
+    i = s.length - 1
+    while i >= 0
+        if str_code(s, i) == 47
+            return i
+        end
+        i = i - 1
+    end
+    return -1
+end
+
+# Las letras del panel del proyecto: las rutas enteras (ficheros, y los cajones con la letra que más pesa de lo que
+# tienen dentro) y su letra, en git_marcas_rutas y git_marcas_letras
+var git_marcas_rutas: [String] = []
+var git_marcas_letras: [String] = []
+var git_marcas_cajon: [Bool] = []
+
+func git_letras_proyecto()
+    git_marcas_rutas = []
+    git_marcas_letras = []
+    git_marcas_cajon = []
+    var cajones: {String: String} = {}
+    var orden: [String] = []
+    for l in git_lineas
+        ruta = l[3:]
+        letra = git_letra_xy(l[:2])
+        git_marcas_rutas.push(git_absoluta(ruta))
+        git_marcas_letras.push(letra)
+        git_marcas_cajon.push(false)
+        c = ruta
+        p = _ultima_barra(c)
+        while p > 0
+            c = c[:p]
+            antes = cajones.get(c, "")
+            if antes == ""
+                orden.push(c)
+            end
+            if _peso(letra) > _peso(antes)
+                cajones[c] = letra
+            end
+            p = _ultima_barra(c)
+        end
+    end
+    for c in orden
+        git_marcas_rutas.push(git_absoluta(c))
+        git_marcas_letras.push(cajones.get(c, ""))
+        git_marcas_cajon.push(true)
+    end
+end
+
+# Las dos letras de status de un fichero (ruta del Amiga); "" si no tiene cambios
+func git_xy_de(ruta: String) -> String
+    r = git_relativa(ruta)
+    if r == "?" or r == ""
+        return ""
+    end
+    return _xy.get(str_lower(r), "")
+end
+
+# --- Las rayas del margen: diff --rangos de cada fichero abierto ---
+
+# Las rayas de una salida de diff --rangos de un fichero de total líneas: las líneas (desde 1) y sus símbolos para
+# RAYAS (+ añadida, ~ cambiada, - quitadas encima, _ quitadas debajo de la última), en git_rayas_lineas y
+# git_rayas_simbolos
+var git_rayas_lineas: [Int] = []
+var git_rayas_simbolos: [String] = []
+
+func git_rayas(texto: String, total: Int)
+    git_rayas_lineas = []
+    git_rayas_simbolos = []
+    var en: {String: Int} = {}
+    for l in str_split(texto, "\n")
+        p = str_split(str_trim(l), " ")
+        if p.length == 3 and (p[0] == "A" or p[0] == "C" or p[0] == "B")
+            n = str_to_int(p[1], 10)
+            c = str_to_int(p[2], 10)
+            if p[0] == "B"
+                # quitadas justo antes de la n: un triángulo arriba de la n, o abajo de la última si n pasa del final
+                if n > total and total > 0
+                    _raya(en, total, "_")
+                elif n >= 1
+                    _raya(en, n, "-")
+                end
+            else
+                s = "+"
+                if p[0] == "C"
+                    s = "~"
+                end
+                k = n
+                while k < n + c
+                    _raya(en, k, s)
+                    k = k + 1
+                end
+            end
+        end
+    end
+end
+
+func _raya(en: {String: Int}, n: Int, s: String)
+    clave = "#{n}"
+    i = en.get(clave, 0)
+    if i > 0
+        git_rayas_simbolos[i - 1] = git_rayas_simbolos[i - 1] + s
+        return
+    end
+    git_rayas_lineas.push(n)
+    git_rayas_simbolos.push(s)
+    en[clave] = git_rayas_lineas.length
+end

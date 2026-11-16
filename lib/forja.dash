@@ -25,7 +25,7 @@
 
 var forja_puerto: String = "FORJA.1"
 var forja_ext: String = ""        # su nombre: el de su cajón en Extensiones/
-var forja_tipo: String = ""       # el último suceso: MENU, EDITAR, ABIERTO, GUARDADO, CERRADO, ACTIVO...
+var forja_tipo: String = ""       # el último suceso: MENU, EDITAR, ABIERTO, GUARDADO, CERRADO, ACTIVO, ZONA, TECLA...
 var forja_dato: String = ""       # lo que lo acompaña: la orden del menú, la ruta del fichero...
 var forja_version: String = ""    # la de Forja (de HOLA)
 var forja_rc: Int = 0             # el RC de la última orden: 0 bien, 5 o 10 si Forja no pudo, -1 si Forja no está
@@ -296,8 +296,69 @@ func forja_marcas_proyecto(rutas: [String], letras: [String])
     forja_orden(t)
 end
 
-# Una opción más en el menú Extensiones ("ctrl alt d", "f3"... o "" sin tecla): elegirla da MENU orden
+# Una opción más en su menú (el propio, si el manifiesto dice submenu; si no, en Extensiones) ("ctrl alt d", "f3"...
+# o "" sin tecla): elegirla da MENU orden
 func forja_menu(titulo: String, tecla: String, orden: String) -> Bool
     forja_orden("MENU " + forja_ext + " " + titulo + "|" + tecla + "|" + orden)
     return forja_rc == 0
+end
+
+# Su zona en la barra de botones, a la izquierda de Inferencia: un icono (uno de Forja, como "rama", o uno propio: 12
+# filas de 12 separadas por "/", con "#" los píxeles), un texto y un detalle en otro color; si no cabe el detalle, el
+# corto. Un clic en ella da el suceso ZONA. Con texto y detalle vacíos, la quita.
+func forja_zona(icono: String, texto: String, detalle: String, corto: String)
+    forja_orden("ZONA " + forja_ext + " " + icono + "|" + texto + "|" + detalle + "|" + corto)
+end
+
+# Una pestaña de solo lectura (o la suya de ese nombre, otra vez llena), delante: sus líneas y un color por línea (un
+# carácter cada una: + verde, - rojo, @ azul, # gris, ! amarillo; otro, el del texto). Las teclas que se pulsan en ella
+# (salvo las flechas y Esc) llegan como el suceso TECLA tecla línea nombre.
+func forja_vista(nombre: String, lineas: [String], colores: String) -> Bool
+    t = "VISTA " + forja_ext + " \"" + nombre + "\""
+    i = 0
+    while i < lineas.length
+        c = " "
+        if i < colores.length
+            c = colores[i:i + 1]
+        end
+        t = t + "\n" + c + lineas[i]
+        i = i + 1
+    end
+    forja_orden(t)
+    return forja_rc == 0
+end
+
+# Sus rayas en el margen de un fichero, pegadas al texto: líneas (desde 1) y sus símbolos (+ añadida, ~ cambiada,
+# - quitadas encima, _ quitadas debajo; "~-" las dos). Sustituyen las suyas de ese fichero; sin líneas, las quita.
+# version: la del texto del que salen (forja_version_texto; -1 sin mirarla): si el texto ya cambió, Forja no las pone
+# (forja_rc 5).
+func forja_rayas(ruta: String, lineas: [Int], simbolos: [String], version: Int) -> Bool
+    t = "RAYAS " + forja_ext + " \"" + ruta + "\""
+    if version >= 0
+        t = t + " #{version}"
+    end
+    i = 0
+    while i < lineas.length
+        t = t + "\n#{lineas[i]} " + simbolos[i]
+        i = i + 1
+    end
+    forja_orden(t)
+    return forja_rc == 0
+end
+
+# El texto de un fichero abierto como se guardaría (en UTF-8 si lo estaba; ruta "": el activo)
+func forja_texto_disco(ruta: String) -> String
+    if ruta == ""
+        return forja_orden("TEXTODISCO")
+    end
+    return forja_orden("TEXTODISCO \"" + ruta + "\"")
+end
+
+# Cuántos cambios lleva el texto de un fichero abierto (sube con cada uno); -1 si no está abierto
+func forja_version_texto(ruta: String) -> Int
+    r = forja_orden("VERSION \"" + ruta + "\"")
+    if forja_rc != 0
+        return -1
+    end
+    return Int(r)
 end

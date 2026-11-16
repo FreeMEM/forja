@@ -1,0 +1,559 @@
+# Git: la extensión de git de Forja (docs/EXTENSIONES.md y docs/GIT_LOOP.md de Forja). Usa dashgit, que va aparte
+# (es GPLv2; esta extensión es MIT): como servidor que se queda abierto (dashgit servidor) para lo de cada momento, y
+# como un proceso por orden para lo que va por la red.
+#
+# Lo que pone en Forja: la rama y "N cambios" en la barra de botones (un clic abre el panel Cambios), una letra en cada
+# fichero y cajón cambiado del proyecto (M, A, D, U, ?), las rayas del margen (lo cambiado frente a HEAD, también
+# mientras se escribe, sin guardar), su menú Git (dentro de Extensiones) y la vista de las diferencias (n, p, Return).
+# El panel Cambios es una ventana suya.
+#
+#   ./dash extensiones/Git/git.dash -o Extensiones/Git/Git    (desde el cajón de Forja)
+#
+# Su puerto ARexx, FORJAEXT.GIT: GIT orden (una orden de dashgit en el cajón del proyecto, sin esperar; lo que escribe
+# va a la salida de Forja), ESTADO (libre o git), CAMBIOS (el panel) y GITESTADO ("rama|cambios|letras|rayas del
+# fichero activo", para las pruebas).
+
+@version "Git 0.1 (Forja)"
+
+import "lib/forja.dash"
+import "cambios.dash"
+import "vista.dash"
+import "git.dashui"
+
+const EV_TIC = 1
+const EV_GC_CONFIRMAR = 80      # el panel Cambios (git.dashui)
+const EV_GC_DIFERENCIAS = 81
+const EV_GC_TODO = 82
+const EV_GC_NADA = 83
+const EV_GC_CERRAR = 86
+const EV_GC_BARRA = 87
+const EV_GC_LISTA = 88
+const TIC_MS = 150
+
+var app: Int = 0
+var vc: GitCambios = nil
+var vc_abierta: Bool = false
+var proyecto: String = ""          # el cajón del proyecto de Forja
+var activo: String = ""            # el fichero de delante
+var tic_armado: Bool = false
+var sonda: Bool = false
+var git_commit: Bool = false       # la orden para la salida en marcha es el commit del panel
+var salida_ocupada: Bool = false   # hay una orden para la salida en marcha (ESTADO da "git")
+var salida_inicio: Int = 0
+var vistas: {String: String} = {}  # el nombre de cada vista de diferencias -> su texto
+var marcas_puestas: Bool = false   # hay letras en el proyecto (para quitarlas si ya no hay repositorio)
+var sonda_antes: String = ""
+var sonda_gc: String = ""
+
+func nombre_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/" or c == ":"
+            return ruta[i + 1:]
+        end
+        i = i - 1
+    end
+    return ruta
+end
+
+# dashgit: ENV:Forja/dashgit, DASH:dashgit, el del cajón de Dash (Dash/Forja/Extensiones/Git/Git: Dash/dashgit) o la
+# orden dashgit del camino de órdenes
+func programa_dashgit() -> String
+    c = env_get("Forja/dashgit")
+    if c != ""
+        return c
+    end
+    dos_requesters(false)
+    c = "dashgit"
+    if file_exists("DASH:dashgit")
+        c = "DASH:dashgit"
+    elif file_exists("PROGDIR:///dashgit")
+        r = file_real_path("PROGDIR:///dashgit")
+        if r != ""
+            c = r
+        end
+    end
+    dos_requesters(true)
+    return c
+end
+
+func armar_tic(ms: Int)
+    if not tic_armado
+        tic_armado = true
+        mui_timer(ms, EV_TIC)
+    end
+end
+
+# --- Lo que se enseña en Forja ---
+
+# La zona de la barra, las letras del proyecto y el panel Cambios, tras un estado nuevo
+func al_dia()
+    if git_raiz == "" or not git_leido or git_rama == ""
+        forja_zona("", "", "", "")
+    else
+        detalle = ""
+        corto = ""
+        if git_cambios == 1
+            detalle = "1 cambio"
+            corto = "1"
+        elif git_cambios > 1
+            detalle = "#{git_cambios} cambios"
+            corto = "#{git_cambios}"
+        end
+        forja_zona("rama", git_rama, detalle, corto)
+    end
+    git_letras_proyecto()
+    if git_marcas_rutas.length > 0 or marcas_puestas
+        forja_marcas_proyecto(git_marcas_rutas, git_marcas_letras)
+        marcas_puestas = git_marcas_rutas.length > 0
+    end
+    if vc_abierta
+        if gc_sel >= git_lineas.length
+            gc_sel = -1
+        end
+        mui_set_range(vc.barra, git_lineas.length, gc_caben)
+        mui_canvas_redraw(vc.lista)
+    end
+end
+
+# Pide las rayas de un fichero abierto, del texto que tiene ahora en Forja (guardado o no), frente a HEAD
+func pedir_rangos(ruta: String)
+    if ruta == "" or git_raiz == "" or not git_leido
+        return
+    end
+    rel = git_relativa(ruta)
+    if rel == "?" or rel == ""
+        return
+    end
+    xy = git_xy_de(ruta)
+    if xy == "??" or (xy != "" and git_letra_xy(xy) == "U")
+        # sin seguir o con conflicto: sin rayas
+        var nada: [Int] = []
+        var nadas: [String] = []
+        forja_rayas(ruta, nada, nadas, -1)
+        return
+    end
+    r = forja_lote(["VERSION \"" + ruta + "\"", "TEXTODISCO \"" + ruta + "\""])
+    if r.length < 2 or r[0] == ""
+        return       # no está abierto
+    end
+    texto = r[1]
+    total = str_split(texto, "\n").length
+    if str_ends(texto, "\n")
+        total = total - 1
+    end
+    # sin salto al final, git lo dice en la última línea: se le pone para comparar igual que el fichero guardado
+    git_orden("diff --rangos HEAD --texto - -- " + git_comillas(rel), G_RANGOS, ruta + "|" + r[0] + "|#{total}", texto)
+end
+
+# Una orden de dashgit para la salida de Forja (lo que escriba sale ahí al acabar)
+func a_la_salida(orden: String)
+    if salida_ocupada
+        forja_aviso_tipo("Git: espera a que acabe la orden de antes.", 1)
+        return
+    end
+    if proyecto == ""
+        forja_aviso_tipo("Abre antes un fichero del proyecto.", 1)
+        return
+    end
+    # lo que haya sin guardar va antes al disco
+    for f in str_split(forja_orden("CAMBIADOS"), "\n")
+        if f != ""
+            forja_orden("GUARDAR \"" + f + "\"")
+        end
+    end
+    forja_aviso("git " + orden)
+    salida_ocupada = true
+    salida_inicio = time_ms()
+    git_orden(orden, G_SALIDA, orden, "")
+end
+
+func segundos(ms: Int) -> String
+    return "#{ms / 1000},#{(ms % 1000) / 100} s"
+end
+
+# Lo que llegó de dashgit
+func mirar()
+    if srv_mirar()
+        armar_tic(300)
+    end
+    r = git_mirar()
+    while r != G_NADA
+        if r == G_ESTADO
+            al_dia()
+            pedir_rangos(activo)
+        elif r == G_RANGOS
+            p = str_split(git_dato, "|")
+            if p.length >= 3
+                git_rayas(git_texto, Int(p[2]))
+                forja_rayas(p[0], git_rayas_lineas, git_rayas_simbolos, Int(p[1]))
+            end
+        elif r == G_DIFF
+            if str_trim(git_texto) == ""
+                forja_aviso("Sin diferencias con el último commit: " + git_dato)
+            else
+                ver_vista(git_dato, git_texto)
+            end
+        elif r == G_SALIDA
+            if str_trim(git_texto) != ""
+                forja_aviso(str_trim(git_texto))
+            end
+            if git_rc == 0
+                forja_aviso_tipo("Git: hecho en " + segundos(time_ms() - salida_inicio) + ".", 2)
+                if git_commit
+                    mui_set_text(vc.mensaje, "")
+                end
+            else
+                forja_aviso_tipo("Git acabó con código #{git_rc}.", 1)
+            end
+            git_commit = false
+            # un init o un clone pueden haber hecho el repositorio: se busca otra vez
+            raiz_antes = git_raiz
+            git_cajon = ""
+            git_mirar_cajon(proyecto)
+            if git_raiz != raiz_antes and git_raiz == ""
+                al_dia()
+            end
+            git_pedir_estado()
+            salida_ocupada = false
+        elif r == G_ERROR
+            if str_trim(git_texto) != ""
+                forja_aviso_tipo(str_trim(git_texto), 1)
+            end
+            forja_aviso_tipo("Git falló: " + git_dato, 1)
+        end
+        r = git_mirar()
+    end
+    if git_por_proceso()
+        armar_tic(TIC_MS)
+    elif git_ocupado()
+        # el servidor avisa al contestar; esto es por si no contesta
+        armar_tic(1000)
+    end
+    if sonda
+        publicar_sonda()
+    end
+end
+
+# --- La vista de diferencias ---
+
+func ver_vista(rel: String, texto: String)
+    nombre = nombre_de(rel) + " (cambios)"
+    vistas[nombre] = texto
+    var ls: [String] = str_split(str_replace(texto, "\r\n", "\n"), "\n")
+    if ls.length > 0 and ls[ls.length - 1] == ""
+        ls.remove(ls.length - 1)
+    end
+    forja_vista(nombre, ls, gv_colores(ls))
+end
+
+# Las diferencias de un fichero (ruta desde la raíz del repositorio) en una vista
+func ver_diferencias(rel: String)
+    if rel == "" or git_raiz == ""
+        return
+    end
+    abs = git_absoluta(rel)
+    if git_xy_de(abs) == "??"
+        t = file_read_text(abs)
+        if t != nil
+            ver_vista(rel, gv_de_nuevo(rel, t))
+        end
+        return
+    end
+    git_orden("diff HEAD -- " + git_comillas(rel), G_DIFF, rel, "")
+end
+
+# TECLA tecla línea nombre: n y p, al trozo siguiente y al anterior; Return, a esa línea del fichero
+func tecla(dato: String)
+    p1 = str_find(dato, " ")
+    if p1 < 0
+        return
+    end
+    p2 = str_find_from(dato, " ", p1 + 1)
+    if p2 < 0
+        return
+    end
+    t = dato[:p1]
+    linea = Int(dato[p1 + 1:p2]) - 1
+    nombre = dato[p2 + 1:]
+    texto = vistas.get(nombre, "")
+    if texto == ""
+        return
+    end
+    var ls: [String] = str_split(texto, "\n")
+    if t == "n" or t == "p"
+        i = gv_trozo(ls, linea, t == "n")
+        if i >= 0
+            forja_ir(i + 1, 1)
+        end
+    elif t == "return" and git_raiz != ""
+        sitio = gv_sitio(ls, linea)
+        if sitio != ""
+            q = str_split(sitio, "|")
+            forja_abrir(git_absoluta(q[0]), Int(q[1]))
+        end
+    end
+end
+
+# --- El panel Cambios ---
+
+func panel_abrir()
+    if git_raiz == ""
+        forja_aviso_tipo("El proyecto no está en un repositorio de git.", 1)
+    end
+    mui_window_open(vc.window)
+    vc_abierta = true
+    # el mensaje, listo para escribir
+    mui_set_active(vc.window, vc.mensaje)
+    git_pedir_estado()
+    al_dia()
+end
+
+func confirmar()
+    m = str_trim(mui_get_text(vc.mensaje))
+    if m == ""
+        forja_aviso_tipo("Escribe el mensaje del commit.", 1)
+        mui_set_active(vc.window, vc.mensaje)
+        return
+    end
+    if gc_preparados() == 0
+        mui_request(vc.window, "Nada preparado", "Marca la casilla de los ficheros que van en el commit.", "_Vale")
+        return
+    end
+    if salida_ocupada
+        return
+    end
+    git_commit = true
+    a_la_salida("commit -m " + git_comillas(m))
+end
+
+func panel_evento(ev: Int)
+    if ev == EV_GC_CERRAR
+        mui_window_close(vc.window)
+        vc_abierta = false
+    elif ev == EV_GC_CONFIRMAR
+        confirmar()
+    elif ev == EV_GC_DIFERENCIAS
+        ver_diferencias(gc_ruta(gc_sel))
+    elif ev == EV_GC_TODO
+        git_orden("add -A", G_NADA, "", "")
+    elif ev == EV_GC_NADA
+        git_orden("reset -q", G_NADA, "", "")
+    elif ev == EV_GC_BARRA
+        desde = mui_get_value(vc.barra)
+        if desde != gc_desde
+            gc_desde = gc_desde_valido(desde)
+            mui_canvas_redraw(vc.lista)
+        end
+    elif ev == EV_GC_LISTA
+        rueda = mui_canvas_wheel(vc.lista)
+        if rueda != 0
+            gc_desde = gc_desde_valido(gc_desde - rueda * 3)
+            mui_set_value(vc.barra, gc_desde)
+            mui_canvas_redraw(vc.lista)
+        elif mui_canvas_button(vc.lista) == 1
+            o = gc_clic(mui_canvas_mouse_x(vc.lista), mui_canvas_mouse_y(vc.lista))
+            if o == "diff"
+                ver_diferencias(gc_ruta(gc_sel))
+            elif o != ""
+                git_orden(o, G_NADA, "", "")
+            end
+            mui_canvas_redraw(vc.lista)
+        end
+    end
+end
+
+# --- Los sucesos de Forja ---
+
+func menu(orden: String)
+    if orden == "estado"
+        a_la_salida("status")
+    elif orden == "diff"
+        a_la_salida("diff")
+    elif orden == "log"
+        a_la_salida("log --oneline -n 30")
+    elif orden == "add"
+        a_la_salida("add -A")
+    elif orden == "pull"
+        a_la_salida("pull")
+    elif orden == "push"
+        a_la_salida("push")
+    elif orden == "cambios"
+        panel_abrir()
+    elif orden == "diff-fichero"
+        a = str_split(forja_activo(), "\n")
+        if a.length < 3 or a[0] == "" or git_relativa(a[0]) == "?"
+            forja_aviso_tipo("Este fichero no está en el repositorio del proyecto.", 1)
+        else
+            if a[2] == "1"
+                forja_orden("GUARDAR \"" + a[0] + "\"")
+            end
+            ver_diferencias(git_relativa(a[0]))
+        end
+    end
+end
+
+func suceso()
+    t = forja_tipo
+    d = forja_dato
+    if t == "PROYECTO"
+        proyecto = d
+        if git_mirar_cajon(d)
+            al_dia()
+        end
+    elif t == "ACTIVO"
+        activo = d
+        pedir_rangos(d)
+    elif t == "ABIERTO" or t == "CAMBIADO"
+        pedir_rangos(d)
+    elif t == "GUARDADO"
+        git_pedir_estado()
+        pedir_rangos(d)
+    elif t == "VUELTA"
+        # quizá cambió algo fuera (ficheros nuevos, otro git, un .git nuevo): el repositorio y el estado otra vez
+        git_cajon = ""
+        if git_mirar_cajon(proyecto)
+            al_dia()
+        end
+        git_pedir_estado()
+    elif t == "MENU"
+        menu(d)
+    elif t == "ZONA"
+        panel_abrir()
+    elif t == "TECLA"
+        tecla(d)
+    end
+end
+
+# --- Su puerto ARexx (FORJAEXT.GIT) ---
+
+# Las letras del proyecto como las enseña Forja: "letra:nombre" de lo que hay en el cajón del proyecto
+func letras_sonda() -> String
+    t = ""
+    pre = proyecto
+    if not str_ends(pre, ":") and not str_ends(pre, "/")
+        pre = pre + "/"
+    end
+    i = 0
+    while i < git_marcas_rutas.length
+        r = git_marcas_rutas[i]
+        if str_starts(str_lower(r), str_lower(pre)) and not str_contains(r[pre.length:], "/")
+            n = r[pre.length:]
+            if git_marcas_cajon[i]
+                n = n + "/"
+            end
+            t = t + " " + git_marcas_letras[i] + ":" + n
+        end
+        i = i + 1
+    end
+    return str_trim(t)
+end
+
+func git_sonda() -> String
+    m = ""
+    if activo != ""
+        m = forja_orden("RAYAS \"" + activo + "\"")
+    end
+    return git_rama + "|#{git_cambios}|" + letras_sonda() + "|" + m
+end
+
+func atender_rexx()
+    o = rexx_get()
+    while o != ""
+        p = str_find(o, " ")
+        orden = str_upper(o)
+        resto = ""
+        if p >= 0
+            orden = str_upper(o[:p])
+            resto = str_trim(o[p + 1:])
+        end
+        if orden == "GIT" and resto != ""
+            if salida_ocupada
+                rexx_reply(5, "")
+            else
+                a_la_salida(resto)
+                rexx_reply(0, "")
+            end
+        elif orden == "ESTADO"
+            if salida_ocupada
+                rexx_reply(0, "git")
+            else
+                rexx_reply(0, "libre")
+            end
+        elif orden == "CAMBIOS"
+            panel_abrir()
+            rexx_reply(0, "")
+        elif orden == "GITESTADO"
+            rexx_reply(0, git_sonda())
+        else
+            rexx_reply(10, "")
+        end
+        o = rexx_get()
+    end
+end
+
+# Para las pruebas (con FORJA_SONDA): ENV:FORJA_GIT (como GITESTADO), FORJA_GIT_MS (lo que tardaron el último status
+# y los últimos rangos, y si fue por el servidor) y FORJA_GIT_CAMBIOS (la lista del panel)
+func publicar_sonda()
+    s = "#{git_ms_estado} #{git_ms_rangos} #{srv_estado}"
+    if s != sonda_antes
+        sonda_antes = s
+        env_set("FORJA_GIT_MS", s, false)
+    end
+    if vc_abierta
+        c = gc_sonda()
+        if c != sonda_gc
+            sonda_gc = c
+            env_set("FORJA_GIT_CAMBIOS", c, false)
+        end
+    end
+end
+
+Main
+    sonda = env_get("FORJA_SONDA") != ""
+    if not forja_empezar("Git")
+        Print "Git es una extensión de Forja: la arranca Forja."
+    else
+        app = mui_app_begin("ForjaGit", "FORJAGIT")
+        if app == 0
+            forja_aviso_tipo("Git: no se puede abrir MUI.", 1)
+        else
+            vc = GitCambios_create()
+            mui_canvas_on_draw(vc.lista, gc_dibujar)
+            mui_canvas_on_input(vc.lista, EV_GC_LISTA)
+            git_programa = programa_dashgit()
+            srv_dueno = "FORJAEXT." + str_upper(forja_ext)
+            srv_quitado = env_get("Forja/git_servidor") == "no"
+            salir = false
+            while not salir
+                ev = mui_wait_event_signals(forja_senal() | rexx_signal())
+                if ev == -1
+                    # (MUI pide salir: la extensión sigue mientras Forja esté)
+                    ev = 0
+                end
+                if ev == EV_TIC
+                    tic_armado = false
+                elif ev >= EV_GC_CONFIRMAR and ev <= EV_GC_LISTA
+                    panel_evento(ev)
+                end
+                atender_rexx()
+                s = forja_suceso(-1)
+                while s != ""
+                    if s == "SALIR"
+                        salir = true
+                        break
+                    end
+                    suceso()
+                    s = forja_suceso(-1)
+                end
+                if not salir
+                    mirar()
+                end
+            end
+            srv_adios()
+            mui_app_end()
+        end
+        forja_acabar()
+    end
+end

@@ -1,9 +1,11 @@
-# Git en Forja (docs/GIT_LOOP.md): la rama y los cambios en la barra, las letras del panel del proyecto, las marcas
-# del margen, el panel Cambios (casillas con el ratón, mensaje y Confirmar) y la vista de diferencias. Lo arranca
-# tests/git_panel.sh; maneja Forja por ARexx (FORJA.1), con el ratón y el teclado, y mira la sonda (ENV:FORJA_GIT,
-# ENV:FORJA_GIT_CAMBIOS). Anota en DH0:Prueba/git_panel.txt y acaba con "TODO BIEN".
+# La extensión Git de Forja (docs/GIT_LOOP.md): la rama y los cambios en la barra, las letras del panel del
+# proyecto, las rayas del margen (al guardar y mientras se escribe, sin guardar), el panel Cambios (casillas con el
+# ratón, mensaje y Confirmar) y la vista de diferencias. Lo arranca tests/git_panel.sh; maneja Forja por ARexx
+# (FORJA.1) y la extensión por el suyo (FORJAEXT.GIT), con el ratón y el teclado, y mira la sonda
+# (ENV:FORJA_GIT_CAMBIOS, ENV:FORJA_GIT_MS). Anota en DH0:Prueba/git_panel.txt y acaba con "TODO BIEN".
 
 const FORJA = "FORJA.1"
+const GIT = "FORJAEXT.GIT"
 
 # dónde está el proyecto de prueba (DH0:Prueba; en la máquina coffin, RAM:Prueba: lo pone git_panel_coffin.dash)
 var BASE: String = "DH0:Prueba"
@@ -32,10 +34,15 @@ func rexx(orden: String) -> String
     return rexx_send(FORJA, orden)
 end
 
+# A la extensión Git
+func rgit(orden: String) -> String
+    return rexx_send(GIT, orden)
+end
+
 func esperar_libre()
     n = 0
     time_delay(10)
-    while n < 3000 and rexx("ESTADO") != "libre"
+    while n < 3000 and rgit("ESTADO") != "libre"
         time_delay(10)
         n = n + 1
     end
@@ -43,7 +50,7 @@ end
 
 func git(orden: String) -> String
     antes = rexx("SALIDA").length
-    rexx("GIT " + orden)
+    rgit("GIT " + orden)
     esperar_libre()
     s = rexx("SALIDA")
     if s.length > antes
@@ -55,10 +62,10 @@ end
 # Espera (hasta unos 40 s) a que el estado de git de Forja tenga ese trozo: "rama|cambios|panel|margen"
 func esperar_git(trozo: String) -> String
     n = 0
-    s = rexx("GITESTADO")
+    s = rgit("GITESTADO")
     while n < 400 and not str_contains("#" + s + "#", trozo)
         time_delay(5)
-        s = rexx("GITESTADO")
+        s = rgit("GITESTADO")
         n = n + 1
     end
     return s
@@ -156,6 +163,12 @@ Main
         n = n + 1
     end
     ver("el puerto contesta", n < 600, "")
+    n = 0
+    while n < 600 and rgit("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("la extensión Git contesta", n < 600, "")
     rexx("ABRIR \"" + MAIN + "\" 1")
     s = git("init")
     ver("init", str_contains(s, "Repositorio vac"), s)
@@ -166,7 +179,7 @@ Main
     ver("commit", str_contains(s, "primero"), s)
     s = esperar_git("#main|0|")
     ver("la barra: rama main y nada cambiado", str_starts(s, "main|0|"), s)
-    ver("la rama sale en la barra", str_contains(env_get("FORJA_BOTONES"), " 89:"), env_get("FORJA_BOTONES"))
+    ver("la rama sale en la barra", str_contains(env_get("FORJA_BOTONES"), " 89:") and str_starts(rexx("ZONA"), "Git|main|"), env_get("FORJA_BOTONES") + " " + rexx("ZONA"))
     # un cambio guardado: la línea 4 cambiada y una nueva arriba
     rexx("CAMBIAR " + MAIN + " 4 4 \"const MAX = 20\"")
     rexx("CAMBIAR " + MAIN + " 1 0 \"# cambiado desde Forja\"")
@@ -175,7 +188,37 @@ Main
     s = esperar_git("|1:1 5:2#")
     ms = time_ms() - t0
     ver("al guardar: 1 cambio, M en el panel y marcas en el margen", str_starts(s, "main|1|M:main.dash|1:1 5:2"), s)
-    anotar("  (de guardar a las marcas: #{ms} ms; status y diff --rangos: " + env_get("FORJA_GIT_MS") + " ms)")
+    anotar("  (de guardar a las marcas: #{ms} ms; status, diff --rangos (ms) y servidor (2 listo): " + env_get("FORJA_GIT_MS") + ")")
+    # sin guardar: una línea nueva antes de la 3. Las rayas siguen a su texto enseguida (la 5 pasa a la 6) y, tras
+    # la pausa sin escribir, llegan las nuevas (la 3, añadida)
+    t0 = time_ms()
+    rexx("CAMBIAR " + MAIN + " 3 2 \"# sin guardar\"")
+    s = rexx("RAYAS " + MAIN)
+    ver("las rayas siguen al texto al escribir", s == "1:1 6:2", s)
+    s = esperar_git("|1:1 3:1 6:2#")
+    ms = time_ms() - t0
+    ver("sin guardar: las rayas del texto del editor", str_ends(s, "|1:1 3:1 6:2"), s)
+    anotar("  (de escribir a las rayas, sin guardar: #{ms} ms, con la pausa de 600 ms; " + env_get("FORJA_GIT_MS") + ")")
+    # más veces, para medir: añadir una línea y volver al texto de antes (ESCRIBIR)
+    base = rexx("TEXTO " + MAIN)
+    k = 0
+    total = 0
+    while k < 3
+        t0 = time_ms()
+        rexx("CAMBIAR " + MAIN + " 8 7 \"# otra #{k}\"")
+        s = esperar_git("|1:1 3:1 6:2 8:1#")
+        total = total + time_ms() - t0
+        t0 = time_ms()
+        rexx("ESCRIBIR " + base)
+        s = esperar_git("|1:1 3:1 6:2#")
+        total = total + time_ms() - t0
+        k = k + 1
+    end
+    ver("añadir y quitar una línea, tres veces", str_ends(s, "|1:1 3:1 6:2"), s)
+    anotar("  (de escribir a las rayas: #{total / 6} ms de media en 6 veces; " + env_get("FORJA_GIT_MS") + ")")
+    rexx("GUARDAR " + MAIN)
+    s = esperar_git("|1|M:main.dash|1:1 3:1 6:2#")
+    ver("guardado con la línea nueva", str_starts(s, "main|1|M:main.dash|1:1 3:1 6:2"), s)
     pausa()
     # un fichero nuevo hecho fuera de Forja: se ve al volver a Forja
     file_write_text(CAJON + "/nuevo.dash", "Main\n    Print \"nuevo\"\nend\n")
@@ -193,7 +236,7 @@ Main
     s = esperar_git("?:nuevo.dash")
     ver("al volver a Forja: el nuevo con ?", str_contains(s, "|2|") and str_contains(s, "?:nuevo.dash"), s)
     # el panel Cambios
-    rexx("CAMBIOS")
+    rgit("CAMBIOS")
     time_delay(50)
     ver("el panel Cambios se abre", activar("Cambios"), input_active_title())
     ver("las filas", esperar_fila(" M main.dash") and esperar_fila("?? nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
@@ -232,7 +275,7 @@ Main
     l = sonda_nombre()
     ver("Return lleva a la línea de main.dash", str_ends(l, " main.dash") and str_starts(l, "0 "), l)
     # confirmar: al abrir el panel el cursor está en el mensaje; se escribe y Return
-    rexx("CAMBIOS")
+    rgit("CAMBIOS")
     time_delay(30)
     activar("Cambios")
     input_text("tercero desde el panel")

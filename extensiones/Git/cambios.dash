@@ -1,4 +1,4 @@
-# Git en Forja: el panel "Cambios" (la ventana GitCambios de git.dashui). Una fila por fichero con cambios: la
+# La extensión Git de Forja: el panel "Cambios" (la ventana GitCambios de git.dashui). Una fila por fichero con cambios: la
 # casilla dice si va en el commit (preparado en el índice), la letra qué le pasa (M, A, D, U, ?) y la ruta. Un clic
 # en la casilla lo prepara o lo quita (dashgit add / reset); un clic en la ruta la elige y otro clic en la elegida
 # abre sus diferencias.
@@ -7,8 +7,39 @@
 #   orden = gc_clic(x, y)                # la orden de dashgit que toca ("" nada, "diff" las diferencias)
 #   gc_ruta(gc_sel)                      # la ruta (desde la raíz del repositorio) de la fila elegida
 
-import "tema.dash"
-import "git_estado.dash"
+import "estado.dash"
+
+# Los colores (los de Forja: fondo negro, texto claro) y la letra
+struct Colores
+    fondo: Int
+    texto: Int
+    tenue: Int
+    bien: Int
+    error: Int
+    cursor: Int
+    seleccion: Int
+end
+
+var tema: Colores = nil
+var fuente: Int = 0
+var ancho_letra: Int = 8
+var alto_letra: Int = 8
+var base_letra: Int = 6
+
+func tema_preparar()
+    if tema != nil
+        return
+    end
+    tema = Colores(color_pen(26, 26, 32), color_pen(220, 220, 210), color_pen(110, 110, 124), color_pen(110, 200, 120),
+                   color_pen(230, 80, 70), color_pen(255, 200, 80), color_pen(40, 70, 130))
+    fuente = font_open("topaz.font", 8)
+    if fuente != 0
+        font_use(fuente)
+    end
+    ancho_letra = font_text_width("M")
+    alto_letra = font_height()
+    base_letra = font_baseline()
+end
 
 const GC_CASILLA = 18     # el ancho de la columna de la casilla
 
@@ -86,9 +117,11 @@ end
 func gc_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
     gfx_mode(0)
-    gfx_pen(tema.fondo_panel)
+    gfx_pen(tema.fondo)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
-    usar_codigo()
+    if fuente != 0
+        font_use(fuente)
+    end
     gc_zona_x = x
     gc_zona_y = y
     gc_fila = alto_letra + 4
@@ -100,9 +133,9 @@ func gc_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gc_desde = gc_desde_valido(gc_desde)
     if git_lineas.length == 0
         gfx_pen(tema.tenue)
-        t = tr(460, "Sin cambios.")
+        t = "Sin cambios."
         if git_raiz == ""
-            t = tr(461, "El proyecto no está en un repositorio de git.")
+            t = "El proyecto no está en un repositorio de git."
         end
         gfx_text_at(x + 8, y + gc_y0 + 2 + base_letra, t)
         return

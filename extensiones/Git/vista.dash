@@ -1,6 +1,6 @@
-# Git en Forja: la vista de las diferencias de un fichero, en una pestaña de solo lectura del editor. Cada línea va
-# de un color según lo que es (la pone el editor con gv_clase); n y p van al trozo siguiente y al anterior, y Return
-# lleva a esa línea del fichero.
+# La extensión Git de Forja: la vista de las diferencias de un fichero, en una pestaña de solo lectura de Forja
+# (VISTA). Cada línea va de un color según lo que es (gv_colores); n y p van al trozo siguiente y al anterior, y Return
+# lleva a esa línea del fichero (las teclas llegan con el suceso TECLA).
 
 const GV_NORMAL = 0
 const GV_ANADIDA = 1
@@ -100,4 +100,24 @@ func gv_de_nuevo(ruta: String, texto: String) -> String
         r = r + "+" + l + "\n"
     end
     return r
+end
+
+# Los colores de las líneas de un diff para VISTA: + añadida, - quitada, @ trozo, # cabecera, espacio lo demás
+func gv_colores(lineas: [String]) -> String
+    t = ""
+    for l in lineas
+        c = gv_clase(l)
+        if c == GV_ANADIDA
+            t = t + "+"
+        elif c == GV_QUITADA
+            t = t + "-"
+        elif c == GV_TROZO
+            t = t + "@"
+        elif c == GV_CABECERA
+            t = t + "#"
+        else
+            t = t + " "
+        end
+    end
+    return t
 end

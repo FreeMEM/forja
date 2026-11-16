@@ -1,0 +1,19 @@
+# Git: la extensión de git de Forja, con dashgit (docs/GIT_LOOP.md)
+nombre = Git
+version = 0.1
+autor = FreeMEM
+licencia = MIT
+descripcion = Git con dashgit: la rama y los cambios en la barra, una letra en los ficheros cambiados del proyecto, rayas en el margen mientras escribes, el panel Cambios para preparar y confirmar, y las diferencias.
+programa = Git
+arranque = inicio
+sucesos = activo abierto guardado cambiado proyecto vuelta
+pausa = 600
+submenu = Git
+menu = Estado | | estado
+menu = Diferencias | | diff
+menu = Diferencias de este fichero | | diff-fichero
+menu = Historial | | log
+menu = Añadir los ficheros nuevos | | add
+menu = Cambios y confirmar... | | cambios
+menu = Traer del servidor (pull) | | pull
+menu = Subir al servidor (push) | | push

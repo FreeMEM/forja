@@ -17,8 +17,9 @@ English or Spanish, following the Locale preferences (the English catalog is in 
   everything up. Forja looks for the compiler in `ENV:Forja/dashc` (in the preferences, with a button to choose it),
   then `DASH:dash`, then as `dash` in the command path.
 - For the Inferencia button, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
-- For the Git menu, [dashgit](https://github.com/FreeMEM/dashgit): Forja looks for it in `ENV:Forja/dashgit`, then
-  `DASH:dashgit`, then as `dashgit` in the command path. To pull and push over https, AmiSSL and a TCP/IP stack.
+- For git (the Git extension), [dashgit](https://github.com/FreeMEM/dashgit) with its `servidor` command: it is looked
+  for in `ENV:Forja/dashgit`, then `DASH:dashgit`, then as `dashgit` in the command path. To pull and push over https,
+  AmiSSL and a TCP/IP stack.
 - Syntax colours look better with more than 4 colours on the screen.
 
 ## Use
@@ -114,24 +115,35 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 
 ### Git
 
-The Git menu runs [dashgit](https://github.com/FreeMEM/dashgit) in the project drawer. **dashgit is in alpha**:
-there is still a lot to test, so keep a copy of what matters. The menu has status, differences, history,
-add the new files, commit the changes (it asks for the message), pull (which merges if needed) and push. It saves
-what is unsaved first, and what dashgit writes goes to the output. The `.git` drawer is hidden in the project panel.
+Git is an extension (`Extensiones/Git`) that uses [dashgit](https://github.com/FreeMEM/dashgit). **dashgit is in
+alpha**: there is still a lot to test, so keep a copy of what matters.
+
+- In the button bar, left of Inferencia, the branch and "N cambios" (changes); a click opens the Changes panel.
+- In the project panel, a letter on each changed file or drawer: M, A, D, U (conflict), ? (untracked).
+- In the editor margin, bars against the last commit: added (solid, green), changed (dashed, blue) and removed (a red
+  triangle). They follow what you type, unsaved: they move with their lines, and after a pause the real ones arrive.
+- The Changes panel: one row per file with its box (staged or not), the message and Confirmar (commit).
+- Differences open in a read-only tab with colours: `n` and `p` go to the next and previous hunk, Return to that line.
+- Its menu (Extensiones > Git): status, differences, history, add the new files, changes and commit, pull and push.
+
+To be fast, the extension keeps dashgit open (`dashgit servidor`) instead of starting it each time. If that dashgit
+has no server, or stops answering, each command runs as a separate process. `SetEnv Forja/git_servidor no` turns it
+off. The `.git` drawer is hidden in the project panel.
 
 ### ARexx
 
 Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO file` (text), `SELECCION`
 (selection), `CAMBIAR file from to text` (change lines), `GUARDAR [file]` (save), `COMPILAR` (build), `EJECUTAR`
 (run), `ESTADO` (state), `ERRORES` (errors), `BUSCAR text` (find), `CAMBIARTODO find replace`, `IRA line` (go to),
-`GIT dashgit command` (without waiting: `ESTADO` says `git` while it runs) and `SALIDA` (the output text).
-Extensions have more (cursor, selection, insert, marks, the bar, batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md)
-(in Spanish).
+and `SALIDA` (the output text). Extensions have more (cursor, selection, insert, marks, bars, the bar, own tabs,
+batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md) (in Spanish). The Git extension has its own port, `FORJAEXT.GIT`:
+`GIT dashgit command` (without waiting: its `ESTADO` says `git` while it runs), `CAMBIOS` and `GITESTADO`.
 
 ### Extensions
 
-Separate programs in the `Extensiones` drawer next to Forja that add entries to the Extensiones menu, keys, marks in
-the margin and in the project panel, a text in the bar, or an editor for a file type. They talk to Forja over ARexx;
+Separate programs in the `Extensiones` drawer next to Forja that add entries to the Extensiones menu (or a menu of
+their own inside it), keys, marks and bars in the margin, letters in the project panel, a zone in the button bar, a
+text in the bar, read-only tabs, or an editor for a file type. Git is one of them. They talk to Forja over ARexx;
 if one crashes or hangs, Forja carries on. Extensiones > Gestor de extensiones... lists them, turns them on or off and
 installs them from a drawer or an `.lha`. The example one, Contar, counts the lines and words of the file and inserts
 the date with Ctrl Alt D. How to write one with `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md).

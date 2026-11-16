@@ -5,6 +5,8 @@
 #   marca_en(str_lower(ruta), 3)          # "+" ("" si no hay)
 #   marcas_proyecto_poner("Git", ["Work:juego/main.dash"], ["M"])
 #   barra_poner("Contar", "120 líneas")
+#   rayas_poner("Git", "Work:juego/main.dash", [3, 5], ["+", "~-"])   # rayas pegadas al texto (lo cambiado)
+#   marcas_mover(str_lower(ruta), 10, 1, 2)   # la línea 10 es ahora dos (Return): las de después bajan una
 #
 # Cada extensión cambia solo lo suyo: poner sustituye todas sus marcas de ese fichero (o del proyecto).
 
@@ -22,7 +24,23 @@ struct MarcasProyecto
     letras: {String: String}    # ruta en minúsculas -> sus letras
 end
 
+# Las rayas del margen (RAYAS): lo cambiado frente a algo (git: frente a HEAD), pegado al texto. Una línea lleva unos
+# bits: R_ANADIDA (raya llena), R_CAMBIADA (raya a trozos), R_QUITADA (se quitaron líneas justo encima: un triángulo
+# arriba) y R_QUITADA_FIN (se quitaron líneas justo debajo: un triángulo abajo). Con 4 colores se distinguen por la forma.
+const R_ANADIDA = 1
+const R_CAMBIADA = 2
+const R_QUITADA = 4
+const R_QUITADA_FIN = 8
+
+struct RayasFichero
+    ext: String
+    ruta: String          # en minúsculas
+    lineas: [Int]         # desde 1, en orden
+    bits: [Int]
+end
+
 var marcas_margen: [MarcasFichero] = []
+var marcas_rayas: [RayasFichero] = []
 var marcas_proyecto: [MarcasProyecto] = []
 var barra_exts: [String] = []
 var barra_textos: [String] = []
@@ -111,6 +129,166 @@ func marca_en(r: String, n: Int) -> String
     return ""
 end
 
+# Los bits de unos símbolos de RAYAS: + añadida, ~ cambiada, - quitadas encima, _ quitadas debajo (varios juntos)
+func rayas_bits(s: String) -> Int
+    b = 0
+    if str_contains(s, "+")
+        b = b | R_ANADIDA
+    elif str_contains(s, "~")
+        b = b | R_CAMBIADA
+    end
+    if str_contains(s, "-")
+        b = b | R_QUITADA
+    end
+    if str_contains(s, "_")
+        b = b | R_QUITADA_FIN
+    end
+    return b
+end
+
+# Las rayas de ext en el fichero ruta: lineas (desde 1) con sus símbolos. Sustituyen las suyas; sin líneas, las quita.
+func rayas_poner(ext: String, ruta: String, lineas: [Int], simbolos: [String])
+    r = str_lower(ruta)
+    i = 0
+    while i < marcas_rayas.length
+        if marcas_rayas[i].ext == ext and marcas_rayas[i].ruta == r
+            marcas_rayas.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    n = lineas.length
+    if n == 0
+        return
+    end
+    if n > 4096
+        n = 4096
+    end
+    var orden: [Int] = []
+    k = 0
+    while k < n
+        orden.push(lineas[k] * 4096 + k)
+        k = k + 1
+    end
+    orden.sort(_marcas_antes)
+    var ls: [Int] = []
+    var bs: [Int] = []
+    for o in orden
+        j = o % 4096
+        b = 0
+        if j < simbolos.length
+            b = rayas_bits(simbolos[j])
+        end
+        if b != 0 and lineas[j] > 0
+            if ls.length > 0 and ls[ls.length - 1] == lineas[j]
+                bs[bs.length - 1] = bs[bs.length - 1] | b
+            else
+                ls.push(lineas[j])
+                bs.push(b)
+            end
+        end
+    end
+    marcas_rayas.push(RayasFichero(ext, r, ls, bs))
+end
+
+# Los bits de la línea n (desde 1) del fichero r (en minúsculas), de todas las extensiones; 0 si no tiene
+func raya_en(r: String, n: Int) -> Int
+    b = 0
+    if r == ""
+        return 0
+    end
+    for m in marcas_rayas
+        if m.ruta == r
+            a = 0
+            z = m.lineas.length - 1
+            while a <= z
+                c = (a + z) / 2
+                if m.lineas[c] == n
+                    b = b | m.bits[c]
+                    break
+                elif m.lineas[c] < n
+                    a = c + 1
+                else
+                    z = c - 1
+                end
+            end
+        end
+    end
+    return b
+end
+
+# Se escribió en el fichero r (en minúsculas): sus quitadas líneas desde la desde (desde 1) son ahora puestas. Las
+# marcas y rayas de después se mueven con su texto (hasta que la extensión las vuelva a poner); las de las líneas que
+# ya no están se van. true si alguna cambió.
+func marcas_mover(r: String, desde: Int, quitadas: Int, puestas: Int) -> Bool
+    if r == "" or quitadas == puestas
+        return false
+    end
+    fin = desde + quitadas         # la primera de después de lo cambiado
+    nuevo_fin = desde + puestas
+    delta = puestas - quitadas
+    movida = false
+    for m in marcas_margen
+        if m.ruta == r
+            i = 0
+            while i < m.lineas.length
+                l = m.lineas[i]
+                if l >= fin
+                    m.lineas[i] = l + delta
+                    movida = true
+                elif l >= nuevo_fin
+                    m.lineas.remove(i)
+                    m.simbolos.remove(i)
+                    movida = true
+                    continue
+                end
+                i = i + 1
+            end
+        end
+    end
+    for m in marcas_rayas
+        if m.ruta == r
+            i = 0
+            while i < m.lineas.length
+                l = m.lineas[i]
+                if l >= fin
+                    m.lineas[i] = l + delta
+                    movida = true
+                elif l >= nuevo_fin
+                    m.lineas.remove(i)
+                    m.bits.remove(i)
+                    movida = true
+                    continue
+                end
+                i = i + 1
+            end
+        end
+    end
+    return movida
+end
+
+# Para la sonda y la orden RAYAS sin más: "línea:bits" de las rayas de un fichero (r en minúsculas)
+func rayas_texto(r: String) -> String
+    t = ""
+    var ls: [Int] = []
+    for m in marcas_rayas
+        if m.ruta == r
+            for l in m.lineas
+                ls.push(l)
+            end
+        end
+    end
+    ls.sort(_marcas_antes)
+    antes = -1
+    for l in ls
+        if l != antes
+            t = t + " #{l}:#{raya_en(r, l)}"
+            antes = l
+        end
+    end
+    return str_trim(t)
+end
+
 # Las letras de ext en el panel del proyecto: sustituyen todas las suyas
 func marcas_proyecto_poner(ext: String, rutas: [String], letras: [String])
     i = 0
@@ -182,6 +360,14 @@ func marcas_quitar_ext(ext: String)
     while i < marcas_margen.length
         if marcas_margen[i].ext == ext
             marcas_margen.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    i = 0
+    while i < marcas_rayas.length
+        if marcas_rayas[i].ext == ext
+            marcas_rayas.remove(i)
         else
             i = i + 1
         end

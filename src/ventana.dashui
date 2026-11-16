@@ -39,21 +39,6 @@
           ]
         },
         {
-          "tr": 358, "title": "Git (alfa)",
-          "items": [
-            { "tr": 359, "label": "Estado", "event": 63 },
-            { "tr": 360, "label": "Diferencias", "event": 64 },
-            { "tr": 480, "label": "Diferencias de este fichero", "event": 90 },
-            { "tr": 361, "label": "Historial", "event": 65 },
-            { "separator": true },
-            { "tr": 362, "label": "Añadir los ficheros nuevos", "event": 66 },
-            { "tr": 479, "label": "Cambios y confirmar...", "event": 67 },
-            { "separator": true },
-            { "tr": 364, "label": "Traer del servidor (pull)", "event": 68 },
-            { "tr": 365, "label": "Subir al servidor (push)", "event": 69 }
-          ]
-        },
-        {
           "tr": 314, "title": "Edición",
           "items": [
             { "tr": 315, "label": "Deshacer", "key": "Z", "event": 43 },
@@ -97,7 +82,43 @@
             { "name": "ext_m8", "label": "", "event": 208, "disabled": true },
             { "name": "ext_m9", "label": "", "event": 209, "disabled": true },
             { "name": "ext_m10", "label": "", "event": 210, "disabled": true },
-            { "name": "ext_m11", "label": "", "event": 211, "disabled": true }
+            { "name": "ext_m11", "label": "", "event": 211, "disabled": true },
+            { "name": "ext_s0", "label": "", "disabled": true, "submenu": [
+                { "name": "ext_s0_0", "label": "", "event": 212, "disabled": true },
+                { "name": "ext_s0_1", "label": "", "event": 213, "disabled": true },
+                { "name": "ext_s0_2", "label": "", "event": 214, "disabled": true },
+                { "name": "ext_s0_3", "label": "", "event": 215, "disabled": true },
+                { "name": "ext_s0_4", "label": "", "event": 216, "disabled": true },
+                { "name": "ext_s0_5", "label": "", "event": 217, "disabled": true },
+                { "name": "ext_s0_6", "label": "", "event": 218, "disabled": true },
+                { "name": "ext_s0_7", "label": "", "event": 219, "disabled": true },
+                { "name": "ext_s0_8", "label": "", "event": 220, "disabled": true },
+                { "name": "ext_s0_9", "label": "", "event": 221, "disabled": true }
+              ] },
+            { "name": "ext_s1", "label": "", "disabled": true, "submenu": [
+                { "name": "ext_s1_0", "label": "", "event": 222, "disabled": true },
+                { "name": "ext_s1_1", "label": "", "event": 223, "disabled": true },
+                { "name": "ext_s1_2", "label": "", "event": 224, "disabled": true },
+                { "name": "ext_s1_3", "label": "", "event": 225, "disabled": true },
+                { "name": "ext_s1_4", "label": "", "event": 226, "disabled": true },
+                { "name": "ext_s1_5", "label": "", "event": 227, "disabled": true },
+                { "name": "ext_s1_6", "label": "", "event": 228, "disabled": true },
+                { "name": "ext_s1_7", "label": "", "event": 229, "disabled": true },
+                { "name": "ext_s1_8", "label": "", "event": 230, "disabled": true },
+                { "name": "ext_s1_9", "label": "", "event": 231, "disabled": true }
+              ] },
+            { "name": "ext_s2", "label": "", "disabled": true, "submenu": [
+                { "name": "ext_s2_0", "label": "", "event": 232, "disabled": true },
+                { "name": "ext_s2_1", "label": "", "event": 233, "disabled": true },
+                { "name": "ext_s2_2", "label": "", "event": 234, "disabled": true },
+                { "name": "ext_s2_3", "label": "", "event": 235, "disabled": true },
+                { "name": "ext_s2_4", "label": "", "event": 236, "disabled": true },
+                { "name": "ext_s2_5", "label": "", "event": 237, "disabled": true },
+                { "name": "ext_s2_6", "label": "", "event": 238, "disabled": true },
+                { "name": "ext_s2_7", "label": "", "event": 239, "disabled": true },
+                { "name": "ext_s2_8", "label": "", "event": 240, "disabled": true },
+                { "name": "ext_s2_9", "label": "", "event": 241, "disabled": true }
+              ] }
           ]
         }
       ],

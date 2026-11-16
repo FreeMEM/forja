@@ -1,13 +1,14 @@
 # Extensiones de Forja
 
-Una extensión es un programa aparte que añade algo a Forja: opciones de menú, teclas, marcas en el código, un texto
-en la barra, un editor para un tipo de fichero. Habla con Forja por su puerto ARexx, `FORJA.1`. Si cae o se cuelga,
+Una extensión es un programa aparte que añade algo a Forja: opciones de menú (sueltas o en un menú suyo), teclas,
+marcas y rayas en el margen del código, letras en el proyecto, una zona en la barra de botones, un texto en la barra,
+pestañas de solo lectura con colores y teclas propias, un editor para un tipo de fichero. Habla con Forja por su puerto ARexx, `FORJA.1`. Si cae o se cuelga,
 Forja sigue en pie.
 
 Se escriben en Dash con `lib/forja.dash`, pero valen en cualquier lenguaje que hable ARexx (también un script).
 
 La de ejemplo es `extensiones/Contar`: cuenta las líneas y las palabras del fichero, lo pone en la barra y mete la
-fecha en el cursor con Ctrl Alt D.
+fecha en el cursor con Ctrl Alt D. `extensiones/Git` (git con dashgit) usa casi todo lo demás.
 
 ## Dónde van
 
@@ -44,7 +45,9 @@ En el cajón `Extensiones` junto a Forja, una por cajón:
 | `programa` | El programa, dentro de su cajón. Por defecto, el nombre del cajón. |
 | `arranque` | `inicio`: arranca con Forja. `menu` (por defecto): la primera vez que se elige su menú, se pulsa su tecla o se abre uno de sus tipos de fichero. |
 | `sucesos` | Los avisos que quiere (ver Sucesos). Los demás no se le guardan. |
-| `menu` | Una opción del menú Extensiones: `título \| tecla \| orden`. La tecla y la orden pueden faltar; sin orden, es el título. Puede haber varias. |
+| `menu` | Una opción del menú: `título \| tecla \| orden`. La tecla y la orden pueden faltar; sin orden, es el título. Puede haber varias. |
+| `submenu` | El título de su menú propio (`submenu = Git`): sus opciones van ahí, dentro de Extensiones, y no sueltas. |
+| `pausa` | Cuántos milisegundos sin escribir antes de `CAMBIADO` (por defecto 1200; 300 como poco). |
 | `tipos` | Los ficheros que abre ella, por su final: `.spr .bob`. Forja no los abre: se los pasa con `EDITAR`. Los `.dash` y `.dashui` son siempre de Forja. |
 
 Teclas: `ctrl`, `alt`, `shift`, `amiga` y una letra, una cifra o `f1` a `f10`. Por ejemplo `ctrl alt d` o `f3`.
@@ -122,11 +125,13 @@ Cada uno es una línea: el tipo, un espacio y el dato.
 | `GUARDADO ruta` | Se guardó. | `guardado` |
 | `CERRADO ruta` | Se cerró su pestaña (sin ruta: el nombre). | `cerrado` |
 | `ACTIVO ruta` | Cambió el fichero de delante (vacío: ninguno). Llega también al arrancar. | `activo` |
-| `CAMBIADO ruta` | Se escribió en el editor y lleva 1,2 s sin escribir. | `cambiado` |
+| `CAMBIADO ruta` | Se escribió en el editor (o por ARexx) y lleva su `pausa` sin escribir (1,2 s si no dice). | `cambiado` |
 | `COMPILADO n` | Acabó de compilar: n errores (0 si compiló). Sus líneas, con `ERRORES`. | `compilado` |
 | `PROYECTO cajón` | Cambió el cajón del panel del proyecto. Llega también al arrancar. | `proyecto` |
 | `MARCA ruta línea` | Un clic en una marca suya del margen. | `marca` |
-| `VUELTA` | La ventana de Forja vuelve a ser la activa (quizá cambió algo fuera: git mira el estado). Se mira cada 1,5 s, solo si alguna lo pide. | `vuelta` |
+| `VUELTA` | La ventana de Forja vuelve a ser la activa (quizá cambió algo fuera: git mira el estado). Al volver, Forja lee otra vez el cajón del proyecto. | `vuelta` |
+| `ZONA` | Un clic en su zona de la barra de botones. | No |
+| `TECLA tecla línea nombre` | Una tecla en su pestaña de solo lectura `nombre`, con el cursor en esa línea (desde 1). La tecla es la letra, `return`, `tab`, `borrar` o `espacio`. Las flechas y Esc no llegan: mueven el cursor. | No |
 
 Un fichero sin guardar no tiene ruta: va su nombre ("sin nombre.dash").
 
@@ -141,17 +146,19 @@ Las de "el fichero activo" valen solo con un fichero de texto delante (no con un
 
 | Orden | Respuesta |
 |-------|-----------|
-| `HOLA nombre` | La versión de la API y la de Forja: `1 0.6.5`. |
+| `HOLA nombre` | La versión de la API y la de Forja: `2 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, submenu, pausa...). |
 | `SUCESOS nombre` | Sus sucesos, uno por línea, y la cola queda vacía. |
 | `ADIOS nombre` | Se va. Forja quita sus marcas y su texto. |
-| `MENU nombre título\|tecla\|orden` | Una opción más en el menú Extensiones, mientras Forja siga abierto. Su número; RC 5 si no caben (hay 12 entre todas). |
+| `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 10 en cada menú propio). |
 
 ### Leer
 
 | Orden | Respuesta |
 |-------|-----------|
-| `ACTIVO` | Del fichero de delante, una cosa por línea: ruta (vacía si no se ha guardado), nombre, cambiado (0 o 1), tipo (`texto`, `dashui`, `sprite` o `mapa`) y número de líneas. RC 5 si no hay ninguno. |
+| `ACTIVO` | Del fichero de delante, una cosa por línea: ruta (vacía si no se ha guardado), nombre, cambiado (0 o 1), tipo (`texto`, `dashui`, `sprite`, `mapa` o `vista`, una pestaña de solo lectura) y número de líneas. RC 5 si no hay ninguno. |
 | `TEXTO [fichero]` | Todo el texto, guardado o no. Sin fichero, el activo. El fichero tiene que estar abierto. |
+| `TEXTODISCO [fichero]` | El texto como se guardaría: en UTF-8 si el fichero lo estaba (`TEXTO` va siempre en Latin-1). Para compararlo con el del disco (git). |
+| `VERSION [fichero]` | Cuántos cambios lleva el texto: sube con cada uno. Para `RAYAS` con versión. |
 | `LINEAS desde hasta [fichero]` | Esas líneas, las dos incluidas. |
 | `LINEA n [fichero]` | Una línea. |
 | `CURSOR` | `línea columna`. |
@@ -159,11 +166,14 @@ Las de "el fichero activo" valen solo con un fichero de texto delante (no con un
 | `SELECCION` | La ruta, la primera y la última línea elegidas y su texto (las líneas enteras). |
 | `ABIERTO fichero` | `1` o `0`. |
 | `ABIERTOS` | Las rutas de las pestañas, una por línea. |
+| `CAMBIADOS` | Las rutas de los ficheros abiertos con cambios sin guardar, una por línea. |
 | `PROYECTO` | El cajón del panel del proyecto en la primera línea; después, lo que enseña (los cajones acaban en `/`). |
-| `ESTADO` | `libre`, `compilando`, `ejecutando`, `depurando` o `git`. |
+| `ESTADO` | `libre`, `compilando`, `ejecutando` o `depurando`. |
 | `ERRORES` | Las líneas de error de la última compilación. |
 | `SALIDA` | El texto de la salida. |
 | `BARRA` | Lo que enseña la barra. |
+| `ZONA` | Las zonas de la barra de botones, una por línea: `extensión\|texto\|detalle`. |
+| `RAYAS fichero` | Las rayas de ese fichero: `línea:bits` separadas por espacios (1 añadida, 2 cambiada, 4 quitadas encima, 8 quitadas debajo). |
 
 ### Escribir
 
@@ -188,13 +198,19 @@ Todo con deshacer, como si lo hubiera escrito el usuario.
 | `AVISO tipo texto` | Una línea en la salida: tipo 0 normal, 1 error (en rojo), 2 bien (en verde). |
 | `BARRA nombre texto` | Su texto en la barra, a la derecha del título de la salida. Sin texto, lo quita. |
 | `MARCAS nombre fichero`, y una marca por línea: `línea símbolo` | Sus marcas en el margen de ese fichero. Sustituyen las suyas de antes; sin líneas, las quita. |
-| `MARCASPROYECTO nombre`, y una por línea: `letras ruta` | Sus letras junto a los ficheros y cajones del panel del proyecto (rutas enteras; un cajón, sin `/` al final). Sustituyen las suyas. El color sale de la última letra: `A` verde; `D`, `U` y `!` rojo; `?` gris; las demás, azul. |
+| `MARCASPROYECTO nombre`, y una por línea: `letras ruta` | Sus letras junto a los ficheros y cajones del panel del proyecto (rutas enteras; un cajón, sin `/` al final), a la derecha. Sustituyen las suyas. El color sale de la última letra: `A` verde; `D`, `U` y `!` rojo; `?` gris; las demás, azul. |
+| `RAYAS nombre fichero [versión]`, y una por línea: `línea símbolos` | Sus rayas en el margen de ese fichero, pegadas al texto: `+` añadida (raya llena, verde), `~` cambiada (raya a trozos, azul), `-` se quitaron líneas justo encima (un triángulo rojo arriba), `_` se quitaron justo debajo (abajo; para lo quitado tras la última). Se juntan: `~-`. Sustituyen las suyas; sin líneas, las quita. Con versión (la de `VERSION`), solo si el texto sigue en esa: si no, RC 5 y nada cambia. |
+| `ZONA nombre icono\|texto\|detalle\|corto` | Su zona en la barra de botones, a la izquierda de Inferencia: un icono (uno de Forja, como `rama`, o uno propio: 12 filas de 12 separadas por `/`, con `#` los píxeles), un texto y un detalle en otro color. Si no cabe el detalle, va el corto; si tampoco, solo el texto; si tampoco, no se ve. Un clic da `ZONA`. Sin texto ni detalle, la quita. |
+| `VISTA nombre "título"`, y una por línea: el color (un carácter) y el texto | Una pestaña de solo lectura, delante; si ya tiene una con ese título, la vuelve a llenar. El color de cada línea: `+` verde, `-` rojo, `@` azul, `#` gris, `!` amarillo; otro (un espacio), el del texto. Sus teclas llegan con `TECLA`; el cursor se mueve con `CURSOR`. No se guarda ni se escribe en ella. |
 
 Las marcas del margen van en una columna entre los números y el texto, que solo aparece si el fichero tiene alguna.
 Se distinguen por el símbolo, también con los 4 colores del Workbench. El color sale del símbolo: `+` verde
-(añadida), `-` y `!` rojo (quitada, error), `~` y `*` azul (cambiada); los demás, del color del texto.
+(añadida), `-` y `!` rojo (quitada, error), `~` y `*` azul (cambiada); los demás, del color del texto. Las rayas van
+a la derecha de los números, pegadas al texto, y se distinguen por la forma.
 
-Las marcas no se mueven al escribir: la extensión las vuelve a poner cuando le parezca (git, con `GUARDADO`).
+Al escribir (también por ARexx), las marcas y las rayas siguen a su línea: si se meten o se quitan líneas, las de
+después se mueven, y las de las líneas quitadas se van. La extensión las vuelve a poner cuando le parezca (git, con
+`CAMBIADO`: del texto que hay en el editor, sin guardar).
 
 Ejemplo, desde ARexx:
 
@@ -236,7 +252,11 @@ Para leer el fichero entero, `TEXTO` de una vez es mucho más rápido que línea
 | `forja_aviso(texto)`, `forja_aviso_tipo(texto, tipo)` | Una línea en la salida. |
 | `forja_barra(texto)` | Su texto en la barra. |
 | `forja_marcas(ruta, líneas, símbolos)`, `forja_marcas_proyecto(rutas, letras)` | Sus marcas. |
-| `forja_menu(título, tecla, orden)` | Una opción más en el menú. |
+| `forja_menu(título, tecla, orden)` | Una opción más en su menú. |
+| `forja_zona(icono, texto, detalle, corto)` | Su zona en la barra de botones. |
+| `forja_vista(nombre, líneas, colores)` | Una pestaña de solo lectura con un color por línea (`colores`: un carácter por línea). |
+| `forja_rayas(ruta, líneas, símbolos, versión)` | Sus rayas en el margen (versión -1: sin mirarla). |
+| `forja_texto_disco(ruta)`, `forja_version_texto(ruta)` | `TEXTODISCO` y `VERSION`. |
 
 El `import "lib/forja.dash"` lo encuentra `./dash` subiendo de cajón en cajón desde el fichero que importa: una
 extensión en `extensiones/X/` del repositorio de Forja (o en `Forja/Extensiones/X/`, con `Forja/lib/forja.dash`)
@@ -259,8 +279,10 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
 ## Lo que falta
 
 - Teclas de las extensiones fuera del editor (con el puntero en el proyecto o la salida).
-- El menú tiene 12 opciones para todas las extensiones. Las libres quedan vacías y apagadas: Dash no puede
-  añadir ni quitar opciones de un menú ya hecho (se pidió `mui_menu_add` / `mui_menu_remove`).
+- El menú tiene 12 opciones sueltas para todas las extensiones y 3 menús propios de 10 opciones, todos dentro de
+  Extensiones. Los libres quedan vacíos y apagados. Un menú propio en la barra de menús (como "Git" al lado de
+  "Código") no se puede: Dash no cambia el título de un menú ya hecho (`mui_set_text` pone `MUIA_Menuitem_Title`,
+  y un menú lleva `MUIA_Menu_Title`) ni añade menús a una ventana abierta (MUI 5 lo permite con
+  `MUIM_Menustrip_InitChange`/`ExitChange`). Se pidió a Dash.
 - Paneles propios dentro de la ventana de Forja: hoy cada extensión pinta sus ventanas.
-- Que las marcas sigan a las líneas al escribir.
 - Probar la instalación desde un `.lha` en el emulador (no tiene `C:LhA`).
