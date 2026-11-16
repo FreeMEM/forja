@@ -1,0 +1,24 @@
+# Lanza tests/git_panel.dash en la máquina coffin (MUI 3.8, 68040, RTG): copia el proyecto de prueba a RAM:Prueba,
+# pone las variables de Forja, arranca la prueba aparte y Forja, y al acabar escribe el registro. Lo usa
+# tests/git_panel_coffin.sh, que deja en DASHRUN: Forja, GitPanel, dashgit y los ficheros de juego/.
+Main
+    run_command("C:MakeDir RAM:Prueba RAM:Prueba/juego ENV:Forja")
+    for f in ["main.dash", "red.dash", "ventana.dashui"]
+        file_copy("DASHRUN:" + f, "RAM:Prueba/juego/" + f)
+    end
+    env_set("Forja/dashgit", "DASHRUN:dashgit", false)
+    env_set("FORJA_SONDA", "1", false)
+    env_set("FORJA_PRUEBA", "RAM:Prueba/juego/main.dash", false)
+    env_set("GITPANEL_DIR", "RAM:Prueba", false)
+    if env_get("ESPERA") == ""
+        env_set("ESPERA", "", false)
+    end
+    run_program("DASHRUN:GitPanel")
+    run_command("DASHRUN:Forja")
+    t = file_read_text("RAM:Prueba/git_panel.txt")
+    if t == nil
+        Print "FALLO: no hay registro"
+    else
+        Print t
+    end
+end

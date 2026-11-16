@@ -1,0 +1,247 @@
+# Git en Forja (docs/GIT_LOOP.md): la rama y los cambios en la barra, las letras del panel del proyecto, las marcas
+# del margen, el panel Cambios (casillas con el ratón, mensaje y Confirmar) y la vista de diferencias. Lo arranca
+# tests/git_panel.sh; maneja Forja por ARexx (FORJA.1), con el ratón y el teclado, y mira la sonda (ENV:FORJA_GIT,
+# ENV:FORJA_GIT_CAMBIOS). Anota en DH0:Prueba/git_panel.txt y acaba con "TODO BIEN".
+
+const FORJA = "FORJA.1"
+
+# dónde está el proyecto de prueba (DH0:Prueba; en la máquina coffin, RAM:Prueba: lo pone git_panel_coffin.dash)
+var BASE: String = "DH0:Prueba"
+var CAJON: String = ""
+var MAIN: String = ""
+
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text(BASE + "/git_panel.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func esperar_libre()
+    n = 0
+    time_delay(10)
+    while n < 3000 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+end
+
+func git(orden: String) -> String
+    antes = rexx("SALIDA").length
+    rexx("GIT " + orden)
+    esperar_libre()
+    s = rexx("SALIDA")
+    if s.length > antes
+        return s[antes:]
+    end
+    return ""
+end
+
+# Espera (hasta unos 40 s) a que el estado de git de Forja tenga ese trozo: "rama|cambios|panel|margen"
+func esperar_git(trozo: String) -> String
+    n = 0
+    s = rexx("GITESTADO")
+    while n < 400 and not str_contains("#" + s + "#", trozo)
+        time_delay(5)
+        s = rexx("GITESTADO")
+        n = n + 1
+    end
+    return s
+end
+
+func activar(titulo: String) -> Bool
+    w = window_find(titulo)
+    if w != 0
+        window_found_activate(w)
+        time_delay(15)
+    end
+    return str_starts(input_active_title(), titulo)
+end
+
+func campo(t: String, i: Int) -> Int
+    return Int(str_split(t, " ")[i])
+end
+
+# Las filas del panel Cambios ("XY ruta"), de la sonda
+func filas() -> [String]
+    var r: [String] = str_split(env_get("FORJA_GIT_CAMBIOS"), "|")
+    if r.length > 0
+        r.remove(0)
+    end
+    return r
+end
+
+func fila_de(nombre: String) -> Int
+    i = 0
+    for f in filas()
+        if str_ends(f, " " + nombre)
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Un clic en la fila i del panel Cambios, en la casilla (x pequeña) o en el nombre
+func clic_fila(i: Int, en_casilla: Bool)
+    z = str_split(env_get("FORJA_GIT_CAMBIOS"), "|")[0]
+    x = campo(z, 0) + 8
+    if not en_casilla
+        x = campo(z, 0) + 60
+    end
+    y = campo(z, 1) + (i - campo(z, 3)) * campo(z, 2) + campo(z, 2) / 2
+    activar("Cambios")
+    input_move(x, y)
+    time_delay(5)
+    input_click(x, y, 0)
+    # (dos clics seguidos en el mismo sitio serían un doble clic)
+    time_delay(125)
+    anotar("  (clic en #{x},#{y}: " + env_get("FORJA_GIT_CAMBIOS") + ")")
+end
+
+func esperar_fila(texto: String) -> Bool
+    n = 0
+    while n < 400
+        for f in filas()
+            if f == texto
+                return true
+            end
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+func sonda_nombre() -> String
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return ""
+    end
+    return str_split(t, "\n")[0]
+end
+
+Main
+    if env_get("GITPANEL_DIR") != ""
+        BASE = env_get("GITPANEL_DIR")
+    end
+    CAJON = BASE + "/juego"
+    MAIN = CAJON + "/main.dash"
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("el puerto contesta", n < 600, "")
+    rexx("ABRIR \"" + MAIN + "\" 1")
+    s = git("init")
+    ver("init", str_contains(s, "Repositorio vac"), s)
+    git("config user.name Forja")
+    git("config user.email forja@amiga")
+    git("add -A")
+    s = git("commit -m primero")
+    ver("commit", str_contains(s, "primero"), s)
+    s = esperar_git("#main|0|")
+    ver("la barra: rama main y nada cambiado", str_starts(s, "main|0|"), s)
+    ver("la rama sale en la barra", str_contains(env_get("FORJA_BOTONES"), " 89:"), env_get("FORJA_BOTONES"))
+    # un cambio guardado: la línea 4 cambiada y una nueva arriba
+    rexx("CAMBIAR " + MAIN + " 4 4 \"const MAX = 20\"")
+    rexx("CAMBIAR " + MAIN + " 1 0 \"# cambiado desde Forja\"")
+    t0 = time_ms()
+    rexx("GUARDAR " + MAIN)
+    s = esperar_git("|1:1 5:2#")
+    ms = time_ms() - t0
+    ver("al guardar: 1 cambio, M en el panel y marcas en el margen", str_starts(s, "main|1|M:main.dash|1:1 5:2"), s)
+    anotar("  (de guardar a las marcas: #{ms} ms; status y diff --rangos: " + env_get("FORJA_GIT_MS") + " ms)")
+    # un fichero nuevo hecho fuera de Forja: se ve al volver a Forja
+    file_write_text(CAJON + "/nuevo.dash", "Main\n    Print \"nuevo\"\nend\n")
+    # otra ventana delante (la de buscar, con Amiga-F) y Forja otra vez: Forja mira si su ventana vuelve a ser
+    # la activa (un Window de Dash en este programa se quedaba colgado al abrirse)
+    activar("Forja")
+    z = env_get("FORJA_EDITOR")
+    input_move(campo(z, 0) + campo(z, 2) / 2, campo(z, 1) + campo(z, 3) / 2)
+    time_delay(5)
+    input_key(0x23, 8)      # Amiga-F
+    time_delay(50)
+    ver("otra ventana delante", str_starts(input_active_title(), "Buscar"), input_active_title())
+    time_delay(100)
+    ver("Forja delante otra vez", activar("Forja"), input_active_title())
+    s = esperar_git("?:nuevo.dash")
+    ver("al volver a Forja: el nuevo con ?", str_contains(s, "|2|") and str_contains(s, "?:nuevo.dash"), s)
+    # el panel Cambios
+    rexx("CAMBIOS")
+    time_delay(50)
+    ver("el panel Cambios se abre", activar("Cambios"), input_active_title())
+    ver("las filas", esperar_fila(" M main.dash") and esperar_fila("?? nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
+    clic_fila(fila_de("main.dash"), true)
+    ver("la casilla prepara main.dash (add)", esperar_fila("M  main.dash"), env_get("FORJA_GIT_CAMBIOS"))
+    clic_fila(fila_de("nuevo.dash"), true)
+    ver("la casilla prepara nuevo.dash", esperar_fila("A  nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
+    clic_fila(fila_de("nuevo.dash"), true)
+    ver("y otra vez lo quita (reset)", esperar_fila("?? nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
+    # las diferencias: dos clics en el nombre
+    clic_fila(fila_de("main.dash"), false)
+    clic_fila(fila_de("main.dash"), false)
+    n = 0
+    while n < 200 and not str_contains(sonda_nombre(), "main.dash (cambios)")
+        time_delay(5)
+        n = n + 1
+    end
+    ver("la vista de diferencias se abre", str_contains(sonda_nombre(), "main.dash (cambios)"), sonda_nombre())
+    t = file_read_text("RAM:forja-sonda.txt")
+    ver("con lo añadido y lo quitado", t != nil and str_contains(t, "+# cambiado desde Forja") and str_contains(t, "-const MAX = 10") and str_contains(t, "+const MAX = 20"), t)
+    # n: al trozo siguiente; Return: a esa línea de main.dash
+    activar("Forja")
+    z = env_get("FORJA_EDITOR")
+    input_move(campo(z, 0) + campo(z, 2) / 2, campo(z, 1) + campo(z, 3) / 2)
+    time_delay(5)
+    input_key(0x36, 0)      # n
+    time_delay(20)
+    l = sonda_nombre()
+    ver("n va al primer trozo", str_starts(l, "4 "), l)
+    input_key(0x4D, 0)      # abajo: la línea añadida
+    time_delay(10)
+    input_key(0x44, 0)      # Return
+    time_delay(30)
+    l = sonda_nombre()
+    ver("Return lleva a la línea de main.dash", str_ends(l, " main.dash") and str_starts(l, "0 "), l)
+    # confirmar: al abrir el panel el cursor está en el mensaje; se escribe y Return
+    rexx("CAMBIOS")
+    time_delay(30)
+    activar("Cambios")
+    input_text("tercero desde el panel")
+    input_key(0x44, 0)
+    time_delay(30)
+    esperar_libre()
+    s = esperar_git("|1|?:nuevo.dash")
+    ver("tras confirmar queda solo el nuevo", str_starts(s, "main|1|?:nuevo.dash|"), s)
+    s = git("log --oneline")
+    ver("el commit está", str_contains(s, "tercero desde el panel"), s)
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    e = file_read_text("RAM:forja-eventos.txt")
+    if e != nil
+        file_write_text(BASE + "/eventos.txt", e)
+    end
+    espera = Int(env_get("ESPERA"))
+    if espera > 0
+        time_delay(espera * 50)
+    end
+    rexx("QUIT")
+end

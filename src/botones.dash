@@ -37,6 +37,15 @@ var bb_pen_encima: Int = 0
 var bb_pen_fondo: Int = 0
 var bb_pen_raya: Int = 0
 
+# git (git_estado.dash): la rama y cuántos ficheros cambiaron, a la izquierda de Inferencia; un clic ahí da
+# BB_EV_GIT (el panel de cambios). Los pone main.dash; "" de rama: no se enseña nada
+const BB_EV_GIT = 89
+var bb_git_rama: String = ""
+var bb_git_cambios: Int = 0
+var bb_git_x: Int = -1      # dónde quedó (desde el borde de la zona) y su ancho; -1 si no se ve
+var bb_git_ancho: Int = 0
+var _bb_git_tramos: [Int] = []
+
 # Los iconos, de 12 por 12: "#" es un píxel del color del botón
 func _bb_dibujo(nombre: String) -> [String]
     if nombre == "compilar"     # un martillo
@@ -55,6 +64,9 @@ func _bb_dibujo(nombre: String) -> [String]
         return ["............", "..########..", "............", ".....##.....", "....####....", "...######...", "..########..", ".....##.....", ".....##.....", ".....##.....", "............", "............"]
     elif nombre == "parar"
         return ["............", "............", "..########..", "..########..", "..########..", "..########..", "..########..", "..########..", "..########..", "..########..", "............", "............"]
+    end
+    if nombre == "rama"
+        return ["............", "...#....#...", "...#....#...", "...#....#...", "...#...#....", "...#..#.....", "...###......", "...#........", "...#........", "...#........", "...#........", "............"]
     end
     # inferencia: un destello
     return ["............", ".....#......", ".....#......", "....###.....", "#..#####..#.", ".#########..", "...#####....", "....###...#.", ".....#...###", ".....#....#.", "............", "............"]
@@ -251,7 +263,53 @@ func bb_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         end
         i = i + 1
     end
+    _bb_git(x, y, alto, bx + 8, derecha - 8)
     usar_codigo()
+end
+
+# La rama y los cambios entre desde y hasta (x desde el borde de la zona), pegados a la derecha; si no caben, solo
+# la rama y el número; si tampoco, nada
+func _bb_git(x0: Int, y: Int, alto: Int, desde: Int, hasta: Int)
+    bb_git_x = -1
+    if bb_git_rama == ""
+        return
+    end
+    if _bb_git_tramos.length == 0
+        _bb_git_tramos = _bb_tramos("rama")
+    end
+    cuenta = ""
+    if bb_git_cambios == 1
+        cuenta = tr(463, "1 cambio")
+    elif bb_git_cambios > 1
+        cuenta = hueco(tr(462, "%1 cambios"), "#{bb_git_cambios}")
+    end
+    ancho = 12 + 4 + font_text_width(bb_git_rama)
+    if cuenta != ""
+        ancho = ancho + 8 + font_text_width(cuenta)
+    end
+    if hasta - ancho < desde and bb_git_cambios > 0
+        cuenta = "#{bb_git_cambios}"
+        ancho = 12 + 4 + font_text_width(bb_git_rama) + 6 + font_text_width(cuenta)
+    end
+    if hasta - ancho < desde
+        return
+    end
+    bx = hasta - ancho
+    bb_git_x = bx
+    bb_git_ancho = ancho
+    gfx_pen(bb_pen_apagado)
+    i = 0
+    while i + 2 < _bb_git_tramos.length
+        gfx_rect(x0 + bx + _bb_git_tramos[i], y + (alto - 12) / 2 + _bb_git_tramos[i + 2], x0 + bx + _bb_git_tramos[i + 1], y + (alto - 12) / 2 + _bb_git_tramos[i + 2])
+        i = i + 3
+    end
+    base = y + (alto - font_height()) / 2 + font_baseline()
+    gfx_pen(tema.texto)
+    gfx_text_at(x0 + bx + 16, base, bb_git_rama)
+    if cuenta != ""
+        gfx_pen(tema.cursor)
+        gfx_text_at(x0 + hasta - font_text_width(cuenta), base, cuenta)
+    end
 end
 
 func _bb_en(x: Int) -> Int
@@ -267,6 +325,9 @@ end
 
 # El evento del botón en esa x, o 0
 func bb_clic(x: Int) -> Int
+    if bb_git_x >= 0 and x >= bb_git_x and x < bb_git_x + bb_git_ancho
+        return BB_EV_GIT
+    end
     i = _bb_en(x)
     if i < 0 or not bb_botones[i].activo
         return 0
@@ -296,6 +357,9 @@ func bb_sonda() -> String
             a = 1
         end
         t = t + " #{b.evento}:#{bb_zona_x + b.x}:#{b.ancho}:#{a}"
+    end
+    if bb_git_x >= 0
+        t = t + " #{BB_EV_GIT}:#{bb_zona_x + bb_git_x}:#{bb_git_ancho}:1"
     end
     return t
 end
