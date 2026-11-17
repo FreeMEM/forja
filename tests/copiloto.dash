@@ -272,6 +272,7 @@ Main
         # (Esc cierra la lista para completar, que se quedaría el Tab)
         input_key(0x45, 0)
     end
+    t0 = time_ms()
     n = 0
     s = rexx("SUGERENCIA")
     while n < 300 and s == ""
@@ -279,6 +280,7 @@ Main
         s = rexx("SUGERENCIA")
         n = n + 1
     end
+    anotar("(la sugerencia llegó #{time_ms() - t0} ms después de la última tecla; la pausa de CAMBIADO es de 900)")
     ver("la sugerencia, en gris tras el cursor", s == "14 14 udo(\"Copiloto\")", s + " / " + rexx("ACTIVO") + " / " + rexx("CURSOR") + " / " + env_get("FORJA_COPILOTO"))
     time_delay(10)
     screen_save_png("DH0:Prueba/copiloto-sugerencia.png")
