@@ -628,3 +628,31 @@ VS Code.
     no se puede cambiar se dice con el porqué de Dash), y **el icono de los `.forja` con `icon_save`** en lugar del
     `.info` escrito a mano en hexadecimal: la imagen del yunque va en el paquete (`Forja/Iconos/proyecto.info`, de
     `tools/plantillas.py`), y Forja le pone su ruta como herramienta; sin ella, el icono de proyecto del sistema.
+  - **Pruebas** (FS-UAE). En MUI 5 (A1200, 3.1), TODO BIEN: teclas, ficheros, completar, codigo_base, compilar,
+    salida, botones, clic, proyecto, grande, errores, parar, salir, sesion, rexx, diseno, depurar, arbol,
+    depurar_ventana, buscar, pantalla, extensiones_base, extensiones, ayuda_base, ayuda, editor_base, editor, pestanas
+    (nueva), memoria (nada y todas), proyecto_base, forja_proyecto, plantillas, depurar_mas, perfil, demos_base,
+    demos_forja, git_panel, git_panel_coffin, sprites_todas (las 13), mapas_base, mapas_forja, nuevo; bajo `flock`, git,
+    actualizar y copiloto. En MUI 3.8 (`sys32rtg38`, RTG), TODO BIEN: extensiones, editor, pestanas, ayuda, sprites,
+    mapas_forja, demos_forja, forja_proyecto, depurar_mas y perfil. `tests/coffin.sh` en la máquina CoffinOS: TODO BIEN.
+  - **`memoria.sh` con git falla** por poco: compilando, 5,7 MB de fast con un tope de 5,6. Falla igual con la Forja
+    de `main` (5,69 MB) y el Dash de hoy (PR #190, compiladores rehechos): no es del remate. Hace falta mirar si el
+    dash del Amiga gasta más al compilar (unos 2,07 MB frente a 1,9) o subir el tope.
+  - Las pruebas que cambian de pestaña con un clic (`proyecto`, `sesion`) usan la flecha de los botones si la
+    pestaña no se ve; `sesion` ya no cuenta "botones:" como una pestaña.
+  - **El arrastre del copper** solo se ha visto en MUI 3.8 (la parada se mueve con el primer movimiento; el suceso
+    de soltar no llega). En MUI 5, `input_drag` no da ningún suceso de arrastre en el lienzo de Demos (con búfer): la
+    prueba lo dice y no lo mira. Falta probarlo con el ratón de verdad.
+  - **Falta en Forja**: teclas de las extensiones fuera del editor; paneles dentro de la ventana; probar instalar un
+    `.lha` (el emulador no tiene `C:LhA`). En Demos: el copper cambia un registro por bloque y no llega en vivo a la
+    demo; el medidor no separa partes (lógica, dibujo); Shrinkler; línea de tiempo de partes. En el copiloto: la
+    sugerencia es de una línea; probarlo contra un modelo de verdad y en un Amiga de verdad.
+  - **Falta en Dash** (apuntado, sin rodeos con `@native`):
+    - `input_drag` sobre un lienzo con `mui_canvas_buffered` (el de Demos): en MUI 5 no llega ningún suceso de
+      arrastre; en MUI 3.8, solo el primer movimiento, sin el de soltar. En Sprites (sin búfer) sí llegan. Por mirar si
+      es del directo (`dashc/runtime`) o de `input_drag`.
+    - `tools/paquete_amiga.py` de Dash mete Forja en el paquete: debería llevar también `Forja/Iconos/proyecto.info`
+      (de `tools/plantillas.py` de Forja); sin él, los `.forja` nuevos salen con el icono de proyecto del sistema.
+    - Los de la lista de `pulido` siguen: `music_seek`, `music_tick`/`music_speed`, `music_playing`, `beam_line`,
+      `vblank_count`, `mui_post_event`, `env_get` de varias líneas, `mui_menu_separator` que devuelva su objeto.
+
