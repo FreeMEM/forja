@@ -2,6 +2,7 @@
 Cada caja es una ventana sin título de Intuition (se leen exactas de la memoria): la de los títulos, a la izquierda,
 y la del submenú abierto, a su derecha. Recuerdan el último título usado (lo ponen bajo el puntero), así que todo se
 mide al abrirlos. La letra es tan pequeña que no se lee: las entradas van por su sitio."""
+import os
 import time
 
 import amiga
@@ -9,14 +10,31 @@ import piloto as p
 
 # Las entradas de cada menú de Forja (src/ventana.dashui), con sus separadores: 12 píxeles por entrada y 6 por
 # separador. Van por su sitio, así que valen en las dos lenguas.
-ENTRADAS = {
-    "Proyecto": ["Nuevo", "Nuevo sprite...", "Abrir...", "Guardar", "Guardar como...", "Cerrar pestaña", "---",
-                 "Preferencias...", "---", "Salir"],
-    "Programa": ["Compilar", "Ejecutar", "Depurar", "---", "Preguntar a Inferencia"],
-    "Edición": ["Deshacer", "Rehacer", "---", "Cortar", "Copiar", "Pegar", "---", "Seleccionar todo",
-                "Buscar y cambiar...", "Ir a la línea...", "---", "Diseño o texto (.dashui)", "Vista previa (.dashui)"],
-}
-TITULOS = list(ENTRADAS)
+def _de_dashui():
+    """Las entradas de los menús de src/ventana.dashui, con sus separadores (la etiqueta que falta es una raya)."""
+    import json
+    f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "ventana.dashui")
+    d = json.load(open(f))
+    return {m["title"]: [i.get("label") or "---" for i in m["items"]] for m in d["windows"][0]["menus"]}
+
+
+ENTRADAS = _de_dashui()
+# Los menús de las extensiones (llegan por ARexx tras el de Extensiones) y el del editor
+ENTRADAS["Demos"] = ["Editor de copper", "Visor de MOD", "Pistas de sincronía", "Medidor de raster"]
+ENTRADAS["Git"] = ["Estado", "Diferencias", "Diferencias de este fichero", "Historial", "Añadir los ficheros nuevos",
+                   "Cambios y confirmar...", "Traer del servidor (pull)", "Subir al servidor (push)"]
+ENTRADAS["Inferencia"] = ["Preguntar sobre esto", "Explicar la selección", "Cambiar el código...", "Documentar la función",
+                          "Escribir la prueba", "Explicar el error", "Arreglar el error", "Aceptar el cambio",
+                          "Rechazar el cambio", "Sugerencias al escribir", "Dónde está Inferencia..."]
+ENTRADAS["Editor"] = ["Comentar o descomentar", "Duplicar las líneas", "Subir las líneas", "Bajar las líneas",
+                      "Borrar las líneas", "Ir a la pareja", "---", "Poner o quitar marcador", "Siguiente marcador",
+                      "Marcador anterior", "---", "Esquema del fichero...", "Abrir un fichero por su nombre...",
+                      "Ir a un nombre del proyecto...", "Buscar en el proyecto...", "Cambiar en el proyecto...",
+                      "Renombrar...", "---", "Plegar o desplegar el bloque", "Desplegar todo", "---",
+                      "Pestaña siguiente", "Pestaña anterior", "Lista de pestañas...", "---"]
+ENTRADAS.pop("Extensiones", None)
+ENTRADAS["Extensiones"] = ["Gestor de extensiones..."]
+TITULOS = ["Proyecto", "Programa", "Depurar", "Edición", "Código", "Extensiones", "Demos", "Git", "Inferencia", "Editor"]
 _fijas = set()
 
 
@@ -38,7 +56,7 @@ def abrir(x, y, dur=0.7):
 
 def titulo(cual):
     x, y, an, al = _cajas()[0]
-    return x + 14, round(y + 10 + 12.7 * TITULOS.index(cual))
+    return x + 14, round(y + 10 + 13.0 * TITULOS.index(cual))
 
 
 def entrada(cual, nombre):

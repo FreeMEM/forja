@@ -4,7 +4,7 @@ import time
 import amiga
 from amiberry import orden
 
-TECLA, LANZAR, ESCRIBIR, SALIR = 1, 2, 3, 9
+TECLA, LANZAR, ESCRIBIR, ABAJO, ARRIBA, SALIR = 1, 2, 3, 4, 5, 9
 
 
 MAGIA, PEDIDA, HECHA, ORDEN, A, B, TEXTO = 36, 40, 44, 48, 52, 56, 60
@@ -63,3 +63,16 @@ def escribir(texto):
 
 def tecla(codigo, calificador=0):
     pedir(TECLA, codigo, calificador)
+
+
+MODIFICADORES = ((0x01, 0x60), (0x08, 0x63), (0x10, 0x64), (0x40, 0x66), (0x80, 0x67))   # calificador -> tecla cruda
+
+
+def combo(codigo, calificador):
+    """Una tecla con Mayúsculas, Ctrl, Alt o Amiga de verdad: primero se pulsan esas teclas, y se mantienen."""
+    mods = [(q, r) for (q, r) in MODIFICADORES if calificador & q]
+    for q, r in mods:
+        pedir(ABAJO, r, calificador)
+    tecla(codigo, calificador)
+    for q, r in reversed(mods):
+        pedir(ARRIBA, r, 0)

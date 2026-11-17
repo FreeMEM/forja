@@ -10,7 +10,7 @@ from amiberry import orden
 RAMIGA, LAMIGA, CTRL, LALT, MAYUS = 0x80, 0x40, 0x08, 0x10, 0x01
 K_RETURN, K_X = 0x44, 0x32
 RAM_DISK, TRASPASO, PROGRAMS = (27, 45), (38, 250), (27, 115)
-PAQUETE = "dash-2.2.0-amiga.lha"
+PAQUETE = "dash-2.17.0-amiga.lha"
 
 
 def esperar_ventana(titulo, tope=20):
@@ -101,7 +101,7 @@ def instalar():
 
 
 def abrir_cajon_instalado():
-    agente.lanzar("""SYS:Rexxc/RX "ADDRESS WORKBENCH 'WINDOW Programs:Dash OPEN'" """)
+    agente.lanzar("""SYS:Rexxc/RX "ADDRESS WORKBENCH 'WINDOW Programs:Programming/Dash OPEN'" """)
     return esperar_ventana("Dash")
 
 
@@ -246,14 +246,26 @@ def abrir(ruta):
     agente.tecla(K_RETURN); time.sleep(2)
 
 
+PREF_MAPAS = "Mapas"      # "Maps" en inglés
+
+
+def zona_ext(prefijo, variable):
+    """La esquina del lienzo de una extensión en la pantalla: la de su ventana (el título empieza por prefijo) más lo
+    que dice su variable de la sonda ("x y ancho alto", desde la esquina de la ventana)."""
+    for w in amiga.ventanas():
+        if w[1].startswith(prefijo):
+            x, y, an, al = [int(c) for c in env(variable).split()]
+            return w[2] + x, w[3] + y
+    raise RuntimeError("no hay ventana " + prefijo)
+
+
 # --- El editor de sprites ---
 
 def sp_celda(cx, cy):
     """El centro de la celda cx, cy de la rejilla del editor de sprites, en la pantalla."""
-    f = forja()
-    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    zx, zy = zona_ext("Sprites", "FORJA_SPRITES_LIENZO")
     gx, gy, z = campos("FORJA_SPRITE")
-    return f[1] + ex + gx + cx * z + z // 2, f[2] + ey + gy + cy * z + z // 2
+    return zx + gx + cx * z + z // 2, zy + gy + cy * z + z // 2
 
 
 def arrastrar(desde, hasta, dur=0.8):
@@ -371,10 +383,9 @@ def pedir_fichero(ruta, titulos=("Tileset del mapa", "The map's tileset", "Sprit
 
 def mp_celda(cx, cy):
     """El centro de la celda cx, cy del mapa en la pantalla (con la vista en 0, 0)."""
-    f = forja()
-    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    zx, zy = zona_ext(PREF_MAPAS, "FORJA_MAPAS_LIENZO")
     gx, gy, lado, cols, filas = campos("FORJA_MAPA")
-    return f[1] + ex + gx + cx * lado + lado // 2, f[2] + ey + gy + cy * lado + lado // 2
+    return zx + gx + cx * lado + lado // 2, zy + gy + cy * lado + lado // 2
 
 
 def mp_botones():
@@ -386,10 +397,9 @@ def mp_botones():
 
 
 def mp_boton(accion, veces=1, pausa=0.25):
-    f = forja()
-    ex, ey, ew, eh = campos("FORJA_EDITOR")
+    zx, zy = zona_ext(PREF_MAPAS, "FORJA_MAPAS_LIENZO")
     x, y = mp_botones()[accion]
-    p.mover_a(f[1] + ex + x, f[2] + ey + y, 0.6); time.sleep(0.2)
+    p.mover_a(zx + x, zy + y, 0.6); time.sleep(0.2)
     for _ in range(veces):
         p.clic(); time.sleep(pausa)
 
