@@ -634,7 +634,7 @@ VS Code.
     (nueva), memoria (nada y todas), proyecto_base, forja_proyecto, plantillas, depurar_mas, perfil, demos_base,
     demos_forja, git_panel, git_panel_coffin, sprites_todas (las 13), mapas_base, mapas_forja, nuevo; bajo `flock`, git,
     actualizar y copiloto. En MUI 3.8 (`sys32rtg38`, RTG), TODO BIEN: extensiones, editor, pestanas, ayuda, sprites,
-    mapas_forja, demos_forja, forja_proyecto, depurar_mas y perfil. `tests/coffin.sh` en la máquina CoffinOS: TODO BIEN.
+    mapas_forja, demos_forja, forja_proyecto, depurar_mas, perfil y copiloto. `tests/coffin.sh` en la máquina CoffinOS: TODO BIEN.
   - **`memoria.sh` con git falla** por poco: compilando, 5,7 MB de fast con un tope de 5,6. Falla igual con la Forja
     de `main` (5,69 MB) y el Dash de hoy (PR #190, compiladores rehechos): no es del remate. Hace falta mirar si el
     dash del Amiga gasta más al compilar (unos 2,07 MB frente a 1,9) o subir el tope.
