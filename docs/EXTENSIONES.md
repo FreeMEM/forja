@@ -392,4 +392,5 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
   un objeto que se pueda quitar).
 - Los paneles son de texto (líneas, botones y una entrada): una extensión que necesite dibujar (un lienzo) sigue
   abriendo su ventana.
-- Probar la instalación desde un `.lha` en el emulador (no tiene `C:LhA`).
+- Instalar desde un `.lha` está probado con un LhA del Amiga puesto en el emulador para la prueba (`LHA_AMIGA`); el
+  sistema de pruebas no lo trae.
