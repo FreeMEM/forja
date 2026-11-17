@@ -334,9 +334,10 @@ func forja_cerrar_vista(nombre: String) -> Bool
     return forja_rc == 0
 end
 
-# Una sugerencia en gris tras el cursor del fichero activo (el copiloto): solo si el cursor está en esa línea y columna
-# (desde 1), al final de la línea, y el texto sigue en esa versión (forja_version_texto); si no, false. Tab la mete; se
-# va al escribir o al mover el cursor. Texto "": quita la suya.
+# Una sugerencia en gris en el cursor del fichero activo (el copiloto): solo si el cursor está en esa línea y columna
+# (desde 1), sin nada elegido, y el texto sigue en esa versión (forja_version_texto); si no, false. Puede tener varias
+# líneas ("\n") y el cursor puede estar en medio de una (desde la API 6; antes, una línea al final). Tab la mete; se va
+# al escribir o al mover el cursor. Texto "": quita la suya.
 func forja_sugerencia(linea: Int, columna: Int, version: Int, texto: String) -> Bool
     if texto == ""
         forja_orden("SUGERENCIA " + forja_ext)
@@ -433,4 +434,117 @@ end
 # La ventana de Forja delante y activa
 func forja_delante()
     forja_orden("DELANTE")
+end
+
+# --- Paneles dentro de la ventana de Forja (API 6) ---
+# Una pestaña más junto al panel del proyecto (lado "izquierda") o junto a la salida ("abajo"), que pinta Forja: líneas
+# con un color (los de forja_vista), una fila elegida, botones abajo y una entrada de texto si se pide. Lo que hace el
+# usuario llega como sucesos: PANEL "título|línea|columna|otra_vez" (un clic en una línea; otra_vez 1 si ya era la
+# elegida), PANELTECLA "título|tecla|línea", PANELBOTON "título|orden" y PANELTEXTO "título|texto" (Return en la
+# entrada). forja_campo(n) da cada parte.
+
+# Lo pone o lo vuelve a llenar (la fila elegida y lo desplazado se quedan). false si no caben más (8 entre todas)
+func forja_panel(titulo: String, lado: String, lineas: [String], colores: String) -> Bool
+    t = "PANEL " + forja_ext + " \"" + titulo + "\" " + lado
+    i = 0
+    while i < lineas.length
+        c = " "
+        if i < colores.length
+            c = colores[i:i + 1]
+        end
+        t = t + "\n" + c + lineas[i]
+        i = i + 1
+    end
+    forja_orden(t)
+    return forja_rc == 0
+end
+
+func forja_panel_cerrar(titulo: String) -> Bool
+    forja_orden("PANELCERRAR " + forja_ext + " \"" + titulo + "\"")
+    return forja_rc == 0
+end
+
+# Delante en su lado; con entrada, su entrada toma el teclado
+func forja_panel_ver(titulo: String, entrada: Bool) -> Bool
+    t = "PANELVER " + forja_ext + " \"" + titulo + "\""
+    if entrada
+        t = t + " entrada"
+    end
+    forja_orden(t)
+    return forja_rc == 0
+end
+
+# Sus botones, abajo: "texto|orden" cada uno ([]: ninguno)
+func forja_panel_botones(titulo: String, botones: [String]) -> Bool
+    t = "PANELBOTONES " + forja_ext + " \"" + titulo + "\""
+    for b in botones
+        t = t + "\n" + b
+    end
+    forja_orden(t)
+    return forja_rc == 0
+end
+
+# Una entrada de una línea sobre los botones, con su etiqueta ("": sin entrada). El texto que tiene se queda
+func forja_panel_entrada(titulo: String, etiqueta: String) -> Bool
+    forja_orden("PANELENTRADA " + forja_ext + " \"" + titulo + "\" " + etiqueta)
+    return forja_rc == 0
+end
+
+# Lo mismo, cambiando el texto que tiene ("" la vacía)
+func forja_panel_entrada_texto(titulo: String, etiqueta: String, texto: String) -> Bool
+    forja_orden("PANELENTRADA " + forja_ext + " \"" + titulo + "\" " + etiqueta + "\n" + texto)
+    return forja_rc == 0
+end
+
+# La fila elegida (desde 1; 0 ninguna), a la vista
+func forja_panel_cursor(titulo: String, linea: Int) -> Bool
+    forja_orden("PANELCURSOR " + forja_ext + " \"" + titulo + "\" #{linea}")
+    return forja_rc == 0
+end
+
+# La parte n (desde 0) del dato del último suceso, separado por "|": en PANEL, PANELTECLA, PANELBOTON y PANELTEXTO la 0
+# es el título del panel. La última se lleva el resto (el texto de PANELTEXTO puede tener "|").
+func forja_campo(n: Int) -> String
+    d = forja_dato
+    k = 0
+    while k < n
+        p = str_find(d, "|")
+        if p < 0
+            return ""
+        end
+        d = d[p + 1:]
+        k = k + 1
+    end
+    if forja_tipo == "PANELTEXTO" and n >= 1
+        return d
+    end
+    p = str_find(d, "|")
+    if p >= 0
+        return d[0:p]
+    end
+    return d
+end
+
+# Lo que Forja sabe de su panel (PANELES): [extensión, título, lado, delante (1/0), fila elegida (desde 1; 0 ninguna),
+# líneas, texto de la entrada]; [] si no lo tiene
+func forja_panel_estado(titulo: String) -> [String]
+    var r: [String] = []
+    for l in str_split(forja_orden("PANELES"), "\n")
+        p = str_split(l, "|")
+        if p.length >= 7 and str_lower(p[0]) == str_lower(forja_ext) and p[1] == titulo
+            for k in (0..5)
+                r.push(p[k])
+            end
+            # (el texto de la entrada puede llevar "|")
+            n = 0
+            i = 0
+            while n < 6
+                i = str_find_from(l, "|", i) + 1
+                n = n + 1
+            end
+            r.push(l[i:])
+            return r
+        end
+    end
+    return r
 end

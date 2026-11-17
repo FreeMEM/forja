@@ -1,40 +1,297 @@
-# copper.dash: el modelo del editor de copper de la extensión Demos. Unas paradas (una línea de la pantalla y un
-# color de 12 bits) hacen un degradado (el color cambia en cada línea de una parada a la siguiente) o cambios secos
-# (el color se queda hasta la siguiente). De ahí sale el código Dash: llamadas a copper_* o una tabla con un color por
-# línea para un bloque asm. El código lleva sus paradas en un comentario, para volver a editarlo.
+# copper.dash: el modelo del editor de copper de la extensión Demos. Un bloque cambia uno o varios registros del chip
+# de vídeo línea a línea: colores (COLOR00 a COLOR31) y otros que sirven en demos (BPLCON0/1/2, los módulos, la ventana
+# y la búsqueda de datos). Cada registro tiene sus paradas (una línea de la pantalla y un valor): un color hace un
+# degradado (cambia en cada línea de una parada a la siguiente) o cambios secos (se queda hasta la siguiente); los
+# demás, cambios secos o lineales (el número sube o baja línea a línea). De ahí sale el código Dash: llamadas a
+# copper_* (una espera por línea con cambios y los cambios de todos los registros en ella) o una tabla por registro con
+# un valor por línea para un bloque asm. El código lleva sus paradas en comentarios, para volver a editarlo.
 
 const CU_LINEAS = 256
+const CU_SECO = 0
+const CU_DEGRADADO = 1      # solo los colores
+const CU_LINEAL = 2         # solo los demás
 
 struct CuParada
     linea: Int
-    rgb: Int
+    rgb: Int       # el valor: un color de 12 bits o el valor de 16 bits del registro
 end
 
-var cu_paradas: [CuParada] = []
-var cu_elegida: Int = 0
-var cu_color: Int = 0          # el registro de color: 0 es COLOR00, el fondo
-var cu_degradado: Bool = true
-var cu_tabla: Bool = false     # el código: false copper_*, true una tabla para asm
+struct CuRegistro
+    reg: Int               # el desplazamiento desde $DFF000: $180 es COLOR00
+    modo: Int              # CU_SECO, CU_DEGRADADO o CU_LINEAL
+    paradas: [CuParada]
+end
+
+var cu_registros: [CuRegistro] = []
+var cu_reg: Int = 0                 # el registro elegido del bloque
+var cu_paradas: [CuParada] = []     # sus paradas (la misma lista que cu_registros[cu_reg].paradas)
+var cu_elegida: Int = 0             # la parada elegida
+var cu_tabla: Bool = false          # el código: false copper_*, true una tabla por registro para asm
 var cu_nombre: String = "degradado"
 
+# Los registros que se pueden cambiar: los 32 colores y estos
+const CU_OTROS = "BPLCON0 100 BPLCON1 102 BPLCON2 104 BPL1MOD 108 BPL2MOD 10A DIWSTRT 08E DIWSTOP 090 DDFSTRT 092 DDFSTOP 094"
+
 func cu_hex(v: Int) -> String
-    h = str_upper(str_from_int(v & 0xFFF, 16))
-    while h.length < 3
+    return cu_hex_n(v & 0xFFF, 3)
+end
+
+func cu_hex_n(v: Int, cifras: Int) -> String
+    h = str_upper(str_from_int(v & 0xFFFF, 16))
+    while h.length < cifras
         h = "0" + h
     end
     return h
 end
 
-func cu_nuevo()
-    cu_paradas.clear()
-    cu_paradas.push(CuParada(40, 0x00F))
-    cu_paradas.push(CuParada(128, 0xF80))
-    cu_paradas.push(CuParada(220, 0x000))
-    cu_elegida = 0
+func cu_es_color(reg: Int) -> Bool
+    return reg >= 0x180 and reg <= 0x1BE
 end
 
-# Ordena las paradas por línea (la elegida sigue siendo la misma)
+# Todos los registros, en orden: los colores y después los demás
+func cu_todos() -> [Int]
+    var r: [Int] = []
+    i = 0
+    while i < 32
+        r.push(0x180 + i * 2)
+        i = i + 1
+    end
+    c = str_split(CU_OTROS, " ")
+    i = 1
+    while i < c.length
+        r.push(str_to_int(c[i], 16))
+        i = i + 2
+    end
+    return r
+end
+
+func cu_nombre_reg(reg: Int) -> String
+    if cu_es_color(reg)
+        n = (reg - 0x180) / 2
+        if n < 10
+            return "COLOR0#{n}"
+        end
+        return "COLOR#{n}"
+    end
+    c = str_split(CU_OTROS, " ")
+    i = 0
+    while i + 1 < c.length
+        if str_to_int(c[i + 1], 16) == reg
+            return c[i]
+        end
+        i = i + 2
+    end
+    return "$" + cu_hex_n(reg, 3)
+end
+
+# El registro de un nombre (COLOR05, BPLCON1, $102); -1 si no se conoce
+func cu_reg_de(nombre: String) -> Int
+    n = str_upper(str_trim(nombre))
+    if str_starts(n, "COLOR") and n.length > 5
+        k = Int(n[5:])
+        if k >= 0 and k < 32
+            return 0x180 + k * 2
+        end
+        return -1
+    end
+    if str_starts(n, "$")
+        return str_to_int(n[1:], 16)
+    end
+    c = str_split(CU_OTROS, " ")
+    i = 0
+    while i + 1 < c.length
+        if c[i] == n
+            return str_to_int(c[i + 1], 16)
+        end
+        i = i + 2
+    end
+    return -1
+end
+
+func cu_modo_nombre(m: Int) -> String
+    if m == CU_DEGRADADO
+        return "degradado"
+    elif m == CU_LINEAL
+        return "lineal"
+    end
+    return "seco"
+end
+
+func cu_modo_de(t: String) -> Int
+    if t == "degradado"
+        return CU_DEGRADADO
+    elif t == "lineal"
+        return CU_LINEAL
+    end
+    return CU_SECO
+end
+
+# El valor de un registro con su ancho: 3 cifras un color, 4 los demás
+func cu_valor_texto(reg: Int, v: Int) -> String
+    if cu_es_color(reg)
+        return cu_hex(v)
+    end
+    return cu_hex_n(v, 4)
+end
+
+func cu_registro_nuevo(reg: Int) -> CuRegistro
+    var ps: [CuParada] = []
+    modo = CU_SECO
+    if cu_es_color(reg)
+        modo = CU_DEGRADADO
+    end
+    return CuRegistro(reg, modo, ps)
+end
+
+# Elige el registro i del bloque (y su primera parada si cambia)
+func cu_elegir(i: Int)
+    if cu_registros.length == 0
+        return
+    end
+    k = i
+    if k < 0
+        k = 0
+    elif k >= cu_registros.length
+        k = cu_registros.length - 1
+    end
+    if k != cu_reg
+        cu_elegida = 0
+    end
+    cu_reg = k
+    cu_paradas = cu_registros[k].paradas
+    if cu_elegida >= cu_paradas.length
+        cu_elegida = cu_paradas.length - 1
+    end
+    if cu_elegida < 0
+        cu_elegida = 0
+    end
+end
+
+func cu_actual() -> CuRegistro
+    return cu_registros[cu_reg]
+end
+
+func cu_nuevo()
+    cu_registros.clear()
+    r = cu_registro_nuevo(0x180)
+    r.paradas.push(CuParada(40, 0x00F))
+    r.paradas.push(CuParada(128, 0xF80))
+    r.paradas.push(CuParada(220, 0x000))
+    cu_registros.push(r)
+    cu_reg = -1
+    cu_elegir(0)
+end
+
+func cu_buscar_reg(reg: Int) -> Int
+    i = 0
+    while i < cu_registros.length
+        if cu_registros[i].reg == reg
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Un registro más en el bloque, tras el elegido: el primero de la lista que no está, desde el elegido. Con una parada
+# en la línea de la parada elegida y el valor 0. Su sitio; -1 si ya están todos
+func cu_anadir_registro() -> Int
+    todos = cu_todos()
+    desde = 0
+    if cu_registros.length > 0
+        k = 0
+        while k < todos.length
+            if todos[k] == cu_actual().reg
+                desde = k
+            end
+            k = k + 1
+        end
+    end
+    n = 0
+    while n < todos.length
+        reg = todos[(desde + 1 + n) % todos.length]
+        if cu_buscar_reg(reg) < 0
+            r = cu_registro_nuevo(reg)
+            linea = 40
+            if cu_paradas.length > 0
+                linea = cu_paradas[cu_elegida].linea
+            end
+            r.paradas.push(CuParada(linea, 0))
+            cu_registros.insert(cu_reg + 1, r)
+            cu_elegir(cu_reg + 1)
+            return cu_reg
+        end
+        n = n + 1
+    end
+    return -1
+end
+
+# Quita el registro elegido (si queda otro)
+func cu_quitar_registro() -> Bool
+    if cu_registros.length <= 1
+        return false
+    end
+    cu_registros.remove(cu_reg)
+    k = cu_reg
+    cu_reg = -1
+    if k >= cu_registros.length
+        k = cu_registros.length - 1
+    end
+    cu_elegir(k)
+    return true
+end
+
+# Cambia el registro elegido por el siguiente (d = 1) o el anterior (-1) de la lista que no esté ya en el bloque. Si
+# pasa de color a otro o al revés, el modo y los valores se ajustan
+func cu_cambiar_registro(d: Int)
+    todos = cu_todos()
+    r = cu_actual()
+    k = 0
+    while k < todos.length
+        if todos[k] == r.reg
+            break
+        end
+        k = k + 1
+    end
+    n = 0
+    while n < todos.length
+        k = (k + d + todos.length) % todos.length
+        if cu_buscar_reg(todos[k]) < 0
+            era_color = cu_es_color(r.reg)
+            r.reg = todos[k]
+            if era_color != cu_es_color(r.reg)
+                if cu_es_color(r.reg)
+                    r.modo = CU_DEGRADADO
+                    for p in r.paradas
+                        p.rgb = p.rgb & 0xFFF
+                    end
+                elif r.modo == CU_DEGRADADO
+                    r.modo = CU_SECO
+                end
+            end
+            return
+        end
+        n = n + 1
+    end
+end
+
+# El modo siguiente del registro elegido: un color, degradado o seco; los demás, seco o lineal
+func cu_otro_modo()
+    r = cu_actual()
+    if r.modo != CU_SECO
+        r.modo = CU_SECO
+    elif cu_es_color(r.reg)
+        r.modo = CU_DEGRADADO
+    else
+        r.modo = CU_LINEAL
+    end
+end
+
+# Ordena las paradas del registro elegido por línea (la elegida sigue siendo la misma)
 func cu_ordenar()
+    if cu_paradas.length == 0
+        return
+    end
     el = cu_paradas[cu_elegida]
     i = 1
     while i < cu_paradas.length
@@ -56,88 +313,153 @@ func cu_ordenar()
     end
 end
 
-# El color de cada línea (CU_LINEAS); -1 antes de la primera parada (el de la pantalla)
-func cu_colores() -> [Int]
-    var r: [Int] = []
-    n = cu_paradas.length
+# El valor de un registro en cada línea (CU_LINEAS); -1 antes de su primera parada (el de la pantalla)
+func cu_valores(r: CuRegistro) -> [Int]
+    var res: [Int] = []
+    ps = r.paradas
+    n = ps.length
+    color = cu_es_color(r.reg)
     y = 0
     k = 0
     while y < CU_LINEAS
-        while k + 1 < n and cu_paradas[k + 1].linea <= y
+        while k + 1 < n and ps[k + 1].linea <= y
             k = k + 1
         end
-        if n == 0 or y < cu_paradas[0].linea
-            r.push(-1)
-        elif not cu_degradado or k + 1 >= n
-            r.push(cu_paradas[k].rgb)
+        if n == 0 or y < ps[0].linea
+            res.push(-1)
+        elif r.modo == CU_SECO or k + 1 >= n
+            res.push(ps[k].rgb)
         else
-            a = cu_paradas[k]
-            b = cu_paradas[k + 1]
+            a = ps[k]
+            b = ps[k + 1]
             d = b.linea - a.linea
             t = y - a.linea
-            rr = ((a.rgb >> 8) & 15) * (d - t) + ((b.rgb >> 8) & 15) * t
-            gg = ((a.rgb >> 4) & 15) * (d - t) + ((b.rgb >> 4) & 15) * t
-            bb = (a.rgb & 15) * (d - t) + (b.rgb & 15) * t
-            r.push((((rr + d / 2) / d) << 8) | (((gg + d / 2) / d) << 4) | ((bb + d / 2) / d))
+            if color
+                rr = ((a.rgb >> 8) & 15) * (d - t) + ((b.rgb >> 8) & 15) * t
+                gg = ((a.rgb >> 4) & 15) * (d - t) + ((b.rgb >> 4) & 15) * t
+                bb = (a.rgb & 15) * (d - t) + (b.rgb & 15) * t
+                res.push((((rr + d / 2) / d) << 8) | (((gg + d / 2) / d) << 4) | ((bb + d / 2) / d))
+            else
+                res.push((a.rgb * (d - t) + b.rgb * t + d / 2) / d)
+            end
         end
         y = y + 1
+    end
+    return res
+end
+
+# Los valores del registro elegido (para la vista)
+func cu_colores() -> [Int]
+    if cu_registros.length == 0
+        cu_nuevo()
+    end
+    return cu_valores(cu_actual())
+end
+
+# Los valores de todos los registros del bloque
+func _cu_todos_valores() -> [[Int]]
+    var r: [[Int]] = []
+    for g in cu_registros
+        r.push(cu_valores(g))
     end
     return r
 end
 
-# Cuántas instrucciones de copper hacen falta (una espera y un color por cambio)
-func cu_instrucciones() -> Int
-    c = cu_colores()
+# Cuántos registros cambian en la línea y (de vs, los valores de todos)
+func _cu_cambios_en(vs: [[Int]], y: Int) -> Int
     n = 0
-    antes = -1
-    for v in c
-        if v != antes and v >= 0
-            n = n + 2
+    for v in vs
+        if v[y] >= 0 and (y == 0 or v[y] != v[y - 1])
+            n = n + 1
         end
-        antes = v
     end
     return n
 end
 
-func cu_linea_paradas() -> String
-    t = "# paradas: #{cu_color} "
-    if cu_degradado
-        t = t + "degradado"
-    else
-        t = t + "cambios"
+# Cuántas instrucciones de copper hacen falta: una espera por línea con algún cambio y un cambio por registro
+func cu_instrucciones() -> Int
+    vs = _cu_todos_valores()
+    n = 0
+    y = 0
+    while y < CU_LINEAS
+        c = _cu_cambios_en(vs, y)
+        if c > 0
+            n = n + 1 + c
+        end
+        y = y + 1
     end
-    for p in cu_paradas
-        t = t + " #{p.linea}:" + cu_hex(p.rgb)
+    return n
+end
+
+func cu_linea_registro(r: CuRegistro) -> String
+    t = "# registro: " + cu_nombre_reg(r.reg) + " " + cu_modo_nombre(r.modo)
+    for p in r.paradas
+        t = t + " #{p.linea}:" + cu_valor_texto(r.reg, p.rgb)
     end
     return t
 end
 
-# Lee "# paradas: ..." (lo que escribe cu_codigo); false si no es eso
-func cu_leer_paradas(linea: String) -> Bool
+# Las paradas de una línea "# registro: NOMBRE modo l:v ..." o de una vieja "# paradas: color modo l:v ..."; nil si
+# no es eso
+func cu_leer_linea(linea: String) -> CuRegistro
     l = str_trim(linea)
-    if not str_starts(l, "# paradas:")
-        return false
+    reg = -1
+    var c: [String] = []
+    modo = ""
+    if str_starts(l, "# registro:")
+        c = str_split(str_trim(l[11:]), " ")
+        if c.length < 3
+            return nil
+        end
+        reg = cu_reg_de(c[0])
+        modo = c[1]
+    elif str_starts(l, "# paradas:")
+        c = str_split(str_trim(l[10:]), " ")
+        if c.length < 3
+            return nil
+        end
+        reg = 0x180 + Int(c[0]) * 2
+        modo = c[1]
+        if modo == "cambios"
+            modo = "seco"
+        end
+    else
+        return nil
     end
-    c = str_split(str_trim(l[10:]), " ")
-    if c.length < 3
-        return false
+    if reg < 0
+        return nil
     end
-    var ps: [CuParada] = []
+    r = cu_registro_nuevo(reg)
+    r.modo = cu_modo_de(modo)
+    if cu_es_color(reg) and r.modo == CU_LINEAL
+        r.modo = CU_DEGRADADO
+    elif not cu_es_color(reg) and r.modo == CU_DEGRADADO
+        r.modo = CU_LINEAL
+    end
     i = 2
     while i < c.length
         p = str_find(c[i], ":")
         if p > 0
-            ps.push(CuParada(Int(c[i][0:p]), str_to_int(c[i][p + 1:], 16)))
+            r.paradas.push(CuParada(Int(c[i][0:p]), str_to_int(c[i][p + 1:], 16)))
         end
         i = i + 1
     end
-    if ps.length == 0
+    if r.paradas.length == 0
+        return nil
+    end
+    return r
+end
+
+# Una sola línea (de las dos clases) como el bloque entero; false si no es eso
+func cu_leer_paradas(linea: String) -> Bool
+    r = cu_leer_linea(linea)
+    if r == nil
         return false
     end
-    cu_color = Int(c[0])
-    cu_degradado = c[1] != "cambios"
-    cu_paradas = ps
-    cu_elegida = 0
+    cu_registros.clear()
+    cu_registros.push(r)
+    cu_reg = -1
+    cu_elegir(0)
     cu_ordenar()
     return true
 end
@@ -150,60 +472,151 @@ func cu_marca_fin() -> String
     return "# fin copper: " + cu_nombre
 end
 
-# El código Dash del degradado, entre sus dos marcas
+# Lo que cambia el registro reg a v, en Dash
+func _cu_cambio(reg: Int, v: Int) -> String
+    if cu_es_color(reg)
+        return "    copper_color(#{(reg - 0x180) / 2}, 0x" + cu_hex(v) + ")\n"
+    end
+    return "    copper_move(0x" + cu_hex_n(reg, 3) + ", 0x" + cu_hex_n(v, 4) + ")    # " + cu_nombre_reg(reg) + "\n"
+end
+
+# El código Dash del bloque, entre sus dos marcas
 func cu_codigo() -> String
-    c = cu_colores()
-    t = cu_marca() + " (lo escribe Forja: Demos > Copper; la línea de las paradas sirve para volver a editarlo)\n"
-    t = t + cu_linea_paradas() + "\n"
+    vs = _cu_todos_valores()
+    t = cu_marca() + " (lo escribe Forja: Demos > Copper; las líneas de los registros sirven para volver a editarlo)\n"
+    for r in cu_registros
+        t = t + cu_linea_registro(r) + "\n"
+    end
     if cu_tabla
-        t = t + "# Un color de 12 bits por línea de la pantalla (0 a 255), de 16 bits cada uno, para un bloque asm: con la\n"
-        t = t + "# línea en d1, add.w d1,d1 y move.w (a1,d1.w),$180(a0). Se libera con amiga_free(t, 512).\n"
-        t = t + "func copper_" + cu_nombre + "() -> Int\n"
-        t = t + "    t = amiga_alloc(512)\n"
-        t = t + "    datos = ["
-        primero = c[0]
-        for v in c
-            if v >= 0 and primero < 0
-                primero = v
+        n = cu_registros.length
+        orden = ""
+        k = 0
+        for r in cu_registros
+            if k > 0
+                orden = orden + ", "
             end
+            orden = orden + cu_nombre_reg(r.reg) + " en +#{k * CU_LINEAS * 2}"
+            k = k + 1
         end
-        if primero < 0
-            primero = 0
-        end
+        t = t + "# Un valor de 16 bits por línea de la pantalla (0 a 255) y por registro (" + orden + "), para un\n"
+        t = t + "# bloque asm: con la línea en d1, add.w d1,d1 y move.w (a1,d1.w),$180(a0). Se libera con amiga_free(t, #{n * CU_LINEAS * 2}).\n"
+        t = t + "func copper_" + cu_nombre + "() -> Int\n"
+        t = t + "    t = amiga_alloc(#{n * CU_LINEAS * 2})\n"
+        t = t + "    datos = ["
         i = 0
-        for v in c
-            if i > 0
-                t = t + ", "
-                if i % 12 == 0
-                    t = t + "\n             "
+        k = 0
+        for c in vs
+            primero = -1
+            for v in c
+                if v >= 0 and primero < 0
+                    primero = v
                 end
             end
-            w = v
-            if w < 0
-                w = primero
+            if primero < 0
+                primero = 0
             end
-            t = t + "0x" + cu_hex(w)
-            i = i + 1
+            for v in c
+                if i > 0
+                    t = t + ", "
+                    if i % 12 == 0
+                        t = t + "\n             "
+                    end
+                end
+                w = v
+                if w < 0
+                    w = primero
+                end
+                t = t + "0x" + cu_valor_texto(cu_registros[k].reg, w)
+                i = i + 1
+            end
+            k = k + 1
         end
         t = t + "]\n"
-        t = t + "    i = 0\n    while i < #{CU_LINEAS}\n        poke_word(t + i * 2, datos[i])\n        i = i + 1\n    end\n"
+        t = t + "    i = 0\n    while i < #{n * CU_LINEAS}\n        poke_word(t + i * 2, datos[i])\n        i = i + 1\n    end\n"
         t = t + "    return t\nend\n"
     else
         t = t + "# Pone la lista en la pantalla del programa (copper_free la quita).\n"
         t = t + "func copper_" + cu_nombre + "()\n"
         t = t + "    copper_create(#{cu_instrucciones() + 2})\n"
-        antes = -1
         y = 0
-        for v in c
-            if v != antes and v >= 0
-                t = t + "    copper_wait(#{y}, 0)\n    copper_color(#{cu_color}, 0x" + cu_hex(v) + ")\n"
+        while y < CU_LINEAS
+            cambios = ""
+            k = 0
+            for c in vs
+                if c[y] >= 0 and (y == 0 or c[y] != c[y - 1])
+                    cambios = cambios + _cu_cambio(cu_registros[k].reg, c[y])
+                end
+                k = k + 1
             end
-            antes = v
+            if cambios != ""
+                t = t + "    copper_wait(#{y}, 0)\n" + cambios
+            end
             y = y + 1
         end
         t = t + "    copper_end()\n    copper_install()\nend\n"
     end
     return t + cu_marca_fin() + "\n"
+end
+
+# Pone la lista de verdad (para Probar), con todos los registros
+func cu_instalar() -> Bool
+    vs = _cu_todos_valores()
+    if not copper_create(cu_instrucciones() + 4)
+        return false
+    end
+    y = 0
+    while y < CU_LINEAS
+        hay = false
+        k = 0
+        for c in vs
+            if c[y] >= 0 and (y == 0 or c[y] != c[y - 1])
+                if not hay
+                    copper_wait(y, 0)
+                    hay = true
+                end
+                reg = cu_registros[k].reg
+                if cu_es_color(reg)
+                    copper_color((reg - 0x180) / 2, c[y])
+                else
+                    copper_move(reg, c[y])
+                end
+            end
+            k = k + 1
+        end
+        y = y + 1
+    end
+    copper_end()
+    copper_install()
+    return true
+end
+
+# La lista para la demo en vivo (COPPER de sync.dash): una palabra por instrucción, en el orden de cu_instalar: W
+# línea, C color:rgb, M registro:valor (en hex)
+func cu_lista_vivo() -> [String]
+    vs = _cu_todos_valores()
+    var l: [String] = []
+    y = 0
+    while y < CU_LINEAS
+        hay = false
+        k = 0
+        for c in vs
+            if c[y] >= 0 and (y == 0 or c[y] != c[y - 1])
+                if not hay
+                    l.push("W#{y}")
+                    hay = true
+                end
+                reg = cu_registros[k].reg
+                if cu_es_color(reg)
+                    l.push("C#{(reg - 0x180) / 2}:" + cu_hex(c[y]))
+                else
+                    l.push("M" + cu_hex_n(reg, 3) + ":" + cu_hex_n(c[y], 4))
+                end
+            end
+            k = k + 1
+        end
+        y = y + 1
+    end
+    return l
 end
 
 # Busca el bloque de cu_nombre en un texto: [primera línea, última línea] desde 1, o [0, 0]
@@ -223,30 +636,48 @@ func cu_buscar_bloque(texto: String) -> [Int]
     return [0, 0]
 end
 
-# El primer bloque de copper de un texto (o el que contiene la línea dada, desde 1): lee su nombre y sus paradas
+# El primer bloque de copper de un texto (o el que contiene la línea dada, desde 1): lee su nombre y sus registros
+# (las líneas "# registro:", o la vieja "# paradas:")
 func cu_leer_codigo(texto: String, linea: Int) -> Bool
     l = str_split(texto, "\n")
     i = 0
-    nombre = ""
-    desde = 0
-    var bloques: [Int] = []
     while i < l.length
         s = str_trim(l[i])
         if str_starts(s, "# copper: ")
-            desde = i + 1
-            r = s[10:]
-            p = str_find(r, " ")
+            nombre = s[10:]
+            p = str_find(nombre, " ")
             if p > 0
-                r = r[0:p]
+                nombre = nombre[0:p]
             end
-            nombre = r
-        elif desde > 0 and str_starts(s, "# paradas:")
-            if linea <= 0 or (linea >= desde and (linea <= i + 1 or _cu_fin_tras(l, i, linea)))
-                if cu_leer_paradas(s)
-                    cu_nombre = nombre
-                    return true
+            # hasta su fin (o el bloque siguiente)
+            j = i + 1
+            var regs: [CuRegistro] = []
+            while j < l.length
+                sj = str_trim(l[j])
+                if str_starts(sj, "# fin copper:") or str_starts(sj, "# copper: ")
+                    break
                 end
+                r = cu_leer_linea(sj)
+                if r != nil
+                    regs.push(r)
+                end
+                j = j + 1
             end
+            if regs.length > 0 and (linea <= 0 or (linea >= i + 1 and linea <= j + 1))
+                cu_nombre = nombre
+                cu_registros = regs
+                cu_reg = -1
+                k = 0
+                while k < regs.length
+                    cu_elegir(k)
+                    cu_ordenar()
+                    k = k + 1
+                end
+                cu_reg = -1
+                cu_elegir(0)
+                return true
+            end
+            i = j - 1
         end
         i = i + 1
     end
@@ -256,24 +687,13 @@ func cu_leer_codigo(texto: String, linea: Int) -> Bool
     return false
 end
 
-func _cu_fin_tras(l: [String], i: Int, linea: Int) -> Bool
-    j = i
-    while j < l.length
-        if str_starts(str_trim(l[j]), "# fin copper:")
-            return linea <= j + 1
-        end
-        j = j + 1
-    end
-    return false
-end
-
+# Para la sonda: "copper paradas elegida registro modo código línea:valor instrucciones registros n elegido"
 func cu_sonda() -> String
-    t = "copper #{cu_paradas.length} #{cu_elegida} #{cu_color} "
-    if cu_degradado
-        t = t + "degradado"
-    else
-        t = t + "cambios"
+    if cu_registros.length == 0
+        cu_nuevo()
     end
+    r = cu_actual()
+    t = "copper #{cu_paradas.length} #{cu_elegida} " + cu_nombre_reg(r.reg) + " " + cu_modo_nombre(r.modo)
     if cu_tabla
         t = t + " tabla"
     else
@@ -281,7 +701,8 @@ func cu_sonda() -> String
     end
     if cu_paradas.length > 0
         p = cu_paradas[cu_elegida]
-        t = t + " #{p.linea}:" + cu_hex(p.rgb)
+        t = t + " #{p.linea}:" + cu_valor_texto(r.reg, p.rgb)
     end
-    return t + " #{cu_instrucciones()}"
+    t = t + " #{cu_instrucciones()} registros #{cu_registros.length} #{cu_reg}"
+    return t
 end

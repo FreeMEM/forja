@@ -2,14 +2,16 @@
 
 Una extensión es un programa aparte que añade algo a Forja: opciones de menú (sueltas o en un menú suyo), teclas,
 marcas y rayas en el margen del código, letras en el proyecto, una zona en la barra de botones, un texto en la barra,
-pestañas de solo lectura con colores y teclas propias, un editor para un tipo de fichero con su ventana. Habla con
+pestañas de solo lectura con colores y teclas propias, paneles dentro de la ventana de Forja (junto al proyecto o junto
+a la salida), un editor para un tipo de fichero con su ventana. Habla con
 Forja por su puerto ARexx, `FORJA.1`. Si cae o se cuelga, Forja sigue en pie.
 
 Se escriben en Dash con `lib/forja.dash`, pero valen en cualquier lenguaje que hable ARexx (también un script).
 
 La de ejemplo es `extensiones/Contar`: cuenta las líneas y las palabras del fichero, lo pone en la barra y mete la
-fecha en el cursor con Ctrl Alt D. `extensiones/Git` (git con dashgit) usa casi todo lo demás. `extensiones/Inferencia`
-(el copiloto, que habla con Inferencia) usa las vistas para enseñar un cambio antes de aceptarlo y `SUGERENCIA`.
+fecha en el cursor con Ctrl Alt D. `extensiones/Git` (git con dashgit) usa casi todo lo demás, también un panel (Cambios,
+junto al proyecto). `extensiones/Inferencia` (el copiloto, que habla con Inferencia) usa las vistas para enseñar un
+cambio antes de aceptarlo, `SUGERENCIA` y un panel abajo con el resultado de la prueba que escribe.
 `extensiones/Sprites` y `extensiones/Mapas` (los editores de sprites y de mapas de tiles) abren sus tipos de fichero en
 una ventana suya y hacen ficheros nuevos (`tipos`, `nuevo`, `GUARDADO`, `SINGUARDAR`, `COMPILAR fichero`).
 `extensiones/Demos` (copper, MOD, pistas de sincronía y medidor) escribe en el código del editor (`TEXTO`, `CAMBIAR`,
@@ -51,7 +53,7 @@ En el cajón `Extensiones` junto a Forja, una por cajón:
 | `arranque` | `inicio`: arranca con Forja. `menu` (por defecto): la primera vez que se elige su menú, se pulsa su tecla o se abre uno de sus tipos de fichero. |
 | `sucesos` | Los avisos que quiere (ver Sucesos). Los demás no se le guardan. |
 | `menu` | Una opción del menú: `título \| tecla \| orden`. La tecla y la orden pueden faltar; sin orden, es el título. Puede haber varias. |
-| `submenu` | El título de su menú propio (`submenu = Git`): un menú más en la barra de menús, tras Extensiones, con sus opciones (10 como mucho). Hay 3 entre todas; si no quedan, van sueltas en Extensiones. |
+| `submenu` | El título de su menú propio (`submenu = Git`): un menú más en la barra de menús, tras Extensiones, con sus opciones (12 como mucho). Hay 3 entre todas; si no quedan, van sueltas en Extensiones. |
 | `pausa` | Cuántos milisegundos sin escribir antes de `CAMBIADO` (por defecto 1200; 300 como poco). |
 | `tipos` | Los ficheros que abre ella, por su final: `.spr .bob`. Forja no los abre: se los pasa con `EDITAR` (desde el panel del proyecto, Abrir, la sesión o ARexx). El panel del proyecto los lista y la petición de Abrir los deja elegir. Los `.dash` y `.dashui` son siempre de Forja. |
 | `nuevo` | Un fichero nuevo que hace ella: `título \| orden \| descripción` (`nuevo = _BOB \| bob \| Un BOB: del tamaño...`). Proyecto > Nuevo de extensión... (Amiga-B) enseña la descripción de cada uno y un botón con su título (el `_` marca su tecla); el elegido le llega como `NUEVO orden`. Puede haber varios. |
@@ -62,8 +64,10 @@ En el cajón `Extensiones` junto a Forja, una por cajón:
 otras no cuentan (la orden, la tercera parte, tiene que ser la misma). Sin catálogo (en castellano), no cuentan.
 
 Teclas: `ctrl`, `alt`, `shift`, `amiga` y una letra, una cifra o `f1` a `f10`. Por ejemplo `ctrl alt d` o `f3`.
-Funcionan con el puntero sobre el editor. Las de Forja van antes: `amiga s` nunca llega a una extensión. Libres hoy:
-Amiga con M, T o Y, y Ctrl Alt con casi todas las letras (Amiga-I es de Inferencia; F1 a F10 son de Forja).
+Funcionan en toda la ventana de Forja: con el puntero sobre el editor, el proyecto, la salida o la barra de botones,
+con un panel de una extensión con el teclado y sin ningún fichero abierto (desde la API 6; antes, solo sobre el editor
+con un fichero). Las de Forja van antes: `amiga s` nunca llega a una extensión. Libres hoy: Amiga con M, T o Y, y Ctrl
+Alt con casi todas las letras (Amiga-I es de Inferencia; F1 a F10 son de Forja).
 
 ## Cómo arranca y cómo habla
 
@@ -145,6 +149,10 @@ Cada uno es una línea: el tipo, un espacio y el dato.
 | `VUELTA` | La ventana de Forja vuelve a ser la activa (quizá cambió algo fuera: git mira el estado). Al volver, Forja lee otra vez el cajón del proyecto. | `vuelta` |
 | `ZONA` | Un clic en su zona de la barra de botones. | No |
 | `TECLA tecla línea nombre` | Una tecla en su pestaña de solo lectura `nombre`, con el cursor en esa línea (desde 1). La tecla es la letra, `return`, `tab`, `borrar` o `espacio`. Las flechas y Esc no llegan: mueven el cursor. | No |
+| `PANEL título\|línea\|columna\|otra` | Un clic en una línea de su panel (línea y columna desde 1; `otra` 1 si ya era la elegida: un segundo clic). | No |
+| `PANELTECLA título\|tecla\|línea` | Una tecla con su panel con el teclado, con esa línea elegida (0 ninguna). Como en `TECLA`; las flechas mueven la elegida, Esc devuelve el teclado al editor y Tab va a la entrada. | No |
+| `PANELBOTON título\|orden` | Un clic en uno de sus botones. | No |
+| `PANELTEXTO título\|texto` | Return en la entrada de su panel (el texto se queda: la extensión lo vacía si quiere). | No |
 
 Un fichero sin guardar no tiene ruta: va su nombre ("sin nombre.dash").
 
@@ -160,10 +168,10 @@ en su ventana y Forja no los ve).
 
 | Orden | Respuesta |
 |-------|-----------|
-| `HOLA nombre` | La versión de la API y la de Forja: `5 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA; la 4, `nuevo`, `NUEVO`, `GUARDAR`, `GUARDADO`, `SINGUARDAR`, `DELANTE` y `COMPILAR fichero`; la 5, `EDITANDO` y `SALIR`). |
+| `HOLA nombre` | La versión de la API y la de Forja: `6 0.8.0` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA; la 4, `nuevo`, `NUEVO`, `GUARDAR`, `GUARDADO`, `SINGUARDAR`, `DELANTE` y `COMPILAR fichero`; la 5, `EDITANDO` y `SALIR`; la 6, los paneles, las teclas en toda la ventana y `SUGERENCIA` de varias líneas o en medio de una). |
 | `SUCESOS nombre` | Sus sucesos, uno por línea, y la cola queda vacía. |
 | `ADIOS nombre` | Se va. Forja quita sus marcas y su texto. |
-| `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 10 en cada menú propio). |
+| `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 12 en cada menú propio). |
 
 ### Leer
 
@@ -188,7 +196,8 @@ en su ventana y Forja no los ve).
 | `BARRA` | Lo que enseña la barra. |
 | `ZONA` | Las zonas de la barra de botones, una por línea: `extensión\|texto\|detalle`. |
 | `RAYAS fichero` | Las rayas de ese fichero: `línea:bits` separadas por espacios (1 añadida, 2 cambiada, 4 quitadas encima, 8 quitadas debajo). |
-| `SUGERENCIA` | La sugerencia que se ve: `línea columna texto` (vacía si ninguna). |
+| `SUGERENCIA` | La sugerencia que se ve: `línea columna texto` (vacía si ninguna; el texto puede tener varias líneas). |
+| `PANELES` | Los paneles de las extensiones, uno por línea: `extensión\|título\|lado\|delante\|elegida\|líneas\|entrada` (lado `izquierda` o `abajo`; delante 1 si es el que se ve en su lado; la línea elegida desde 1, 0 ninguna; cuántas líneas tiene; el texto de su entrada). |
 
 ### Escribir
 
@@ -204,7 +213,7 @@ Todo con deshacer, como si lo hubiera escrito el usuario.
 | `ABRIR fichero [línea]` | Lo abre, o va a su pestaña. Si es de un tipo de una extensión, se lo pasa a ella. |
 | `GUARDAR [fichero]` | Lo guarda. |
 | `IRA línea`, `BUSCAR texto`, `CAMBIARTODO buscar cambiar` | Como en el menú. |
-| `COMPILAR [fichero]`, `EJECUTAR [fichero]` | Sin esperar: `ESTADO` dice cuándo acaba; también el suceso `COMPILADO`. Sin fichero, el programa del fichero de delante. Con un fichero que no es un programa (un sprite, un mapa, un módulo), el de su cajón: un `.dash` abierto con `Main` de ese cajón o el de encima, si no su `main.dash` o el del proyecto, abierto o no. RC 5 si ya compila o ejecuta; 10 si no hay programa. |
+| `COMPILAR [fichero]`, `EJECUTAR [fichero]` | Sin esperar: `ESTADO` dice cuándo acaba; también el suceso `COMPILADO`. Sin fichero, el programa del fichero de delante. Un `.dash` abierto con su `Main` (una prueba) es él mismo: pasa delante y se compila. Con un fichero que no es un programa (un sprite, un mapa, un módulo), el de su cajón: un `.dash` abierto con `Main` de ese cajón o el de encima, si no su `main.dash` o el del proyecto, abierto o no. RC 5 si ya compila o ejecuta; 10 si no hay programa. |
 
 ### Los ficheros de una extensión
 
@@ -229,7 +238,39 @@ Para las que abren sus propios tipos de fichero (`tipos`, `nuevo`) en una ventan
 | `RAYAS nombre fichero [versión]`, y una por línea: `línea símbolos` | Sus rayas en el margen de ese fichero, pegadas al texto: `+` añadida (raya llena, verde), `~` cambiada (raya a trozos, azul), `-` se quitaron líneas justo encima (un triángulo rojo arriba), `_` se quitaron justo debajo (abajo; para lo quitado tras la última). Se juntan: `~-`. Sustituyen las suyas; sin líneas, las quita. Con versión (la de `VERSION`), solo si el texto sigue en esa: si no, RC 5 y nada cambia. |
 | `ZONA nombre icono\|texto\|detalle\|corto` | Su zona en la barra de botones, a la derecha: un icono (uno de Forja, como `rama` o `inferencia`, o uno propio: 12 filas de 12 separadas por `/`, con `#` los píxeles), un texto y un detalle en otro color. Si no cabe el detalle, va el corto; si tampoco, solo el texto; si tampoco, no se ve. Un clic da `ZONA`. Sin texto ni detalle, la quita. |
 | `VISTA nombre "título"`, y una por línea: el color (un carácter) y el texto | Una pestaña de solo lectura, delante; si ya tiene una con ese título, la vuelve a llenar. El color de cada línea: `+` verde, `-` rojo, `@` azul, `#` gris, `!` amarillo; otro (un espacio), el del texto. Sus teclas llegan con `TECLA`; el cursor se mueve con `CURSOR`. No se guarda ni se escribe en ella. Sin ninguna línea detrás, cierra esa pestaña suya (RC 5 si no la hay). |
-| `SUGERENCIA nombre línea columna versión`, y el texto en la línea siguiente | Una sugerencia en gris tras el cursor del fichero activo, como la de un copiloto: Tab la mete (con deshacer), Esc la quita y se va sola al escribir o al mover el cursor. Solo si el cursor está en esa línea y columna, al final de la línea, sin nada elegido, y el texto sigue en esa versión (`VERSION`): si no, RC 5 y no sale. Una línea. Si a la vez está la lista para completar, Tab es de la lista. `SUGERENCIA nombre` sin más quita la suya. |
+| `SUGERENCIA nombre línea columna versión`, y el texto en las líneas siguientes | Una sugerencia en gris en el cursor del fichero activo, como la de un copiloto: Tab la mete (con deshacer, de una vez), Esc la quita y se va sola al escribir o al mover el cursor. Solo si el cursor está en esa línea y columna, sin nada elegido, y el texto sigue en esa versión (`VERSION`): si no, RC 5 y no sale. Puede tener varias líneas y el cursor puede estar en medio de una (API 6): la primera se ve desde el cursor, las demás encima de las líneas de debajo (con una raya a la izquierda) y lo que había tras el cursor, detrás de la última, como quedará. Si a la vez está la lista para completar, Tab es de la lista. `SUGERENCIA nombre` sin más quita la suya. |
+
+### Paneles
+
+Desde la API 6. Un panel es una pestaña más en la ventana de Forja: junto al panel del proyecto (lado `izquierda`) o
+junto a la salida (`abajo`). Con un panel en un lado, la fila del título de ese lado son pestañas: la de Forja (el
+proyecto o la salida) y las de los paneles; un clic en una la pone delante. Forja lo pinta con lo que manda la
+extensión, así que no cuesta una ventana más ni que la extensión esté despierta para repintarlo:
+
+- líneas con un color cada una (los de `VISTA`), y una elegida (resaltada);
+- botones abajo (los que no caben en una fila pasan a otra);
+- una entrada de texto de una línea sobre los botones, con su etiqueta, si se pide.
+
+Un clic en el panel le da el teclado: las flechas mueven la elegida y las demás teclas llegan con `PANELTECLA`; Tab va
+a la entrada y vuelve; en la entrada se escribe (Return da `PANELTEXTO`); Esc devuelve el teclado al editor, como un
+clic en el editor. Las teclas con Amiga, las de las extensiones y las del depurador valen igual. Al depurar, el lado
+izquierdo enseña las variables, como siempre. La barra de su lado (la del proyecto o la de la salida) mueve el panel
+de delante, y la rueda también. Hay 8 paneles como mucho entre todas; se van con su extensión.
+
+| Orden | Qué hace |
+|-------|----------|
+| `PANEL nombre "título" [izquierda\|abajo]`, y una línea por fila: el color (un carácter) y el texto | Lo pone o lo vuelve a llenar (la elegida y lo desplazado se quedan). No lo pone delante. RC 5 si ya no caben. |
+| `PANELVER nombre "título" [entrada]` | Delante en su lado; con `entrada`, su entrada toma el teclado. |
+| `PANELCERRAR nombre "título"` | Lo quita. |
+| `PANELBOTONES nombre "título"`, y una línea por botón: `texto\|orden` | Sus botones (sin líneas, ninguno). |
+| `PANELENTRADA nombre "título" etiqueta`, y quizá el texto en la línea siguiente | Una entrada con esa etiqueta; con la línea siguiente cambia su texto (vacía, la vacía). Sin etiqueta, la quita. |
+| `PANELCURSOR nombre "título" línea` | La línea elegida (desde 1; 0 ninguna), a la vista. |
+
+Así lo usa Git: `PANEL Git "Cambios" izquierda` con una fila por fichero (`[x] M main.dash`), la entrada "Mensaje:" y
+los botones Diferencias, Preparar todo, Quitar todo y Confirmar. Un clic en la casilla (las columnas 1 a 3) o Espacio
+prepara el fichero; un segundo clic en la elegida o Return abre sus diferencias; Return en el mensaje confirma.
+
+### Las marcas y las rayas
 
 Las marcas del margen van en una columna entre los números y el texto, que solo aparece si el fichero tiene alguna.
 Se distinguen por el símbolo, también con los 4 colores del Workbench. El color sale del símbolo: `+` verde
@@ -309,6 +350,13 @@ Así van `extensiones/Sprites` y `extensiones/Mapas`:
 | `forja_delante()` | `DELANTE`. |
 | `forja_editando(rutas)` | `EDITANDO`: los suyos abiertos, para la sesión (`[]`: ninguno). |
 | `forja_salir()` | `SALIR`: Forja se cierra (Amiga-Q en su ventana). |
+| `forja_panel(título, lado, líneas, colores)` | `PANEL` (lado `"izquierda"` o `"abajo"`). |
+| `forja_panel_ver(título, entrada)`, `forja_panel_cerrar(título)` | `PANELVER` (con `entrada` true, el teclado a su entrada) y `PANELCERRAR`. |
+| `forja_panel_botones(título, botones)` | `PANELBOTONES` (`"texto\|orden"` cada uno). |
+| `forja_panel_entrada(título, etiqueta)`, `forja_panel_entrada_texto(título, etiqueta, texto)` | `PANELENTRADA` (la segunda cambia también el texto). |
+| `forja_panel_cursor(título, línea)` | `PANELCURSOR`. |
+| `forja_panel_estado(título)` | Su línea de `PANELES` en partes (la última, el texto de la entrada); `[]` si no lo tiene. |
+| `forja_campo(n)` | La parte n (desde 0, separadas por `\|`) del dato del último suceso: en los de los paneles, la 0 es el título. |
 
 El `import "lib/forja.dash"` lo encuentra `./dash` subiendo de cajón en cajón desde el fichero que importa: una
 extensión en `extensiones/X/` del repositorio de Forja (o en `Forja/Extensiones/X/`, con `Forja/lib/forja.dash`)
@@ -338,10 +386,10 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
 
 ## Lo que falta
 
-- Teclas de las extensiones fuera del editor (con el puntero en el proyecto o la salida).
 - Con MUI 3.8, añadir o quitar un menú propio con la ventana abierta la cierra y la abre (los del arranque se hacen
   antes de abrirla). Las opciones sueltas de Extensiones se ponen y se quitan con `mui_menu_extend` y
-  `mui_menu_remove` (12 como mucho, solo las que hay); la raya de encima se queda (`mui_menu_separator` de Dash no da
-  un objeto que se pueda quitar).
-- Paneles propios dentro de la ventana de Forja: hoy cada extensión pinta sus ventanas.
-- Probar la instalación desde un `.lha` en el emulador (no tiene `C:LhA`).
+  `mui_menu_remove` (12 como mucho, solo las que hay), con su raya encima (`mui_menu_separator`), que se va con ellas.
+- Los paneles son de texto (líneas, botones y una entrada): una extensión que necesite dibujar (un lienzo) sigue
+  abriendo su ventana.
+- Instalar desde un `.lha` está probado con un LhA del Amiga puesto en el emulador para la prueba (`LHA_AMIGA`); el
+  sistema de pruebas no lo trae.

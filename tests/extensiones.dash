@@ -7,6 +7,8 @@
 #     CERRADO, EDITAR (un .eco, que no abre Forja), MARCA (un clic en su marca) y COMPILADO;
 #   - una extensión que cae (Forja lo dice y la vuelve a arrancar con su menú) y otra colgada (Forja sigue
 #     contestando, su cola tiene tope);
+#   - las teclas de una extensión con el puntero en la salida, el proyecto y la barra de botones, y sus paneles en la
+#     ventana de Forja (pestañas, clic en una línea, flechas y Return, la entrada, los botones; PANELES);
 #   - el gestor: desactivar Contar (se va y se guarda en la preferencia) y volver a activarla.
 # Lo arranca tests/extensiones.sh; anota en DH0:Prueba/extensiones.txt.
 
@@ -22,6 +24,7 @@ const M_CONTAR = 2         # sus opciones: gestor, raya, Contar las palabras, In
 const M_ECO = 4
 const M_CAERSE = 5
 const M_COLGARSE = 6
+const M_PANELES = 7
 
 var fallos: Int = 0
 var registro: String = ""
@@ -173,6 +176,102 @@ func cuenta() -> String
     return "#{lineas} líneas, #{palabras} palabras"
 end
 
+# Los paneles de las extensiones, de la sonda (ENV:FORJA_PANELES): la línea de un lado
+func panel_lado(lado: Int) -> String
+    for l in str_split(env_get("FORJA_PANELES"), str_char(30))
+        if str_starts(l, "lado #{lado}:")
+            return l
+        end
+    end
+    return ""
+end
+
+# Un número de la línea de un lado: tras "o=" (0 x, 1 y), una pestaña k ("pest=": 2k x1, 2k+1 x2)...
+func panel_origen(lado: Int, i: Int) -> Int
+    l = panel_lado(lado)
+    p = str_find(l, "o=")
+    q = str_find(l, " pest=")
+    if p < 0 or q < 0
+        return 0
+    end
+    return Int(str_split(l[p + 2:q], ",")[i])
+end
+
+# El centro de la pestaña k de un lado (0 la de Forja), desde la esquina de la ventana
+func pestana_x(lado: Int, k: Int) -> Int
+    l = panel_lado(lado)
+    p = str_find(l, "pest=")
+    q = str_find(l, " y=")
+    if p < 0 or q < 0
+        return 0
+    end
+    ps = str_split(l[p + 5:q], ",")
+    if k >= ps.length or ps[k] == ""
+        return 0
+    end
+    ab = str_split(ps[k], "-")
+    return (Int(ab[0]) + Int(ab[1])) / 2
+end
+
+# La parte n (separadas por " | ") de la línea del lado con su panel delante: 2 líneas "x,y,fila,desde,caben", 3 la
+# y de la entrada, 4 los botones
+func panel_parte(lado: Int, n: Int) -> String
+    ps = str_split(panel_lado(lado), " | ")
+    if n >= ps.length
+        return ""
+    end
+    return ps[n]
+end
+
+func panel_num(lado: Int, n: Int, i: Int) -> Int
+    return Int(str_split(panel_parte(lado, n), ",")[i])
+end
+
+# Un clic en la ventana de Forja (activa), desde su esquina
+func clic_forja(x: Int, y: Int)
+    activar("Forja")
+    input_move(x, y)
+    time_delay(5)
+    input_click(x, y, 0)
+    time_delay(15)
+end
+
+# Cuántas líneas del texto son esa
+func veces(texto: String, linea: String) -> Int
+    n = 0
+    for l in str_split(texto, "\n")
+        if l == linea
+            n = n + 1
+        end
+    end
+    return n
+end
+
+# Espera a que Eco haya apuntado n veces MENU eco
+func veces_espera(n: Int) -> Bool
+    k = 0
+    while k < 60
+        if veces(eco(), "MENU eco") >= n
+            return true
+        end
+        time_delay(5)
+        k = k + 1
+    end
+    return false
+end
+
+func paneles_dice(trozo: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        if str_contains(rexx("PANELES"), trozo)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
 Main
     run_command("Run >NIL: DH0:Prueba/Forja")
     n = 0
@@ -310,12 +409,106 @@ Main
         ver("COMPILADO (con los errores de la fecha metida arriba)", str_contains(eco(), "\nCOMPILADO ") and not str_contains(eco(), "\nCOMPILADO 0"), eco())
     end
 
+
+    # --- Teclas fuera del editor y paneles (API 6) ---
+    rexx("ABRIR " + MAIN)
+    t_linea1 = rexx("LINEA 1")
+    ver("Paneles: Eco pone los suyos", menu(M_PANELES) and eco_dice("MENU paneles", 100) and paneles_dice("Eco|Charla|abajo|0|0|1|", 60), rexx("PANELES"))
+    ver("PANELES", str_contains(rexx("PANELES"), "Eco|Lista|izquierda|0|0|3|\n"), rexx("PANELES"))
+    time_delay(25)
+    n_eco = veces(eco(), "MENU eco")
+    # Ctrl Alt E (la tecla de Eco) con el puntero sobre la salida, sobre el proyecto y sobre la barra de botones
+    activar("Forja")
+    input_move(campo("FORJA_SALIDA", 0) + 60, campo("FORJA_SALIDA", 1) + 4)
+    time_delay(5)
+    input_key(0x12, CTRL + ALT)
+    ver("la tecla de una extensión con el puntero en la salida", eco_dice("MENU eco", 1) and veces_espera(n_eco + 1), eco())
+    input_move(panel_origen(0, 0) + 30, panel_origen(0, 1) + 60)
+    time_delay(5)
+    input_key(0x12, CTRL + ALT)
+    ver("y en el proyecto", veces_espera(n_eco + 2), eco())
+    input_move(campo("FORJA_EDITOR", 0) + 30, campo("FORJA_EDITOR", 1) - 12)
+    time_delay(5)
+    input_key(0x12, CTRL + ALT)
+    ver("y en la barra de botones", veces_espera(n_eco + 3), eco())
+    # las pestañas: un clic en la de Lista la pone delante
+    clic_forja(pestana_x(0, 1), panel_origen(0, 1) + 9)
+    ver("un clic en su pestaña pone delante el panel", paneles_dice("Eco|Lista|izquierda|1|", 40), rexx("PANELES") + " / " + panel_lado(0))
+    screen_save_png("DH0:Prueba/panel-lista.png")
+    # un clic en la segunda línea: PANEL a Eco
+    clic_forja(panel_num(0, 2, 0) + 20, panel_num(0, 2, 1) + panel_num(0, 2, 2) + 2)
+    ver("un clic en una línea: PANEL título|línea|columna|otra_vez", eco_dice("PANEL Lista|2|2|0", 60), eco() + " / " + panel_lado(0))
+    # el panel tiene el teclado: flecha abajo y Return
+    input_key(0x4D, 0)
+    time_delay(10)
+    input_key(0x44, 0)
+    ver("con el teclado en el panel, flechas y Return: PANELTECLA", eco_dice("PANELTECLA Lista|return|3", 60), eco())
+    input_key(0x22, 0)
+    ver("y una letra", eco_dice("PANELTECLA Lista|d|3", 60), eco())
+    ver("el texto del editor no cambia", rexx("LINEA 1") == t_linea1, rexx("LINEA 1"))
+    input_key(0x12, CTRL + ALT)
+    ver("la tecla de la extensión sigue valiendo", veces_espera(n_eco + 4), eco())
+    # abajo: la pestaña Charla, la entrada y Return
+    clic_forja(pestana_x(1, 1), panel_origen(1, 1) + 9)
+    ver("la pestaña de abajo", paneles_dice("Eco|Charla|abajo|1|", 40), rexx("PANELES") + " / " + panel_lado(1))
+    ey = Int(panel_parte(1, 3))
+    clic_forja(panel_origen(1, 0) + 120, ey + 4)
+    ver("un clic en la entrada le da el teclado", str_contains(env_get("FORJA_PANELES"), "|entrada|"), env_get("FORJA_PANELES"))
+    input_text("hola panel")
+    input_key(0x44, 0)
+    ver("Return en la entrada: PANELTEXTO", eco_dice("PANELTEXTO Charla|hola panel", 60), eco())
+    ver("y Eco lo añade y vacía la entrada", paneles_dice("Eco|Charla|abajo|1|0|2|\n", 60), rexx("PANELES"))
+    screen_save_png("DH0:Prueba/panel-charla.png")
+    b = str_split(panel_parte(1, 4), ";")
+    bc = str_split(b[0], ",")
+    clic_forja((Int(bc[0]) + Int(bc[2])) / 2, (Int(bc[1]) + Int(bc[3])) / 2)
+    ver("un botón: PANELBOTON", eco_dice("PANELBOTON Charla|limpiar", 60) and paneles_dice("Eco|Charla|abajo|1|0|0|", 60), eco() + " / " + rexx("PANELES"))
+    bc = str_split(b[1], ",")
+    clic_forja((Int(bc[0]) + Int(bc[2])) / 2, (Int(bc[1]) + Int(bc[3])) / 2)
+    ver("el otro cierra la Lista (PANELCERRAR)", eco_dice("PANELBOTON Charla|cerrar", 60) and not paneles_dice("Eco|Lista", 20), rexx("PANELES"))
+    ver("y a la izquierda vuelve el proyecto, sin pestañas", str_contains(panel_lado(0), "pest= y="), panel_lado(0))
+    # la salida otra vez delante con su pestaña, y un clic en el editor le devuelve el teclado
+    clic_forja(pestana_x(1, 0), panel_origen(1, 1) + 9)
+    ver("la pestaña de la salida", paneles_dice("Eco|Charla|abajo|0|", 40), rexx("PANELES"))
+    clic_forja(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    rexx("CURSOR 1 1")
+    input_text("z")
+    time_delay(25)
+    ver("un clic en el editor le devuelve el teclado", str_starts(rexx("LINEA 1"), "z"), rexx("LINEA 1"))
+    al_editor()
+    input_key(0x31, AMIGA)
+    time_delay(25)
+    rexx("PANELVER Eco \"Charla\" entrada")
+    ver("PANELVER con entrada: delante y con el teclado", paneles_dice("Eco|Charla|abajo|1|", 20) and str_contains(env_get("FORJA_PANELES"), "Charla|1|0|0|entrada|"), rexx("PANELES") + " / " + env_get("FORJA_PANELES"))
+    input_key(0x45, 0)
+    input_key(0x45, 0)
+    time_delay(10)
+    ver("Esc dos veces: el teclado vuelve al editor", not str_contains(env_get("FORJA_PANELES"), "|entrada|") and not str_contains(env_get("FORJA_PANELES"), "|lista|"), env_get("FORJA_PANELES"))
+
+    # --- SUGERENCIA en medio de una línea y de varias líneas (API 6) ---
+    rexx("ABRIR " + MAIN)
+    l2 = rexx("LINEA 2")
+    rexx("CURSOR 2 3")
+    v = rexx("VERSION")
+    rexx("SUGERENCIA Prueba 2 3 " + v + "\nAAA\nBBB")
+    ver("SUGERENCIA en medio de una línea, de dos líneas", rexx("SUGERENCIA") == "2 3 AAA\nBBB", rexx("SUGERENCIA") + " rc #{rexx_rc()}")
+    time_delay(25)
+    screen_save_png("DH0:Prueba/sugerencia-varias.png")
+    al_editor()
+    input_key(0x42, 0)
+    time_delay(20)
+    ver("Tab la mete: lo de detrás del cursor queda tras la última", rexx("LINEAS 2 3") == l2[0:2] + "AAA\nBBB" + l2[2:], rexx("LINEAS 2 3"))
+    input_key(0x31, AMIGA)
+    time_delay(20)
+    ver("Amiga-Z la quita de una vez", rexx("LINEA 2") == l2, rexx("LINEA 2"))
+
     # --- Una extensión que cae ---
     ver("Eco se cae (sin despedirse)", menu(M_CAERSE) and sin_puerto("FORJAEXT.ECO", 100), "")
     rexx("GUARDAR " + MAIN)
     time_delay(50 * 16)
     rexx("GUARDAR " + MAIN)
     ver("Forja lo dice cuando no recoge sus sucesos", salida_dice("La extensión Eco se ha cerrado.", 40), rexx("SALIDA"))
+    ver("y quita sus paneles", rexx("PANELES") == "", rexx("PANELES"))
     file_delete("DH0:Prueba/eco.txt")
     ver("su menú la vuelve a arrancar", menu(M_ECO) and eco_dice("MENU eco", 200), eco())
 
@@ -386,6 +579,37 @@ Main
             end
             ver("activa: su opción sale en el menú Extensiones", str_contains(env_get("FORJA_MENU_EXT"), ":Saludar"), env_get("FORJA_MENU_EXT"))
             ver("y lo dice", str_contains(rexx("SALIDA"), "Instalada la extensión Saludo"), "")
+        end
+        # y desde un .lha (con C:LhA en el emulador)
+        if file_exists("C:LhA") and file_exists("DH0:Fuera/HolaSrc/Hola/manifiesto.txt")
+            # (LhA guarda las rutas desde el cajón que acaba en "/": Hola/manifiesto.txt y Hola/Hola)
+            run_command("C:LhA -r a DH0:Fuera/Hola.lha DH0:Fuera/HolaSrc/ #? >NIL:")
+            ver("el .lha, hecho con C:LhA", file_exists("DH0:Fuera/Hola.lha"), "")
+            env_set("FORJA_INSTALAR", "DH0:Fuera/Hola.lha", false)
+            activar("Extensiones de Forja")
+            input_key(0x17, 0)
+            n = 0
+            while n < 60 and not activar("Instalar una extensión")
+                time_delay(10)
+                n = n + 1
+            end
+            pregunta = activar("Instalar una extensión")
+            ver("un .lha: Instalar pregunta qué es", pregunta, input_active_title() + " / " + rexx("SALIDA"))
+            if pregunta
+                time_delay(20)
+                input_key(0x20, 0)
+                time_delay(50)
+                ver("y la saca del .lha a su cajón", file_exists("DH0:Prueba/Extensiones/Hola/manifiesto.txt") and file_exists("DH0:Prueba/Extensiones/Hola/Hola"), "")
+                n = 0
+                while n < 30 and not str_contains(env_get("FORJA_MENU_EXT"), ":Hola desde un lha")
+                    time_delay(10)
+                    n = n + 1
+                end
+                ver("su opción sale en el menú", str_contains(env_get("FORJA_MENU_EXT"), ":Hola desde un lha"), env_get("FORJA_MENU_EXT"))
+                ver("y no queda nada en T:", not file_exists("T:ForjaInstalar"), "")
+            end
+        else
+            anotar("(sin C:LhA en el emulador: no se prueba instalar un .lha)")
         end
         activar("Extensiones de Forja")
         input_key(0x33, 0)

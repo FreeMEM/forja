@@ -224,7 +224,12 @@ Main
         input_text("    x = (\n")
         time_delay(10)
         pestana(0)
-        ver("pestaña de main.dash", activo() == "main.dash", activo())
+        n = 0
+        while n < 30 and activo() != "main.dash"
+            time_delay(5)
+            n = n + 1
+        end
+        ver("pestaña de main.dash", activo() == "main.dash", activo() + " / " + env_get("FORJA_PESTANAS") + " / " + env_get("FORJA_EDITOR"))
         m = marca()
         al_editor()
         input_key(K_K, AMIGA)

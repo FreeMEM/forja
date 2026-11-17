@@ -95,9 +95,6 @@ Inferencia did not take the task (RC %1).
 MSG_31
 Document %1: 
 ; Documentar %1: 
-MSG_32
-cannot open the MUI window.
-; no se puede abrir la ventana de MUI.
 MSG_33
 What do I change in %1?
 ; ¿Qué cambio en %1?
@@ -156,20 +153,11 @@ MSG_51
 change rejected.
 ; cambio rechazado.
 MSG_52
-suggestions while typing on. When you stop at the end of a line, Inferencia proposes how it goes on (in grey); Tab puts it in. They go over the network: with a 68020 or a far server they are slow.
-; sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan.
+suggestions while typing on. When you stop typing, Inferencia proposes what goes at the cursor, one line or several (in grey); Tab puts it in. They go over the network: with a 68020 or a far server they are slow.
+; sugerencias al escribir encendidas. Al parar de escribir, Inferencia propone qué va en el cursor, de una o de varias líneas (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan.
 MSG_53
 suggestions while typing off.
 ; sugerencias al escribir apagadas.
-MSG_54
-File %1. The cursor is at the end of line %2:
-; Fichero %1. El cursor está al final de la línea %2:
-MSG_55
-What comes before (up to that line):
-; Lo de antes (hasta esa línea):
-MSG_56
-What comes after:
-; Lo de después:
 MSG_57
 Inferencia has closed.
 ; Inferencia se ha cerrado.
@@ -221,15 +209,57 @@ What it imports,
 MSG_73
 %1 does not fit: if you need it, read it with the read tool
 ; %1 no cabe: si lo necesitas, léelo con la herramienta leer
-MSG_74
-Inferencia: change the code
-; Inferencia: cambiar el código
 MSG_75
-_Ask
-; _Pedir
+Ask
+; Pedir
 MSG_76
-_Cancel
-; _Cancelar
+Cancel
+; Cancelar
 MSG_77
 Forja is busy: run the test yourself (Amiga-E).
 ; Forja está ocupada: ejecuta la prueba tú (Amiga-E).
+MSG_81
+Test
+; Prueba
+MSG_82
+%1: %2 passed, %3 failed.
+; %1: %2 bien, %3 mal.
+MSG_83
+Again
+; Otra vez
+MSG_84
+Open the test
+; Abrir la prueba
+MSG_85
+Close
+; Cerrar
+MSG_86
+Inferencia
+; Inferencia
+MSG_87
+Write it below and press Return (Esc goes back to the editor).
+; Escríbelo abajo y pulsa Return (Esc vuelve al editor).
+MSG_88
+Ask:
+; Pide:
+MSG_89
+Asked: 
+; Pedido: 
+MSG_90
+Inferencia is on it...
+; Inferencia está con ello...
+MSG_91
+Accept
+; Aceptar
+MSG_92
+Reject
+; Rechazar
+MSG_93
+Complete the Dash code of the file %1 at the place marked with <<CURSOR>> (line %2).
+; Completa el código de Dash del fichero %1 en el sitio marcado con <<CURSOR>> (línea %2).
+MSG_94
+Answer only with the text to write at <<CURSOR>>, as it is, without repeating anything that is already before or after it (it can be the end of a word, one line or several; 8 lines at most). No explanations and no ```.
+; Contesta solo con el texto que hay que escribir en <<CURSOR>>, tal cual, sin repetir nada de lo que ya está antes ni después (puede ser el final de una palabra, una línea o varias; 8 líneas como mucho). Sin explicaciones ni ```.
+MSG_95
+The line is empty and is the first one of the block that starts above: write its body, with its indentation.
+; La línea está vacía y es la primera del bloque que empieza encima: escribe su cuerpo, con su sangría.

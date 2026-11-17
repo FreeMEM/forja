@@ -8,7 +8,10 @@
 #   las pistas las deja en pistas_datos.dash, y con VIVO = false la demo ya no necesita ni demo.sync ni Forja.
 # - Música: copia un MOD como musica.mod y será el reloj de las pistas (sin él, 6 imágenes por fila). Demos > Visor de
 #   MOD enseña sus patrones y la fila que suena.
-# - Medidor de raster: cuántas líneas de la pantalla gasta cada imagen (sync_fotograma y sync_fin).
+# - Medidor de raster: cuántas líneas de la pantalla gasta cada imagen (sync_fotograma y sync_fin), por partes
+#   (sync_medir: "lógica" y "barras", cada una de su color).
+# - Partes: la demo tiene dos, "entrada" (las barras quietas) y "barras", en demo.sync. Demos > Partes las enseña en
+#   una línea de tiempo y las cambia; "c" pone aquí abajo el bloque de las partes al día.
 # - Editor de copper: degradados de fondo que no gastan CPU; "Al código" los mete aquí como copper_* o como tabla.
 
 @version "%NOMBRE% 0.1"
@@ -20,6 +23,32 @@ const VIVO = true       # false en la versión final: sin el puerto para Forja n
 
 const ARRIBA = 0x40     # la primera línea con barras
 const ABAJO = 0xF0      # y la de después de la última
+
+# partes: entrada 0 63 | barras 64 383
+# (lo escribe Forja: Demos > Partes; la línea de arriba sirve para volver a editarlo)
+const PARTE_ENTRADA = 0
+const PARTE_BARRAS = 1
+var parte_actual: Int = -1       # la parte de la imagen de ahora (-1: ninguna)
+var parte_primera: Bool = false  # true en la primera imagen de una parte (para prepararla)
+
+# La parte de una fila de la música (sync_fila); -1 si ninguna
+func parte_de(fila: Int) -> Int
+    if fila >= 0 and fila <= 63
+        return PARTE_ENTRADA
+    elif fila >= 64 and fila <= 383
+        return PARTE_BARRAS
+    end
+    return -1
+end
+
+# En cada imagen, tras sync_fotograma: la parte de ahora, y parte_primera si acaba de empezar
+func parte_cambio(fila: Int) -> Int
+    p = parte_de(fila)
+    parte_primera = p != parte_actual
+    parte_actual = p
+    return p
+end
+# fin partes
 
 Main
     if not screen_open_custom(320, 256, 1, "%NOMBRE%")
@@ -47,7 +76,10 @@ Main
     while true
         wait_vblank()
         sync_fotograma()
+        parte_cambio(sync_fila)
+        sync_medir("lógica")
         subida = sync_int("subida")
+        sync_medir("barras")
         asm in a1 = tabla, d4 = fase, d6 = subida out salir = d0 uses d1-d3/d5/a0
             lea     $dff000,a0
             move.w  d4,d0               ; el centro de la barra, de la tabla
@@ -90,7 +122,9 @@ Main
         if salir == 1 or sync_acabada
             break
         end
-        fase = fase + sync_int("velocidad")
+        if parte_actual != PARTE_ENTRADA
+            fase = fase + sync_int("velocidad")
+        end
         imagenes = imagenes + 1
     end
     sync_acabar()

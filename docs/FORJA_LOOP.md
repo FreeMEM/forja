@@ -656,3 +656,105 @@ VS Code.
     - Los de la lista de `pulido` siguen: `music_seek`, `music_tick`/`music_speed`, `music_playing`, `beam_line`,
       `vblank_count`, `mui_post_event`, `env_get` de varias líneas, `mui_menu_separator` que devuelva su objeto.
 
+
+- 2026-11-17, rama `cierre`: **lo que quedaba de Forja para cerrar el plan.**
+  - **API 6 de las extensiones: paneles dentro de la ventana de Forja** (`src/paneles_ext.dash`). Un panel es una
+    pestaña más junto al panel del proyecto (lado `izquierda`) o junto a la salida (`abajo`): con un panel en un lado,
+    la fila del título de ese lado son pestañas (la de Forja y las de los paneles). Forja lo pinta con lo que manda la
+    extensión (líneas con un color, la elegida, botones abajo y una entrada de una línea), así que no hace falta otra
+    ventana ni que la extensión esté despierta para repintar. Órdenes `PANEL`, `PANELVER` (con `entrada`, el teclado a
+    la entrada), `PANELCERRAR`, `PANELBOTONES` (`texto|orden|corto`: los cortos si los largos no caben en una fila),
+    `PANELENTRADA`, `PANELCURSOR` y `PANELES`; sucesos `PANEL título|línea|columna|otra`, `PANELTECLA`, `PANELBOTON` y
+    `PANELTEXTO`. Un clic en el panel le da el teclado (flechas, Return, letras, Tab a la entrada, Esc vuelve); un clic
+    en el editor, `VISTA` o `ABRIR` lo devuelven al editor. La barra y la rueda de su lado lo mueven. 8 como mucho; se
+    van con su extensión. En `lib/forja.dash`: `forja_panel`, `forja_panel_ver`, `forja_panel_cerrar`,
+    `forja_panel_botones`, `forja_panel_entrada`, `forja_panel_entrada_texto`, `forja_panel_cursor`,
+    `forja_panel_estado` y `forja_campo`. Documentado en `docs/EXTENSIONES.md` (Paneles).
+  - **Teclas de las extensiones en toda la ventana**: con el puntero en el proyecto, la salida o la barra de botones,
+    con un panel con el teclado y sin ningún fichero abierto (antes, solo sobre el editor con un fichero).
+  - **Git usa un panel**: el panel Cambios ya no es una ventana suya (fuera `git.dashui`): pestaña Cambios junto al
+    proyecto, `[x] M ruta` por fichero, el mensaje en la entrada, Diferencias, Preparar todo, Quitar todo y Confirmar
+    (Dif, Todo, Nada y OK si no caben). Casilla o Espacio, add/reset; segundo clic o Return, diferencias; Return en el
+    mensaje, commit.
+  - **El copiloto usa dos**: Cambiar el código... pide qué cambiar en el panel Inferencia de abajo (fuera
+    `copiloto.dashui`), que dice cuándo Inferencia está con ello y, al llegar el cambio, tiene Aceptar y Rechazar.
+    **Escribir la prueba** la ejecuta al aceptarla y enseña el resultado en el panel Prueba (cuántas "bien:" y cuántas
+    "FALLO", cada línea en su color, Otra vez y Abrir la prueba), y la cuenta en la salida.
+  - **Sugerencias de varias líneas y en medio de una**: `SUGERENCIA` acepta varias líneas y el cursor en medio de una
+    línea. La primera se ve desde el cursor; las demás, encima de las de debajo como una capa (con una raya a la
+    izquierda), y lo que había tras el cursor, detrás de la última, como quedará. Tab la mete de una vez. El copiloto la
+    pide al final de una línea, en medio (con lo de antes y lo de después) o en una línea vacía tras un `func`, `if`,
+    `while`... (el cuerpo), 8 líneas como mucho, y quita lo que repita de antes o de después del cursor.
+  - **Arreglos**: `EJECUTAR fichero` con un `.dash` abierto con su `Main` lo ejecuta a él (el copiloto ejecutaba
+    `main.dash` en lugar de la prueba); los menús propios de las extensiones llevan 12 opciones (al del copiloto, con 11,
+    le faltaba Dónde está Inferencia, y Forja lo decía en la salida al arrancar).
+  - **Instalar desde un `.lha`, probado**: `tests/extensiones.sh` pone en el emulador un LhA del Amiga (`LHA_AMIGA`; por
+    defecto el de `~/.cache/caffeine-prueba`, no va al repositorio), la prueba hace con él `Hola.lha` y lo instala con
+    el gestor.
+  - **Demos** (`extensiones/Demos`, `plantillas/demo/sync.dash`):
+    - **El copper cambia varios registros por bloque**: cada registro con sus paradas (COLOR00 a COLOR31, BPLCON0/1/2,
+      BPL1MOD, BPL2MOD, DIWSTRT/STOP, DDFSTRT/STOP); los colores en degradado o secos, los demás secos o lineales. El
+      código pone una espera por línea con cambios y en ella los `copper_color` o `copper_move` de todos; en modo
+      tabla, una tabla por registro. Una línea `# registro: NOMBRE modo l:v ...` por registro (los bloques viejos con
+      `# paradas:` se leen). Teclas: izquierda/derecha otro registro, `a` añade, Mayúsculas+Supr quita, `c`/`C` lo
+      cambian, `d` el modo, `+ - < >` el valor.
+    - **El medidor separa partes**: `sync_medir(nombre)` en la demo (4 como mucho; lo de antes de la primera, "otro").
+      El bloque de memoria pasa a la versión 2 (868 bytes: nombres en +164, lo de cada parte por imagen en +228; la
+      extensión sigue leyendo la 1). Barras apiladas en colores con la media de cada parte. La plantilla mide "lógica"
+      y "barras".
+    - **Línea de tiempo de partes** (página 5, Amiga-5, `extensiones/Demos/partes.dash`): una barra con una caja por
+      parte y la fila que suena, y la lista editable (cifras, `+ - < >`, `n`, `r`, Supr, `g` lleva la demo al
+      principio de la parte; con el deshacer de las pistas; avisa si dos se pisan). Van en el `.sync` (`parte nombre
+      desde hasta`; `sync.dash` las lee en `sync_partes` y da `sync_parte_de(fila)`). `c` mete o cambia el bloque
+      `# partes:` (una constante `PARTE_X` por parte, `parte_de(fila)` y `parte_cambio(fila)` con `parte_actual` y
+      `parte_primera`); `l` lo vuelve a leer. La plantilla trae "entrada" y "barras" con su bloque.
+    - **Dónde se enchufa lo de Dash cuando llegue** (otra tarea lo añade): `music_seek(pos, fila)` en `sync_ir` de
+      `sync.dash` (hoy `music_position(fila / 64)`) y en la tecla `g` de `sync_tecla`, `partes_tecla` y `musica_tecla`
+      de `demos.dash`; `music_tick()`/`music_speed()` en `sync_parte()` y en la cuenta de `_sync_por_fila` y
+      `_sync_cuenta` de `sync_fotograma`; `music_playing()` en `sync_musica`/`sync_tocar` y en `suena` (`tocar()`) de
+      `demos.dash`; `beam_line()` en `sync_linea()` (hoy dos `peek_word`); `vblank_count()` en `sync_fotograma`, para
+      las imágenes perdidas (hoy por `time_ms`); PAL/NTSC en `SYNC_LINEAS_PAL` (`sync_fin`, `_sync_apuntar`) con un
+      campo nuevo en el bloque para que `medidor_barra` y `medidor_texto` escalen a 263 o 313 líneas; el copper en vivo,
+      una orden nueva de DEMOSYNC (`COPPER fichero`) en `_sync_orden` que rehaga la lista con doble búfer con la lógica
+      de `cu_instalar` de `copper.dash`, mandada desde `copper_tecla` o `al_codigo` con la demo conectada.
+  - **Las pruebas**: `tests/extensiones.dash` con las teclas de Eco en la salida, el proyecto y la barra, sus dos
+    paneles (Lista y Charla), la sugerencia de dos líneas en medio de una y el `.lha`; `tests/git_panel.dash` con el
+    panel en Forja (clics por `ENV:FORJA_PANELES`); `tests/copiloto.dash` con el panel Inferencia, el panel Prueba y una
+    sugerencia de dos líneas (`tests/guiones_copiloto/encargo_completar.json`). `ENV:FORJA_PANELES` va en una sola línea
+    (separada con el carácter 30): `env_get` lee una línea, y la prueba hacía clic en (0, 9), el botón de cerrar de la
+    ventana.
+  - **Contra un modelo de verdad**: el copiloto con Inferencia y qwen3-coder:30b (Ollama en la red de casa) en el
+    emulador. Pedida como "el cursor está al final de la línea 14", el modelo repetía la línea ("Print sal"); ahora la
+    sugerencia se pide con el código y una marca `<<CURSOR>>` donde va (como un "rellenar en medio"), y da `udo("Amiga")`
+    en unos 9,5 s. La prueba con el servidor falso sigue dando las dos líneas de su guion.
+  - **Con Dash PR #193** (llegó durante esta rama): `SALIR` de una extensión llega con `mui_post_event` (antes, por el
+    reloj, y se perdía el tic); la raya de encima de las opciones sueltas de Extensiones es de `mui_menu_separator` y se
+    va con ellas; `tests/ventana.sh` va otra vez (Forja compila por `--gcc`). Los de demos (`music_seek`, `beam_line`,
+    `vblank_count`, `video_pal`, `copper_set`...) los enchufa en Demos otra tarea de esta rama (ver abajo).
+  - `tests/proyecto.dash` fallaba igual en `main` (la pestaña cambiaba tarde con la comprobación en marcha): espera
+    hasta 1,5 s. `tests/proyecto_base.dash` no compilaba en `main` (usaba `pl_icono_hex`, que se fue con `icon_save`).
+  - Instalar un `.lha` borraba su cajón temporal con `C:Delete`, que el sistema de pruebas no tiene: ahora lo borra Forja.
+  - **Demos con los builtins de Dash PR #193** (c90b619; ya no son "dónde se enchufará"): `sync_linea` es `beam_line`;
+    las imágenes perdidas, con `vblank_count`; `sync_parte` con `music_tick`/`music_speed`; `sync_ir` con `music_seek` a
+    la fila exacta (también `g` en Sincronía y Partes y las flechas del visor de MOD); `suena` es `music_playing()`; el
+    bloque pasa a la versión 3 (en +868 las líneas de una imagen, `beam_lines`) y el medidor escala con 313 o 263.
+    **El copper llega en vivo a la demo**: la orden `COPPER` de DEMOSYNC lleva la lista (la demo la rehace y contesta
+    `copper_count`); si solo cambian valores, `COPPERSET i:valor` y la demo usa `copper_set`. **El arrastre del copper**
+    se prueba: al elegir y arrastrar una parada se pinta solo la columna de marcas y la lista (antes, el lienzo entero,
+    1,1 s con la demo en marcha, y el soltar llegaba tarde); la vista entera, al soltar. demos_base (64 bien) y
+    demos_forja en MUI 5 y 3.8 (62 bien), TODO BIEN.
+
+  - **Pruebas** (rama `cierre`, FS-UAE). En MUI 5 (A1200, 3.1), TODO BIEN: teclas, ficheros, completar, codigo_base,
+    compilar, salida, botones, clic, proyecto, grande, errores, parar, salir, sesion, rexx, diseno, depurar, arbol,
+    depurar_ventana, buscar, pantalla, extensiones_base, extensiones (con paneles, teclas, sugerencia y `.lha`),
+    ayuda_base, ayuda, editor_base, editor, pestanas, memoria (nada y todas), proyecto_base, forja_proyecto, plantillas,
+    depurar_mas, perfil, git_panel (el panel en Forja), git_panel_coffin, sprites_todas, mapas_base, mapas_forja, nuevo,
+    demos_base y demos_forja; el copiloto con el servidor falso (bajo `flock`). En MUI 3.8 (`sys32rtg38`, RTG), TODO
+    BIEN: extensiones, editor, pestanas, ayuda, sprites, mapas_forja, forja_proyecto, depurar_mas, perfil, demos_forja
+    y el copiloto. `tests/coffin.sh` en la máquina CoffinOS: TODO BIEN. `tests/ventana.sh` va. El copiloto contra
+    qwen3-coder de verdad: la sugerencia correcta en 9,5 s (la prueba espera la del guion falso, así que "falla").
+  - **Falta en Forja**: Shrinkler (el tope de 4K/64K ya está); NTSC sin probar en una máquina NTSC; el copiloto en un
+    Amiga de verdad; los paneles son de texto (una extensión que dibuje sigue con su ventana); con MUI 3.8, un menú
+    propio añadido con la ventana abierta la cierra y la abre.
+  - **Falta en Dash**: nada nuevo (lo de la lista de `remate` llegó en PR #193; `env_get_text` aún no se usa: la sesión y
+    `ENV:FORJA_PANELES` siguen con el carácter 30).

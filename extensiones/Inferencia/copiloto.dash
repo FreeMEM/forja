@@ -7,8 +7,9 @@
 # - Arreglar el error, Documentar la función, Escribir la prueba, Cambiar el código...: un encargo aparte (ENCARGO de
 #   Inferencia, que puede leer el proyecto y la ayuda de Dash); la respuesta sale en una pestaña de solo lectura con
 #   las diferencias, y a (o el menú) la acepta: el cambio entra en el deshacer de Forja. r la rechaza.
-# - Sugerencias al escribir (apagadas al empezar): tras una pausa al final de una línea, Inferencia propone cómo
-#   sigue; se ve en gris y Tab la mete (SUGERENCIA de Forja).
+# - Sugerencias al escribir (apagadas al empezar): tras una pausa al escribir, Inferencia propone qué va en el cursor
+#   (al final de una línea, en medio o en una línea vacía tras un bloque que empieza), de una o de varias líneas; se ve
+#   en gris y Tab la mete (SUGERENCIA de Forja).
 #
 # Nunca se queda esperando a nadie mucho rato: a Inferencia le habla con rexx_send_wait (5 s como mucho) y mira cómo
 # va el encargo con un tic.
@@ -25,22 +26,17 @@ import "lib/forja.dash"
 import "lib/red/idioma.dash"
 import "diferencias.dash"
 import "contexto.dash"
-import "copiloto.dashui"
 
 const PUERTO_INF = "INFERENCIA.1"
 const ESPERA_INF = 5000            # ms como mucho para cada orden a Inferencia
 const ARRANQUE_MS = 30000          # lo que se espera a que aparezca su puerto
 const ENCARGO_MAX_MS = 300000
 const EV_TIC = 1
-const EV_PEDIR = 10
-const EV_CANCELAR = 11
-const EV_CERRAR = 12
 const TIC_MS = 300
 const ICONO = ".....##...../.....##...../....####..../...######.../.##########./############/.##########./...######.../....####..../.....##...../.....##...../............"
 
 var app: Int = 0
-var pet: Peticion = nil
-var pet_abierta: Bool = false
+var pet_abierta: Bool = false      # el panel Inferencia (abajo, en Forja) está puesto
 var sonda: Bool = false
 var tic_armado: Bool = false
 var inf_rc: Int = 0
@@ -76,6 +72,12 @@ var activo: String = ""            # el fichero de delante
 var errores: Int = -1              # los de la última compilación (-1: no se sabe)
 var tras_compilar: String = ""     # lo que se hace al llegar COMPILADO (explicar o arreglar el error)
 var sugerir: Bool = false          # sugerencias al escribir
+
+# La prueba que se ejecuta (Escribir la prueba): su fichero, desde dónde es suya la salida de Forja y cuándo empezó
+var prueba_ruta: String = ""
+var prueba_desde: Int = 0
+var prueba_inicio: Int = 0
+var prueba_corre: Bool = false     # Forja ya está con ella (compilando o ejecutando)
 
 func aviso(t: String)
     forja_aviso_tipo(tr(6, "Inferencia: ") + t, 0)
@@ -399,29 +401,46 @@ func documentar()
     encargo("documentar", hueco(tr(31, "Documentar %1: "), nombre) + a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"), t)
 end
 
+# --- El panel Inferencia (abajo, en la ventana de Forja: API 6) ---
+# Cambiar el código... lo abre con la pregunta y una entrada para decir qué; mientras Inferencia trabaja, lo dice; cuando
+# llega el cambio, Aceptar y Rechazar (además de a y r en su pestaña).
+
+func titulo_copiloto() -> String
+    return tr(86, "Inferencia")
+end
+
+func panel_copiloto(lineas: [String], colores: String, botones: [String])
+    forja_panel(titulo_copiloto(), "abajo", lineas, colores)
+    forja_panel_botones(titulo_copiloto(), botones)
+    pet_abierta = true
+end
+
+# Lo que dice el panel, si está puesto (sin entrada)
+func panel_copiloto_dice(linea: String, color: String, botones: [String])
+    if not pet_abierta
+        return
+    end
+    panel_copiloto([linea], color, botones)
+    forja_panel_entrada(titulo_copiloto(), "")
+end
+
 func cambiar_abrir()
     if not leer_activo()
         return
     end
-    if pet == nil
-        aviso_error(tr(32, "no se puede abrir la ventana de MUI."))
-        return
-    end
     elegir_lineas(false)
-    mui_set_text(pet.que, hueco(tr(33, "¿Qué cambio en %1?"), a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}")))
-    mui_window_open(pet.window)
-    mui_set_active(pet.window, pet.orden)
-    pet_abierta = true
+    que = hueco(tr(33, "¿Qué cambio en %1?"), a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"))
+    panel_copiloto([que, tr(87, "Escríbelo abajo y pulsa Return (Esc vuelve al editor).")], "@#", [tr(75, "Pedir") + "|pedir", tr(85, "Cerrar") + "|cerrar"])
+    forja_panel_entrada(titulo_copiloto(), tr(88, "Pide:"))
+    forja_panel_ver(titulo_copiloto(), true)
 end
 
-func cambiar_pedir()
-    orden = str_trim(mui_get_text(pet.orden))
-    mui_window_close(pet.window)
-    pet_abierta = false
+func cambiar_pedir(texto: String)
+    orden = str_trim(texto)
     if orden == ""
         return
     end
-    # (lo de delante pudo cambiar con la ventana abierta)
+    # (lo de delante pudo cambiar con el panel abierto)
     d = p_desde
     h = p_hasta
     if not leer_activo()
@@ -429,9 +448,40 @@ func cambiar_pedir()
     end
     p_desde = d
     p_hasta = h
-    mui_set_text(pet.orden, "")
     t = str_replace(hueco2(tr(66, "Cambia este código de Dash (líneas %1 a %2 de %3) así: "), "#{p_desde}", "#{p_hasta}"), "%3", a_ruta) + orden + "\n" + tr(67, "Devuelve esas líneas ya cambiadas, enteras, en un solo bloque ```dash (puedes añadir o quitar líneas). Antes del bloque, una línea que diga qué cambiaste.") + "\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
     encargo("cambiar", tr(34, "Cambiar: ") + a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"), t)
+    if pedido == "cambiar"
+        panel_copiloto([tr(89, "Pedido: ") + orden, tr(90, "Inferencia está con ello...")], "@#", [tr(76, "Cancelar") + "|cancelar"])
+        forja_panel_entrada_texto(titulo_copiloto(), "", "")
+    end
+end
+
+# PANELTEXTO y PANELBOTON del panel Inferencia
+func panel_copiloto_suceso()
+    if forja_tipo == "PANELTEXTO"
+        cambiar_pedir(forja_campo(1))
+        return
+    end
+    o = forja_campo(1)
+    if o == "pedir"
+        e = forja_panel_estado(titulo_copiloto())
+        if e.length >= 7
+            cambiar_pedir(e[6])
+        end
+    elif o == "cancelar"
+        if pedido != "" and pedido != "completar"
+            cancelar()
+        end
+        forja_panel_cerrar(titulo_copiloto())
+        pet_abierta = false
+    elif o == "aceptar"
+        aceptar()
+    elif o == "rechazar"
+        rechazar()
+    elif o == "cerrar"
+        forja_panel_cerrar(titulo_copiloto())
+        pet_abierta = false
+    end
 end
 
 func base_de(nombre: String) -> String
@@ -535,6 +585,7 @@ func al_llegar(tipo: String, r: String)
     c_colores = c_colores + dif_colores
     ver_vista()
     aviso(hueco(tr(42, "el cambio está en la pestaña %1: a lo acepta, r lo rechaza."), c_vista))
+    panel_copiloto_dice(hueco(tr(42, "el cambio está en la pestaña %1: a lo acepta, r lo rechaza."), c_vista), "+", [tr(91, "Aceptar") + "|aceptar", tr(92, "Rechazar") + "|rechazar", tr(85, "Cerrar") + "|cerrar"])
 end
 
 func ver_vista()
@@ -587,9 +638,10 @@ func aceptar()
         quitar_vista()
         forja_abrir(c_ruta, 1)
         forja_aviso_tipo(tr(6, "Inferencia: ") + hueco(tr(46, "escrito %1."), c_ruta), 2)
-        # y se ejecuta (la prueba es un programa con su Main): lo que dice sale en la salida de Forja
-        if c_tipo == "prueba" and not forja_compilar("", true)
-            forja_aviso_tipo(tr(6, "Inferencia: ") + tr(77, "Forja está ocupada: ejecuta la prueba tú (Amiga-E)."), 1)
+        # y se ejecuta (la prueba es un programa con su Main): lo que dice sale en la salida de Forja, y el resultado en
+        # su panel, abajo
+        if c_tipo == "prueba"
+            ejecutar_prueba(c_ruta)
         end
         zona_al_dia()
         return
@@ -620,6 +672,7 @@ func aceptar()
     end
     forja_abrir(c_ruta, desde)
     forja_aviso_tipo(tr(6, "Inferencia: ") + hueco(tr(49, "cambiado %1 (Amiga-Z lo deshace)."), nombre_de(c_ruta)), 2)
+    panel_copiloto_dice(hueco(tr(49, "cambiado %1 (Amiga-Z lo deshace)."), nombre_de(c_ruta)), "+", [tr(85, "Cerrar") + "|cerrar"])
     zona_al_dia()
 end
 
@@ -633,7 +686,111 @@ func rechazar()
         forja_abrir(c_ruta, c_desde)
     end
     aviso(tr(51, "cambio rechazado."))
+    panel_copiloto_dice(tr(51, "cambio rechazado."), "#", [tr(85, "Cerrar") + "|cerrar"])
     zona_al_dia()
+end
+
+# --- El resultado de la prueba (un panel de Forja, abajo) ---
+
+func titulo_prueba() -> String
+    return tr(81, "Prueba")
+end
+
+func ejecutar_prueba(ruta: String)
+    prueba_desde = forja_orden("SALIDA").length
+    if not forja_compilar(ruta, true)
+        forja_aviso_tipo(tr(6, "Inferencia: ") + tr(77, "Forja está ocupada: ejecuta la prueba tú (Amiga-E)."), 1)
+        prueba_ruta = ""
+        return
+    end
+    prueba_ruta = ruta
+    prueba_inicio = time_ms()
+    prueba_corre = false
+    armar_tic(TIC_MS)
+end
+
+# Con el tic: si Forja ya acabó con ella, lee lo que escribió y lo enseña en el panel Prueba: una línea por "bien:" (en
+# verde) y por "FALLO" (en rojo), y arriba la cuenta
+func mirar_prueba()
+    e = forja_orden("ESTADO")
+    if e == "compilando" or e == "ejecutando"
+        prueba_corre = true
+    end
+    if (e != "libre" or not prueba_corre) and time_ms() - prueba_inicio < 120000
+        if e == "libre" and time_ms() - prueba_inicio > 3000
+            # (acabó antes del primer tic)
+            prueba_corre = true
+        else
+            armar_tic(TIC_MS)
+            return
+        end
+    end
+    salida = forja_orden("SALIDA")
+    if salida.length > prueba_desde
+        salida = salida[prueba_desde:]
+    else
+        salida = ""
+    end
+    # primero lo que falló (y los errores), después lo que fue bien; lo demás de la salida no va
+    var ls: [String] = []
+    var buenas: [String] = []
+    colores = ""
+    bien = 0
+    mal = 0
+    for l in str_split(salida, "\n")
+        t = str_trim(l)
+        if str_starts(t, "bien:")
+            bien = bien + 1
+            buenas.push(t)
+        elif str_starts(t, "FALLO") or str_contains(t, "Error") or str_contains(t, "error #")
+            mal = mal + 1
+            ls.push(t)
+            colores = colores + "-"
+        end
+    end
+    for t in buenas
+        ls.push(t)
+        colores = colores + "+"
+    end
+    cuenta = str_replace(str_replace(tr(82, "%1: %2 bien, %3 mal."), "%1", nombre_de(prueba_ruta)), "%2", "#{bien}")
+    cuenta = str_replace(cuenta, "%3", "#{mal}")
+    tipo = 2
+    color = "+"
+    if mal > 0 or bien == 0
+        tipo = 1
+        color = "-"
+    end
+    ls.insert(0, cuenta)
+    colores = color + colores
+    forja_aviso_tipo(tr(6, "Inferencia: ") + cuenta, tipo)
+    if sonda
+        env_set("FORJA_COPILOTO_PRUEBA", "#{bien} #{mal}", false)
+    end
+    forja_panel(titulo_prueba(), "abajo", ls, colores)
+    forja_panel_botones(titulo_prueba(), [tr(83, "Otra vez") + "|otra", tr(84, "Abrir la prueba") + "|abrir", tr(85, "Cerrar") + "|cerrar"])
+    forja_panel_ver(titulo_prueba(), false)
+    prueba_ultima = prueba_ruta
+    prueba_ruta = ""
+end
+
+var prueba_ultima: String = ""
+
+func panel_suceso()
+    if forja_campo(0) == titulo_copiloto()
+        panel_copiloto_suceso()
+        return
+    end
+    if forja_campo(0) != titulo_prueba() or forja_tipo != "PANELBOTON"
+        return
+    end
+    o = forja_campo(1)
+    if o == "otra" and prueba_ultima != ""
+        ejecutar_prueba(prueba_ultima)
+    elif o == "abrir" and prueba_ultima != ""
+        forja_abrir(prueba_ultima, 1)
+    elif o == "cerrar"
+        forja_panel_cerrar(titulo_prueba())
+    end
 end
 
 # --- Sugerencias al escribir ---
@@ -642,7 +799,7 @@ func sugerencias_alternar()
     sugerir = not sugerir
     if sugerir
         env_set("Forja/inferencia_sugerencias", "si", true)
-        aviso(tr(52, "sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan."))
+        aviso(tr(52, "sugerencias al escribir encendidas. Al parar de escribir, Inferencia propone qué va en el cursor, de una o de varias líneas (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan."))
     else
         env_set("Forja/inferencia_sugerencias", "no", true)
         aviso(tr(53, "sugerencias al escribir apagadas."))
@@ -679,20 +836,44 @@ func pedir_sugerencia(ruta: String)
     l = Int(c[0])
     col = Int(c[1])
     linea = forja_linea(l)
-    if forja_rc != 0 or str_trim(linea) == "" or col != linea.length + 1
+    if forja_rc != 0 or col < 1 or col > linea.length + 1
         sonda_sug("no: cursor #{l} #{col} [" + linea + "]")
         return
+    end
+    # dónde: al final de una línea con algo, en medio de una (lo de detrás sigue tras la sugerencia) o en una línea
+    # vacía tras otra que abre un bloque (el cuerpo, de varias líneas)
+    if str_trim(linea) == ""
+        anterior = ""
+        if l > 1
+            anterior = str_trim(forja_linea(l - 1))
+        end
+        if not abre_bloque(anterior)
+            sonda_sug("no: línea vacía [" + anterior + "]")
+            return
+        end
     end
     desde = l - 30
     if desde < 1
         desde = 1
     end
-    antes = forja_lineas(desde, l)
+    antes = ""
+    if l > 1
+        antes = forja_lineas(desde, l - 1) + "\n"
+    end
     despues = forja_lineas(l + 1, l + 8)
     if not inf_lista()
         return
     end
-    t = hueco2(tr(54, "Fichero %1. El cursor está al final de la línea %2:"), a[1], "#{l}") + "\n" + linea + "\n\n" + tr(55, "Lo de antes (hasta esa línea):") + "\n```dash\n" + antes + "\n```\n\n" + tr(56, "Lo de después:") + "\n```dash\n" + despues + "\n```"
+    # el código con una marca donde está el cursor (como un "rellenar en medio"): los modelos lo entienden mejor que
+    # explicándoles la línea y la columna (con qwen3-coder, "Print sal" daba "Print sal" otra vez; así, "udo(...)")
+    marcado = antes + linea[0:col - 1] + "<<CURSOR>>" + linea[col - 1:]
+    if despues != ""
+        marcado = marcado + "\n" + despues
+    end
+    t = hueco2(tr(93, "Completa el código de Dash del fichero %1 en el sitio marcado con <<CURSOR>> (línea %2)."), a[1], "#{l}") + "\n\n```dash\n" + marcado + "\n```\n\n" + tr(94, "Contesta solo con el texto que hay que escribir en <<CURSOR>>, tal cual, sin repetir nada de lo que ya está antes ni después (puede ser el final de una palabra, una línea o varias; 8 líneas como mucho). Sin explicaciones ni ```.")
+    if str_trim(linea) == ""
+        t = t + " " + tr(95, "La línea está vacía y es la primera del bloque que empieza encima: escribe su cuerpo, con su sangría.")
+    end
     inf("ENCARGO completar\n" + t)
     if inf_rc != 0
         sonda_sug("no: ENCARGO RC #{inf_rc}")
@@ -708,20 +889,57 @@ func pedir_sugerencia(ruta: String)
     armar_tic(TIC_MS)
 end
 
+# ¿Abre un bloque esta línea (sin blancos alrededor)? func, if, while, for, struct... o acaba en "then"/":"
+func abre_bloque(l: String) -> Bool
+    if l == ""
+        return false
+    end
+    for p in ["func ", "if ", "elif ", "else", "while ", "for ", "struct ", "enum ", "Main", "asm", "try", "match "]
+        if str_starts(l, p)
+            return true
+        end
+    end
+    return false
+end
+
+# Lo que llegó de Inferencia: el texto que va en el cursor, de 8 líneas como mucho. Sin repetir lo de antes del
+# cursor (si lo trae al principio) ni lo de después (si lo trae al final).
 func sugerencia(texto: String)
-    t = str_split(str_replace(texto, "\r", ""), "\n")[0]
-    if str_starts(str_trim(t), "```")
-        t = str_split(cp_codigo(texto), "\n")[0]
+    r = str_replace(str_replace(texto, "\r", ""), "<<CURSOR>>", "")
+    if str_contains(r, "```")
+        r = cp_codigo(r)
+    end
+    var ls: [String] = str_split(r, "\n")
+    while ls.length > 0 and str_trim(ls[ls.length - 1]) == ""
+        ls.remove(ls.length - 1)
+    end
+    while ls.length > 8
+        ls.remove(ls.length - 1)
+    end
+    if ls.length == 0
+        sonda_sug("vacía: [" + texto + "]")
+        return
     end
     linea = forja_linea(p_l)
-    # si repite lo que ya está escrito, se quita
-    if str_trim(linea) != "" and str_starts(t, linea)
-        t = t[linea.length:]
-    elif str_trim(linea) != "" and str_starts(t, str_trim(linea))
-        t = t[str_trim(linea).length:]
+    antes = linea[0:p_c - 1]
+    despues = linea[p_c - 1:]
+    t = ls[0]
+    if str_trim(antes) != "" and str_starts(t, antes)
+        t = t[antes.length:]
+    elif str_trim(antes) != "" and str_starts(t, str_trim(antes))
+        t = t[str_trim(antes).length:]
+    elif str_trim(antes) == "" and antes != "" and ls.length > 1 and str_starts(t, antes)
+        # en una línea vacía con sangría: la primera sin la sangría que ya está
+        t = t[antes.length:]
     end
-    if str_trim(t) == ""
-        sonda_sug("vacía")
+    ls[0] = t
+    ultima = ls[ls.length - 1]
+    if str_trim(despues) != "" and str_ends(ultima, despues)
+        ls[ls.length - 1] = ultima[0:ultima.length - despues.length]
+    end
+    t = unir(ls, "\n")
+    if str_trim(str_replace(t, "\n", "")) == ""
+        sonda_sug("vacía: [" + texto + "]")
         return
     end
     if forja_sugerencia(p_l, p_c, p_version, t)
@@ -735,6 +953,9 @@ end
 
 # El tic: cómo va el encargo
 func tic()
+    if prueba_ruta != ""
+        mirar_prueba()
+    end
     if pedido == ""
         return
     end
@@ -764,6 +985,9 @@ func tic()
         if tipo != "completar"
             aviso_error(tr(59, "el modelo dio un error: ") + r[6:])
         end
+        if tipo == "cambiar"
+            panel_copiloto_dice(tr(59, "el modelo dio un error: ") + r[6:], "-", [tr(85, "Cerrar") + "|cerrar"])
+        end
     end
     zona_al_dia()
 end
@@ -772,6 +996,7 @@ func cancelar()
     inf("CANCELAR")
     pedido = ""
     aviso(tr(60, "encargo cancelado."))
+    panel_copiloto_dice(tr(60, "encargo cancelado."), "#", [tr(85, "Cerrar") + "|cerrar"])
     zona_al_dia()
 end
 
@@ -843,6 +1068,8 @@ func suceso()
         zona_al_dia()
     elif t == "TECLA"
         tecla(d)
+    elif t == "PANELBOTON" or t == "PANELTEXTO"
+        panel_suceso()
     elif t == "ZONA"
         if pedido != "" and pedido != "completar"
             cancelar()
@@ -889,7 +1116,6 @@ Main
         if app == 0
             forja_aviso_tipo(tr(62, "Inferencia: no se puede abrir MUI; el copiloto no arranca."), 1)
         else
-            pet = Peticion_create()
             zona_al_dia()
             salir = false
             while not salir
@@ -897,11 +1123,6 @@ Main
                 if ev == EV_TIC
                     tic_armado = false
                     tic()
-                elif ev == EV_PEDIR
-                    cambiar_pedir()
-                elif ev == EV_CANCELAR or ev == EV_CERRAR
-                    mui_window_close(pet.window)
-                    pet_abierta = false
                 end
                 # (ev -1: MUI pide salir; la extensión sigue mientras Forja esté)
                 atender_rexx()

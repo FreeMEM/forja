@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/remate/extensiones/Inferencia/copiloto.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/cierre/extensiones/Inferencia/copiloto.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 pensando...
@@ -62,8 +62,6 @@ MSG_30 (30//)
 Inferencia no aceptó el encargo (RC %1).
 MSG_31 (31//)
 Documentar %1: 
-MSG_32 (32//)
-no se puede abrir la ventana de MUI.
 MSG_33 (33//)
 ¿Qué cambio en %1?
 MSG_34 (34//)
@@ -103,15 +101,9 @@ no hay ningún cambio que rechazar.
 MSG_51 (51//)
 cambio rechazado.
 MSG_52 (52//)
-sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan.
+sugerencias al escribir encendidas. Al parar de escribir, Inferencia propone qué va en el cursor, de una o de varias líneas (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan.
 MSG_53 (53//)
 sugerencias al escribir apagadas.
-MSG_54 (54//)
-Fichero %1. El cursor está al final de la línea %2:
-MSG_55 (55//)
-Lo de antes (hasta esa línea):
-MSG_56 (56//)
-Lo de después:
 MSG_57 (57//)
 Inferencia se ha cerrado.
 MSG_58 (58//)
@@ -146,11 +138,39 @@ MSG_72 (72//)
 Lo que importa, 
 MSG_73 (73//)
 %1 no cabe: si lo necesitas, léelo con la herramienta leer
-MSG_74 (74//)
-Inferencia: cambiar el código
 MSG_75 (75//)
-_Pedir
+Pedir
 MSG_76 (76//)
-_Cancelar
+Cancelar
 MSG_77 (77//)
 Forja está ocupada: ejecuta la prueba tú (Amiga-E).
+MSG_81 (81//)
+Prueba
+MSG_82 (82//)
+%1: %2 bien, %3 mal.
+MSG_83 (83//)
+Otra vez
+MSG_84 (84//)
+Abrir la prueba
+MSG_85 (85//)
+Cerrar
+MSG_86 (86//)
+Inferencia
+MSG_87 (87//)
+Escríbelo abajo y pulsa Return (Esc vuelve al editor).
+MSG_88 (88//)
+Pide:
+MSG_89 (89//)
+Pedido: 
+MSG_90 (90//)
+Inferencia está con ello...
+MSG_91 (91//)
+Aceptar
+MSG_92 (92//)
+Rechazar
+MSG_93 (93//)
+Completa el código de Dash del fichero %1 en el sitio marcado con <<CURSOR>> (línea %2).
+MSG_94 (94//)
+Contesta solo con el texto que hay que escribir en <<CURSOR>>, tal cual, sin repetir nada de lo que ya está antes ni después (puede ser el final de una palabra, una línea o varias; 8 líneas como mucho). Sin explicaciones ni ```.
+MSG_95 (95//)
+La línea está vacía y es la primera del bloque que empieza encima: escribe su cuerpo, con su sangría.

@@ -4,6 +4,7 @@
 #
 #   tests/git_panel.sh DASH_DIR [DASHGIT_DIR [captura.png segundos...]]   (DASHGIT_DIR: por defecto ~/Projects/dashgit)
 #   SERVIDOR=no ...     # sin el servidor de dashgit: un proceso por orden
+#   CAPTURAS=cajón ...  # guarda ahí git-panel.png (el panel Cambios en la ventana de Forja)
 set -e
 dash=$1
 dg=${2:-$HOME/Projects/dashgit}
@@ -36,6 +37,7 @@ cp "$aqui/extensiones/Git/manifiesto.txt" "$tmp/sys/Prueba/Extensiones/Git/"
   echo "Run >NIL: DH0:Prueba/GitPanel"
 } >> "$tmp/sys/S/Startup-Extra"
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-500} --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" $shots "$tmp/Forja" >/dev/null 2>&1 || true
+[ -n "$CAPTURAS" ] && mkdir -p "$CAPTURAS" && cp "$tmp/disco/Prueba/git-panel.png" "$CAPTURAS/" 2>/dev/null
 iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/git_panel.txt" 2>/dev/null || echo "FALLO: no hay registro"
 cd "$tmp/disco/Prueba/juego" 2>/dev/null || { echo "FALLO: no está el cajón de la prueba"; exit 0; }
 find . -name "*.uaem" -delete

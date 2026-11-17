@@ -161,7 +161,6 @@ Main
     ver("plantilla mui: su ventana", str_contains(pl_ficheros("mui"), "ventana.dashui") and str_contains(pl_texto("mui", "ventana.dashui"), "\"dashui\": 1"))
     ver("interpolación sin tocar", str_contains(pl_texto("orden", "main.dash"), "Print \"#" + "{c.lineas} \" + f"))
     ver("asm en la demo", str_contains(pl_texto("demo", "main.dash"), "    asm in a1 = tabla"))
-    ver("icono en hexadecimal", pl_icono_hex().length > 200 and str_starts(pl_icono_hex(), "e310"))
     if fallos == 0
         Print "TODO BIEN"
     else

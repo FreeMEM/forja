@@ -235,8 +235,8 @@ again next time with the session.
 
 ### Demos
 
-The tools for making demos are an extension (`Extensiones/Demos`), with its Demos menu and a window of four pages
-(Amiga-1 to Amiga-4). A `.sync` or a `.mod` of the project also opens it. The Demo template already uses them: it
+The tools for making demos are an extension (`Extensiones/Demos`), with its Demos menu and a window of five pages
+(Amiga-1 to Amiga-5). A `.sync` or a `.mod` of the project also opens it. The Demo template already uses them: it
 brings `sync.dash` (also in `Forja/lib`), some tracks in `demo.sync` and their exported version, `pistas_datos.dash`.
 
 - **Sync tracks**, like Rocket: values that change with the music ("velocidad", "fundido", "escena"), with keys on
@@ -254,27 +254,52 @@ brings `sync.dash` (also in `Forja/lib`), some tracks in `demo.sync` and their e
 - **MOD viewer**: the module's patterns with the row playing highlighted. Space plays or stops it; left and right
   change position. If the demo is running, it follows the demo's. Return puts the sync row (position × 64 + row) in
   the code and `s` takes the tracks' cursor there.
-- **Copper editor**: gradients and colour changes per line, with the view beside them. Some stops (a line and a
-  12-bit colour): arrows or a click to choose one (in the view or in the list); drag in the view, or Shift or Alt +
-  arrows, to move it; `r` `g` `b` raise each colour (with Shift, lower it), `n` adds, Del removes, `d` switches
-  between gradient and hard changes and `c` the colour register (COLOR00 is the background). Return puts it in the
-  file in front: calls to `copper_*` or (`t`) a table of 256 colours for an `asm` block. If the block is already
-  there, it changes it there; `l` reads it back from the code, and Tab reads the file's next block (with Shift, the
-  previous one). `p` tries it for real on a screen of its own (a click goes back).
+- **Copper editor**: gradients and changes per line of one or several registers at once, with the view of the chosen
+  one beside them. It takes the 32 colours (COLOR00 is the background) and BPLCON0/1/2 (BPLCON1 shifts the picture
+  line by line), BPL1MOD and BPL2MOD, DIWSTRT/DIWSTOP and DDFSTRT/DDFSTOP. Each register has its stops (a line and a
+  value): up and down arrows or a click to choose one (in the view or in the list); drag in the view, or Shift or Alt
+  + arrows, to move it; `r` `g` `b` raise each colour (with Shift, lower it) and on the other registers `+` and `-`
+  the value (`<` and `>`, 16 at a time); `n` adds a stop and Del removes it. Left and right (or a click on the row of
+  registers) go from one register to another, `a` adds one, Shift+Del removes it and `c` changes it for another (with
+  Shift, backwards). `d` changes the mode: a colour, gradient or hard changes; the others, hard or linear. Return puts
+  it in the file in front: calls to `copper_*` (one wait per line with changes, and in it those of every register:
+  `copper_color` or `copper_move`) or (`t`) a table per register for an `asm` block. The block has a `# registro:`
+  line per register; if it is already there, it changes it there; `l` reads it back from the code (also the old ones,
+  with `# paradas:`), and Tab reads the file's next block (with Shift, the previous one). `p` tries it for real on a
+  screen of its own (a click goes back).
+  - **Live**: with the demo running, every change reaches it at once and it shows it on its screen. If only values
+    change, with `copper_set`; if the lines or the registers change, it rebuilds the list. What it writes in the code
+    is the final version.
 - **Raster meter**: how many screen lines each frame of the demo uses, the last 64 in bars (green up to half a
   frame, yellow up to three quarters, red above), the average, the maximum and the lost frames. The demo measures
-  between `sync_fotograma()` (after `wait_vblank`) and `sync_fin()`. It works for a game too.
+  between `sync_fotograma()` (after `wait_vblank`) and `sync_fin()`, with `beam_line`; `vblank_count` counts the lost
+  frames, and the scale is the screen's (313 lines in PAL, 263 in NTSC). It works for a game too.
+  - **By parts**: with `sync_medir("lógica")`, `sync_medir("dibujo")`... the demo says whose is what is spent from
+    there on (up to 4 names; what comes before the first one, "other"). The bars are stacked, each part in its colour,
+    with a legend with the average of each. The template measures "lógica" and "barras".
+- **Parts** (the demo's timeline): which part (scene) goes from which row of the music to which row. A bar with a box
+  per part and the row playing, and below it the list: up and down choose, left and right the column (name, from,
+  to); digits and Return change from or to, `+` `-` (`<` `>`, 16 at a time) move them (in the name column, the whole
+  part); `n` makes one after the last, `r` renames it, Del removes it, `g` takes the demo to its start and a click on
+  the bar chooses it. They go in the `.sync` (lines `parte name from to`), with the tracks' undo. `c` puts the
+  `# partes:` block in the file in front (a constant per part, `parte_de(fila)` and `parte_cambio(fila)`, which leaves
+  the current one in `parte_actual` and in `parte_primera` whether it has just started); if it is already there, it
+  changes it there, and `l` reads it back. The template has two parts: "entrada" (the bars stand still) and "barras".
 
 ### Git
 
 Git is an extension (`Extensiones/Git`) that uses [dashgit](https://github.com/FreeMEM/dashgit). **dashgit is in
 alpha**: there is still a lot to test, so keep a copy of what matters.
 
-- In the button bar, on the right, the branch and "N cambios" (changes); a click opens the Changes panel.
+- In the button bar, on the right, the branch and "N cambios" (changes); a click opens the Changes panel, a tab next to the
+  project panel.
 - In the project panel, a letter on each changed file or drawer: M, A, D, U (conflict), ? (untracked).
 - In the editor margin, bars against the last commit: added (solid, green), changed (dashed, blue) and removed (a red
   triangle). They follow what you type, unsaved: they move with their lines, and after a pause the real ones arrive.
-- The Changes panel: one row per file with its box (staged or not), the message and Confirmar (commit).
+- The Changes panel, inside Forja's window (next to the project, with its tab): one row per file with its box (`[x]`
+  staged, `[ ]` not, `[-]` partly), the message and the Differences, Stage all, Unstage all and Commit buttons. A click
+  on the box (or Space) stages or unstages; two clicks on the name (or Return) show its differences; Return in the
+  message commits.
 - Differences open in a read-only tab with colours: `n` and `p` go to the next and previous hunk, Return to that line.
 - Its Git menu, in the menu bar: status, differences, history, add the new files, changes and commit, pull and push.
 
@@ -288,8 +313,11 @@ Inferencia, the Amiga's AI, is an extension too (`Extensiones/Inferencia`): a sm
 the code and the project in Forja and passes them to [Inferencia](https://github.com/FreeMEM/inferencia) over ARexx.
 In the button bar, on the right, the Inferencia zone (the button that used to be Forja's): a click is "Ask about
 this" (Amiga-I). Its Inferencia menu asks, explains, changes and documents code, writes tests and explains and fixes
-build errors; changes come in a read-only tab, `a` accepts and `r` rejects. An accepted test is run at once, and
-what it prints shows in Forja's output. Inferencia > Where is Inferencia... says
+build errors; changes come in a read-only tab, `a` accepts and `r` rejects. "Change the code..." asks what to change in
+the Inferencia panel at the bottom (a tab next to the output), which also has Accept and Reject. An accepted test is run
+at once, and its result shows in the Test panel at the bottom (how many checks said "bien:" and how many "FALLO", with
+Again and Open the test). Suggestions while typing (off at first) go at the cursor: at the end of a line, in the middle
+of one, or the whole body after a `func`, `if`, `while`...; they can be several lines, and Tab puts them in. Inferencia > Where is Inferencia... says
 where it is (`ENVARC:Forja/inferencia`).
 
 ### ARexx
@@ -308,7 +336,9 @@ batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md) (in Spanish). The Git exten
 
 Separate programs in the `Extensiones` drawer next to Forja that add entries to the Extensiones menu (or a menu of
 their own in the menu bar), keys, marks and bars in the margin, letters in the project panel, a zone in the button bar, a
-text in the bar, read-only tabs, or an editor for a file type with its own window. Git, the Inferencia copilot,
+text in the bar, read-only tabs, panels inside Forja's window (a tab next to the project or next to the output, like
+Git's Changes or the copilot's Test) or an editor for a file type with its own window. Their keys work anywhere in
+Forja's window, also with the pointer on the project or the output. Git, the Inferencia copilot,
 Sprites, Mapas and Demos are extensions. They talk to Forja over ARexx;
 if one crashes or hangs, Forja carries on. Extensiones > Gestor de extensiones... lists them, turns them on or off and
 installs them from a drawer or an `.lha`. The example one, Contar, counts the lines and words of the file and inserts

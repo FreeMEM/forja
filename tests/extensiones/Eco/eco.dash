@@ -1,9 +1,28 @@
 # Eco: una extensión para tests/extensiones.dash. Apunta en DH0:Prueba/eco.txt cada suceso que le llega. Con su menú
-# Caerse acaba sin despedirse (como si fallara); con Colgarse, deja de recoger sus sucesos 40 segundos.
+# Caerse acaba sin despedirse (como si fallara); con Colgarse, deja de recoger sus sucesos 40 segundos. Con Paneles
+# pone dos en la ventana de Forja: Lista (a la izquierda, tres líneas) y Charla (abajo, con una entrada y dos botones:
+# lo escrito con Return se añade como una línea, y Limpiar las quita).
 
 import "lib/forja.dash"
 
 var registro: String = ""
+var charla: [String] = []
+
+func charla_poner()
+    colores = ""
+    for l in charla
+        colores = colores + "@"
+    end
+    forja_panel("Charla", "abajo", charla, colores)
+end
+
+func paneles()
+    forja_panel("Lista", "izquierda", ["uno", "dos", "tres"], "+-#")
+    charla = ["Escribe abajo y pulsa Return."]
+    charla_poner()
+    forja_panel_entrada("Charla", "Dime:")
+    forja_panel_botones("Charla", ["Limpiar|limpiar", "Cerrar la lista|cerrar"])
+end
 
 func apuntar(s: String)
     registro = registro + s + "\n"
@@ -25,6 +44,17 @@ Main
                 break
             elif s == "MENU caerse"
                 caida = true
+            elif s == "MENU paneles"
+                paneles()
+            elif forja_tipo == "PANELTEXTO"
+                charla.push("> " + forja_campo(1))
+                charla_poner()
+                forja_panel_entrada_texto("Charla", "Dime:", "")
+            elif s == "PANELBOTON Charla|limpiar"
+                charla = []
+                charla_poner()
+            elif s == "PANELBOTON Charla|cerrar"
+                forja_panel_cerrar("Lista")
             elif s == "MENU colgarse"
                 time_delay(50 * 40)
                 apuntar("despierta")

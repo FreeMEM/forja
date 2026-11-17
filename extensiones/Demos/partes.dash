@@ -1,0 +1,220 @@
+# partes.dash: la línea de tiempo de las partes de una demo (escenas), para la extensión Demos. Una parte es un nombre
+# y unas filas de la música (desde y hasta, las dos incluidas). Viven en el .sync (líneas "parte nombre desde hasta",
+# las lee plantillas/demo/sync.dash en sync_partes, sync_partes_desde y sync_partes_hasta) y de ellas sale un bloque
+# de código para el programa, entre "# partes:" y "# fin partes": una constante por parte, parte_de(fila) y
+# parte_cambio(fila), que dice cuándo empieza otra (parte_actual, parte_primera).
+#
+# Necesita sync.dash importado antes.
+
+# El nombre de la constante de una parte: PARTE_ y el nombre en mayúsculas, sin acentos; lo que no es letra ni cifra, _
+func pa_constante(nombre: String) -> String
+    t = "PARTE_"
+    i = 0
+    while i < nombre.length
+        c = str_code(nombre, i)
+        l = ""
+        if (c >= 65 and c <= 90) or (c >= 48 and c <= 57)
+            l = str_char(c)
+        elif c >= 97 and c <= 122
+            l = str_char(c - 32)
+        elif c == 225 or c == 193 or c == 224 or c == 192 or c == 228 or c == 196
+            l = "A"
+        elif c == 233 or c == 201 or c == 232 or c == 200 or c == 235 or c == 203
+            l = "E"
+        elif c == 237 or c == 205 or c == 236 or c == 204 or c == 239 or c == 207
+            l = "I"
+        elif c == 243 or c == 211 or c == 242 or c == 210 or c == 246 or c == 214
+            l = "O"
+        elif c == 250 or c == 218 or c == 249 or c == 217 or c == 252 or c == 220
+            l = "U"
+        elif c == 241 or c == 209
+            l = "N"
+        elif c == 231 or c == 199
+            l = "C"
+        else
+            l = "_"
+        end
+        t = t + l
+        i = i + 1
+    end
+    return t
+end
+
+# Un nombre de parte: sin espacios (van separados por espacios en el .sync)
+func pa_limpiar(nombre: String) -> String
+    return str_replace(str_replace(str_trim(nombre), " ", "_"), "|", "_")
+end
+
+func pa_buscar(nombre: String) -> Int
+    i = 0
+    while i < sync_partes.length
+        if sync_partes[i] == nombre
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# La última fila de la demo con parte (+1); 0 sin partes
+func pa_fin() -> Int
+    f = 0
+    for h in sync_partes_hasta
+        if h + 1 > f
+            f = h + 1
+        end
+    end
+    return f
+end
+
+# Una parte nueva tras la última (64 filas: un patrón); su sitio, o -1 si ya hay una con ese nombre
+func pa_nueva(nombre: String) -> Int
+    n = pa_limpiar(nombre)
+    if n == "" or pa_buscar(n) >= 0
+        return -1
+    end
+    desde = pa_fin()
+    sync_partes.push(n)
+    sync_partes_desde.push(desde)
+    sync_partes_hasta.push(desde + 63)
+    return sync_partes.length - 1
+end
+
+func pa_quitar(i: Int)
+    sync_partes.remove(i)
+    sync_partes_desde.remove(i)
+    sync_partes_hasta.remove(i)
+end
+
+# Ordena las partes por su primera fila; da el sitio nuevo de la que estaba en i
+func pa_ordenar(i: Int) -> Int
+    el = i
+    k = 1
+    while k < sync_partes.length
+        j = k
+        while j > 0 and sync_partes_desde[j - 1] > sync_partes_desde[j]
+            n = sync_partes[j - 1]
+            sync_partes[j - 1] = sync_partes[j]
+            sync_partes[j] = n
+            d = sync_partes_desde[j - 1]
+            sync_partes_desde[j - 1] = sync_partes_desde[j]
+            sync_partes_desde[j] = d
+            h = sync_partes_hasta[j - 1]
+            sync_partes_hasta[j - 1] = sync_partes_hasta[j]
+            sync_partes_hasta[j] = h
+            if el == j
+                el = j - 1
+            elif el == j - 1
+                el = j
+            end
+            j = j - 1
+        end
+        k = k + 1
+    end
+    return el
+end
+
+# Las partes que se pisan ("" si ninguna): "intro y barras"
+func pa_se_pisan() -> String
+    i = 0
+    while i < sync_partes.length
+        j = i + 1
+        while j < sync_partes.length
+            if sync_partes_desde[i] <= sync_partes_hasta[j] and sync_partes_desde[j] <= sync_partes_hasta[i]
+                return sync_partes[i] + " y " + sync_partes[j]
+            end
+            j = j + 1
+        end
+        i = i + 1
+    end
+    return ""
+end
+
+func pa_linea() -> String
+    t = "# partes:"
+    i = 0
+    while i < sync_partes.length
+        if i > 0
+            t = t + " |"
+        end
+        t = t + " " + sync_partes[i] + " #{sync_partes_desde[i]} #{sync_partes_hasta[i]}"
+        i = i + 1
+    end
+    return t
+end
+
+# El bloque de código de las partes, entre "# partes:" y "# fin partes"
+func pa_codigo() -> String
+    t = pa_linea() + "\n"
+    t = t + "# (lo escribe Forja: Demos > Partes; la línea de arriba sirve para volver a editarlo)\n"
+    i = 0
+    while i < sync_partes.length
+        t = t + "const " + pa_constante(sync_partes[i]) + " = #{i}\n"
+        i = i + 1
+    end
+    t = t + "var parte_actual: Int = -1       # la parte de la imagen de ahora (-1: ninguna)\n"
+    t = t + "var parte_primera: Bool = false  # true en la primera imagen de una parte (para prepararla)\n"
+    t = t + "\n# La parte de una fila de la música (sync_fila); -1 si ninguna\n"
+    t = t + "func parte_de(fila: Int) -> Int\n"
+    i = 0
+    while i < sync_partes.length
+        si = "elif"
+        if i == 0
+            si = "if"
+        end
+        t = t + "    " + si + " fila >= #{sync_partes_desde[i]} and fila <= #{sync_partes_hasta[i]}\n"
+        t = t + "        return " + pa_constante(sync_partes[i]) + "\n"
+        i = i + 1
+    end
+    if sync_partes.length > 0
+        t = t + "    end\n"
+    end
+    t = t + "    return -1\nend\n"
+    t = t + "\n# En cada imagen, tras sync_fotograma: la parte de ahora, y parte_primera si acaba de empezar\n"
+    t = t + "func parte_cambio(fila: Int) -> Int\n"
+    t = t + "    p = parte_de(fila)\n"
+    t = t + "    parte_primera = p != parte_actual\n"
+    t = t + "    parte_actual = p\n"
+    t = t + "    return p\nend\n"
+    t = t + "# fin partes\n"
+    return t
+end
+
+# El bloque de las partes en un texto: [primera línea, última línea] desde 1, o [0, 0]
+func pa_buscar_bloque(texto: String) -> [Int]
+    l = str_split(texto, "\n")
+    a = 0
+    i = 0
+    while i < l.length
+        s = str_trim(l[i])
+        if a == 0 and str_starts(s, "# partes:")
+            a = i + 1
+        elif a > 0 and s == "# fin partes"
+            return [a, i + 1]
+        end
+        i = i + 1
+    end
+    return [0, 0]
+end
+
+# Lee las partes de la línea "# partes:" de un texto; false si no la hay
+func pa_leer_codigo(texto: String) -> Bool
+    for linea in str_split(texto, "\n")
+        s = str_trim(linea)
+        if str_starts(s, "# partes:")
+            sync_partes.clear()
+            sync_partes_desde.clear()
+            sync_partes_hasta.clear()
+            for trozo in str_split(s[9:], "|")
+                c = str_split(str_trim(trozo), " ")
+                if c.length >= 3
+                    sync_partes.push(c[0])
+                    sync_partes_desde.push(Int(c[1]))
+                    sync_partes_hasta.push(Int(c[2]))
+                end
+            end
+            return true
+        end
+    end
+    return false
+end

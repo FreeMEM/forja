@@ -92,8 +92,7 @@
         {
           "tr": 620, "title": "Extensiones", "name": "menu_extensiones",
           "items": [
-            { "tr": 621, "label": "Gestor de extensiones...", "event": 180 },
-            { "separator": true }
+            { "tr": 621, "label": "Gestor de extensiones...", "event": 180 }
           ]
         }
       ],

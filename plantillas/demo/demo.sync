@@ -1,4 +1,6 @@
 # Pistas de sincronía (Forja, extensión Demos)
+parte entrada 0 63
+parte barras 64 383
 pista velocidad
 0 2 lineal
 64 6 suave

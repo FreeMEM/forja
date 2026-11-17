@@ -5,6 +5,7 @@
 import "../plantillas/demo/sync.dash"
 import "../extensiones/Demos/copper.dash"
 import "../extensiones/Demos/mod.dash"
+import "../extensiones/Demos/partes.dash"
 
 var fallos: Int = 0
 
@@ -60,23 +61,90 @@ func copper()
     ver("copper: las paradas", c[40] == 0x00F and c[128] == 0xF80 and c[255] == 0x000, cu_hex(c[40]) + " " + cu_hex(c[128]))
     ver("copper: degradado", c[84] != 0x00F and c[84] != 0xF80, cu_hex(c[84]))
     n = cu_instrucciones()
-    cu_degradado = false
+    cu_actual().modo = CU_SECO
     ver("copper: cambios secos", cu_colores()[127] == 0x00F and cu_instrucciones() == 6, "#{cu_instrucciones()}")
-    cu_degradado = true
+    cu_actual().modo = CU_DEGRADADO
     codigo = cu_codigo()
-    ver("copper: código con copper_*", str_contains(codigo, "copper_wait(40, 0)\n    copper_color(0, 0x00F)") and str_contains(codigo, "copper_install()") and str_contains(codigo, "copper_create(#{n + 2})"), codigo[0:200])
-    file_write_text("DH0:Prueba/copper_gen.dash", codigo)
+    ver("copper: código con copper_*", str_contains(codigo, "copper_wait(40, 0)\n    copper_color(0, 0x00F)") and str_contains(codigo, "copper_install()") and str_contains(codigo, "copper_create(#{n + 2})") and str_contains(codigo, "# registro: COLOR00 degradado 40:00F 128:F80 220:000"), codigo[0:200])
     texto = "Main\n    Print 1\nend\n\n" + codigo
     b = cu_buscar_bloque(texto)
     ver("copper: el bloque en un texto", b[0] == 5 and b[1] == str_split(texto, "\n").length - 1, "#{b}")
     cu_paradas[1].rgb = 0x0F0
-    cu_color = 3
-    ver("copper: leer del código", cu_leer_codigo(texto, 7) and cu_paradas[1].rgb == 0xF80 and cu_color == 0 and cu_paradas.length == 3, cu_sonda())
+    cu_actual().reg = 0x186
+    ver("copper: leer del código", cu_leer_codigo(texto, 7) and cu_paradas[1].rgb == 0xF80 and cu_actual().reg == 0x180 and cu_paradas.length == 3 and cu_registros.length == 1, cu_sonda())
+    # varios registros: BPLCON1 (el desplazamiento) con cambios secos en las líneas 40 y 100, junto al degradado
+    ver("copper: un registro más (el color siguiente)", cu_anadir_registro() == 1 and cu_actual().reg == 0x182 and cu_registros.length == 2 and cu_paradas.length == 1 and cu_paradas[0].linea == 40, cu_sonda())
+    cu_cambiar_registro(-1)
+    ver("copper: cambiarlo (hacia atrás salta COLOR00, que ya está)", cu_nombre_reg(cu_actual().reg) == "DDFSTOP" and cu_actual().modo == CU_SECO, cu_sonda())
+    cu_actual().reg = cu_reg_de("BPLCON1")
+    cu_paradas.push(CuParada(100, 0x22))
+    cu_elegida = 1
+    cu_ordenar()
+    v = cu_valores(cu_actual())
+    ver("copper: BPLCON1 seco", v[39] == -1 and v[40] == 0 and v[99] == 0 and v[100] == 0x22 and v[255] == 0x22, "#{v[40]} #{v[100]}")
+    codigo = cu_codigo()
+    ver("copper: los dos en la misma espera", str_contains(codigo, "copper_wait(40, 0)\n    copper_color(0, 0x00F)\n    copper_move(0x102, 0x0000)") and str_contains(codigo, "copper_move(0x102, 0x0022)") and str_contains(codigo, "# registro: BPLCON1 seco 40:0000 100:0022"), codigo[0:400])
+    # (la línea 40 ya tenía su espera: un cambio más; la 100, uno más y su espera si el color no cambia en ella)
+    ver("copper: las instrucciones (una espera por línea con cambios)", str_contains(codigo, "copper_create(#{cu_instrucciones() + 2})") and cu_instrucciones() >= n + 2 and cu_instrucciones() <= n + 3, "#{cu_instrucciones()} #{n}")
+    # un lineal: BPL1MOD de 0 a 100 entre las líneas 0 y 10
+    cu_anadir_registro()
+    cu_actual().reg = cu_reg_de("BPL1MOD")
+    cu_paradas.clear()
+    cu_paradas.push(CuParada(0, 0))
+    cu_paradas.push(CuParada(10, 100))
+    cu_otro_modo()
+    v = cu_valores(cu_actual())
+    ver("copper: lineal (BPL1MOD)", cu_actual().modo == CU_LINEAL and v[5] == 50 and v[10] == 100 and v[200] == 100, "#{v[5]}")
+    ver("copper: quitar un registro", cu_quitar_registro() and cu_registros.length == 2 and cu_nombre_reg(cu_actual().reg) == "BPLCON1", cu_sonda())
+    codigo = cu_codigo()
+    file_write_text("DH0:Prueba/copper_gen.dash", codigo)
+    texto = "x = 1\n" + codigo
+    cu_nuevo()
+    ver("copper: leer un bloque de dos registros", cu_leer_codigo(texto, 0) and cu_registros.length == 2 and cu_registros[1].reg == 0x102 and cu_registros[1].paradas[1].rgb == 0x22 and cu_registros[0].paradas.length == 3, cu_sonda())
+    # el formato de antes: "# paradas: color modo ..."
+    viejo = "# copper: viejo (x)\n# paradas: 3 cambios 10:F00 20:0F0\nfunc copper_viejo()\nend\n# fin copper: viejo\n"
+    lv = cu_lista_vivo()
+    ver("copper: la lista para la demo en vivo", lv.length == cu_instrucciones() and lv[0] == "W40" and lv[1] == "C0:00F" and lv[2] == "M102:0000", "#{lv.length} " + lv[0] + " " + lv[1] + " " + lv[2])
+    ver("copper: lee el formato de antes (# paradas:)", cu_leer_codigo(viejo, 0) and cu_nombre == "viejo" and cu_registros.length == 1 and cu_actual().reg == 0x186 and cu_actual().modo == CU_SECO and cu_paradas[1].rgb == 0x0F0, cu_sonda())
+    cu_leer_codigo(texto, 0)
     cu_tabla = true
     codigo = cu_codigo()
-    ver("copper: tabla para asm", str_contains(codigo, "-> Int") and str_contains(codigo, "poke_word"), "")
+    ver("copper: tabla para asm (una por registro)", str_contains(codigo, "-> Int") and str_contains(codigo, "poke_word") and str_contains(codigo, "amiga_alloc(1024)") and str_contains(codigo, "BPLCON1 en +512"), codigo[0:300])
     file_write_text("DH0:Prueba/copper_tabla.dash", codigo)
     cu_tabla = false
+end
+
+func partes()
+    sync_partes.clear()
+    sync_partes_desde.clear()
+    sync_partes_hasta.clear()
+    ver("partes: una nueva", pa_nueva("entrada") == 0 and sync_partes_desde[0] == 0 and sync_partes_hasta[0] == 63, "")
+    ver("partes: otra, tras la última", pa_nueva("el vaivén") == 1 and sync_partes[1] == "el_vaivén" and sync_partes_desde[1] == 64, sync_partes[1])
+    ver("partes: no dos con el mismo nombre", pa_nueva("entrada") == -1, "")
+    ver("partes: el nombre de la constante", pa_constante("el_vaivén") == "PARTE_EL_VAIVEN" and pa_constante("Año-2") == "PARTE_ANO_2", pa_constante("el_vaivén"))
+    sync_partes_desde[0] = 100
+    sync_partes_hasta[0] = 150
+    ver("partes: ordenar (la elegida sigue)", pa_ordenar(0) == 1 and sync_partes[0] == "el_vaivén", "#{sync_partes.length}")
+    ver("partes: se pisan", pa_se_pisan() != "", pa_se_pisan())
+    sync_partes_desde[1] = 128
+    ver("partes: ya no se pisan", pa_se_pisan() == "", pa_se_pisan())
+    ver("partes: la de una fila", sync_parte_de(10) == -1 and sync_parte_de(64) == 0 and sync_parte_de(128) == 1 and sync_parte_de(151) == -1, "")
+    t = sync_a_texto()
+    ver("partes: en el .sync", str_contains(t, "parte el_vaivén 64 127\nparte entrada 128 150\n"), t)
+    sync_partes.clear()
+    sync_de_texto(t)
+    ver("partes: leídas del .sync", sync_partes.length == 2 and sync_partes_hasta[1] == 150, "")
+    codigo = pa_codigo()
+    ver("partes: el código", str_starts(codigo, "# partes: el_vaivén 64 127 | entrada 128 150\n") and str_contains(codigo, "const PARTE_EL_VAIVEN = 0") and str_contains(codigo, "if fila >= 64 and fila <= 127\n        return PARTE_EL_VAIVEN\n    elif fila >= 128") and str_contains(codigo, "func parte_cambio(fila: Int) -> Int") and str_ends(codigo, "# fin partes\n"), codigo)
+    file_write_text("DH0:Prueba/partes_gen.dash", codigo)
+    texto = "x = 1\n\n" + codigo + "y = 2\n"
+    b = pa_buscar_bloque(texto)
+    ver("partes: el bloque en un texto", b[0] == 3 and b[1] == str_split(texto, "\n").length - 2, "#{b}")
+    sync_partes.clear()
+    ver("partes: leídas del código", pa_leer_codigo(texto) and sync_partes.length == 2 and sync_partes[0] == "el_vaivén" and sync_partes_desde[0] == 64 and sync_partes_hasta[1] == 150, "#{sync_partes}")
+    sync_partes.clear()
+    sync_partes_desde.clear()
+    sync_partes_hasta.clear()
 end
 
 func musica()
@@ -112,6 +180,31 @@ func demo()
     l = peek_long(m + 16)
     ver("las líneas de raster (las barras esperan línea a línea)", l > 150 and l < 312, "#{l}")
     ver("el anillo de líneas", peek_word(m + 32) > 150 and peek_long(m + 24) < SYNC_ANILLO, "#{peek_word(m + 32)}")
+    # el medidor por partes (versión 2 del bloque): los nombres de sync_medir y lo de cada parte
+    nombres = ""
+    k = 0
+    while k < peek_long(m + 160)
+        j = 0
+        while peek_byte(m + 164 + k * 16 + j) != 0 and j < 15
+            nombres = nombres + str_char(peek_byte(m + 164 + k * 16 + j))
+            j = j + 1
+        end
+        nombres = nombres + " "
+        k = k + 1
+    end
+    ver("medidor por partes: versión 3 y sus nombres", peek_long(m + 4) == 3 and peek_long(m + 160) == 2 and nombres == "lógica barras ", "#{peek_long(m + 4)} " + nombres)
+    i = (peek_long(m + 24) + SYNC_ANILLO - 1) % SYNC_ANILLO
+    total = peek_word(m + 32 + i * 2)
+    suma = 0
+    k = 0
+    while k <= SYNC_PARTES
+        suma = suma + peek_word(m + 228 + (i * (SYNC_PARTES + 1) + k) * 2)
+        k = k + 1
+    end
+    barras = peek_word(m + 228 + (i * (SYNC_PARTES + 1) + 2) * 2)
+    ver("las líneas de una imagen (beam_lines, PAL)", peek_long(m + 868) == 313, "#{peek_long(m + 868)}")
+    ver("pocas imágenes perdidas (vblank_count)", peek_long(m + 28) < 10, "#{peek_long(m + 28)}")
+    ver("medidor por partes: las partes suman la imagen y las barras gastan casi todo", suma >= total - 1 and suma <= total + 1 and barras > 150, "#{total} #{suma} #{barras}")
     rexx_send_wait("DEMOSYNC", "CLAVE prueba 0 7.5 escalon", 1000)
     ver("CLAVE y VALOR", rexx_send_wait("DEMOSYNC", "VALOR prueba", 1000) == "7.5", "")
     rexx_send_wait("DEMOSYNC", "PAUSA", 1000)
@@ -123,6 +216,17 @@ func demo()
     rexx_send_wait("DEMOSYNC", "SIGUE", 1000)
     time_delay(10)
     ver("IR y SIGUE", peek_long(m + 20) == 0 and peek_long(m + 8) >= 128 and peek_long(m + 8) < 150, "#{peek_long(m + 8)}")
+    # IR a una fila en medio de un patrón: la música salta allí (music_seek), no al principio del patrón
+    rexx_send_wait("DEMOSYNC", "PAUSA", 1000)
+    rexx_send_wait("DEMOSYNC", "IR 70", 1000)
+    rexx_send_wait("DEMOSYNC", "SIGUE", 1000)
+    time_delay(5)
+    ver("IR 70: la música salta a la fila 70", peek_long(m + 8) >= 70 and peek_long(m + 8) < 76, "#{peek_long(m + 8)}")
+    # el copper en vivo: COPPER pone la lista y COPPERSET cambia valores (copper_set)
+    r = rexx_send_wait("DEMOSYNC", "COPPER W40 C0:00F W100 M102:0011 C0:F80", 1000)
+    ver("COPPER: la demo pone la lista", Int(r) >= 5 and rexx_send_wait("DEMOSYNC", "COPPERCUENTA", 1000) == r, r)
+    rexx_send_wait("DEMOSYNC", "COPPERSET 1:0F0 3:0022", 1000)
+    ver("COPPERSET: la demo sigue (copper_set)", rexx_rc() == 0 and peek_long(m + 8) > 0, "#{rexx_rc()}")
     file_write_text("RAM:otra.sync", "pista velocidad\n0 0 escalon\npista nueva\n0 3 escalon\n")
     rexx_send_wait("DEMOSYNC", "RECARGAR RAM:otra.sync", 1000)
     ver("RECARGAR", rexx_send_wait("DEMOSYNC", "VALOR nueva", 1000) == "3" and rexx_send_wait("DEMOSYNC", "VALOR prueba", 1000) == "0", "")
@@ -138,6 +242,7 @@ end
 Main
     pistas()
     copper()
+    partes()
     musica()
     demo()
     if fallos == 0

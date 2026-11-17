@@ -4,6 +4,8 @@
 #
 #   tests/extensiones.sh DASH_DIR [DASHC_AMIGA] [capturas/]
 #
+# Con un LhA para el Amiga (LHA_AMIGA, o el de ~/.cache/caffeine-prueba), prueba también instalar desde un .lha (lo
+# hace la prueba con ese LhA).
 # DASHC_AMIGA: el cajón con dashc para el Amiga (make amiga en dashc/): con él, también COMPILADO. capturas/: guarda
 # ahí marcas.png, gestor.png y gestor-apagada.png (las hace el propio Amiga).
 #   RTG=1 tests/extensiones.sh ...      # AmigaOS 3.2 con tarjeta gráfica de 256 colores y MUI 5 (sys32rtg8)
@@ -38,6 +40,14 @@ mkdir -p "$tmp/sys/Fuera/Saludo"
 printf 'nombre = Saludo\nversion = 1.0\nautor = Prueba\ndescripcion = Para probar el gestor.\nprograma = Saludo\narranque = menu\nmenu = Saludar | | saludo\n' > "$tmp/sys/Fuera/Saludo/manifiesto.txt"
 cp "$tmp/sys/Prueba/Extensiones/Contar/Contar" "$tmp/sys/Fuera/Saludo/Saludo"
 "$dash/dash" "$aqui/tests/extensiones/Eco/eco.dash" -o "$tmp/sys/Prueba/Extensiones/Eco/Eco"
+# y otra para un .lha, si hay un LhA para el Amiga (LHA_AMIGA; no va en el repositorio): la prueba lo hace con él
+lha_amiga=${LHA_AMIGA:-$HOME/.cache/caffeine-prueba/sistema_base/C/lha}
+if [ -f "$lha_amiga" ]; then
+  cp "$lha_amiga" "$tmp/sys/C/LhA"
+  mkdir -p "$tmp/sys/Fuera/HolaSrc/Hola"
+  printf 'nombre = Hola\nversion = 1.0\nautor = Prueba\ndescripcion = Para probar instalar desde un .lha.\nprograma = Hola\narranque = menu\nmenu = Hola desde un lha | | hola\n' > "$tmp/sys/Fuera/HolaSrc/Hola/manifiesto.txt"
+  cp "$tmp/sys/Prueba/Extensiones/Contar/Contar" "$tmp/sys/Fuera/HolaSrc/Hola/Hola"
+fi
 if [ -n "$dashc" ]; then
   mkdir -p "$tmp/sys/Dash"
   cp "$dashc/dashc.amiga" "$tmp/sys/Dash/dashc"
@@ -52,6 +62,6 @@ fi
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-600} $maquina --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/Prueba" || true
 if [ -n "$capturas" ]; then
   mkdir -p "$capturas"
-  for f in marcas gestor gestor-apagada; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
+  for f in marcas gestor gestor-apagada panel-lista panel-charla sugerencia-varias; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
 fi
 iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/extensiones.txt" 2>/dev/null || echo "FALLO: no hay registro"

@@ -1,11 +1,13 @@
 # Demos: las herramientas de Forja para hacer demos, como extensión (FORJA_LOOP 5.2; el uso, en el README de Forja). Una
-# ventana con cuatro páginas:
+# ventana con cinco páginas:
 #
 #   Copper      degradados y cambios de color por línea, con la vista a la vista; los pone en el código (copper_* o
 #               una tabla para un bloque asm) y los vuelve a leer de él. "Probar" los enseña en una pantalla de verdad.
 #   Música      un MOD: sus patrones, la posición y la fila que suenan (lo toca ella o lo sigue de la demo).
 #   Sincronía   las pistas de sincronía (tipo Rocket) de un fichero .sync, editables mientras la demo corre.
-#   Medidor     las líneas de raster que gasta la demo en cada imagen.
+#   Medidor     las líneas de raster que gasta la demo en cada imagen (por partes, si la demo usa sync_medir).
+#   Partes      la línea de tiempo de las partes de la demo (qué parte va de qué fila a qué fila), en el .sync; las
+#               pone en el código (parte_de y el cambio de parte).
 #
 # La demo usa plantillas/demo/sync.dash (va en la plantilla de demo). Habla con ella por su puerto DEMOSYNC (solo al
 # cambiar una clave) y lee su bloque de memoria (la fila, las líneas) unas veces por segundo.
@@ -24,6 +26,7 @@ import "../../src/tema.dash"
 import "../../plantillas/demo/sync.dash"
 import "copper.dash"
 import "mod.dash"
+import "partes.dash"
 
 const EV_LIENZO = 1
 const EV_TIC = 3
@@ -71,6 +74,7 @@ const PAG_COPPER = 0
 const PAG_MUSICA = 1
 const PAG_SYNC = 2
 const PAG_MEDIDOR = 3
+const PAG_PARTES = 4
 const TIC_MS = 200
 const ANCHO_PISTA = 11        # letras por columna de pista
 
@@ -105,13 +109,20 @@ var demo_perdidos: Int = 0
 var demo_fotos: Int = 0
 var demo_anillo: [Int] = []
 var demo_indice: Int = 0     # el sitio del anillo donde la demo escribe la imagen siguiente
+var demo_lineas_imagen: Int = 313   # las líneas de una imagen de la demo (313 PAL, 263 NTSC; versión 3 del bloque)
+var demo_version: Int = 1    # la del bloque de la demo: la 2 trae el medidor por partes (sync_medir)
+var demo_partes: [String] = []   # los nombres de las partes del medidor (la demo los pone con sync_medir)
+var demo_anillo_partes: [Int] = []   # lo que gastó cada parte en cada imagen: (SYNC_PARTES + 1) por imagen
 var demo_fichero: String = ""
 var _barra_antes: String = ""
 var _demo_delante: Bool = true
 var _pausa_vista: Bool = false    # la pausa ya se vio (el cursor queda libre)
 
 # la música que toca la extensión
-var suena: Bool = false
+# ¿Suena la música de la extensión (la del visor de MOD, sin demo)?
+func suena() -> Bool
+    return music_playing()
+end
 var mus_pos: Int = 0
 var mus_fila: Int = 0
 
@@ -183,7 +194,7 @@ func fila_ahora() -> Int
     if conectada()
         return demo_fila
     end
-    if suena
+    if suena()
         return mus_pos * 64 + mus_fila
     end
     return -1
@@ -212,6 +223,7 @@ func hacer_ventana()
     mui_menu_item(tr(11, "Música"), "2", EV_PAGINA + 1)
     mui_menu_item(tr(12, "Sincronía"), "3", EV_PAGINA + 2)
     mui_menu_item(tr(13, "Medidor"), "4", EV_PAGINA + 3)
+    mui_menu_item(tr(105, "Partes"), "5", EV_PAGINA + 4)
     mui_menu_end()
     mui_menu_begin(tr(14, "Pistas"))
     mui_menu_item(tr(15, "Deshacer"), "Z", EV_DESHACER)
@@ -315,6 +327,7 @@ const P_FILA_SYNC = 4       # una fila de la tabla (_parte_fila)
 const P_CAB_MUSICA = 5      # la línea de la posición en Música
 const P_FILA_MUSICA = 6
 const P_MEDIDOR = 7         # el texto y las barras nuevas del medidor
+const P_COPPER = 8          # las marcas y la lista del copper
 var _parte: Int = P_TODO
 var _parte_fila: Int = 0
 var ms_parcial: Int = 0
@@ -344,6 +357,7 @@ func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     zona_ancho = ancho
     zona_alto = alto
     _sy_ok = false
+    _cu_ok = false
     _mu_ok = false
     _me_ok = false
     gfx_pen(tema.fondo)
@@ -358,6 +372,8 @@ func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         dibujar_musica(x + 4, cy, ancho - 8, pie - cy)
     elif pagina == PAG_SYNC
         dibujar_sync(x + 4, cy, ancho - 8, pie - cy)
+    elif pagina == PAG_PARTES
+        dibujar_partes(x + 4, cy, ancho - 8, pie - cy)
     else
         dibujar_medidor(x + 4, cy, ancho - 8, pie - cy)
     end
@@ -397,6 +413,10 @@ func dibujar_parte()
         musica_fila(_parte_fila, true)
     elif _parte == P_MEDIDOR
         medidor_nuevas()
+    elif _parte == P_COPPER
+        gfx_pen(tema.fondo)
+        gfx_rect(_cu_x + 161, _cu_y - 1, _cu_x + _cu_ancho - 1, _cu_y + _cu_alto)
+        copper_marcas_lista(_cu_x, _cu_y, _cu_ancho, _cu_alto, cu_maximo())
     end
 end
 
@@ -412,11 +432,16 @@ end
 
 func ayuda_teclas() -> String
     if pagina == PAG_COPPER
-        return tr(27, "flechas o clic parada (arrastrar, o May/Alt+flechas: línea)  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  Tab otro bloque  p probar")
+        if cu_registros.length > 0 and not cu_es_color(cu_actual().reg)
+            return tr(102, "arriba/abajo parada (May/Alt: línea)  izq/der registro  + - (< >: 16) valor  n nueva  Supr  a registro (May Supr quita)  c cuál  d modo  t código  Return al código  l leer  Tab bloque  p probar")
+        end
+        return tr(103, "arriba/abajo parada (May/Alt: línea)  izq/der registro  r g b (May: -)  n nueva  Supr  a registro (May Supr quita)  c cuál  d modo  t código  Return al código  l leer  Tab bloque  p probar")
     elif pagina == PAG_MUSICA
         return tr(28, "Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía")
     elif pagina == PAG_SYNC
         return tr(29, "flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás  Tab otro .sync")
+    elif pagina == PAG_PARTES
+        return tr(106, "arriba/abajo parte  izq/der columna  cifras y Return (o + - < >) desde/hasta  n nueva  r nombre  Supr quita  g ir  c al código  l leer")
     end
     return tr(30, "Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)")
 end
@@ -429,7 +454,7 @@ func dibujar_pestanas(x: Int, y: Int, ancho: Int)
     _pest_x2.clear()
     tx = x + 4
     i = 0
-    for t in [tr(53, "Copper"), tr(54, "Música"), tr(55, "Sincronía"), tr(56, "Medidor")]
+    for t in [tr(53, "Copper"), tr(54, "Música"), tr(55, "Sincronía"), tr(56, "Medidor"), tr(105, "Partes")]
         w = font_text_width(t) + 20
         if i == pagina
             gfx_pen(tema.fondo)
@@ -495,39 +520,71 @@ end
 # --- Copper ---
 
 func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
-    if cu_paradas.length == 0
+    if cu_registros.length == 0
         cu_nuevo()
     end
+    r = cu_actual()
+    color = cu_es_color(r.reg)
     c = cu_colores()
-    # la vista: las 256 líneas en el alto que haya, 160 de ancho; una caja por franja del mismo lápiz (una raya por
-    # línea tardaba 10 s con MUI 3.8 en una pantalla de tarjeta)
+    maximo = cu_maximo()
+    # la vista del registro elegido: las 256 líneas en el alto que haya, 160 de ancho; un color, con sus colores; otro
+    # registro, una barra por línea tan larga como su valor. Una caja por franja igual (una raya por línea tardaba 10 s
+    # con MUI 3.8 en una pantalla de tarjeta)
     wv = 160
     yy = 0
     desde = 0
-    pen_antes = -1
+    clave_antes = -2
     while yy <= alto
-        pen = -1
+        clave = -2
         if yy < alto
-            l = yy * CU_LINEAS / alto
-            v = c[l]
-            pen = tema.fondo_panel
-            if v >= 0
-                pen = pen_vista(v)
-            end
+            v = c[yy * CU_LINEAS / alto]
+            clave = v
         end
-        if pen != pen_antes or yy == alto
-            if pen_antes >= 0 and yy > desde
-                gfx_pen(pen_antes)
-                gfx_rect(x, y + desde, x + wv - 1, y + yy - 1)
+        if clave != clave_antes or yy == alto
+            if clave_antes != -2 and yy > desde
+                _cu_franja(x, y + desde, wv, yy - desde, clave_antes, color, maximo)
             end
             desde = yy
-            pen_antes = pen
+            clave_antes = clave
         end
         yy = yy + 1
     end
     gfx_pen(tema.borde)
     gfx_box(x - 1, y - 1, x + wv, y + alto)
-    # las paradas: una marca a la derecha de la vista
+    _cu_x = x
+    _cu_y = y
+    _cu_ancho = ancho
+    _cu_alto = alto
+    _cu_ok = true
+    copper_marcas_lista(x, y, ancho, alto, maximo)
+end
+
+# La geometría de la página Copper en el último dibujo entero (para dibujar solo las marcas y la lista)
+var _cu_ok: Bool = false
+var _cu_x: Int = 0
+var _cu_y: Int = 0
+var _cu_ancho: Int = 0
+var _cu_alto: Int = 0
+
+# El máximo de los valores del registro elegido (para las barras de uno que no es color)
+func cu_maximo() -> Int
+    m = 1
+    if not cu_es_color(cu_actual().reg)
+        for v in cu_colores()
+            if v > m
+                m = v
+            end
+        end
+    end
+    return m
+end
+
+# Lo de la derecha de la vista: las marcas de las paradas y la lista (al elegir o arrastrar una parada se dibuja solo
+# esto: un dibujo entero con la demo en marcha tardaba más de un segundo, y el arrastre llegaba tarde)
+func copper_marcas_lista(x: Int, y: Int, ancho: Int, alto: Int, maximo: Int)
+    r = cu_actual()
+    color = cu_es_color(r.reg)
+    wv = 160
     i = 0
     for p in cu_paradas
         py = y + p.linea * alto / CU_LINEAS
@@ -542,16 +599,38 @@ func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
     # la lista
     lx = x + wv + 16
     modo = tr(33, "degradado")
-    if not cu_degradado
+    if r.modo == CU_SECO
         modo = tr(34, "cambios secos")
+    elif r.modo == CU_LINEAL
+        modo = tr(99, "lineal")
     end
     cod = tr(35, "llamadas a copper_*")
     if cu_tabla
         cod = tr(36, "tabla para asm")
     end
-    texto(lx, y, "copper_" + cu_nombre + ": COLOR" + "#{cu_color}" + ", " + modo, tema.texto)
+    texto(lx, y, "copper_" + cu_nombre + ": " + cu_nombre_reg(r.reg) + " (#{cu_reg + 1}/#{cu_registros.length}), " + modo, tema.texto)
     texto(lx, y + alto_letra + 2, hueco2(tr(59, "Código: %1, %2 instrucciones"), cod, "#{cu_instrucciones() + 2}"), tema.tenue)
-    ly = y + 2 * (alto_letra + 2) + 6
+    # los registros del bloque, en una línea (el elegido, resaltado)
+    rx = lx
+    ry = y + 2 * (alto_letra + 2)
+    k = 0
+    for g in cu_registros
+        n = cu_nombre_reg(g.reg)
+        w = font_text_width(n)
+        if rx + w > x + ancho
+            break
+        end
+        pen = tema.tenue
+        if k == cu_reg
+            gfx_pen(tema.seleccion)
+            gfx_rect(rx - 2, ry - 1, rx + w + 1, ry + alto_letra)
+            pen = tema.texto
+        end
+        texto(rx, ry, n, pen)
+        rx = rx + w + ancho_letra
+        k = k + 1
+    end
+    ly = y + 3 * (alto_letra + 2) + 6
     i = 0
     for p in cu_paradas
         if ly + alto_letra > y + alto
@@ -561,20 +640,45 @@ func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
             gfx_pen(tema.seleccion)
             gfx_rect(lx - 2, ly - 1, lx + 22 * ancho_letra, ly + alto_letra)
         end
-        gfx_pen(pen_vista(p.rgb))
-        gfx_rect(lx, ly, lx + 2 * ancho_letra, ly + alto_letra - 2)
+        if color
+            gfx_pen(pen_vista(p.rgb))
+            gfx_rect(lx, ly, lx + 2 * ancho_letra, ly + alto_letra - 2)
+        else
+            gfx_pen(tema.acento)
+            gfx_rect(lx, ly + alto_letra / 2 - 1, lx + 2 * ancho_letra * p.rgb / maximo, ly + alto_letra / 2)
+        end
         texto(lx + 3 * ancho_letra, ly, hueco(tr(60, "línea %1"), "#{p.linea}"), tema.texto)
-        texto(lx + 14 * ancho_letra, ly, "$" + cu_hex(p.rgb), tema.sintaxis[4])
+        texto(lx + 14 * ancho_letra, ly, "$" + cu_valor_texto(r.reg, p.rgb), tema.sintaxis[4])
         ly = ly + alto_letra + 2
         i = i + 1
     end
 end
 
+# Una franja de la vista del copper (h líneas de la vista con el mismo valor v; -1: el de la pantalla)
+func _cu_franja(x: Int, y: Int, w: Int, h: Int, v: Int, color: Bool, maximo: Int)
+    if v < 0
+        gfx_pen(tema.fondo_panel)
+        gfx_rect(x, y, x + w - 1, y + h - 1)
+    elif color
+        gfx_pen(pen_vista(v))
+        gfx_rect(x, y, x + w - 1, y + h - 1)
+    else
+        largo = (w - 1) * v / maximo
+        gfx_pen(tema.fondo)
+        gfx_rect(x, y, x + w - 1, y + h - 1)
+        if largo > 0
+            gfx_pen(tema.acento)
+            gfx_rect(x, y, x + largo, y + h - 1)
+        end
+    end
+end
+
 func copper_tecla(k: Int, q: Int, ch: String)
-    if cu_paradas.length == 0
+    if cu_registros.length == 0
         cu_nuevo()
     end
     p = cu_paradas[cu_elegida]
+    r = cu_actual()
     paso = 1
     if (q & Q_ALT) != 0
         paso = 8
@@ -600,7 +704,14 @@ func copper_tecla(k: Int, q: Int, ch: String)
                 cu_elegida = cu_paradas.length - 1
             end
         end
-    elif ch == "r" or ch == "g" or ch == "b" or ch == "R" or ch == "G" or ch == "B"
+    elif k == K_IZQUIERDA or k == K_DERECHA
+        # otro registro del bloque
+        if k == K_IZQUIERDA
+            cu_elegir(cu_reg - 1)
+        else
+            cu_elegir(cu_reg + 1)
+        end
+    elif cu_es_color(r.reg) and (ch == "r" or ch == "g" or ch == "b" or ch == "R" or ch == "G" or ch == "B")
         sh = 0
         if ch == "r" or ch == "R"
             sh = 8
@@ -616,6 +727,16 @@ func copper_tecla(k: Int, q: Int, ch: String)
         if v >= 0 and v <= 15
             p.rgb = (p.rgb & (0xFFF - (15 << sh))) | (v << sh)
         end
+    elif not cu_es_color(r.reg) and (ch == "+" or ch == "-" or ch == ">" or ch == "<")
+        # el valor de otro registro: + y - de uno en uno, > y < de 16 en 16
+        d = 1
+        if ch == ">" or ch == "<"
+            d = 16
+        end
+        if ch == "-" or ch == "<"
+            d = 0 - d
+        end
+        p.rgb = (p.rgb + d) & 0xFFFF
     elif ch == "n"
         linea = p.linea + 16
         rgb = p.rgb
@@ -631,19 +752,31 @@ func copper_tecla(k: Int, q: Int, ch: String)
         cu_paradas.insert(cu_elegida + 1, CuParada(linea, rgb))
         cu_elegida = cu_elegida + 1
         cu_ordenar()
+    elif (k == K_SUPR or k == K_RETROCESO) and (q & Q_MAYUS) != 0
+        # Mayúsculas+Supr: quita el registro (si queda otro)
+        if not cu_quitar_registro()
+            avisar(tr(100, "El bloque necesita un registro como poco."), 1)
+            return
+        end
     elif (k == K_SUPR or k == K_RETROCESO) and cu_paradas.length > 1
         cu_paradas.remove(cu_elegida)
         if cu_elegida >= cu_paradas.length
             cu_elegida = cu_paradas.length - 1
         end
+    elif ch == "a"
+        # un registro más en el bloque
+        if cu_anadir_registro() < 0
+            avisar(tr(101, "Ya están todos los registros en el bloque."), 1)
+            return
+        end
     elif ch == "d"
-        cu_degradado = not cu_degradado
+        cu_otro_modo()
     elif ch == "t"
         cu_tabla = not cu_tabla
     elif ch == "c"
-        cu_color = (cu_color + 1) % 32
+        cu_cambiar_registro(1)
     elif ch == "C"
-        cu_color = (cu_color + 31) % 32
+        cu_cambiar_registro(-1)
     elif k == K_RETURN or k == K_INTRO
         al_codigo()
         return
@@ -663,6 +796,7 @@ func copper_tecla(k: Int, q: Int, ch: String)
     else
         return
     end
+    cu_vivo_cambio = true
     redibujar()
 end
 
@@ -670,18 +804,44 @@ var arrastres: Int = 0             # (para la sonda: cuántos sucesos de arrastr
 var ultimo_arrastre: String = ""
 var cu_arrastrando: Bool = false    # se mueve la parada elegida con el ratón (el clic fue en la vista)
 
+# Solo las marcas y la lista del copper (si no hay un dibujo entero de la página, el entero)
+func copper_parcial()
+    if not abierta or not _cu_ok or pagina != PAG_COPPER or mensaje != _mensaje_visto
+        redibujar()
+        return
+    end
+    dibujar_solo(P_COPPER, _cu_x - zona_x + 161, _cu_y - zona_y - 1, _cu_ancho - 161, _cu_alto + 2)
+end
+
 # Un clic en la vista elige la parada más cercana (y arrastrando se mueve); en la lista, esa parada
 func copper_clic(mx: Int, my: Int)
     cu_arrastrando = false
     cy = ALTO_PESTANAS + 4
     alto = zona_alto - 2 * (alto_letra + 2) - 2 - cy
     lx = 4 + 160 + 16
-    ly = cy + 2 * (alto_letra + 2) + 6
+    ly = cy + 3 * (alto_letra + 2) + 6
+    # un clic en la fila de los registros elige ese registro
+    ry = cy + 2 * (alto_letra + 2)
+    if mx >= lx and my >= ry - 1 and my < ry + alto_letra + 1
+        rx = lx
+        k = 0
+        for g in cu_registros
+            w = font_text_width(cu_nombre_reg(g.reg))
+            if mx >= rx - 2 and mx < rx + w + 2
+                cu_elegir(k)
+                redibujar()
+                return
+            end
+            rx = rx + w + ancho_letra
+            k = k + 1
+        end
+        return
+    end
     if mx >= lx and my >= ly and my < cy + alto
         n = (my - ly) / (alto_letra + 2)
         if n >= 0 and n < cu_paradas.length
             cu_elegida = n
-            redibujar()
+            copper_parcial()
         end
         return
     end
@@ -705,7 +865,7 @@ func copper_clic(mx: Int, my: Int)
         i = i + 1
     end
     cu_elegida = mejor
-    redibujar()
+    copper_parcial()
 end
 
 # Arrastrar en la vista: la parada elegida va a la línea del puntero
@@ -731,7 +891,13 @@ func copper_arrastrar(my: Int, soltado: Bool)
     if p.linea != l
         p.linea = l
         cu_ordenar()
+        cu_vivo_cambio = true
+    end
+    # mientras se arrastra, solo las marcas y la lista; al soltar, la vista también
+    if soltado
         redibujar()
+    else
+        copper_parcial()
     end
 end
 
@@ -759,7 +925,7 @@ func otro_bloque(n: Int)
         i = i + 1
     end
     if inicios.length == 0
-        avisar(tr(39, "No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero."), 1)
+        avisar(tr(39, "No hay un bloque \"# copper:\" con sus líneas \"# registro:\" en el fichero."), 1)
         return
     end
     k = -1
@@ -774,6 +940,7 @@ func otro_bloque(n: Int)
         k = 0
     end
     k = (k + n + nombres.length) % nombres.length
+    cu_vivo_cambio = true
     if cu_leer_codigo(t, inicios[k])
         avisar(hueco2(tr(63, "Leído %1 (%2 paradas)."), "copper_" + cu_nombre, "#{cu_paradas.length}") + " #{k + 1}/#{nombres.length}", 2)
     end
@@ -808,10 +975,11 @@ func leer_codigo()
         return
     end
     forja_cursor()
+    cu_vivo_cambio = true
     if cu_leer_codigo(t, forja_cursor_linea)
         avisar(hueco2(tr(63, "Leído %1 (%2 paradas)."), "copper_" + cu_nombre, "#{cu_paradas.length}"), 2)
     else
-        avisar(tr(39, "No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero."), 1)
+        avisar(tr(39, "No hay un bloque \"# copper:\" con sus líneas \"# registro:\" en el fichero."), 1)
     end
     redibujar()
 end
@@ -827,21 +995,7 @@ func probar()
     gfx_clear()
     gfx_pen(1)
     gfx_text_at(64, 16, hueco(tr(64, "%1: un clic vuelve"), "copper_" + cu_nombre))
-    c = cu_colores()
-    if copper_create(cu_instrucciones() + 4)
-        antes = -1
-        y = 0
-        for v in c
-            if v != antes and v >= 0
-                copper_wait(y, 0)
-                copper_color(cu_color, v)
-            end
-            antes = v
-            y = y + 1
-        end
-        copper_end()
-        copper_install()
-    end
+    cu_instalar()
     if sonda
         env_set("FORJA_DEMOS_PROBANDO", "1", false)
     end
@@ -854,6 +1008,61 @@ func probar()
     screen_close()
     env_set("FORJA_DEMOS_PROBANDO", "0", false)
     abrir_ventana()
+end
+
+# --- El copper, en vivo en la demo ---
+
+var cu_vivo_cambio: Bool = false    # cambió el copper: se manda a la demo en la lectura siguiente
+var cu_vivo_lista: [String] = []    # lo último que se mandó (COPPER)
+var cu_vivo_cuenta: Int = 0         # las instrucciones que dijo la demo (0: no tiene la nuestra)
+var cu_vivo_envios: Int = 0         # (para la sonda: cuántos COPPER y cuántos COPPERSET)
+var cu_vivo_sets: Int = 0
+
+# Manda el copper a la demo: si la lista tiene la misma forma que la última que se le mandó, solo los valores que
+# cambiaron (COPPERSET, que la demo pone con copper_set); si no, la lista entera (COPPER: la rehace)
+func copper_a_la_demo()
+    cu_vivo_cambio = false
+    if not conectada()
+        return
+    end
+    l = cu_lista_vivo()
+    igual = cu_vivo_cuenta > 0 and l.length == cu_vivo_lista.length
+    if igual
+        i = 0
+        while i < l.length and igual
+            a = l[i]
+            b = cu_vivo_lista[i]
+            if a != b
+                pa = str_find(a, ":")
+                pb = str_find(b, ":")
+                igual = pa > 0 and pa == pb and a[0:pa] == b[0:pb]
+            end
+            i = i + 1
+        end
+    end
+    if igual
+        o = "COPPERSET"
+        i = 0
+        while i < l.length
+            if l[i] != cu_vivo_lista[i]
+                o = o + " #{i}:" + l[i][str_find(l[i], ":") + 1:]
+            end
+            i = i + 1
+        end
+        if o != "COPPERSET"
+            mandar_demo(o)
+            cu_vivo_sets = cu_vivo_sets + 1
+        end
+    else
+        o = "COPPER"
+        for t in l
+            o = o + " " + t
+        end
+        r = mandar_demo(o)
+        cu_vivo_cuenta = Int(r)
+        cu_vivo_envios = cu_vivo_envios + 1
+    end
+    cu_vivo_lista = l
 end
 
 # --- Música ---
@@ -923,7 +1132,7 @@ func musica_cabecera(fondo: Bool)
     estado = tr(42, "parada")
     if conectada()
         estado = tr(43, "la de la demo")
-    elif suena
+    elif suena()
         estado = tr(44, "suena")
     end
     texto(_mu_x, _mu_y, hueco4(tr(65, "posición %1  patrón %2  fila %3  -> sincronía %4"), "#{_mu_pos}/#{mod_largo}", "#{_mu_pat}", "#{_mu_fila}", "#{_mu_pos * 64 + _mu_fila}") + "   " + estado, tema.acento)
@@ -992,16 +1201,14 @@ func tocar(si: Bool)
     if si and mod_datos != 0 and not conectada()
         if music_load(mod_ruta)
             music_play()
-            suena = true
             mus_pos = 0
             mus_fila = 0
         else
             avisar(hueco(tr(66, "music_load no puede con %1"), mod_ruta), 1)
         end
-    elif not si and suena
+    elif not si and suena()
         music_stop()
         music_free()
-        suena = false
     end
 end
 
@@ -1010,7 +1217,7 @@ func musica_tecla(k: Int, q: Int, ch: String)
         if conectada()
             mandar_demo(pausa_orden())
         else
-            tocar(not suena)
+            tocar(not suena())
         end
     elif k == K_IZQUIERDA or k == K_DERECHA
         d = 1
@@ -1021,15 +1228,19 @@ func musica_tecla(k: Int, q: Int, ch: String)
         if p >= 0 and p < mod_largo
             mus_pos = p
             mus_fila = 0
-            if suena
-                music_position(p)
+            if suena()
+                music_seek(p, 0)
             end
         end
-    elif (k == K_ARRIBA or k == K_ABAJO) and not suena
+    elif k == K_ARRIBA or k == K_ABAJO
         if k == K_ARRIBA and mus_fila > 0
             mus_fila = mus_fila - 1
         elif k == K_ABAJO and mus_fila < 63
             mus_fila = mus_fila + 1
+        end
+        if suena()
+            # sonando, la música salta a esa fila
+            music_seek(mus_pos, mus_fila)
         end
         if musica_parcial()
             return
@@ -1389,7 +1600,7 @@ func sync_tecla(k: Int, q: Int, ch: String)
         if conectada()
             mandar_demo(pausa_orden())
         elif mod_datos != 0
-            tocar(not suena)
+            tocar(not suena())
         end
     elif ch == "v" and conectada()
         # la pantalla de la demo, delante o detrás de la de Forja
@@ -1402,8 +1613,8 @@ func sync_tecla(k: Int, q: Int, ch: String)
     elif ch == "g"
         if conectada()
             mandar_demo("IR #{sy_fila}")
-        elif suena
-            music_position(sy_fila / 64)
+        elif suena()
+            music_seek(sy_fila / 64, sy_fila % 64)
         end
     else
         return
@@ -1894,8 +2105,13 @@ func dibujar_medidor(x: Int, y: Int, ancho: Int, alto: Int)
     _me_y = y
     _me_ancho = ancho
     medidor_texto(false)
-    _me_gy = y + alto_letra + 6
-    _me_gh = alto - alto_letra - 8
+    arriba = alto_letra + 6
+    if demo_partes.length > 0
+        # (la leyenda de las partes, en otra línea)
+        arriba = 2 * (alto_letra + 2) + 4
+    end
+    _me_gy = y + arriba
+    _me_gh = alto - arriba - 2
     if _me_gh < 10
         return
     end
@@ -1924,7 +2140,11 @@ end
 func medidor_texto(fondo: Bool)
     if fondo
         gfx_pen(tema.fondo)
-        gfx_rect(_me_x, _me_y, _me_x + _me_ancho - 1, _me_y + alto_letra)
+        alto = alto_letra
+        if demo_partes.length > 0
+            alto = 2 * (alto_letra + 2)
+        end
+        gfx_rect(_me_x, _me_y, _me_x + _me_ancho - 1, _me_y + alto)
     end
     n = 0
     suma = 0
@@ -1942,7 +2162,33 @@ func medidor_texto(fondo: Bool)
     if n > 0
         media = suma / n
     end
-    texto(_me_x, _me_y, hueco4(tr(83, "Última imagen: %1 líneas (%2 %)   media %3   máximo %4"), "#{demo_lineas}", "#{demo_lineas * 100 / SYNC_LINEAS_PAL}", "#{media}", "#{maximo}") + "   " + hueco(tr(84, "perdidas %1"), "#{demo_perdidos}"), tema.texto)
+    texto(_me_x, _me_y, hueco4(tr(83, "Última imagen: %1 líneas (%2 %)   media %3   máximo %4"), "#{demo_lineas}", "#{demo_lineas * 100 / demo_lineas_imagen}", "#{media}", "#{maximo}") + "   " + hueco(tr(84, "perdidas %1"), "#{demo_perdidos}"), tema.texto)
+    if demo_partes.length > 0
+        # la leyenda: el color de cada parte, su nombre y su media
+        lx = _me_x
+        ly = _me_y + alto_letra + 2
+        k = 1
+        while k <= demo_partes.length + 1
+            j = k
+            nombre = ""
+            if k > demo_partes.length
+                j = 0
+                nombre = tr(104, "otro")
+            else
+                nombre = demo_partes[k - 1]
+            end
+            t = nombre + " #{media_parte(j)}"
+            w = font_text_width(t) + ancho_letra * 2 + 6
+            if lx + w > _me_x + _me_ancho
+                break
+            end
+            gfx_pen(pen_parte(j))
+            gfx_rect(lx, ly + 1, lx + ancho_letra, ly + alto_letra - 2)
+            texto(lx + ancho_letra + 4, ly, t, tema.texto)
+            lx = lx + w
+            k = k + 1
+        end
+    end
 end
 
 # La barra del sitio i del anillo: su columna entera (el fondo y la barra; el sitio donde va la imagen siguiente,
@@ -1956,7 +2202,7 @@ func medidor_barra(i: Int)
     end
     h = 0
     if v > 0
-        h = v * _me_gh / SYNC_LINEAS_PAL
+        h = v * _me_gh / demo_lineas_imagen
         if h > _me_gh
             h = _me_gh
         end
@@ -1965,11 +2211,41 @@ func medidor_barra(i: Int)
         gfx_pen(tema.fondo)
         gfx_rect(bx, _me_gy, bx + _me_w - 1, _me_gy + _me_gh - h - 1)
     end
-    if h > 0
+    if h > 0 and demo_partes.length > 0 and (i + 1) * (SYNC_PARTES + 1) <= demo_anillo_partes.length
+        # por partes: una encima de otra, de abajo arriba (la que no tiene nombre, la primera)
+        yb = _me_gy + _me_gh
+        suma = 0
+        j = 0
+        while j <= demo_partes.length
+            g = demo_anillo_partes[i * (SYNC_PARTES + 1) + j]
+            if g > 0
+                suma = suma + g
+                ya = _me_gy + _me_gh - suma * _me_gh / demo_lineas_imagen
+                if ya < _me_gy
+                    ya = _me_gy
+                end
+                if ya < yb
+                    gfx_pen(pen_parte(j))
+                    gfx_rect(bx, ya, bx + _me_w - 2, yb - 1)
+                    yb = ya
+                end
+            end
+            j = j + 1
+        end
+        if yb > _me_gy + _me_gh - h
+            # (lo que no cuadra por redondeos o por las partes de más: del color de la que no tiene nombre)
+            gfx_pen(pen_parte(0))
+            gfx_rect(bx, _me_gy + _me_gh - h, bx + _me_w - 2, yb - 1)
+        end
+        if _me_w > 2
+            gfx_pen(tema.fondo)
+            gfx_rect(bx + _me_w - 1, _me_gy + _me_gh - h, bx + _me_w - 1, _me_gy + _me_gh - 1)
+        end
+    elif h > 0
         pen = tema.bien
-        if v * 4 > SYNC_LINEAS_PAL * 3
+        if v * 4 > demo_lineas_imagen * 3
             pen = tema.error
-        elif v * 2 > SYNC_LINEAS_PAL
+        elif v * 2 > demo_lineas_imagen
             pen = tema.cursor
         end
         gfx_pen(pen)
@@ -2008,6 +2284,512 @@ func medidor_parcial() -> Bool
     dibujar_solo(P_MEDIDOR, _me_x - zona_x, _me_y - zona_y, _me_ancho, _me_gy + _me_gh - _me_y)
     _me_indice = demo_indice
     return true
+end
+
+# Las partes del medidor (versión 2 del bloque de la demo): sus nombres, si cambiaron, y lo de cada imagen
+func leer_partes_medidor()
+    demo_version = peek_long(demo_mem + 4)
+    if demo_version >= 3 and peek_long(demo_mem + 868) > 200
+        demo_lineas_imagen = peek_long(demo_mem + 868)
+    end
+    if demo_version < 2
+        demo_partes.clear()
+        demo_anillo_partes.clear()
+        return
+    end
+    n = peek_long(demo_mem + 160)
+    if n < 0 or n > SYNC_PARTES
+        n = 0
+    end
+    if n != demo_partes.length
+        # (cambia el dibujo del medidor: la leyenda va en otra línea)
+        _me_ok = false
+        demo_partes.clear()
+        k = 0
+        while k < n
+            d = demo_mem + 164 + k * 16
+            t = ""
+            j = 0
+            while j < 15 and peek_byte(d + j) != 0
+                t = t + str_char(peek_byte(d + j))
+                j = j + 1
+            end
+            demo_partes.push(t)
+            k = k + 1
+        end
+    end
+    demo_anillo_partes.clear()
+    if n == 0
+        return
+    end
+    k = 0
+    while k < SYNC_ANILLO * (SYNC_PARTES + 1)
+        demo_anillo_partes.push(peek_word(demo_mem + 228 + k * 2))
+        k = k + 1
+    end
+end
+
+# El color de la parte j del medidor (0: la que no tiene nombre)
+func pen_parte(j: Int) -> Int
+    if j == 0
+        return tema.tenue
+    end
+    var c: [Int] = [0x4C4, 0xE82, 0x48F, 0xC4C]
+    return pen_rgb(c[(j - 1) % 4])
+end
+
+# La media de la parte j en el anillo (las imágenes medidas)
+func media_parte(j: Int) -> Int
+    n = 0
+    suma = 0
+    i = 0
+    while i < SYNC_ANILLO and (i + 1) * (SYNC_PARTES + 1) <= demo_anillo_partes.length
+        if i < demo_anillo.length and demo_anillo[i] > 0
+            suma = suma + demo_anillo_partes[i * (SYNC_PARTES + 1) + j]
+            n = n + 1
+        end
+        i = i + 1
+    end
+    if n == 0
+        return 0
+    end
+    return suma / n
+end
+
+# Para la sonda: "partes n nombre:media ... otro:media"
+func sonda_partes() -> String
+    t = "medidor partes #{demo_partes.length} version #{demo_version}"
+    if demo_partes.length > 0
+        k = 0
+        while k < demo_partes.length
+            t = t + " " + demo_partes[k] + ":#{media_parte(k + 1)}"
+            k = k + 1
+        end
+        t = t + " otro:#{media_parte(0)}"
+    end
+    return t
+end
+
+# --- Partes: la línea de tiempo de la demo ---
+
+var pa_elegida: Int = 0
+var pa_col: Int = 0              # 0 el nombre, 1 desde, 2 hasta
+var pa_buffer: String = ""       # las cifras que se escriben en desde o hasta
+var pa_nombrando: Bool = false   # n o r: se escribe el nombre en la lista
+var pa_renombrando: Bool = false
+var pa_nombre: String = ""
+var _pa_x: Int = 0               # la geometría del último dibujo (para los clics)
+var _pa_ancho: Int = 0
+var _pa_by: Int = 0              # la barra de la línea de tiempo
+var _pa_bh: Int = 0
+var _pa_ly: Int = 0              # la primera fila de la lista
+var _pa_fin: Int = 64            # la fila del final de la barra
+
+func pen_pa(i: Int) -> Int
+    var c: [Int] = [0x46A, 0xA64, 0x6A6, 0x96A, 0xAA4, 0x4AA]
+    return pen_rgb(c[i % 6])
+end
+
+# Las filas que caben en la barra: hasta el final de la última parte, de la música si hay MOD, o 64 como poco
+func pa_fin_barra() -> Int
+    f = pa_fin()
+    if mod_largo * 64 > f
+        f = mod_largo * 64
+    end
+    if fila_ahora() + 1 > f
+        f = fila_ahora() + 1
+    end
+    if f < 64
+        f = 64
+    end
+    return f
+end
+
+func dibujar_partes(x: Int, y: Int, ancho: Int, alto: Int)
+    _pa_x = x
+    _pa_ancho = ancho
+    fila = alto_letra + 2
+    sin_sync = sy_ruta == "" and sync_pistas.length == 0 and sync_partes.length == 0
+    if sin_sync
+        texto(x, y, tr(107, "Las partes van en el .sync de la demo: ábrelo (Amiga-O, o desde Forja)."), tema.tenue)
+    end
+    # la línea de tiempo: una barra con una caja por parte y la fila que suena
+    _pa_fin = pa_fin_barra()
+    by = y + fila + 2
+    bh = 2 * fila
+    _pa_by = by
+    _pa_bh = bh
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, by, x + ancho - 1, by + bh - 1)
+    i = 0
+    while i < sync_partes.length
+        x1 = x + sync_partes_desde[i] * ancho / _pa_fin
+        x2 = x + (sync_partes_hasta[i] + 1) * ancho / _pa_fin - 1
+        if x2 < x1
+            x2 = x1
+        end
+        gfx_pen(pen_pa(i))
+        gfx_rect(x1, by, x2, by + bh - 1)
+        if i == pa_elegida
+            gfx_pen(tema.cursor)
+            gfx_box(x1, by, x2, by + bh - 1)
+        end
+        n = sync_partes[i]
+        while n.length > 0 and font_text_width(n) > x2 - x1 - 4
+            n = n[0:n.length - 1]
+        end
+        if n != ""
+            texto(x1 + 3, by + (bh - alto_letra) / 2, n, tema.texto)
+        end
+        i = i + 1
+    end
+    # una raya en cada patrón (64 filas) y su número debajo, si caben
+    gfx_pen(tema.borde)
+    gfx_box(x - 1, by - 1, x + ancho, by + bh)
+    paso = 64
+    while paso * ancho / _pa_fin < 6 * ancho_letra
+        paso = paso * 2
+    end
+    f = 0
+    while f <= _pa_fin
+        tx = x + f * ancho / _pa_fin
+        gfx_pen(tema.borde)
+        gfx_rect(tx, by + bh, tx, by + bh + 2)
+        if tx + 4 * ancho_letra <= x + ancho
+            texto(tx + 1, by + bh + 2, "#{f}", tema.tenue)
+        end
+        f = f + paso
+    end
+    ahora = fila_ahora()
+    if ahora >= 0
+        ax = x + ahora * ancho / _pa_fin
+        gfx_pen(tema.error)
+        gfx_rect(ax, by - 2, ax + 1, by + bh + 1)
+    end
+    # arriba: la fila que suena y su parte; si se pisan, se dice
+    t = ""
+    if ahora >= 0
+        k = sync_parte_de(ahora)
+        t = hueco(tr(108, "suena la fila %1"), "#{ahora}")
+        if k >= 0
+            t = t + ": " + sync_partes[k]
+        end
+    end
+    pisan = pa_se_pisan()
+    if pisan != ""
+        texto(x, y, hueco(tr(109, "Se pisan: %1"), pisan), tema.error)
+    elif t != "" and not sin_sync
+        texto(x, y, t, tema.texto)
+    end
+    # la lista: nombre, desde, hasta y cuántas filas
+    ly = by + bh + fila + 6
+    _pa_ly = ly
+    texto(x, ly, tr(110, "parte"), tema.tenue)
+    texto(x + 18 * ancho_letra, ly, tr(111, "desde"), tema.tenue)
+    texto(x + 26 * ancho_letra, ly, tr(112, "hasta"), tema.tenue)
+    texto(x + 34 * ancho_letra, ly, tr(113, "filas"), tema.tenue)
+    ly = ly + fila
+    i = 0
+    n = sync_partes.length
+    if pa_nombrando and not pa_renombrando
+        n = n + 1
+    end
+    while i < n and ly + alto_letra <= y + alto
+        if i == pa_elegida
+            gfx_pen(tema.seleccion)
+            gfx_rect(x - 2, ly - 1, x + 40 * ancho_letra, ly + alto_letra)
+        end
+        if i >= sync_partes.length
+            texto(x, ly, pa_nombre + "_", tema.cursor)
+        else
+            gfx_pen(pen_pa(i))
+            gfx_rect(x, ly + 1, x + ancho_letra - 2, ly + alto_letra - 2)
+            nombre = sync_partes[i]
+            d = "#{sync_partes_desde[i]}"
+            h = "#{sync_partes_hasta[i]}"
+            if i == pa_elegida and pa_nombrando and pa_renombrando
+                nombre = pa_nombre + "_"
+            elif i == pa_elegida and pa_buffer != "" and pa_col == 1
+                d = pa_buffer + "_"
+            elif i == pa_elegida and pa_buffer != "" and pa_col == 2
+                h = pa_buffer + "_"
+            end
+            cols = [nombre, d, h]
+            xs = [x + ancho_letra + 4, x + 18 * ancho_letra, x + 26 * ancho_letra]
+            c = 0
+            while c < 3
+                pen = tema.texto
+                if i == pa_elegida and c == pa_col
+                    pen = tema.cursor
+                end
+                texto(xs[c], ly, cols[c], pen)
+                c = c + 1
+            end
+            texto(x + 34 * ancho_letra, ly, "#{sync_partes_hasta[i] - sync_partes_desde[i] + 1}", tema.tenue)
+        end
+        ly = ly + fila
+        i = i + 1
+    end
+end
+
+# Un cambio en las partes: con deshacer (el de las pistas: van juntas en el .sync)
+func pa_cambiar_limite(i: Int, col: Int, v: Int)
+    if i < 0 or i >= sync_partes.length or v < 0
+        return
+    end
+    para_deshacer()
+    if col == 1
+        sync_partes_desde[i] = v
+        if sync_partes_hasta[i] < v
+            sync_partes_hasta[i] = v
+        end
+    else
+        sync_partes_hasta[i] = v
+        if sync_partes_desde[i] > v
+            sync_partes_desde[i] = v
+        end
+    end
+    pa_elegida = pa_ordenar(i)
+    cambiado()
+end
+
+func partes_tecla(k: Int, q: Int, ch: String)
+    if pa_nombrando
+        partes_nombre_tecla(k, ch)
+        return
+    end
+    hay = pa_elegida >= 0 and pa_elegida < sync_partes.length
+    if k == K_ARRIBA or k == K_ABAJO
+        if k == K_ARRIBA
+            pa_elegida = pa_elegida - 1
+        else
+            pa_elegida = pa_elegida + 1
+        end
+        if pa_elegida >= sync_partes.length
+            pa_elegida = sync_partes.length - 1
+        end
+        if pa_elegida < 0
+            pa_elegida = 0
+        end
+        pa_buffer = ""
+    elif k == K_IZQUIERDA and pa_col > 0
+        pa_col = pa_col - 1
+        pa_buffer = ""
+    elif k == K_DERECHA and pa_col < 2
+        pa_col = pa_col + 1
+        pa_buffer = ""
+    elif k == K_ESC
+        pa_buffer = ""
+    elif ch != "" and str_find("0123456789", ch) >= 0 and hay and pa_col > 0
+        pa_buffer = pa_buffer + ch
+    elif k == K_RETROCESO and pa_buffer != ""
+        pa_buffer = pa_buffer[0:pa_buffer.length - 1]
+    elif (k == K_RETURN or k == K_INTRO) and pa_buffer != "" and hay
+        pa_cambiar_limite(pa_elegida, pa_col, Int(pa_buffer))
+        pa_buffer = ""
+    elif (k == K_RETURN or k == K_INTRO) and hay and pa_col == 0
+        pa_nombrando = true
+        pa_renombrando = true
+        pa_nombre = sync_partes[pa_elegida]
+    elif (ch == "+" or ch == "-" or ch == ">" or ch == "<") and hay
+        # el límite de la columna (o, en la del nombre, la parte entera)
+        d = 1
+        if ch == ">" or ch == "<"
+            d = 16
+        end
+        if ch == "-" or ch == "<"
+            d = 0 - d
+        end
+        if pa_col == 0
+            if sync_partes_desde[pa_elegida] + d >= 0
+                para_deshacer()
+                sync_partes_desde[pa_elegida] = sync_partes_desde[pa_elegida] + d
+                sync_partes_hasta[pa_elegida] = sync_partes_hasta[pa_elegida] + d
+                pa_elegida = pa_ordenar(pa_elegida)
+                cambiado()
+            end
+        elif pa_col == 1
+            pa_cambiar_limite(pa_elegida, 1, sync_partes_desde[pa_elegida] + d)
+        else
+            pa_cambiar_limite(pa_elegida, 2, sync_partes_hasta[pa_elegida] + d)
+        end
+    elif ch == "n"
+        pa_nombrando = true
+        pa_renombrando = false
+        pa_nombre = ""
+        pa_elegida = sync_partes.length
+    elif ch == "r" and hay
+        pa_nombrando = true
+        pa_renombrando = true
+        pa_nombre = sync_partes[pa_elegida]
+    elif (k == K_SUPR or (k == K_RETROCESO and pa_buffer == "")) and hay
+        para_deshacer()
+        n = sync_partes[pa_elegida]
+        pa_quitar(pa_elegida)
+        if pa_elegida >= sync_partes.length and pa_elegida > 0
+            pa_elegida = pa_elegida - 1
+        end
+        cambiado()
+        avisar(hueco(tr(114, "Parte %1 quitada (Amiga-Z la devuelve)."), n), 0)
+    elif ch == "g" and hay
+        # la demo (o la música) al principio de la parte
+        f = sync_partes_desde[pa_elegida]
+        if conectada()
+            mandar_demo("IR #{f}")
+        elif suena()
+            music_seek(f / 64, f % 64)
+        end
+    elif ch == "c"
+        partes_al_codigo()
+        return
+    elif ch == "l"
+        partes_leer_codigo()
+        return
+    elif k == K_TAB
+        if (q & Q_MAYUS) != 0
+            sy_otro(-1)
+        else
+            sy_otro(1)
+        end
+    else
+        return
+    end
+    redibujar()
+end
+
+func partes_nombre_tecla(k: Int, ch: String)
+    if k == K_RETURN or k == K_INTRO
+        pa_nombrando = false
+        n = pa_limpiar(pa_nombre)
+        if pa_renombrando
+            if n != "" and pa_elegida < sync_partes.length and n != sync_partes[pa_elegida]
+                if pa_buscar(n) >= 0
+                    avisar(hueco(tr(115, "Ya hay una parte %1."), n), 1)
+                else
+                    para_deshacer()
+                    sync_partes[pa_elegida] = n
+                    cambiado()
+                end
+            end
+        elif n != ""
+            if pa_buscar(n) >= 0
+                avisar(hueco(tr(115, "Ya hay una parte %1."), n), 1)
+            else
+                para_deshacer()
+                pa_elegida = pa_nueva(n)
+                cambiado()
+            end
+        end
+        if pa_elegida >= sync_partes.length
+            pa_elegida = sync_partes.length - 1
+        end
+        if pa_elegida < 0
+            pa_elegida = 0
+        end
+    elif k == K_ESC
+        pa_nombrando = false
+        if pa_elegida >= sync_partes.length
+            pa_elegida = sync_partes.length - 1
+        end
+        if pa_elegida < 0
+            pa_elegida = 0
+        end
+    elif k == K_RETROCESO
+        if pa_nombre != ""
+            pa_nombre = pa_nombre[0:pa_nombre.length - 1]
+        end
+    elif ch != "" and ch != " " and str_code(ch, 0) > 32
+        pa_nombre = pa_nombre + ch
+    end
+    redibujar()
+end
+
+# Un clic: en la barra elige la parte de esa fila; en la lista, esa parte (y la columna)
+func partes_clic(mx: Int, my: Int)
+    x = _pa_x - zona_x
+    by = _pa_by - zona_y
+    if my >= by and my < by + _pa_bh and _pa_ancho > 0
+        f = (mx - x) * _pa_fin / _pa_ancho
+        k = sync_parte_de(f)
+        if k >= 0
+            pa_elegida = k
+            pa_buffer = ""
+            redibujar()
+        end
+        return
+    end
+    ly = _pa_ly - zona_y + alto_letra + 2
+    if my >= ly
+        i = (my - ly) / (alto_letra + 2)
+        if i >= 0 and i < sync_partes.length
+            pa_elegida = i
+            pa_buffer = ""
+            c = 0
+            if mx - x >= 26 * ancho_letra
+                c = 2
+            elif mx - x >= 18 * ancho_letra
+                c = 1
+            end
+            pa_col = c
+            redibujar()
+        end
+    end
+end
+
+# Pone el bloque de las partes en el fichero de delante de Forja: lo cambia si ya está; si no, en el cursor
+func partes_al_codigo()
+    if sync_partes.length == 0
+        avisar(tr(116, "No hay partes: n hace una."), 1)
+        return
+    end
+    a = str_split(forja_activo(), "\n")
+    if forja_rc != 0 or a.length < 4 or a[3] != "texto"
+        avisar(tr(117, "Abre en Forja el .dash de la demo."), 1)
+        return
+    end
+    ruta = a[0]
+    t = forja_texto("")
+    b = pa_buscar_bloque(t)
+    codigo = pa_codigo()
+    if b[0] > 0 and ruta != ""
+        forja_cambiar(ruta, b[0], b[1], codigo[0:codigo.length - 1])
+        avisar(hueco(tr(118, "Partes cambiadas en %1."), nombre_de(ruta) + " (#{b[0]}-#{b[1]})"), 2)
+    else
+        forja_insertar(codigo)
+        avisar(hueco(tr(119, "Partes metidas en el cursor de %1: llama a parte_cambio(sync_fila) en cada imagen."), a[1]), 2)
+    end
+end
+
+# Lee las partes del bloque "# partes:" del fichero de delante (con deshacer)
+func partes_leer_codigo()
+    t = forja_texto("")
+    if forja_rc != 0
+        avisar(tr(38, "No hay un fichero delante en Forja."), 1)
+        return
+    end
+    antes = sync_a_texto()
+    if pa_leer_codigo(t)
+        sy_deshacer.push(antes)
+        sy_rehacer.clear()
+        cambiado()
+        pa_elegida = 0
+        avisar(hueco(tr(120, "Leídas %1 partes del código."), "#{sync_partes.length}"), 2)
+    else
+        avisar(tr(121, "No hay un bloque \"# partes:\" en el fichero."), 1)
+    end
+    redibujar()
+end
+
+# Para la sonda: "partes n elegida col buffer [..] nombre [..] lista nombre:desde-hasta,..."
+func partes_sonda() -> String
+    t = "partes #{sync_partes.length} #{pa_elegida} #{pa_col} buffer [" + pa_buffer + "] nombre [" + pa_nombre + "] lista"
+    i = 0
+    while i < sync_partes.length
+        t = t + " " + sync_partes[i] + ":#{sync_partes_desde[i]}-#{sync_partes_hasta[i]}"
+        i = i + 1
+    end
+    # (dónde está la barra, desde la esquina de la zona, y su última fila: para los clics de la prueba)
+    return t + " barra #{_pa_x - zona_x} #{_pa_by - zona_y} #{_pa_ancho} #{_pa_bh} #{_pa_fin}"
 end
 
 # --- La demo ---
@@ -2068,6 +2850,10 @@ end
 func desconectar()
     demo_mem = 0
     demo_anillo.clear()
+    demo_partes.clear()
+    demo_anillo_partes.clear()
+    cu_vivo_lista.clear()
+    cu_vivo_cuenta = 0
     forja_barra("")
     _barra_antes = ""
     forja_aviso(tr(50, "Demos: la demo ha acabado."))
@@ -2124,6 +2910,9 @@ func tic()
     antes_fila = fila_ahora()
     antes_cursor = sy_fila
     antes_indice = demo_indice
+    if conectada() and cu_vivo_cambio
+        copper_a_la_demo()
+    end
     if conectada()
         if (tics % 5 == 0 and not puerto_demo()) or peek_long(demo_mem) != SYNC_MAGIA
             desconectar()
@@ -2143,6 +2932,7 @@ func tic()
                 demo_anillo.push(peek_word(demo_mem + 32 + k * 2))
                 k = k + 1
             end
+            leer_partes_medidor()
         end
         if not demo_pausa or not _pausa_vista
             sy_fila = demo_fila
@@ -2163,7 +2953,7 @@ func tic()
     elif tics % 5 == 0 and puerto_demo()
         conectar()
     end
-    if suena and not conectada()
+    if suena() and not conectada()
         mus_pos = music_pos()
         mus_fila = music_row()
         sy_fila = mus_pos * 64 + mus_fila
@@ -2183,6 +2973,8 @@ func en_lienzo()
             ver(p)
         elif pagina == PAG_COPPER
             copper_clic(mx, my)
+        elif pagina == PAG_PARTES
+            partes_clic(mx, my)
         end
         return
     end
@@ -2198,6 +2990,8 @@ func en_lienzo()
         musica_tecla(k, q, ch)
     elif pagina == PAG_SYNC
         sync_tecla(k, q, ch)
+    elif pagina == PAG_PARTES
+        partes_tecla(k, q, ch)
     end
 end
 
@@ -2226,7 +3020,7 @@ func evento(ev: Int) -> Bool
             tic()
             mui_timer(TIC_MS, EV_TIC)
         end
-    elif ev >= EV_PAGINA and ev <= EV_PAGINA + 3
+    elif ev >= EV_PAGINA and ev <= EV_PAGINA + 4
         ver(ev - EV_PAGINA)
     elif ev == EV_ABRIR
         if file_open_dialog("Abrir pistas o MOD", "#?.(sync|mod)")
@@ -2257,7 +3051,10 @@ func evento(ev: Int) -> Bool
     elif ev == EV_FORJA
         forja_delante()
     elif ev == EV_DESHACER or ev == EV_REHACER
-        ver(PAG_SYNC)
+        # (las pistas y las partes van juntas en el .sync: el mismo deshacer)
+        if pagina != PAG_PARTES
+            ver(PAG_SYNC)
+        end
         deshacer(ev == EV_REHACER)
     elif ev == EV_PISTA_NUEVA or ev == EV_PISTA_NOMBRE
         if ev == EV_PISTA_NUEVA or sy_pista < sync_pistas.length
@@ -2320,8 +3117,10 @@ end
 func publicar_sonda()
     t = "pagina #{pagina}\n"
     t = t + "demo #{demo_mem != 0} fila #{demo_fila} lineas #{demo_lineas} muestras #{muestras()} pausa #{demo_pausa}\n"
-    t = t + cu_sonda() + "\n"
-    t = t + "mod " + nombre_de(mod_ruta) + " suena #{suena} pos #{mus_pos} fila #{mus_fila} largo #{mod_largo} patrones #{mod_patrones} celda " + mod_celda(mod_patron(0), 0, 0) + "\n"
+    t = t + cu_sonda() + " vivo #{cu_vivo_envios} #{cu_vivo_sets} #{cu_vivo_cuenta}\n"
+    t = t + sonda_partes() + "\n"
+    t = t + partes_sonda() + "\n"
+    t = t + "mod " + nombre_de(mod_ruta) + " suena #{suena()} pos #{mus_pos} fila #{mus_fila} largo #{mod_largo} patrones #{mod_patrones} celda " + mod_celda(mod_patron(0), 0, 0) + "\n"
     t = t + "sync " + nombre_de(sy_ruta) + " pistas #{sync_pistas.length} cursor #{sy_fila} #{sy_pista} cambiado #{sy_cambiado} buffer [" + sy_buffer + "] nombre [" + sy_nombre + "] abiertos #{sy_ficheros.length} #{sy_actual}\n"
     if sy_pista < sync_pistas.length
         p = sync_pistas[sy_pista]
