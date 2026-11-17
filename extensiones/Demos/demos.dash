@@ -2295,7 +2295,8 @@ func dibujar_partes(x: Int, y: Int, ancho: Int, alto: Int)
     _pa_x = x
     _pa_ancho = ancho
     fila = alto_letra + 2
-    if sy_ruta == "" and sync_pistas.length == 0 and sync_partes.length == 0
+    sin_sync = sy_ruta == "" and sync_pistas.length == 0 and sync_partes.length == 0
+    if sin_sync
         texto(x, y, tr(107, "Las partes van en el .sync de la demo: ábrelo (Amiga-O, o desde Forja)."), tema.tenue)
     end
     # la línea de tiempo: una barra con una caja por parte y la fila que suena
@@ -2363,7 +2364,7 @@ func dibujar_partes(x: Int, y: Int, ancho: Int, alto: Int)
     pisan = pa_se_pisan()
     if pisan != ""
         texto(x, y, hueco(tr(109, "Se pisan: %1"), pisan), tema.error)
-    elif t != ""
+    elif t != "" and not sin_sync
         texto(x, y, t, tema.texto)
     end
     # la lista: nombre, desde, hasta y cuántas filas
@@ -2673,7 +2674,8 @@ func partes_sonda() -> String
         t = t + " " + sync_partes[i] + ":#{sync_partes_desde[i]}-#{sync_partes_hasta[i]}"
         i = i + 1
     end
-    return t
+    # (dónde está la barra, desde la esquina de la zona, y su última fila: para los clics de la prueba)
+    return t + " barra #{_pa_x - zona_x} #{_pa_by - zona_y} #{_pa_ancho} #{_pa_bh} #{_pa_fin}"
 end
 
 # --- La demo ---

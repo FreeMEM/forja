@@ -38,16 +38,16 @@ python3 -I "$aqui/tests/mod_ejemplo.py" "$tmp/sys/Prueba/demo/musica.mod"
   echo "SetEnv FORJA_PRUEBA DH0:Prueba/demo/demo.sync"
   echo "Run >NIL: DH0:Prueba/DemosForja"
 } >> "$tmp/sys/S/Startup-Extra"
-cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-300} $maquina --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/Forja" || true
+cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-480} $maquina --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/Forja" || true
 iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/demos_forja.txt" 2>/dev/null || echo "FALLO: no hay registro"
 if [ -n "$capturas" ]; then
   mkdir -p "$capturas"
-  for f in sincronia medidor musica copper; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
+  for f in sincronia medidor musica copper partes; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
 fi
 # la demo como quedó: con el copper en main.dash, y la versión final con las pistas exportadas
 d="$tmp/disco/Prueba/demo"
 bien=1
-if grep -q "# copper: degradado" "$d/main.dash" && "$dash/dash" "$d/main.dash" -o "$tmp/conCopper"; then echo "bien: main.dash con el copper compila"; else echo "FALLO: main.dash con el copper"; bien=0; fi
+if grep -q "# copper: degradado" "$d/main.dash" && grep -q "copper_move(0x102" "$d/main.dash" && grep -q "PARTE_FIN" "$d/main.dash" && "$dash/dash" "$d/main.dash" -o "$tmp/conCopper"; then echo "bien: main.dash con el copper (dos registros) y las partes compila"; else echo "FALLO: main.dash con el copper y las partes"; bien=0; fi
 sed 's/^const VIVO = true/const VIVO = false/' "$d/main.dash" > "$d/final.dash"
 if grep -q "brillo" "$d/pistas_datos.dash" && "$dash/dash" "$d/final.dash" -o "$tmp/final"; then echo "bien: la versión final con pistas_datos.dash compila"; else echo "FALLO: la versión final"; bien=0; fi
 [ $bien = 1 ] && echo "TODO BIEN"

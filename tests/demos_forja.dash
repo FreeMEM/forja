@@ -284,6 +284,14 @@ func con_demo()
     time_delay(25)
     l = linea("demo")
     ver("Medidor: las líneas de las 64 últimas imágenes", str_starts(linea("pagina"), "pagina 3") and campo_sonda(l, "muestras") == 64 and campo_sonda(l, "lineas") > 150, l)
+    # por partes: la demo mide "lógica" y "barras" (sync_medir); las barras esperan línea a línea, casi todo
+    m = linea("medidor")
+    b = -1
+    p = str_find(m, "barras:")
+    if p >= 0
+        b = Int(str_split(m[p + 7:], " ")[0])
+    end
+    ver("Medidor por partes: lógica y barras, con su media", str_starts(m, "medidor partes 2 version 2 lógica:") and b > 150, m)
     captura("medidor")
     # el visor de MOD: Forja abre musica.mod y se lo pasa
     rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/musica.mod")
@@ -319,23 +327,48 @@ func copper()
     tecla(0x36, 0)
     tecla(0x13, 0)
     tecla(0x13, 0)
-    ver("Copper: una parada nueva y más rojo", esperar("copper 4 1 0 degradado copper 84:", 5), linea("copper"))
+    ver("Copper: una parada nueva y más rojo", esperar("copper 4 1 COLOR00 degradado copper 84:", 5), linea("copper"))
     anotar("  (" + linea("dibujo") + ")")
     tecla(0x44, 0)
     t = texto_main("# copper: degradado")
-    ver("Return lo mete en main.dash (" + input_active_title() + ")", veces(t, "# copper: degradado") == 1 and str_contains(t, "copper_wait(40, 0)") and str_contains(t, "# paradas: 0 degradado 40:00F 84:"), linea("mensaje"))
+    ver("Return lo mete en main.dash (" + input_active_title() + ")", veces(t, "# copper: degradado") == 1 and str_contains(t, "copper_wait(40, 0)") and str_contains(t, "# registro: COLOR00 degradado 40:00F 84:"), linea("mensaje"))
     captura("copper")
     tecla(0x4C, MAYUS)
     tecla(0x4C, MAYUS)
     tecla(0x13, MAYUS)
-    esperar("copper 4 1 0 degradado copper 82:", 5)
+    esperar("copper 4 1 COLOR00 degradado copper 82:", 5)
     tecla(0x44, 0)
     t = texto_main("82:")
-    ver("otra vez Return lo cambia allí, sin duplicarlo", veces(t, "# copper: degradado") == 1 and str_contains(t, "# paradas: 0 degradado 40:00F 82:"), linea("mensaje"))
+    ver("otra vez Return lo cambia allí, sin duplicarlo", veces(t, "# copper: degradado") == 1 and str_contains(t, "# registro: COLOR00 degradado 40:00F 82:"), linea("mensaje"))
+    # otro registro en el mismo bloque: a añade COLOR01 (en la línea de la parada elegida, la 82) y C lo cambia hacia
+    # atrás (COLOR00 ya está) hasta BPLCON1; + tres veces, y al código: copper_move junto a los colores
+    tecla(0x20, 0)
+    ver("a añade un registro al bloque", esperar("registros 2 1", 5) and str_contains(linea("copper"), "copper 1 0 COLOR01 degradado"), linea("copper"))
+    # (cada tecla, cuando la anterior ya se vio: con la demo en marcha un dibujo entero tarda y el lienzo guarda
+    # una sola tecla)
+    bien = true
+    for r in ["DDFSTOP", "DDFSTRT", "DIWSTOP", "DIWSTRT", "BPL2MOD", "BPL1MOD", "BPLCON2", "BPLCON1"]
+        tecla(0x33, MAYUS)
+        if bien and not esperar("copper 1 0 " + r + " ", 5)
+            bien = false
+        end
+    end
+    for v in ["0001", "0002", "0003"]
+        tecla(0x0C, MAYUS)
+        if bien and not esperar("copper 82:" + v, 5)
+            bien = false
+        end
+    end
+    ver("C lo cambia hasta BPLCON1 y + sube su valor", bien and esperar("copper 1 0 BPLCON1 seco copper 82:0003", 5), linea("copper"))
+    tecla(0x44, 0)
+    t = texto_main("BPLCON1")
+    ver("Return: los dos registros en main.dash", veces(t, "# copper: degradado") == 1 and str_contains(t, "# registro: BPLCON1 seco 82:0003") and str_contains(t, "copper_move(0x102, 0x0003)"), linea("mensaje"))
+    tecla(0x4F, 0)
+    ver("izquierda vuelve a COLOR00", esperar("registros 2 0", 5) and str_contains(linea("copper"), "COLOR00"), linea("copper"))
     tecla(0x4D, 0)
     tecla(0x13, 0)
     tecla(0x28, 0)
-    ver("l lo vuelve a leer del código", esperar("copper 4 0 0 degradado copper 40:00F", 5), linea("copper"))
+    ver("l lo vuelve a leer del código (los dos registros)", esperar("copper 4 0 COLOR00 degradado copper 40:00F", 5) and str_contains(linea("copper"), "registros 2 0"), linea("copper"))
     # arrastrar en la vista: la parada de la línea 40 (la más cercana al clic) baja con el ratón
     activar()
     # dónde está la zona en la ventana: el puntero en un sitio conocido y lo que dice la extensión de él (con el
@@ -364,13 +397,86 @@ func copper()
     end
     # un clic en la lista elige esa parada
     lx = zx + 4 + 160 + 16 + 4
-    ly = cy + 2 * (alto_letra() + 2) + 6 + (alto_letra() + 2) * 2 + 2
+    ly = cy + 3 * (alto_letra() + 2) + 6 + (alto_letra() + 2) * 2 + 2
     input_click(lx, ly, 0)
     time_delay(10)
     ver("un clic en la lista elige su parada (la tercera)", esperar("copper 4 2 ", 5), linea("copper"))
     # Tab: el bloque siguiente del fichero (hay uno: el mismo, leído otra vez)
     tecla(0x42, 0)
-    ver("Tab lee el bloque siguiente del código", esperar("copper 4 0 0 degradado copper 40:00F", 5) and str_contains(linea("mensaje"), "1/1"), linea("copper") + " / " + linea("mensaje"))
+    ver("Tab lee el bloque siguiente del código", esperar("copper 4 0 COLOR00 degradado copper 40:00F", 5) and str_contains(linea("mensaje"), "1/1"), linea("copper") + " / " + linea("mensaje"))
+    rexx_send("FORJA.1", "GUARDAR DH0:Prueba/demo/main.dash")
+end
+
+# La página Partes: la línea de tiempo de demo.sync (entrada y barras), una parte nueva, sus límites, nombre, quitar
+# y deshacer, un clic en la barra, ir a una parte con la demo y el bloque de las partes en main.dash
+func partes()
+    activar()
+    tecla(0x05, AMIGA)
+    ver("Partes: las de demo.sync", esperar("pagina 4", 5) and str_contains(linea("partes"), "lista entrada:0-63 barras:64-383 barra"), linea("partes"))
+    tecla(0x36, 0)
+    escribir("final")
+    time_delay(10)
+    ver("n pide el nombre en la lista", esperar("nombre [final]", 5), linea("partes"))
+    tecla(0x44, 0)
+    ver("Return la hace, tras la última", esperar("partes 3 2 0 ", 5) and str_contains(linea("partes"), "final:384-447"), linea("partes"))
+    tecla(0x4E, 0)
+    escribir("400")
+    tecla(0x44, 0)
+    ver("cifras y Return cambian desde", esperar("final:400-447", 5), linea("partes"))
+    tecla(0x4E, 0)
+    escribir("<")
+    ver("< baja hasta 16 filas", esperar("final:400-431", 5), linea("partes"))
+    tecla(0x13, 0)
+    k = 0
+    while k < 5
+        tecla(0x41, 0)
+        k = k + 1
+    end
+    escribir("fin")
+    tecla(0x44, 0)
+    ver("r le cambia el nombre", esperar("fin:400-431", 5), linea("partes"))
+    tecla(0x46, 0)
+    ver("Supr la quita", esperar("partes 2 1 ", 5), linea("partes"))
+    tecla(0x31, AMIGA)
+    ver("Amiga-Z la devuelve (y sigue en Partes)", esperar("fin:400-431", 5) and str_starts(linea("pagina"), "pagina 4"), linea("partes") + " / " + linea("pagina"))
+    # un clic en la barra, en la fila 32: entrada
+    input_move(200, 120)
+    time_delay(30)
+    pu = str_split(linea("puntero"), " ")
+    zx = 200 - Int(pu[1])
+    zy = 120 - Int(pu[2])
+    l = str_split(linea("partes"), " barra ")
+    if l.length > 1
+        g = str_split(l[1], " ")
+        bx = Int(g[0])
+        by = Int(g[1])
+        ancho = Int(g[2])
+        bh = Int(g[3])
+        fin = Int(g[4])
+        input_click(zx + bx + 32 * ancho / fin, zy + by + bh / 2, 0)
+        time_delay(10)
+        ver("un clic en la barra elige su parte", esperar("partes 3 0 ", 5), linea("partes"))
+        captura("partes")
+        # g lleva la demo al principio de barras
+        # (la demo, lejos: en la fila 256; cada tecla cuando se vio la anterior: el lienzo guarda una sola)
+        rexx_send_wait("DEMOSYNC", "IR 256", 2000)
+        tecla(0x4D, 0)
+        esperar("partes 3 1 ", 5)
+        tecla(0x24, 0)
+        n = 0
+        f = -1
+        while n < 12 and not (f >= 64 and f < 90)
+            f = campo_sonda(linea("demo"), "fila")
+            n = n + 1
+        end
+        ver("g lleva la demo a la parte (barras, fila 64)", f >= 64 and f < 90, linea("demo") + " / " + linea("partes"))
+    else
+        ver("la sonda dice dónde está la barra", false, linea("partes"))
+    end
+    # c: el bloque de las partes en main.dash (que ya tiene uno, el de la plantilla: se cambia allí)
+    tecla(0x33, 0)
+    t = texto_main("| fin 400 431")
+    ver("c cambia el bloque de las partes en main.dash", veces(t, "# partes:") == 1 and str_contains(t, "# partes: entrada 0 63 | barras 64 383 | fin 400 431") and str_contains(t, "const PARTE_FIN = 2") and veces(t, "# fin partes") == 1, linea("mensaje"))
     rexx_send("FORJA.1", "GUARDAR DH0:Prueba/demo/main.dash")
 end
 
@@ -381,7 +487,7 @@ func guardar_exportar()
     tecla(0x21, AMIGA)
     esperar("cambiado false", 5)
     t = file_read_text("DH0:Prueba/demo/demo.sync")
-    ver("Amiga-S guarda las pistas", t != nil and str_contains(t, "pista brillo") and str_contains(linea("sync"), "cambiado false"), linea("sync"))
+    ver("Amiga-S guarda las pistas (y las partes)", t != nil and str_contains(t, "pista brillo") and str_contains(t, "parte fin 400 431") and str_contains(linea("sync"), "cambiado false"), linea("sync"))
     tecla(0x32, AMIGA)
     esperar("Exportadas", 5)
     t = file_read_text("DH0:Prueba/demo/pistas_datos.dash")
@@ -400,6 +506,7 @@ Main
         sincronia()
         con_demo()
         copper()
+        partes()
         guardar_exportar()
         rexx_send_wait("DEMOSYNC", "ACABAR", 2000)
         ver("la demo acaba y la extensión lo ve", esperar("demo false", 10), linea("demo"))
