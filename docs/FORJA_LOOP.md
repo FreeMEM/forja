@@ -416,3 +416,29 @@ VS Code.
     de su ventana, no de la de Forja; Amiga-Q en la ventana de una extensión no cierra Forja (va a Forja con Ventana >
     Forja); la prueba de memoria no pone aún un tope.
   - **Falta en Dash**: nada nuevo.
+- 2026-11-17, rama `proyecto`: **pasos 3.1, 3.2, 4.1 y 4.2** (lo empezó otro agente: el `.forja` en
+  `src/proyecto.dash`, seis plantillas en `plantillas/` con `tools/plantillas.py`, el menú Depurar con
+  `src/expresion.dash` y Programa > Ejecutar con perfil y con memcheck). Cerrado con sus pruebas:
+  - **Los puntos de parada siguen a su línea al escribir**, como los marcadores: el editor los mueve al meter, quitar,
+    subir o bajar líneas (`ed_puntos_movidos` dice de dónde a dónde) y Forja mueve con ellos los del proyecto, con su
+    condición y su contador. Al `.forja` van al guardar el fichero; al cerrar sin guardar (Descartar) vuelven a la línea
+    del disco y se quitan los puestos después (`guardada` en cada punto). Depurando, el depurador sigue con los de antes,
+    que son los del programa en marcha.
+  - Memcheck pone a la vista su primer aviso al acabar (en 640x256 la salida enseña dos líneas y quedaba arriba).
+  - Si Propiedades o Nuevo proyecto no se abren, Forja lo dice (texto 1005).
+  - **Las pruebas fallaban por ellas mismas, no por Forja**: el ejecutable de `perfil.sh` se llamaba `Perfil`, como el
+    cajón `perfil` (en el Amiga es el mismo nombre) y no arrancaba; activar la ventana ya es un evento y Forja miraba
+    `FORJA_EVENTO` con él, y el Esc de después cerraba lo que se acababa de abrir (en MUI 3.8, Propiedades; con el
+    depurador, la pregunta de la condición); con el emulador cargado las flechas llegan tarde. Ahora `menu()` pulsa Esc
+    solo si hace falta, `a_la_linea` espera al cursor (`CURSOR`) y `responder` espera a ver la pregunta
+    (`ENV:FORJA_RAPIDA`). `forja_proyecto.sh` arranca el Workbench con `RTG=1` (`--workbench`), que `wb_open` necesita.
+    `plantillas.sh` saca las capturas cuando el programa aún está abierto (la 3D a los 25 s).
+  - TODO BIEN: `proyecto_base`, `editor_base` (con los puntos que siguen), `depurar_mas` (también en MUI 3.8, y una
+    línea nueva arriba baja el punto con su condición hasta el `.forja`), `plantillas` (las seis; la 3D en la máquina
+    de CoffinOS con MiniGL) y `forja_proyecto` (en MUI 5 y en MUI 3.8, con el icono: Forja arranca desde
+    `Barras.forja` con `wb_open`). La ventana Nuevo proyecto cabe en 640 de ancho.
+  - **`perfil` falla en la parte del perfil por Dash**: dash (el directo, también el del Amiga) copia en línea las
+    funciones pequeñas o de un solo sitio también con `--profile`, y la tabla solo tiene Main. La parte de memcheck va
+    bien.
+  - **Falta en Dash**: con `--profile`, no copiar funciones en línea (como con `--debug`: `can_inline` de
+    `dashc/src/gen68k.c`, y las de una línea puestas como expresión).
