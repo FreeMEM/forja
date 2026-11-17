@@ -606,10 +606,15 @@ func pl_texto(tipo: String, fichero: String) -> String
         "# mira en cada imagen si llegó algo (rexx_get: sin nada, es un GetMsg vacío); Forja solo manda cuando se cambia una\n" +
         "# clave. Lo que Forja lee a menudo (la fila, las líneas de cada imagen) lo deja la demo en un bloque de memoria\n" +
         "# (SYNC_TAM bytes) cuya dirección le da con HOLA; Forja lo lee unas veces por segundo sin molestar a la demo:\n" +
-        "#   0 \"DSYN\", 4 versión (2), 8 fila, 12 fotograma, 16 líneas del último, 20 en pausa, 24 índice del anillo,\n" +
+        "#   0 \"DSYN\", 4 versión (3), 8 fila, 12 fotograma, 16 líneas del último, 20 en pausa, 24 índice del anillo,\n" +
         "#   28 fotogramas perdidos, 32 las líneas de los 64 últimos fotogramas (una palabra cada uno); desde la versión 2,\n" +
         "#   160 cuántas partes con nombre (sync_medir, hasta 4), 164 sus nombres (16 bytes cada uno, acabados en 0) y 228 lo\n" +
-        "#   que gastó cada parte en los 64 últimos fotogramas (5 palabras por fotograma: la parte sin nombre y las 4).\n" +
+        "#   que gastó cada parte en los 64 últimos fotogramas (5 palabras por fotograma: la parte sin nombre y las 4); desde\n" +
+        "#   la 3, 868 las líneas de una imagen (313 en PAL, 263 en NTSC: beam_lines).\n" +
+        "#\n" +
+        "# El copper, en vivo: Forja manda la lista que se edita en Demos > Copper (COPPER, y COPPERSET para cambiar solo\n" +
+        "# valores) y la demo la pone en su pantalla con copper_* y copper_set. Se ve al momento; en la versión final, el\n" +
+        "# código que escribe Forja (copper_<nombre>).\n" +
         "#\n" +
         "# El medidor por partes: sync_medir(\"dibujo\") dice que lo que se gasta desde ahí (hasta la siguiente sync_medir o\n" +
         "# sync_fin) es de \"dibujo\". Lo de antes de la primera, entre sync_fotograma y ella, no tiene nombre.\n" +
@@ -626,14 +631,13 @@ func pl_texto(tipo: String, fichero: String) -> String
         "# sync_partes tiene las del .sync cargado (nombres en sync_partes, filas en sync_partes_desde y sync_partes_hasta).\n" +
         "\n" +
         "const SYNC_MAGIA = 0x4453594E\n" +
-        "const SYNC_TAM = 868\n" +
+        "const SYNC_TAM = 872\n" +
         "const SYNC_PARTES = 4           # las partes del medidor con nombre (sync_medir)\n" +
         "const SYNC_ANILLO = 64\n" +
         "const SYNC_ESCALON = 0\n" +
         "const SYNC_LINEAL = 1\n" +
         "const SYNC_SUAVE = 2\n" +
         "const SYNC_RAMPA = 3\n" +
-        "const SYNC_LINEAS_PAL = 313\n" +
         "\n" +
         "struct SyncPista\n" +
         "    nombre: String\n" +
@@ -653,11 +657,11 @@ func pl_texto(tipo: String, fichero: String) -> String
         "var _sync_fichero: String = \"\"\n" +
         "var _sync_mem: Int = 0\n" +
         "var _sync_fotos: Int = 0        # fotogramas desde el principio (el reloj sin música)\n" +
-        "var _sync_cuenta: Int = 0       # fotogramas en esta fila\n" +
-        "var _sync_por_fila: Int = 6     # cuántos duró la fila de antes\n" +
         "var _sync_fila_antes: Int = -1\n" +
         "var _sync_linea0: Int = 0\n" +
-        "var _sync_ms: Int = 0\n" +
+        "var _sync_vblank: Int = -1     # vblank_count() de la imagen de antes (para las perdidas)\n" +
+        "var sync_lineas_imagen: Int = 313   # las líneas de una imagen: 313 en PAL, 263 en NTSC\n" +
+        "var sync_copper: Int = 0        # las instrucciones de la lista de copper que puso Forja (COPPER); 0 ninguna\n" +
         "var _sync_perdidos: Int = 0\n" +
         "var _sync_indice: {String: Int} = {}\n" +
         "var _sync_medidas: [String] = []    # los nombres de sync_medir, en orden (la parte 1 es el primero)\n" +
@@ -808,13 +812,17 @@ func pl_texto(tipo: String, fichero: String) -> String
         "    return Int(sync_valor(nombre))\n" +
         "end\n" +
         "\n" +
-        "# La fracción de la fila que suena, de 0 a 1: los fotogramas que lleva frente a los que duró la de antes\n" +
+        "# La fracción de la fila que suena, de 0 a 1: con música, los tics que ya sonaron frente a los de la fila; sin ella,\n" +
+        "# las imágenes (6 por fila)\n" +
         "func sync_parte() -> Fixed\n" +
-        "    c = _sync_cuenta\n" +
-        "    if c >= _sync_por_fila\n" +
-        "        c = _sync_por_fila - 1\n" +
+        "    if sync_musica\n" +
+        "        v = music_speed()\n" +
+        "        if v < 1\n" +
+        "            v = 1\n" +
+        "        end\n" +
+        "        return Fixed(music_tick()) / Fixed(v)\n" +
         "    end\n" +
-        "    return Fixed(c) / Fixed(_sync_por_fila)\n" +
+        "    return Fixed(_sync_fotos % 6) / Fixed(6)\n" +
         "end\n" +
         "\n" +
         "# Una pista desde tablas (lo que escribe Forja al exportar, en pistas_datos.dash)\n" +
@@ -985,13 +993,7 @@ func pl_texto(tipo: String, fichero: String) -> String
         "\n" +
         "# La línea de la pantalla por la que va el haz (VPOSR y VHPOSR), de 0 a 312 en PAL\n" +
         "func sync_linea() -> Int\n" +
-        "    a = peek_word(0xDFF004)\n" +
-        "    b = peek_word(0xDFF006)\n" +
-        "    if (peek_word(0xDFF004) & 1) != (a & 1)\n" +
-        "        a = peek_word(0xDFF004)\n" +
-        "        b = peek_word(0xDFF006)\n" +
-        "    end\n" +
-        "    return ((a & 1) << 8) | ((b >> 8) & 255)\n" +
+        "    return beam_line()\n" +
         "end\n" +
         "\n" +
         "# Carga un MOD y lo toca: desde ahora el reloj es la música. false si no se puede\n" +
@@ -1006,7 +1008,8 @@ func pl_texto(tipo: String, fichero: String) -> String
         "\n" +
         "# Empieza el reloj. Con vivo, abre el puerto DEMOSYNC para Forja y el bloque que Forja lee\n" +
         "func sync_empezar(vivo: Bool)\n" +
-        "    _sync_ms = time_ms()\n" +
+        "    _sync_vblank = -1\n" +
+        "    sync_lineas_imagen = beam_lines()\n" +
         "    _sync_fotos = 0\n" +
         "    _sync_fila_antes = -1\n" +
         "    if vivo and _sync_mem == 0 and rexx_port(\"DEMOSYNC\")\n" +
@@ -1017,7 +1020,8 @@ func pl_texto(tipo: String, fichero: String) -> String
         "                poke_long(_sync_mem + k, 0)\n" +
         "                k = k + 4\n" +
         "            end\n" +
-        "            poke_long(_sync_mem + 4, 2)\n" +
+        "            poke_long(_sync_mem + 4, 3)\n" +
+        "            poke_long(_sync_mem + 868, sync_lineas_imagen)\n" +
         "            poke_long(_sync_mem, SYNC_MAGIA)\n" +
         "            sync_vivo = true\n" +
         "        end\n" +
@@ -1031,6 +1035,10 @@ func pl_texto(tipo: String, fichero: String) -> String
         "        _sync_mem = 0\n" +
         "    end\n" +
         "    sync_vivo = false\n" +
+        "    if sync_copper > 0\n" +
+        "        copper_free()\n" +
+        "        sync_copper = 0\n" +
+        "    end\n" +
         "    if sync_musica\n" +
         "        music_stop()\n" +
         "        music_free()\n" +
@@ -1038,14 +1046,13 @@ func pl_texto(tipo: String, fichero: String) -> String
         "    end\n" +
         "end\n" +
         "\n" +
-        "# Lleva la demo a esa fila (con música, al principio de su patrón: Dash no salta aún a una fila)\n" +
+        "# Lleva la demo a esa fila (con música, la música salta allí)\n" +
         "func sync_ir(fila: Int)\n" +
         "    if sync_musica\n" +
-        "        music_position(fila / 64)\n" +
+        "        music_seek(fila / 64, fila % 64)\n" +
         "    end\n" +
         "    _sync_fotos = fila * 6\n" +
         "    sync_fila = fila\n" +
-        "    _sync_cuenta = 0\n" +
         "end\n" +
         "\n" +
         "func sync_pausar(si: Bool)\n" +
@@ -1072,11 +1079,12 @@ func pl_texto(tipo: String, fichero: String) -> String
         "    _sync_gasto[2] = 0\n" +
         "    _sync_gasto[3] = 0\n" +
         "    _sync_gasto[4] = 0\n" +
-        "    ahora = time_ms()\n" +
-        "    if ahora - _sync_ms > 30 and _sync_ms != 0\n" +
-        "        _sync_perdidos = _sync_perdidos + (ahora - _sync_ms + 10) / 20 - 1\n" +
+        "    # las imágenes perdidas: el contador de VBlank sube más de 1 si la de antes tardó más de una imagen\n" +
+        "    vb = vblank_count()\n" +
+        "    if _sync_vblank >= 0 and vb - _sync_vblank > 1\n" +
+        "        _sync_perdidos = _sync_perdidos + vb - _sync_vblank - 1\n" +
         "    end\n" +
-        "    _sync_ms = ahora\n" +
+        "    _sync_vblank = vb\n" +
         "    if not sync_pausa\n" +
         "        _sync_fotos = _sync_fotos + 1\n" +
         "    end\n" +
@@ -1084,15 +1092,7 @@ func pl_texto(tipo: String, fichero: String) -> String
         "    if sync_musica\n" +
         "        f = music_pos() * 64 + music_row()\n" +
         "    end\n" +
-        "    if f != _sync_fila_antes\n" +
-        "        if _sync_fila_antes >= 0 and f == _sync_fila_antes + 1 and _sync_cuenta >= 1 and _sync_cuenta <= 32\n" +
-        "            _sync_por_fila = _sync_cuenta\n" +
-        "        end\n" +
-        "        _sync_cuenta = 0\n" +
-        "        _sync_fila_antes = f\n" +
-        "    elif not sync_pausa\n" +
-        "        _sync_cuenta = _sync_cuenta + 1\n" +
-        "    end\n" +
+        "    _sync_fila_antes = f\n" +
         "    sync_fila = f\n" +
         "    if sync_vivo\n" +
         "        _sync_ordenes()\n" +
@@ -1113,7 +1113,7 @@ func pl_texto(tipo: String, fichero: String) -> String
         "    _sync_apuntar(l)\n" +
         "    n = l - _sync_linea0\n" +
         "    if n < 0\n" +
-        "        n = n + SYNC_LINEAS_PAL\n" +
+        "        n = n + sync_lineas_imagen\n" +
         "    end\n" +
         "    sync_lineas = n\n" +
         "    if sync_vivo\n" +
@@ -1166,7 +1166,7 @@ func pl_texto(tipo: String, fichero: String) -> String
         "func _sync_apuntar(l: Int)\n" +
         "    n = l - _sync_parte_l\n" +
         "    if n < 0\n" +
-        "        n = n + SYNC_LINEAS_PAL\n" +
+        "        n = n + sync_lineas_imagen\n" +
         "    end\n" +
         "    _sync_gasto[_sync_parte_med] = _sync_gasto[_sync_parte_med] + n\n" +
         "end\n" +
@@ -1181,6 +1181,37 @@ func pl_texto(tipo: String, fichero: String) -> String
         "        i = i + 1\n" +
         "    end\n" +
         "    return -1\n" +
+        "end\n" +
+        "\n" +
+        "# COPPER de Forja: la lista entera, una instrucción por palabra (W línea, C color:rgb, M registro:valor, en hex el\n" +
+        "# color y el registro). La pone en la pantalla de la demo; da cuántas instrucciones tiene (0 si no pudo)\n" +
+        "func _sync_poner_copper(c: [String]) -> Int\n" +
+        "    if c.length < 2\n" +
+        "        copper_free()\n" +
+        "        sync_copper = 0\n" +
+        "        return 0\n" +
+        "    end\n" +
+        "    if not copper_create(c.length + 2)\n" +
+        "        sync_copper = 0\n" +
+        "        return 0\n" +
+        "    end\n" +
+        "    i = 1\n" +
+        "    while i < c.length\n" +
+        "        t = c[i]\n" +
+        "        k = str_find(t, \":\")\n" +
+        "        if str_starts(t, \"W\")\n" +
+        "            copper_wait(Int(t[1:]), 0)\n" +
+        "        elif k > 1 and str_starts(t, \"C\")\n" +
+        "            copper_color(Int(t[1:k]), str_to_int(t[k + 1:], 16))\n" +
+        "        elif k > 1 and str_starts(t, \"M\")\n" +
+        "            copper_move(str_to_int(t[1:k], 16), str_to_int(t[k + 1:], 16))\n" +
+        "        end\n" +
+        "        i = i + 1\n" +
+        "    end\n" +
+        "    copper_end()\n" +
+        "    copper_install()\n" +
+        "    sync_copper = copper_count()\n" +
+        "    return sync_copper\n" +
         "end\n" +
         "\n" +
         "# Las órdenes de Forja (por el puerto DEMOSYNC)\n" +
@@ -1225,6 +1256,20 @@ func pl_texto(tipo: String, fichero: String) -> String
         "        rexx_reply(0, \"\")\n" +
         "    elif que == \"VALOR\" and c.length >= 2\n" +
         "        rexx_reply(0, sync_texto(sync_valor(c[1])))\n" +
+        "    elif que == \"COPPER\"\n" +
+        "        rexx_reply(0, \"#" + "{_sync_poner_copper(c)}\")\n" +
+        "    elif que == \"COPPERCUENTA\"\n" +
+        "        rexx_reply(0, \"#" + "{sync_copper}\")\n" +
+        "    elif que == \"COPPERSET\"\n" +
+        "        i = 1\n" +
+        "        while i < c.length\n" +
+        "            k = str_find(c[i], \":\")\n" +
+        "            if k > 0 and sync_copper > 0\n" +
+        "                copper_set(Int(c[i][0:k]), str_to_int(c[i][k + 1:], 16))\n" +
+        "            end\n" +
+        "            i = i + 1\n" +
+        "        end\n" +
+        "        rexx_reply(0, \"\")\n" +
         "    elif que == \"ACABAR\"\n" +
         "        sync_acabada = true\n" +
         "        rexx_reply(0, \"\")\n" +

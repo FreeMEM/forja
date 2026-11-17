@@ -268,7 +268,8 @@ trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y s
   - Amiga-X las exporta a `pistas_datos.dash`: tablas dentro del programa. Con `VIVO = false`, la versión final no
     necesita ni el `.sync` ni Forja.
   - En la demo: `sync_valor("zoom")` (un `Fixed`) o `sync_int("escena")`. El reloj es la música si suena
-    (`sync_tocar("musica.mod")`); si no, las imágenes (6 por fila).
+    (`sync_tocar("musica.mod")`); si no, las imágenes (6 por fila). Entre una fila y la siguiente, el valor se mueve
+    con los tics de la música (`music_tick` y `music_speed`), y `g` salta a la fila exacta (`music_seek`).
   - Cómo hablan, lo más ligero para un 68000: la demo abre el puerto ARexx `DEMOSYNC` y en cada imagen solo mira si
     llegó algo (un `GetMsg` vacío casi siempre); la extensión manda algo solo al cambiar una clave. La fila y las
     líneas las deja la demo en un bloque de memoria, que la extensión lee cinco veces por segundo.
@@ -288,9 +289,14 @@ trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y s
   lleva una línea `# registro:` por registro; si ya está, lo cambia allí; `l` lo vuelve a leer del código (también los
   de antes, con `# paradas:`), y Tab lee el bloque siguiente del fichero (con Mayúsculas, el anterior). `p` lo prueba
   de verdad en una pantalla propia (un clic vuelve).
+  - **En vivo**: con la demo en marcha, cada cambio le llega al momento y lo pone en su pantalla. Si solo cambian
+    valores, con `copper_set`; si cambian las líneas o los registros, rehace la lista. Lo que escribe en el código es
+    lo de la versión final.
 - **Medidor de raster**: cuántas líneas de la pantalla gasta cada imagen de la demo, con las 64 últimas en barras
   (verde hasta media imagen, amarillo hasta tres cuartos, rojo por encima), la media, el máximo y las imágenes
-  perdidas. La demo mide entre `sync_fotograma()` (tras `wait_vblank`) y `sync_fin()`. Vale igual para un juego.
+  perdidas. La demo mide entre `sync_fotograma()` (tras `wait_vblank`) y `sync_fin()`, con `beam_line`; las perdidas
+  las cuenta `vblank_count`, y la escala es la de la pantalla (313 líneas en PAL, 263 en NTSC). Vale igual para un
+  juego.
   - **Por partes**: con `sync_medir("lógica")`, `sync_medir("dibujo")`... la demo dice de quién es lo que se gasta
     desde ahí (hasta 4 nombres; lo de antes de la primera, "otro"). Las barras se apilan, cada parte de su color, con
     una leyenda con la media de cada una. La plantilla mide "lógica" y "barras".

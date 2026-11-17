@@ -218,6 +218,21 @@ func hasta_ver(x: Int, y: Int, k: Int, q: Int, texto: String) -> Bool
     return false
 end
 
+# El último suceso de arrastre fue el de soltar ("puntero x y arrastres n 2 ...")
+func soltado() -> Bool
+    c = str_split(linea("puntero"), " ")
+    return c.length > 5 and c[5] == "2"
+end
+
+# "vivo envios sets cuenta" de la línea del copper de la sonda
+func vivo() -> [String]
+    p = str_split(linea("copper"), " vivo ")
+    if p.length < 2
+        return ["0", "0", "0"]
+    end
+    return str_split(p[1], " ")
+end
+
 func sincronia()
     ver("abre demo.sync en Sincronía", str_starts(linea("pagina"), "pagina 2") and str_starts(linea("sync"), "sync demo.sync pistas 2 cursor 0 0"), linea("sync"))
     # una clave en la fila 4 de "velocidad": 1.5, lineal; i la pasa a suave; Supr la quita
@@ -336,7 +351,7 @@ func con_demo()
     end
     # (la última imagen puede salir corta si la demo empezó tarde tras wait_vblank: vale también la media)
     ver("Medidor: las líneas de las 64 últimas imágenes", str_starts(linea("pagina"), "pagina 3") and campo_sonda(l, "muestras") == 64 and (campo_sonda(l, "lineas") > 150 or b > 150), l + " / " + m)
-    ver("Medidor por partes: lógica y barras, con su media", str_starts(m, "medidor partes 2 version 2 lógica:") and b > 150, m)
+    ver("Medidor por partes: lógica y barras, con su media", str_starts(m, "medidor partes 2 version 3 lógica:") and b > 150, m)
     captura("medidor")
     # el visor de MOD: Forja abre musica.mod y se lo pasa
     rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/musica.mod")
@@ -405,6 +420,15 @@ func copper()
         end
     end
     ver("C lo cambia hasta BPLCON1 y + sube su valor", bien and esperar("copper 1 0 BPLCON1 seco copper 82:0003", 5), linea("copper"))
+    # en vivo: la demo tiene la lista (COPPER) y los cambios de valor le llegan con COPPERSET
+    n = 0
+    c = vivo()
+    while n < 20 and Int(c[1]) < 1
+        time_delay(5)
+        c = vivo()
+        n = n + 1
+    end
+    ver("el copper llega en vivo a la demo (COPPER y COPPERSET)", Int(c[0]) >= 1 and Int(c[1]) >= 1 and Int(c[2]) > 0 and rexx_send_wait("DEMOSYNC", "COPPERCUENTA", 2000) == c[2], linea("copper"))
     tecla(0x44, 0)
     t = texto_main("BPLCON1")
     ver("Return: los dos registros en main.dash", veces(t, "# copper: degradado") == 1 and str_contains(t, "# registro: BPLCON1 seco 82:0003") and str_contains(t, "copper_move(0x102, 0x0003)"), linea("mensaje"))
@@ -424,20 +448,26 @@ func copper()
     anotar("  (la zona en la ventana: #{zx}, #{zy}; " + linea("pagina") + ")")
     cy = zy + 22
     alto = campo("FORJA_DEMOS_LIENZO", 3) - 2 * (alto_letra() + 2) - 2 - 22
+    envios = campo_sonda(linea("copper"), "vivo")
     input_drag(zx + 80, cy + 40 * alto / 256, zx + 80, cy + 120 * alto / 256)
-    time_delay(20)
+    # (se espera al suceso de soltar: con la demo en marcha llega tarde; "arrastres N 2 ..." es el de soltar)
+    n = 0
+    while n < 30 and not soltado()
+        time_delay(10)
+        n = n + 1
+    end
     c = str_split(linea("copper"), " ")
     l = -1
     if c.length > 6 and str_find(c[6], ":") > 0
         l = Int(c[6][0:str_find(c[6], ":")])
     end
-    # (input_drag en este lienzo, con búfer: en MUI 5 no llega ningún suceso de arrastre y en MUI 3.8 solo el primer
-    # movimiento, sin el de soltar; sin sucesos no se puede mirar, y se dice)
-    if campo_sonda(linea("puntero"), "arrastres") <= 0
-        anotar("  (aviso: el arrastre no se prueba: input_drag no llegó al lienzo; " + linea("puntero") + ")")
-    else
-        ver("arrastrar una parada en la vista la mueve (a la línea #{l})", l > 40 and str_ends(c[6], ":00F"), linea("copper") + " / " + linea("puntero"))
+    ver("arrastrar una parada en la vista la mueve (a la línea #{l})", campo_sonda(linea("puntero"), "arrastres") > 0 and l > 60 and str_ends(c[6], ":00F"), linea("copper") + " / " + linea("puntero"))
+    n = 0
+    while n < 20 and campo_sonda(linea("copper"), "vivo") <= envios
+        time_delay(5)
+        n = n + 1
     end
+    ver("y la lista nueva llega a la demo (COPPER)", campo_sonda(linea("copper"), "vivo") > envios and rexx_send_wait("DEMOSYNC", "COPPERCUENTA", 2000) != "0", linea("copper"))
     # un clic en la lista elige esa parada
     lx = zx + 4 + 160 + 16 + 4
     ly = cy + 3 * (alto_letra() + 2) + 6 + (alto_letra() + 2) * 2 + 2

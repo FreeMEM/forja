@@ -590,6 +590,35 @@ func cu_instalar() -> Bool
     return true
 end
 
+# La lista para la demo en vivo (COPPER de sync.dash): una palabra por instrucción, en el orden de cu_instalar: W
+# línea, C color:rgb, M registro:valor (en hex)
+func cu_lista_vivo() -> [String]
+    vs = _cu_todos_valores()
+    var l: [String] = []
+    y = 0
+    while y < CU_LINEAS
+        hay = false
+        k = 0
+        for c in vs
+            if c[y] >= 0 and (y == 0 or c[y] != c[y - 1])
+                if not hay
+                    l.push("W#{y}")
+                    hay = true
+                end
+                reg = cu_registros[k].reg
+                if cu_es_color(reg)
+                    l.push("C#{(reg - 0x180) / 2}:" + cu_hex(c[y]))
+                else
+                    l.push("M" + cu_hex_n(reg, 3) + ":" + cu_hex_n(c[y], 4))
+                end
+            end
+            k = k + 1
+        end
+        y = y + 1
+    end
+    return l
+end
+
 # Busca el bloque de cu_nombre en un texto: [primera línea, última línea] desde 1, o [0, 0]
 func cu_buscar_bloque(texto: String) -> [Int]
     l = str_split(texto, "\n")

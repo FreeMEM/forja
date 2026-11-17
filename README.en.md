@@ -267,9 +267,13 @@ brings `sync.dash` (also in `Forja/lib`), some tracks in `demo.sync` and their e
   line per register; if it is already there, it changes it there; `l` reads it back from the code (also the old ones,
   with `# paradas:`), and Tab reads the file's next block (with Shift, the previous one). `p` tries it for real on a
   screen of its own (a click goes back).
+  - **Live**: with the demo running, every change reaches it at once and it shows it on its screen. If only values
+    change, with `copper_set`; if the lines or the registers change, it rebuilds the list. What it writes in the code
+    is the final version.
 - **Raster meter**: how many screen lines each frame of the demo uses, the last 64 in bars (green up to half a
   frame, yellow up to three quarters, red above), the average, the maximum and the lost frames. The demo measures
-  between `sync_fotograma()` (after `wait_vblank`) and `sync_fin()`. It works for a game too.
+  between `sync_fotograma()` (after `wait_vblank`) and `sync_fin()`, with `beam_line`; `vblank_count` counts the lost
+  frames, and the scale is the screen's (313 lines in PAL, 263 in NTSC). It works for a game too.
   - **By parts**: with `sync_medir("lógica")`, `sync_medir("dibujo")`... the demo says whose is what is spent from
     there on (up to 4 names; what comes before the first one, "other"). The bars are stacked, each part in its colour,
     with a legend with the average of each. The template measures "lógica" and "barras".

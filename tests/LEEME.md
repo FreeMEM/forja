@@ -316,6 +316,11 @@ también el copper de dos registros (un color y BPLCON1, con su línea `# regist
 sigue leyendo), el medidor por partes (`sync_medir`, el bloque de memoria versión 2) y la página Partes (Amiga-5: nueva,
 nombre, límites, quitar, `.sync`, el bloque `# partes:` al código); la captura nueva es `partes.png`. Con la demo en
 marcha cada tecla se pulsa cuando se ve la anterior (un dibujo entero tarda 1,4 s en MUI 5 y 4-5 s en MUI 3.8).
+Con los builtins de demos de Dash (PR #193), `demos_base` mira también el bloque versión 3 (las líneas de una imagen,
+`beam_lines`), las perdidas (`vblank_count`), `IR 70` a mitad de un patrón (`music_seek`) y el copper en vivo
+(`COPPER`, `COPPERSET`, `COPPERCUENTA`); `demos_forja`, que el copper editado llega a la demo (COPPER y COPPERSET) y el
+arrastre de una parada en la vista: espera al suceso de soltar (al pulsar y arrastrar, Demos pinta solo las marcas y
+la lista; antes, el dibujo entero de 1 s hacía llegar tarde el soltar).
 
 Forja de punta a punta en la máquina CoffinOS (paso 0.1): `tests/coffin.sh <worktree de Dash> <cajón con dashc.amiga>
 [capturas/] [<dashgit>]` (con `DASH_KICKSTART_32`, `DASH_EMU_DISK_COFFIN` y `DASH_EMU_MINIGL`). Pone Forja, sus

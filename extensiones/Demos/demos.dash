@@ -109,6 +109,7 @@ var demo_perdidos: Int = 0
 var demo_fotos: Int = 0
 var demo_anillo: [Int] = []
 var demo_indice: Int = 0     # el sitio del anillo donde la demo escribe la imagen siguiente
+var demo_lineas_imagen: Int = 313   # las líneas de una imagen de la demo (313 PAL, 263 NTSC; versión 3 del bloque)
 var demo_version: Int = 1    # la del bloque de la demo: la 2 trae el medidor por partes (sync_medir)
 var demo_partes: [String] = []   # los nombres de las partes del medidor (la demo los pone con sync_medir)
 var demo_anillo_partes: [Int] = []   # lo que gastó cada parte en cada imagen: (SYNC_PARTES + 1) por imagen
@@ -118,7 +119,10 @@ var _demo_delante: Bool = true
 var _pausa_vista: Bool = false    # la pausa ya se vio (el cursor queda libre)
 
 # la música que toca la extensión
-var suena: Bool = false
+# ¿Suena la música de la extensión (la del visor de MOD, sin demo)?
+func suena() -> Bool
+    return music_playing()
+end
 var mus_pos: Int = 0
 var mus_fila: Int = 0
 
@@ -190,7 +194,7 @@ func fila_ahora() -> Int
     if conectada()
         return demo_fila
     end
-    if suena
+    if suena()
         return mus_pos * 64 + mus_fila
     end
     return -1
@@ -323,6 +327,7 @@ const P_FILA_SYNC = 4       # una fila de la tabla (_parte_fila)
 const P_CAB_MUSICA = 5      # la línea de la posición en Música
 const P_FILA_MUSICA = 6
 const P_MEDIDOR = 7         # el texto y las barras nuevas del medidor
+const P_COPPER = 8          # las marcas y la lista del copper
 var _parte: Int = P_TODO
 var _parte_fila: Int = 0
 var ms_parcial: Int = 0
@@ -352,6 +357,7 @@ func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     zona_ancho = ancho
     zona_alto = alto
     _sy_ok = false
+    _cu_ok = false
     _mu_ok = false
     _me_ok = false
     gfx_pen(tema.fondo)
@@ -407,6 +413,10 @@ func dibujar_parte()
         musica_fila(_parte_fila, true)
     elif _parte == P_MEDIDOR
         medidor_nuevas()
+    elif _parte == P_COPPER
+        gfx_pen(tema.fondo)
+        gfx_rect(_cu_x + 161, _cu_y - 1, _cu_x + _cu_ancho - 1, _cu_y + _cu_alto)
+        copper_marcas_lista(_cu_x, _cu_y, _cu_ancho, _cu_alto, cu_maximo())
     end
 end
 
@@ -516,14 +526,7 @@ func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
     r = cu_actual()
     color = cu_es_color(r.reg)
     c = cu_colores()
-    maximo = 1
-    if not color
-        for v in c
-            if v > maximo
-                maximo = v
-            end
-        end
-    end
+    maximo = cu_maximo()
     # la vista del registro elegido: las 256 líneas en el alto que haya, 160 de ancho; un color, con sus colores; otro
     # registro, una barra por línea tan larga como su valor. Una caja por franja igual (una raya por línea tardaba 10 s
     # con MUI 3.8 en una pantalla de tarjeta)
@@ -548,7 +551,40 @@ func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
     end
     gfx_pen(tema.borde)
     gfx_box(x - 1, y - 1, x + wv, y + alto)
-    # las paradas: una marca a la derecha de la vista
+    _cu_x = x
+    _cu_y = y
+    _cu_ancho = ancho
+    _cu_alto = alto
+    _cu_ok = true
+    copper_marcas_lista(x, y, ancho, alto, maximo)
+end
+
+# La geometría de la página Copper en el último dibujo entero (para dibujar solo las marcas y la lista)
+var _cu_ok: Bool = false
+var _cu_x: Int = 0
+var _cu_y: Int = 0
+var _cu_ancho: Int = 0
+var _cu_alto: Int = 0
+
+# El máximo de los valores del registro elegido (para las barras de uno que no es color)
+func cu_maximo() -> Int
+    m = 1
+    if not cu_es_color(cu_actual().reg)
+        for v in cu_colores()
+            if v > m
+                m = v
+            end
+        end
+    end
+    return m
+end
+
+# Lo de la derecha de la vista: las marcas de las paradas y la lista (al elegir o arrastrar una parada se dibuja solo
+# esto: un dibujo entero con la demo en marcha tardaba más de un segundo, y el arrastre llegaba tarde)
+func copper_marcas_lista(x: Int, y: Int, ancho: Int, alto: Int, maximo: Int)
+    r = cu_actual()
+    color = cu_es_color(r.reg)
+    wv = 160
     i = 0
     for p in cu_paradas
         py = y + p.linea * alto / CU_LINEAS
@@ -760,12 +796,22 @@ func copper_tecla(k: Int, q: Int, ch: String)
     else
         return
     end
+    cu_vivo_cambio = true
     redibujar()
 end
 
 var arrastres: Int = 0             # (para la sonda: cuántos sucesos de arrastre y el último)
 var ultimo_arrastre: String = ""
 var cu_arrastrando: Bool = false    # se mueve la parada elegida con el ratón (el clic fue en la vista)
+
+# Solo las marcas y la lista del copper (si no hay un dibujo entero de la página, el entero)
+func copper_parcial()
+    if not abierta or not _cu_ok or pagina != PAG_COPPER or mensaje != _mensaje_visto
+        redibujar()
+        return
+    end
+    dibujar_solo(P_COPPER, _cu_x - zona_x + 161, _cu_y - zona_y - 1, _cu_ancho - 161, _cu_alto + 2)
+end
 
 # Un clic en la vista elige la parada más cercana (y arrastrando se mueve); en la lista, esa parada
 func copper_clic(mx: Int, my: Int)
@@ -795,7 +841,7 @@ func copper_clic(mx: Int, my: Int)
         n = (my - ly) / (alto_letra + 2)
         if n >= 0 and n < cu_paradas.length
             cu_elegida = n
-            redibujar()
+            copper_parcial()
         end
         return
     end
@@ -819,7 +865,7 @@ func copper_clic(mx: Int, my: Int)
         i = i + 1
     end
     cu_elegida = mejor
-    redibujar()
+    copper_parcial()
 end
 
 # Arrastrar en la vista: la parada elegida va a la línea del puntero
@@ -845,7 +891,13 @@ func copper_arrastrar(my: Int, soltado: Bool)
     if p.linea != l
         p.linea = l
         cu_ordenar()
+        cu_vivo_cambio = true
+    end
+    # mientras se arrastra, solo las marcas y la lista; al soltar, la vista también
+    if soltado
         redibujar()
+    else
+        copper_parcial()
     end
 end
 
@@ -888,6 +940,7 @@ func otro_bloque(n: Int)
         k = 0
     end
     k = (k + n + nombres.length) % nombres.length
+    cu_vivo_cambio = true
     if cu_leer_codigo(t, inicios[k])
         avisar(hueco2(tr(63, "Leído %1 (%2 paradas)."), "copper_" + cu_nombre, "#{cu_paradas.length}") + " #{k + 1}/#{nombres.length}", 2)
     end
@@ -922,6 +975,7 @@ func leer_codigo()
         return
     end
     forja_cursor()
+    cu_vivo_cambio = true
     if cu_leer_codigo(t, forja_cursor_linea)
         avisar(hueco2(tr(63, "Leído %1 (%2 paradas)."), "copper_" + cu_nombre, "#{cu_paradas.length}"), 2)
     else
@@ -954,6 +1008,61 @@ func probar()
     screen_close()
     env_set("FORJA_DEMOS_PROBANDO", "0", false)
     abrir_ventana()
+end
+
+# --- El copper, en vivo en la demo ---
+
+var cu_vivo_cambio: Bool = false    # cambió el copper: se manda a la demo en la lectura siguiente
+var cu_vivo_lista: [String] = []    # lo último que se mandó (COPPER)
+var cu_vivo_cuenta: Int = 0         # las instrucciones que dijo la demo (0: no tiene la nuestra)
+var cu_vivo_envios: Int = 0         # (para la sonda: cuántos COPPER y cuántos COPPERSET)
+var cu_vivo_sets: Int = 0
+
+# Manda el copper a la demo: si la lista tiene la misma forma que la última que se le mandó, solo los valores que
+# cambiaron (COPPERSET, que la demo pone con copper_set); si no, la lista entera (COPPER: la rehace)
+func copper_a_la_demo()
+    cu_vivo_cambio = false
+    if not conectada()
+        return
+    end
+    l = cu_lista_vivo()
+    igual = cu_vivo_cuenta > 0 and l.length == cu_vivo_lista.length
+    if igual
+        i = 0
+        while i < l.length and igual
+            a = l[i]
+            b = cu_vivo_lista[i]
+            if a != b
+                pa = str_find(a, ":")
+                pb = str_find(b, ":")
+                igual = pa > 0 and pa == pb and a[0:pa] == b[0:pb]
+            end
+            i = i + 1
+        end
+    end
+    if igual
+        o = "COPPERSET"
+        i = 0
+        while i < l.length
+            if l[i] != cu_vivo_lista[i]
+                o = o + " #{i}:" + l[i][str_find(l[i], ":") + 1:]
+            end
+            i = i + 1
+        end
+        if o != "COPPERSET"
+            mandar_demo(o)
+            cu_vivo_sets = cu_vivo_sets + 1
+        end
+    else
+        o = "COPPER"
+        for t in l
+            o = o + " " + t
+        end
+        r = mandar_demo(o)
+        cu_vivo_cuenta = Int(r)
+        cu_vivo_envios = cu_vivo_envios + 1
+    end
+    cu_vivo_lista = l
 end
 
 # --- Música ---
@@ -1023,7 +1132,7 @@ func musica_cabecera(fondo: Bool)
     estado = tr(42, "parada")
     if conectada()
         estado = tr(43, "la de la demo")
-    elif suena
+    elif suena()
         estado = tr(44, "suena")
     end
     texto(_mu_x, _mu_y, hueco4(tr(65, "posición %1  patrón %2  fila %3  -> sincronía %4"), "#{_mu_pos}/#{mod_largo}", "#{_mu_pat}", "#{_mu_fila}", "#{_mu_pos * 64 + _mu_fila}") + "   " + estado, tema.acento)
@@ -1092,16 +1201,14 @@ func tocar(si: Bool)
     if si and mod_datos != 0 and not conectada()
         if music_load(mod_ruta)
             music_play()
-            suena = true
             mus_pos = 0
             mus_fila = 0
         else
             avisar(hueco(tr(66, "music_load no puede con %1"), mod_ruta), 1)
         end
-    elif not si and suena
+    elif not si and suena()
         music_stop()
         music_free()
-        suena = false
     end
 end
 
@@ -1110,7 +1217,7 @@ func musica_tecla(k: Int, q: Int, ch: String)
         if conectada()
             mandar_demo(pausa_orden())
         else
-            tocar(not suena)
+            tocar(not suena())
         end
     elif k == K_IZQUIERDA or k == K_DERECHA
         d = 1
@@ -1121,15 +1228,19 @@ func musica_tecla(k: Int, q: Int, ch: String)
         if p >= 0 and p < mod_largo
             mus_pos = p
             mus_fila = 0
-            if suena
-                music_position(p)
+            if suena()
+                music_seek(p, 0)
             end
         end
-    elif (k == K_ARRIBA or k == K_ABAJO) and not suena
+    elif k == K_ARRIBA or k == K_ABAJO
         if k == K_ARRIBA and mus_fila > 0
             mus_fila = mus_fila - 1
         elif k == K_ABAJO and mus_fila < 63
             mus_fila = mus_fila + 1
+        end
+        if suena()
+            # sonando, la música salta a esa fila
+            music_seek(mus_pos, mus_fila)
         end
         if musica_parcial()
             return
@@ -1489,7 +1600,7 @@ func sync_tecla(k: Int, q: Int, ch: String)
         if conectada()
             mandar_demo(pausa_orden())
         elif mod_datos != 0
-            tocar(not suena)
+            tocar(not suena())
         end
     elif ch == "v" and conectada()
         # la pantalla de la demo, delante o detrás de la de Forja
@@ -1502,8 +1613,8 @@ func sync_tecla(k: Int, q: Int, ch: String)
     elif ch == "g"
         if conectada()
             mandar_demo("IR #{sy_fila}")
-        elif suena
-            music_position(sy_fila / 64)
+        elif suena()
+            music_seek(sy_fila / 64, sy_fila % 64)
         end
     else
         return
@@ -2051,7 +2162,7 @@ func medidor_texto(fondo: Bool)
     if n > 0
         media = suma / n
     end
-    texto(_me_x, _me_y, hueco4(tr(83, "Última imagen: %1 líneas (%2 %)   media %3   máximo %4"), "#{demo_lineas}", "#{demo_lineas * 100 / SYNC_LINEAS_PAL}", "#{media}", "#{maximo}") + "   " + hueco(tr(84, "perdidas %1"), "#{demo_perdidos}"), tema.texto)
+    texto(_me_x, _me_y, hueco4(tr(83, "Última imagen: %1 líneas (%2 %)   media %3   máximo %4"), "#{demo_lineas}", "#{demo_lineas * 100 / demo_lineas_imagen}", "#{media}", "#{maximo}") + "   " + hueco(tr(84, "perdidas %1"), "#{demo_perdidos}"), tema.texto)
     if demo_partes.length > 0
         # la leyenda: el color de cada parte, su nombre y su media
         lx = _me_x
@@ -2091,7 +2202,7 @@ func medidor_barra(i: Int)
     end
     h = 0
     if v > 0
-        h = v * _me_gh / SYNC_LINEAS_PAL
+        h = v * _me_gh / demo_lineas_imagen
         if h > _me_gh
             h = _me_gh
         end
@@ -2109,7 +2220,7 @@ func medidor_barra(i: Int)
             g = demo_anillo_partes[i * (SYNC_PARTES + 1) + j]
             if g > 0
                 suma = suma + g
-                ya = _me_gy + _me_gh - suma * _me_gh / SYNC_LINEAS_PAL
+                ya = _me_gy + _me_gh - suma * _me_gh / demo_lineas_imagen
                 if ya < _me_gy
                     ya = _me_gy
                 end
@@ -2132,9 +2243,9 @@ func medidor_barra(i: Int)
         end
     elif h > 0
         pen = tema.bien
-        if v * 4 > SYNC_LINEAS_PAL * 3
+        if v * 4 > demo_lineas_imagen * 3
             pen = tema.error
-        elif v * 2 > SYNC_LINEAS_PAL
+        elif v * 2 > demo_lineas_imagen
             pen = tema.cursor
         end
         gfx_pen(pen)
@@ -2178,6 +2289,9 @@ end
 # Las partes del medidor (versión 2 del bloque de la demo): sus nombres, si cambiaron, y lo de cada imagen
 func leer_partes_medidor()
     demo_version = peek_long(demo_mem + 4)
+    if demo_version >= 3 and peek_long(demo_mem + 868) > 200
+        demo_lineas_imagen = peek_long(demo_mem + 868)
+    end
     if demo_version < 2
         demo_partes.clear()
         demo_anillo_partes.clear()
@@ -2522,8 +2636,8 @@ func partes_tecla(k: Int, q: Int, ch: String)
         f = sync_partes_desde[pa_elegida]
         if conectada()
             mandar_demo("IR #{f}")
-        elif suena
-            music_position(f / 64)
+        elif suena()
+            music_seek(f / 64, f % 64)
         end
     elif ch == "c"
         partes_al_codigo()
@@ -2738,6 +2852,8 @@ func desconectar()
     demo_anillo.clear()
     demo_partes.clear()
     demo_anillo_partes.clear()
+    cu_vivo_lista.clear()
+    cu_vivo_cuenta = 0
     forja_barra("")
     _barra_antes = ""
     forja_aviso(tr(50, "Demos: la demo ha acabado."))
@@ -2794,6 +2910,9 @@ func tic()
     antes_fila = fila_ahora()
     antes_cursor = sy_fila
     antes_indice = demo_indice
+    if conectada() and cu_vivo_cambio
+        copper_a_la_demo()
+    end
     if conectada()
         if (tics % 5 == 0 and not puerto_demo()) or peek_long(demo_mem) != SYNC_MAGIA
             desconectar()
@@ -2834,7 +2953,7 @@ func tic()
     elif tics % 5 == 0 and puerto_demo()
         conectar()
     end
-    if suena and not conectada()
+    if suena() and not conectada()
         mus_pos = music_pos()
         mus_fila = music_row()
         sy_fila = mus_pos * 64 + mus_fila
@@ -2998,10 +3117,10 @@ end
 func publicar_sonda()
     t = "pagina #{pagina}\n"
     t = t + "demo #{demo_mem != 0} fila #{demo_fila} lineas #{demo_lineas} muestras #{muestras()} pausa #{demo_pausa}\n"
-    t = t + cu_sonda() + "\n"
+    t = t + cu_sonda() + " vivo #{cu_vivo_envios} #{cu_vivo_sets} #{cu_vivo_cuenta}\n"
     t = t + sonda_partes() + "\n"
     t = t + partes_sonda() + "\n"
-    t = t + "mod " + nombre_de(mod_ruta) + " suena #{suena} pos #{mus_pos} fila #{mus_fila} largo #{mod_largo} patrones #{mod_patrones} celda " + mod_celda(mod_patron(0), 0, 0) + "\n"
+    t = t + "mod " + nombre_de(mod_ruta) + " suena #{suena()} pos #{mus_pos} fila #{mus_fila} largo #{mod_largo} patrones #{mod_patrones} celda " + mod_celda(mod_patron(0), 0, 0) + "\n"
     t = t + "sync " + nombre_de(sy_ruta) + " pistas #{sync_pistas.length} cursor #{sy_fila} #{sy_pista} cambiado #{sy_cambiado} buffer [" + sy_buffer + "] nombre [" + sy_nombre + "] abiertos #{sy_ficheros.length} #{sy_actual}\n"
     if sy_pista < sync_pistas.length
         p = sync_pistas[sy_pista]
