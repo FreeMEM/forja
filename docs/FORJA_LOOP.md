@@ -589,3 +589,37 @@ VS Code.
     - Los de antes (no se ha mirado si ya están): `music_seek`, `music_tick`/`music_speed`, `music_playing`, `beam_line` y `vblank_count`,
       PAL/NTSC, listas de copper cambiables ya instaladas, capturas con el copper, esperar un clic sin ventana; `.has`
       de las listas en el directo; `cx_wait` con el puerto ARexx; `rexx_send` con tiempo de espera.
+
+- 2026-11-17, rama `remate`: **los últimos pendientes de Forja** de las listas de "falta".
+  - **Pestañas que no caben** (`src/editor.dash`): la de delante siempre se ve (si cambia, las pestañas se mueven
+    hasta ella) y a la derecha salen tres botones: mover a la izquierda, a la derecha y la lista de todas. La rueda
+    sobre las pestañas también las mueve. Órdenes nuevas del editor (y en el menú Editor, cambiables en
+    `ENVARC:Forja/teclas`): `pestana_siguiente` (Ctrl Tab), `pestana_anterior` (Ctrl Mayús Tab) y `pestanas` (Ctrl
+    E, la lista: la lista rápida con las abiertas, que se filtra escribiendo). Probado en 640 de ancho con 12 ficheros
+    de nombre largo (`tests/pestanas.sh`).
+  - La lista rápida usaba `LR_FILAS` (12) para saber si la elegida se veía y un ancho que no cabía en un editor
+    estrecho: en 640x256 el nombre y el detalle se pisaban y la elegida quedaba fuera. Ahora, con las filas y el ancho
+    que caben de verdad (el detalle se corta por delante: `../pestanas/`).
+  - **La lista de cambios** de cambiar en el proyecto y renombrar ya no es una pregunta modal (no dejaba mirar la
+    lista): la pestaña Cambios (`*cambios`) se queda abierta y se contesta en ella, Return hace los cambios y Esc no
+    (o se cierra). Se puede ir a otras pestañas y volver. Antes de cambiar, mira que las líneas sigan como en la lista
+    (`bp_al_dia`); si no, no cambia nada y lo dice.
+  - **Los puntos de parada vuelven a su línea al deshacer** un cambio de varias líneas, como los marcadores: el
+    `Cambio` apunta los puntos de las líneas quitadas (`puntos`, y cuál pasó a la primera, `punto_junto`). Al volver a
+    meterlas, el que se quedó vuelve a su sitio (main le lleva la condición) y los que se fueron vuelven como nuevos
+    (`puntos_antes` -1): main los saca de su papelera (`puntos_papelera`, los que se fueron con su línea, 64 como
+    mucho) con su condición y su contador.
+  - **Demos**: varios `.sync` abiertos a la vez (`SyncFichero`: el de delante vive en `sync_pistas`, los demás en
+    texto con su cursor y su deshacer). Tab y Mayúsculas+Tab pasan de uno a otro, Proyecto > Cerrar estas pistas
+    cierra el de delante, al salir pregunta por cada uno con cambios, y la sesión y Forja (`SINGUARDAR`, `EDITANDO`)
+    los saben todos. A la demo solo le llegan los cambios de su `.sync` (`mandar_pistas`); si se conecta con uno que no
+    está abierto, se abre detrás. El copper: un clic en la lista elige la parada, arrastrar en la vista la mueve, y Tab
+    lee el bloque de copper siguiente del fichero (Mayúsculas+Tab, el anterior).
+  - **Un fichero con su `Main` dentro de un proyecto** (una prueba, una herramienta) se compila y se ejecuta él mismo
+    (con las opciones de compilar del proyecto, sin su ejecutable ni sus argumentos); antes, Compilar y Ejecutar iban
+    siempre al principal. Con eso, **el copiloto ejecuta la prueba que escribe** al aceptarla (su salida, en la de
+    Forja).
+  - **Tope de tamaño** del ejecutable en el proyecto (`tope` en el `.forja`, en Propiedades > Compilar): al compilar,
+    Forja dice lo que pesa el ejecutable y avisa si pasa del tope (para intros de 4 y 64 KB).
+  - README en castellano e inglés como es Forja 0.7 (el inglés no tenía la ayuda de Dash, los errores marcados ni
+    Demos). Forja no tiene otra ayuda propia: el paquete lleva los README como `LEEME` y `README`.
