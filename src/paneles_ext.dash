@@ -272,22 +272,30 @@ func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
     var bx2: [Int] = []
     var by1: [Int] = []
     var by2: [Int] = []
-    if p.botones.length > 0
-        alto_b = alto_letra + 4
-        # los textos: los largos si caben en una fila; si no, los cortos ("texto|orden|corto"); si tampoco, en
-        # varias filas
-        var textos: [String] = []
+    alto_b = alto_letra + 4
+    # los textos de los botones: los largos si caben en una fila; si no, los cortos ("texto|orden|corto")
+    var textos: [String] = []
+    total = 0
+    for bt in p.botones
+        textos.push(_pe_boton_texto(bt))
+        total = total + font_text_width(_pe_boton_texto(bt)) + 13
+    end
+    if total > ancho - 8
+        textos.clear()
         total = 0
-        for b in p.botones
-            textos.push(_pe_boton_texto(b))
-            total = total + font_text_width(_pe_boton_texto(b)) + 13
+        for bt in p.botones
+            textos.push(_pe_boton_corto(bt))
+            total = total + font_text_width(_pe_boton_corto(bt)) + 13
         end
-        if total > ancho - 8
-            textos.clear()
-            for b in p.botones
-                textos.push(_pe_boton_corto(b))
-            end
-        end
+    end
+    # con entrada, los botones van en su fila, a la derecha, si queda un campo de 120 píxeles (o un tercio)
+    minimo = 120
+    if ancho / 3 > minimo
+        minimo = ancho / 3
+    end
+    en_fila = p.etiqueta != "" and textos.length > 0 and total + minimo <= ancho - 8
+    derecha_entrada = x + ancho - 5
+    if textos.length > 0 and not en_fila
         filas_b = 1
         bx = x + 4
         for t in textos
@@ -307,16 +315,7 @@ func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
                 by = by + alto_b + 2
                 bx = x + 4
             end
-            gfx_pen(tema.fondo_linea)
-            gfx_rect(bx, by, bx + w - 1, by + alto_b - 1)
-            gfx_pen(tema.borde)
-            gfx_rect(bx, by, bx + w - 1, by)
-            gfx_rect(bx, by, bx, by + alto_b - 1)
-            gfx_pen(tema.tenue)
-            gfx_rect(bx, by + alto_b - 1, bx + w - 1, by + alto_b - 1)
-            gfx_rect(bx + w - 1, by, bx + w - 1, by + alto_b - 1)
-            gfx_pen(tema.texto)
-            gfx_text_at(bx + 5, by + 2 + base_letra, t)
+            _pe_boton(bx, by, w, alto_b, t)
             bx1.push(bx)
             bx2.push(bx + w)
             by1.push(by)
@@ -324,19 +323,29 @@ func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
             bx = bx + w + 3
         end
     end
-    pe_boton_x1[lado] = bx1
-    pe_boton_x2[lado] = bx2
-    pe_boton_y1[lado] = by1
-    pe_boton_y2[lado] = by2
     pe_entrada_y[lado] = -1
     if p.etiqueta != ""
         ey = abajo - fila - 3
         abajo = ey - 2
         pe_entrada_y[lado] = ey
+        if en_fila
+            # los botones, a la derecha de la entrada
+            bx = x + ancho - 4 - total + 3
+            derecha_entrada = bx - 4
+            for t in textos
+                w = font_text_width(t) + 10
+                _pe_boton(bx, ey - 1, w, alto_b, t)
+                bx1.push(bx)
+                bx2.push(bx + w)
+                by1.push(ey - 1)
+                by2.push(ey - 1 + alto_b)
+                bx = bx + w + 3
+            end
+        end
         con_foco = pe_foco == i and pe_foco_entrada
         # la etiqueta a la izquierda si hay sitio; si no, dentro del campo mientras está vacío
         ex = x + 4
-        fuera = font_text_width(p.etiqueta) * 3 <= ancho
+        fuera = font_text_width(p.etiqueta) * 3 <= derecha_entrada - x
         if fuera
             gfx_pen(tema.tenue)
             gfx_text_at(x + 4, ey + 2 + base_letra, p.etiqueta)
@@ -344,14 +353,14 @@ func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
         end
         pe_entrada_x[lado] = ex
         gfx_pen(tema.fondo)
-        gfx_rect(ex, ey, x + ancho - 5, ey + fila + 2)
+        gfx_rect(ex, ey, derecha_entrada, ey + fila + 2)
         gfx_pen(tema.borde)
         if con_foco
             gfx_pen(tema.acento)
         end
-        gfx_rect(ex, ey + fila + 2, x + ancho - 5, ey + fila + 2)
+        gfx_rect(ex, ey + fila + 2, derecha_entrada, ey + fila + 2)
         # lo que cabe del texto, con el cursor a la vista
-        caben = (x + ancho - 8 - ex) / ancho_letra
+        caben = (derecha_entrada - 3 - ex) / ancho_letra
         if caben < 1
             caben = 1
         end
@@ -378,12 +387,18 @@ func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
             gfx_rect(cx, ey + 1, cx + 1, ey + fila)
         end
     end
+    pe_boton_x1[lado] = bx1
+    pe_boton_x2[lado] = bx2
+    pe_boton_y1[lado] = by1
+    pe_boton_y2[lado] = by2
     # las líneas
     ly = y + PE_TITULO_ALTO + 3
     pe_zona_x[lado] = x
     pe_zona_y[lado] = ly
     pe_zona_ancho[lado] = ancho
+    # (las que caben sin pisar la entrada ni los botones; 1 para moverse aunque no quepa ninguna)
     caben = (abajo - ly) / fila
+    dibujar_hasta = caben
     if caben < 1
         caben = 1
     end
@@ -391,7 +406,7 @@ func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
     p.desde = pe_desde_valido(p, p.desde, caben)
     k = p.desde
     fy = ly
-    while k < p.lineas.length and k < p.desde + caben
+    while k < p.lineas.length and k < p.desde + dibujar_hasta
         if k == p.cursor
             gfx_pen(tema.fondo_linea)
             if pe_foco == i and not pe_foco_entrada
@@ -408,6 +423,20 @@ func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
         fy = fy + fila
         k = k + 1
     end
+end
+
+# Un botón: caja con relieve y su texto
+func _pe_boton(bx: Int, by: Int, w: Int, alto_b: Int, t: String)
+    gfx_pen(tema.fondo_linea)
+    gfx_rect(bx, by, bx + w - 1, by + alto_b - 1)
+    gfx_pen(tema.borde)
+    gfx_rect(bx, by, bx + w - 1, by)
+    gfx_rect(bx, by, bx, by + alto_b - 1)
+    gfx_pen(tema.tenue)
+    gfx_rect(bx, by + alto_b - 1, bx + w - 1, by + alto_b - 1)
+    gfx_rect(bx + w - 1, by, bx + w - 1, by + alto_b - 1)
+    gfx_pen(tema.texto)
+    gfx_text_at(bx + 5, by + 2 + base_letra, t)
 end
 
 # "texto|orden" -> texto

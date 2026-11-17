@@ -912,7 +912,7 @@ func sugerencia(texto: String)
         ls.remove(ls.length - 1)
     end
     if ls.length == 0
-        sonda_sug("vacía")
+        sonda_sug("vacía: [" + texto + "]")
         return
     end
     linea = forja_linea(p_l)
@@ -934,7 +934,7 @@ func sugerencia(texto: String)
     end
     t = unir(ls, "\n")
     if str_trim(str_replace(t, "\n", "")) == ""
-        sonda_sug("vacía")
+        sonda_sug("vacía: [" + texto + "]")
         return
     end
     if forja_sugerencia(p_l, p_c, p_version, t)
