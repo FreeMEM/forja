@@ -734,4 +734,13 @@ VS Code.
   - `tests/proyecto.dash` fallaba igual en `main` (la pestaña cambiaba tarde con la comprobación en marcha): espera
     hasta 1,5 s. `tests/proyecto_base.dash` no compilaba en `main` (usaba `pl_icono_hex`, que se fue con `icon_save`).
   - Instalar un `.lha` borraba su cajón temporal con `C:Delete`, que el sistema de pruebas no tiene: ahora lo borra Forja.
+  - **Demos con los builtins de Dash PR #193** (c90b619; ya no son "dónde se enchufará"): `sync_linea` es `beam_line`;
+    las imágenes perdidas, con `vblank_count`; `sync_parte` con `music_tick`/`music_speed`; `sync_ir` con `music_seek` a
+    la fila exacta (también `g` en Sincronía y Partes y las flechas del visor de MOD); `suena` es `music_playing()`; el
+    bloque pasa a la versión 3 (en +868 las líneas de una imagen, `beam_lines`) y el medidor escala con 313 o 263.
+    **El copper llega en vivo a la demo**: la orden `COPPER` de DEMOSYNC lleva la lista (la demo la rehace y contesta
+    `copper_count`); si solo cambian valores, `COPPERSET i:valor` y la demo usa `copper_set`. **El arrastre del copper**
+    se prueba: al elegir y arrastrar una parada se pinta solo la columna de marcas y la lista (antes, el lienzo entero,
+    1,1 s con la demo en marcha, y el soltar llegaba tarde); la vista entera, al soltar. demos_base (64 bien) y
+    demos_forja en MUI 5 y 3.8 (62 bien), TODO BIEN.
 
