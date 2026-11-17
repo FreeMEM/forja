@@ -440,5 +440,11 @@ VS Code.
   - **`perfil` falla en la parte del perfil por Dash**: dash (el directo, también el del Amiga) copia en línea las
     funciones pequeñas o de un solo sitio también con `--profile`, y la tabla solo tiene Main. La parte de memcheck va
     bien.
+  - Las de antes, en esta rama (MUI 5, A1200 con 3.1), TODO BIEN: teclas, ficheros, completar, buscar, errores,
+    compilar, depurar, ayuda, editor, editor_base, extensiones, extensiones_base, git_panel, proyecto, botones, sprites,
+    mapas_base y mapas_forja. `git_panel` y `copiloto` elegían su menú por su sitio en la barra (`input_menu`), y el
+    menú Depurar los corre uno. `editor` falló una vez con el emulador muy cargado (Ctrl T) y pasó al repetirla.
+  - Memoria (`tests/memoria.sh`): Forja quieta 2,7 MB de fast (antes 2,5) y compilando 4,6 (antes 4,4). Los 0,2 MB
+    son el proyecto, las plantillas y el depurador nuevo.
   - **Falta en Dash**: con `--profile`, no copiar funciones en línea (como con `--debug`: `can_inline` de
     `dashc/src/gen68k.c`, y las de una línea puestas como expresión).
