@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/remate/extensiones/Demos/demos.dash (tools/catalogo.py)
+; Texts of extensiones/Demos/demos.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 Proyecto
@@ -52,8 +52,6 @@ MSG_25 (25//)
 Probar en una pantalla
 MSG_26 (26//)
 Ventana
-MSG_27 (27//)
-flechas o clic parada (arrastrar, o May/Alt+flechas: línea)  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  Tab otro bloque  p probar
 MSG_28 (28//)
 Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía
 MSG_29 (29//)
@@ -77,7 +75,7 @@ Abre en Forja el .dash donde va el copper.
 MSG_38 (38//)
 No hay un fichero delante en Forja.
 MSG_39 (39//)
-No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero.
+No hay un bloque \"# copper:\" con sus líneas \"# registro:\" en el fichero.
 MSG_40 (40//)
 No se puede abrir la pantalla.
 MSG_41 (41//)
@@ -194,5 +192,51 @@ MSG_97 (97//)
 Cerrar estas pistas
 MSG_98 (98//)
 Otro fichero de pistas (Tab)
+MSG_99 (99//)
+lineal
+MSG_100 (100//)
+El bloque necesita un registro como poco.
+MSG_101 (101//)
+Ya están todos los registros en el bloque.
+MSG_102 (102//)
+arriba/abajo parada (May/Alt: línea)  izq/der registro  + - (< >: 16) valor  n nueva  Supr  a registro (May Supr quita)  c cuál  d modo  t código  Return al código  l leer  Tab bloque  p probar
+MSG_103 (103//)
+arriba/abajo parada (May/Alt: línea)  izq/der registro  r g b (May: -)  n nueva  Supr  a registro (May Supr quita)  c cuál  d modo  t código  Return al código  l leer  Tab bloque  p probar
+MSG_104 (104//)
+otro
+MSG_105 (105//)
+Partes
+MSG_106 (106//)
+arriba/abajo parte  izq/der columna  cifras y Return (o + - < >) desde/hasta  n nueva  r nombre  Supr quita  g ir  c al código  l leer
+MSG_107 (107//)
+Las partes van en el .sync de la demo: ábrelo (Amiga-O, o desde Forja).
+MSG_108 (108//)
+suena la fila %1
+MSG_109 (109//)
+Se pisan: %1
+MSG_110 (110//)
+parte
+MSG_111 (111//)
+desde
+MSG_112 (112//)
+hasta
+MSG_113 (113//)
+filas
+MSG_114 (114//)
+Parte %1 quitada (Amiga-Z la devuelve).
+MSG_115 (115//)
+Ya hay una parte %1.
+MSG_116 (116//)
+No hay partes: n hace una.
+MSG_117 (117//)
+Abre en Forja el .dash de la demo.
+MSG_118 (118//)
+Partes cambiadas en %1.
+MSG_119 (119//)
+Partes metidas en el cursor de %1: llama a parte_cambio(sync_fila) en cada imagen.
+MSG_120 (120//)
+Leídas %1 partes del código.
+MSG_121 (121//)
+No hay un bloque \"# partes:\" en el fichero.
 MSG_870 (870//)
 no es de ancho fijo

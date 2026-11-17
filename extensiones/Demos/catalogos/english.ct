@@ -80,9 +80,6 @@ Try it on a screen
 MSG_26
 Window
 ; Ventana
-MSG_27
-arrows or click stop (drag, or Shift/Alt+arrows: line)  r g b (Shift: -)  n new  Del  d mode  t code  c colour  Return into code  l read  Tab next block  p try
-; flechas o clic parada (arrastrar, o May/Alt+flechas: línea)  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  Tab otro bloque  p probar
 MSG_28
 Space play/stop  left/right position  up/down row  Return puts the row in the code  s to sync
 ; Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía
@@ -117,8 +114,8 @@ MSG_38
 There is no file in front in Forja.
 ; No hay un fichero delante en Forja.
 MSG_39
-There is no \"# copper:\" block with its \"# paradas:\" line in the file.
-; No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero.
+There is no \"# copper:\" block with its \"# registro:\" lines in the file.
+; No hay un bloque \"# copper:\" con sus líneas \"# registro:\" en el fichero.
 MSG_40
 The screen cannot be opened.
 ; No se puede abrir la pantalla.
@@ -293,6 +290,75 @@ Close these tracks
 MSG_98
 Another track file (Tab)
 ; Otro fichero de pistas (Tab)
+MSG_99
+linear
+; lineal
+MSG_100
+The block needs at least one register.
+; El bloque necesita un registro como poco.
+MSG_101
+All the registers are already in the block.
+; Ya están todos los registros en el bloque.
+MSG_102
+up/down stop (Shift/Alt: line)  left/right register  + - (< >: 16) value  n new  Del  a register (Shift Del removes)  c which  d mode  t code  Return into code  l read  Tab block  p try
+; arriba/abajo parada (May/Alt: línea)  izq/der registro  + - (< >: 16) valor  n nueva  Supr  a registro (May Supr quita)  c cuál  d modo  t código  Return al código  l leer  Tab bloque  p probar
+MSG_103
+up/down stop (Shift/Alt: line)  left/right register  r g b (Shift: -)  n new  Del  a register (Shift Del removes)  c which  d mode  t code  Return into code  l read  Tab block  p try
+; arriba/abajo parada (May/Alt: línea)  izq/der registro  r g b (May: -)  n nueva  Supr  a registro (May Supr quita)  c cuál  d modo  t código  Return al código  l leer  Tab bloque  p probar
+MSG_104
+other
+; otro
+MSG_105
+Parts
+; Partes
+MSG_106
+up/down part  left/right column  digits and Return (or + - < >) from/to  n new  r name  Del removes  g go  c into code  l read
+; arriba/abajo parte  izq/der columna  cifras y Return (o + - < >) desde/hasta  n nueva  r nombre  Supr quita  g ir  c al código  l leer
+MSG_107
+The parts go in the .sync of the demo: open it (Amiga-O, or from Forja).
+; Las partes van en el .sync de la demo: ábrelo (Amiga-O, o desde Forja).
+MSG_108
+playing row %1
+; suena la fila %1
+MSG_109
+Overlapping: %1
+; Se pisan: %1
+MSG_110
+part
+; parte
+MSG_111
+from
+; desde
+MSG_112
+to
+; hasta
+MSG_113
+rows
+; filas
+MSG_114
+Part %1 removed (Amiga-Z brings it back).
+; Parte %1 quitada (Amiga-Z la devuelve).
+MSG_115
+There is already a part %1.
+; Ya hay una parte %1.
+MSG_116
+No parts: n makes one.
+; No hay partes: n hace una.
+MSG_117
+Open in Forja the .dash of the demo.
+; Abre en Forja el .dash de la demo.
+MSG_118
+Parts changed in %1.
+; Partes cambiadas en %1.
+MSG_119
+Parts put at the cursor of %1: call parte_cambio(sync_fila) in every frame.
+; Partes metidas en el cursor de %1: llama a parte_cambio(sync_fila) en cada imagen.
+MSG_120
+Read %1 parts from the code.
+; Leídas %1 partes del código.
+MSG_121
+There is no \"# partes:\" block in the file.
+; No hay un bloque \"# partes:\" en el fichero.
 MSG_870
 is not fixed-width
 ; no es de ancho fijo
