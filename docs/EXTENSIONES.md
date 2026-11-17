@@ -53,7 +53,7 @@ En el cajón `Extensiones` junto a Forja, una por cajón:
 | `arranque` | `inicio`: arranca con Forja. `menu` (por defecto): la primera vez que se elige su menú, se pulsa su tecla o se abre uno de sus tipos de fichero. |
 | `sucesos` | Los avisos que quiere (ver Sucesos). Los demás no se le guardan. |
 | `menu` | Una opción del menú: `título \| tecla \| orden`. La tecla y la orden pueden faltar; sin orden, es el título. Puede haber varias. |
-| `submenu` | El título de su menú propio (`submenu = Git`): un menú más en la barra de menús, tras Extensiones, con sus opciones (10 como mucho). Hay 3 entre todas; si no quedan, van sueltas en Extensiones. |
+| `submenu` | El título de su menú propio (`submenu = Git`): un menú más en la barra de menús, tras Extensiones, con sus opciones (12 como mucho). Hay 3 entre todas; si no quedan, van sueltas en Extensiones. |
 | `pausa` | Cuántos milisegundos sin escribir antes de `CAMBIADO` (por defecto 1200; 300 como poco). |
 | `tipos` | Los ficheros que abre ella, por su final: `.spr .bob`. Forja no los abre: se los pasa con `EDITAR` (desde el panel del proyecto, Abrir, la sesión o ARexx). El panel del proyecto los lista y la petición de Abrir los deja elegir. Los `.dash` y `.dashui` son siempre de Forja. |
 | `nuevo` | Un fichero nuevo que hace ella: `título \| orden \| descripción` (`nuevo = _BOB \| bob \| Un BOB: del tamaño...`). Proyecto > Nuevo de extensión... (Amiga-B) enseña la descripción de cada uno y un botón con su título (el `_` marca su tecla); el elegido le llega como `NUEVO orden`. Puede haber varios. |
@@ -171,7 +171,7 @@ en su ventana y Forja no los ve).
 | `HOLA nombre` | La versión de la API y la de Forja: `6 0.8.0` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA; la 4, `nuevo`, `NUEVO`, `GUARDAR`, `GUARDADO`, `SINGUARDAR`, `DELANTE` y `COMPILAR fichero`; la 5, `EDITANDO` y `SALIR`; la 6, los paneles, las teclas en toda la ventana y `SUGERENCIA` de varias líneas o en medio de una). |
 | `SUCESOS nombre` | Sus sucesos, uno por línea, y la cola queda vacía. |
 | `ADIOS nombre` | Se va. Forja quita sus marcas y su texto. |
-| `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 10 en cada menú propio). |
+| `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 12 en cada menú propio). |
 
 ### Leer
 
@@ -213,7 +213,7 @@ Todo con deshacer, como si lo hubiera escrito el usuario.
 | `ABRIR fichero [línea]` | Lo abre, o va a su pestaña. Si es de un tipo de una extensión, se lo pasa a ella. |
 | `GUARDAR [fichero]` | Lo guarda. |
 | `IRA línea`, `BUSCAR texto`, `CAMBIARTODO buscar cambiar` | Como en el menú. |
-| `COMPILAR [fichero]`, `EJECUTAR [fichero]` | Sin esperar: `ESTADO` dice cuándo acaba; también el suceso `COMPILADO`. Sin fichero, el programa del fichero de delante. Con un fichero que no es un programa (un sprite, un mapa, un módulo), el de su cajón: un `.dash` abierto con `Main` de ese cajón o el de encima, si no su `main.dash` o el del proyecto, abierto o no. RC 5 si ya compila o ejecuta; 10 si no hay programa. |
+| `COMPILAR [fichero]`, `EJECUTAR [fichero]` | Sin esperar: `ESTADO` dice cuándo acaba; también el suceso `COMPILADO`. Sin fichero, el programa del fichero de delante. Un `.dash` abierto con su `Main` (una prueba) es él mismo: pasa delante y se compila. Con un fichero que no es un programa (un sprite, un mapa, un módulo), el de su cajón: un `.dash` abierto con `Main` de ese cajón o el de encima, si no su `main.dash` o el del proyecto, abierto o no. RC 5 si ya compila o ejecuta; 10 si no hay programa. |
 
 ### Los ficheros de una extensión
 

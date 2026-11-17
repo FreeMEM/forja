@@ -117,7 +117,7 @@ const EV_EXT_DOBLE = 182
 const EV_EXT_ACTIVAR = 183
 const EV_EXT_INSTALAR = 184
 const EV_EXT_CERRAR = 185
-const EV_EXT_MENU = 200        # las opciones de las extensiones en el menú: 200 a 241 (EXT_TOTAL)
+const EV_EXT_MENU = 200        # las opciones de las extensiones en el menú: 200 a 247 (EXT_TOTAL)
 # (los de la ventana de la ayuda, 110 a 120, en ayuda.dash)
 const EV_ERROR_SIGUIENTE = 125 # F8: al siguiente error marcado en el código (errores.dash)
 const EV_ERROR_ANTERIOR = 126  # Mayúsculas+F8
@@ -4957,8 +4957,19 @@ func orden_una(linea: String) -> String
             _rexx_falla(5)
             return ""
         end
-        # COMPILAR fichero: el programa de ese fichero (de una extensión: un sprite, un mapa), abierto o no
+        # COMPILAR fichero: el programa de ese fichero (de una extensión: un sprite, un mapa), abierto o no. Un .dash
+        # abierto con su Main (una prueba) es él mismo: pasa delante y se compila como con Amiga-K
+        k = -1
         if p.length >= 2 and p[1] != ""
+            k = ed_buscar_ruta(p[1])
+            if k >= 0 and (not str_ends(str_lower(p[1]), ".dash") or not tiene_main(documentos[k].lineas))
+                k = -1
+            end
+        end
+        if k >= 0
+            activo = k
+            redibujar()
+        elif p.length >= 2 and p[1] != ""
             if programa_de_ruta(p[1]) == ""
                 _rexx_falla(10)
                 return ""

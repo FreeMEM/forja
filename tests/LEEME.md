@@ -189,8 +189,14 @@ tecla (Ctrl Alt D) y CAMBIADO; la API por ARexx (y lo que cuesta una orden); Eco
 GUARDADO, ABIERTO, ACTIVO, PROYECTO, EDITAR, MARCA (un clic en su marca), CERRADO y COMPILADO; Eco se cae (Forja lo
 dice y la vuelve a arrancar) y se cuelga (Forja sigue contestando); el gestor la desactiva y la activa. También instala desde un cajón con el gestor (`DH0:Fuera/Saludo`; la ruta va en `ENV:FORJA_INSTALAR`, sin la
 petición de ASL) y mira que su opción salga en el menú Extensiones (`ENV:FORJA_MENU_EXT`, las opciones que se pusieron
-con `mui_menu_extend`). Con
-`capturas/`, guarda `marcas.png`, `gestor.png` y `gestor-apagada.png`. `input_menu` no llega a los menús de MUI: las
+con `mui_menu_extend`) y, si hay un LhA para el Amiga (`LHA_AMIGA`, que no va en el repositorio),
+instala también desde un `.lha` (la prueba lo hace con él, `DH0:Fuera/Hola.lha`). La API 6: la tecla de Eco (Ctrl Alt E) con el puntero en la
+salida, el proyecto y la barra de botones; sus paneles (Eco > Paneles: Lista a la izquierda y Charla abajo, con
+entrada y botones): las pestañas, un clic en una línea, flechas y Return, una letra, la entrada (Return), los dos
+botones, `PANELCERRAR`, `PANELVER` con la entrada, Esc y un clic en el editor para volver; y una `SUGERENCIA` de dos
+líneas en medio de una línea (Tab y Amiga-Z). `ENV:FORJA_PANELES` (con la sonda) da dónde está cada cosa de los
+paneles, en una línea (separadas por el carácter 30). Con `capturas/`, guarda `marcas.png`, `gestor.png`,
+`gestor-apagada.png`, `panel-lista.png`, `panel-charla.png` y `sugerencia-varias.png`. `input_menu` no llega a los menús de MUI: las
 opciones se eligen con la sonda (`ENV:FORJA_EVENTO` con su evento). Con MUI 3.8:
 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/extensiones.sh ...`.
 
@@ -214,8 +220,9 @@ dashc.amiga>] [capturas/]` arranca Forja con el copiloto y la Inferencia de verd
 Inferencia (`tests/servidor_falso.py` de su repositorio) con los guiones de `tests/guiones_copiloto`, y la ayuda de
 Dash (`AYUDA=.../Dash.ayuda`; si no, la de `build/ayuda` de Dash, de `tools/gen_ayuda.py`). `tests/copiloto.dash`, sobre
 `tests/prueba/copiloto/main.dash`: documentar la función (con la ayuda, la vista, `a`, Amiga-Z), cambiar el código
-(su ventana, `r`), explicar la selección y preguntar (a la conversación), escribir la prueba (fichero nuevo, que Forja ejecuta al aceptarla), con dashc
-explicar y arreglar un error (compila antes), y las sugerencias al escribir (SUGERENCIA y Tab). Guarda
+(en el panel Inferencia de abajo, `r`), explicar la selección y preguntar (a la conversación), escribir la prueba
+(fichero nuevo, que Forja ejecuta al aceptarla: el resultado sale en el panel Prueba), con dashc explicar y arreglar
+un error (compila antes), y las sugerencias al escribir (SUGERENCIA de dos líneas y Tab). Guarda
 `copiloto-*.png` en `capturas/`. Con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`; `SOLO=sugerencias`, solo lo
 último. El servidor usa el puerto 40900 del PC: `flock /run/user/1000/dash-emu-red.lock tests/copiloto.sh ...`.
 
