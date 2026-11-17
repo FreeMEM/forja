@@ -198,6 +198,16 @@ func abrir_ventana()
     redibujar()
 end
 
+var _solo_pestanas: Bool = false
+
+func redibujar_pestanas()
+    if abierta and zona_ancho > 0
+        _solo_pestanas = true
+        mui_canvas_update_area(lienzo, 0, 0, zona_ancho, ALTO_PESTANAS)
+        _solo_pestanas = false
+    end
+end
+
 func ver(p: Int)
     pagina = p
     mensaje = ""
@@ -235,6 +245,10 @@ end
 func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
     gfx_mode(0)
+    if mui_canvas_updating() and _solo_pestanas
+        dibujar_pestanas(zona_x, zona_y, zona_ancho)
+        return
+    end
     zona_x = x
     zona_y = y
     zona_ancho = ancho
@@ -739,6 +753,10 @@ func dibujar_sync(x: Int, y: Int, ancho: Int, alto: Int)
         e = "  suena la fila #{f}"
     end
     texto(x, y, nombre + "  cursor: fila #{sy_fila} (posición #{sy_fila / 64}, #{sy_fila % 64})" + e, tema.texto)
+    if sy_nombrando
+        texto(x, y + alto_letra + 2, "Nueva pista (sin espacios; Return la hace, Esc no): " + sy_nombre + "_", tema.cursor)
+        return
+    end
     if sync_pistas.length == 0
         texto(x, y + 2 * (alto_letra + 2), "Sin pistas: n hace una (zoom, fundido, escena...).", tema.tenue)
         return
@@ -848,6 +866,10 @@ func cambiado()
 end
 
 func sync_tecla(k: Int, q: Int, ch: String)
+    if sy_nombrando
+        nombre_tecla(k, ch)
+        return
+    end
     var p: SyncPista = nil
     if sy_pista < sync_pistas.length
         p = sync_pistas[sy_pista]
@@ -907,8 +929,8 @@ func sync_tecla(k: Int, q: Int, ch: String)
             cambiado()
         end
     elif ch == "n"
-        nueva_pista()
-        return
+        sy_nombrando = true
+        sy_nombre = ""
     elif k == K_ESPACIO
         if conectada()
             mandar_demo(pausa_orden())
@@ -927,12 +949,11 @@ func sync_tecla(k: Int, q: Int, ch: String)
     redibujar()
 end
 
-func nueva_pista()
-    if not abierta
-        return
-    end
-    n = str_trim(mui_request_text(win, "Nueva pista", "El nombre de la pista (sin espacios: la demo la lee con sync_valor):", "", "_Hacer|_Cancelar"))
-    n = str_replace(n, " ", "_")
+# n empieza a escribir el nombre de una pista nueva (en la tabla, sin otra ventana); Return la hace
+var sy_nombre: String = ""
+var sy_nombrando: Bool = false
+
+func nueva_pista(n: String)
     if n == ""
         return
     end
@@ -944,6 +965,21 @@ func nueva_pista()
     sy_pista = sync_pistas.length - 1
     mandar_demo("PISTA " + n)
     cambiado()
+end
+
+func nombre_tecla(k: Int, ch: String)
+    if k == K_RETURN or k == K_INTRO
+        sy_nombrando = false
+        nueva_pista(sy_nombre)
+    elif k == K_ESC
+        sy_nombrando = false
+    elif k == K_RETROCESO
+        if sy_nombre != ""
+            sy_nombre = sy_nombre[0:sy_nombre.length - 1]
+        end
+    elif ch != "" and ch != " " and str_code(ch, 0) > 32
+        sy_nombre = sy_nombre + ch
+    end
     redibujar()
 end
 
@@ -1194,7 +1230,12 @@ func tic()
                     forja_barra(b)
                 end
             end
-            if pagina == PAG_MEDIDOR or fila_ahora() != antes_fila or tics % 5 == 0
+            if pagina == PAG_COPPER
+                # (la vista del copper no cambia con la fila: solo la pestaña de la demo, arriba)
+                if tics % 5 == 0
+                    redibujar_pestanas()
+                end
+            elif pagina == PAG_MEDIDOR or fila_ahora() != antes_fila or tics % 5 == 0
                 redibujar()
             end
         end
@@ -1316,7 +1357,7 @@ func publicar_sonda()
     t = t + "demo #{demo_mem != 0} fila #{demo_fila} lineas #{demo_lineas} muestras #{demo_anillo.length} pausa #{demo_pausa}\n"
     t = t + cu_sonda() + "\n"
     t = t + "mod " + nombre_de(mod_ruta) + " suena #{suena} pos #{mus_pos} fila #{mus_fila} largo #{mod_largo} patrones #{mod_patrones} celda " + mod_celda(mod_patron(0), 0, 0) + "\n"
-    t = t + "sync " + nombre_de(sy_ruta) + " pistas #{sync_pistas.length} cursor #{sy_fila} #{sy_pista} cambiado #{sy_cambiado} buffer [" + sy_buffer + "]\n"
+    t = t + "sync " + nombre_de(sy_ruta) + " pistas #{sync_pistas.length} cursor #{sy_fila} #{sy_pista} cambiado #{sy_cambiado} buffer [" + sy_buffer + "] nombre [" + sy_nombre + "]\n"
     if sy_pista < sync_pistas.length
         p = sync_pistas[sy_pista]
         c = sync_clave_en(p, sy_fila)

@@ -167,24 +167,24 @@ func con_demo()
     activar()
     tecla(0x40, 0)
     ver("Espacio para la demo", esperar("pausa true", 5), linea("demo"))
+    # (la extensión ve la pausa en su siguiente lectura, 0,2 s)
+    n = 0
     fila = campo_sonda(linea("demo"), "fila")
+    while n < 10 and campo_sonda(linea("sync"), "cursor") != fila
+        fila = campo_sonda(linea("demo"), "fila")
+        n = n + 1
+    end
     ver("parada, el cursor se queda en su fila", campo_sonda(linea("sync"), "cursor") == fila, linea("sync") + " / #{fila}")
     # una pista nueva: n y su nombre
     tecla(0x36, 0)
-    n = 0
-    while n < 40 and not activar_titulo("Nueva pista")
-        time_delay(5)
-        n = n + 1
-    end
-    ver("n pregunta el nombre de la pista", str_starts(input_active_title(), "Nueva pista"), input_active_title())
-    time_delay(20)
     input_text("brillo")
+    time_delay(10)
+    ver("n pide el nombre de la pista en la tabla", esperar("nombre [brillo]", 5), linea("sync"))
     tecla(0x44, 0)
-    time_delay(25)
-    activar()
-    ver("n hace una pista nueva", str_contains(linea("sync"), "pistas 3 ") and str_starts(linea("pista"), "pista brillo"), linea("sync") + " / " + linea("pista"))
+    ver("n hace una pista nueva", esperar("pistas 3 ", 5) and str_starts(linea("pista"), "pista brillo"), linea("sync") + " / " + linea("pista"))
     input_text("9")
     tecla(0x44, 0)
+    esperar("pista brillo claves 1", 5)
     ver("la demo recibe la clave al momento", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) == "9", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) + " fila #{fila}")
     ver("y lo que Forja no había guardado (RECARGAR al conectar)", rexx_send_wait("DEMOSYNC", "VALOR velocidad", 2000) != "", "")
     file_write_text("DH0:Prueba/valor_velocidad.txt", rexx_send_wait("DEMOSYNC", "VALOR velocidad", 2000))
@@ -205,6 +205,21 @@ func con_demo()
     screen_save_png("DH0:Prueba/musica.png")
 end
 
+# El texto de main.dash en Forja cuando tenga eso (como mucho 5 s)
+func texto_main(con: String) -> String
+    n = 0
+    t = ""
+    while n < 20
+        t = rexx_send("FORJA.1", "TEXTO DH0:Prueba/demo/main.dash")
+        if str_contains(t, con)
+            return t
+        end
+        time_delay(12)
+        n = n + 1
+    end
+    return t
+end
+
 func copper()
     rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/main.dash 20")
     time_delay(50)
@@ -213,34 +228,33 @@ func copper()
     tecla(0x36, 0)
     tecla(0x13, 0)
     tecla(0x13, 0)
-    ver("Copper: una parada nueva y más rojo", str_starts(linea("copper"), "copper 4 1 0 degradado copper 84:"), linea("copper"))
+    ver("Copper: una parada nueva y más rojo", esperar("copper 4 1 0 degradado copper 84:", 5), linea("copper"))
     tecla(0x44, 0)
-    time_delay(25)
-    t = rexx_send("FORJA.1", "TEXTO DH0:Prueba/demo/main.dash")
+    t = texto_main("# copper: degradado")
     ver("Return lo mete en main.dash", veces(t, "# copper: degradado") == 1 and str_contains(t, "copper_wait(40, 0)") and str_contains(t, "# paradas: 0 degradado 40:00F 84:"), linea("mensaje"))
     screen_save_png("DH0:Prueba/copper.png")
     tecla(0x4C, MAYUS)
     tecla(0x4C, MAYUS)
     tecla(0x13, MAYUS)
+    esperar("copper 4 1 0 degradado copper 82:", 5)
     tecla(0x44, 0)
-    time_delay(25)
-    t = rexx_send("FORJA.1", "TEXTO DH0:Prueba/demo/main.dash")
+    t = texto_main("82:")
     ver("otra vez Return lo cambia allí, sin duplicarlo", veces(t, "# copper: degradado") == 1 and str_contains(t, "# paradas: 0 degradado 40:00F 82:"), linea("mensaje"))
     tecla(0x4D, 0)
     tecla(0x13, 0)
     tecla(0x28, 0)
-    ver("l lo vuelve a leer del código", str_starts(linea("copper"), "copper 4 0 0 degradado copper 40:00F"), linea("copper"))
+    ver("l lo vuelve a leer del código", esperar("copper 4 0 0 degradado copper 40:00F", 5), linea("copper"))
     rexx_send("FORJA.1", "GUARDAR DH0:Prueba/demo/main.dash")
 end
 
 func guardar_exportar()
     activar()
     tecla(0x21, AMIGA)
-    time_delay(25)
+    esperar("cambiado false", 5)
     t = file_read_text("DH0:Prueba/demo/demo.sync")
     ver("Amiga-S guarda las pistas", t != nil and str_contains(t, "pista brillo") and str_contains(linea("sync"), "cambiado false"), linea("sync"))
     tecla(0x32, AMIGA)
-    time_delay(25)
+    esperar("Exportadas", 5)
     t = file_read_text("DH0:Prueba/demo/pistas_datos.dash")
     ver("Amiga-X las exporta a pistas_datos.dash", t != nil and str_contains(t, "sync_pista_datos(\"brillo\", [") and str_contains(t, "Fixed(9)"), linea("mensaje"))
 end
