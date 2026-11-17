@@ -5,6 +5,7 @@
 #   tests/mapas_forja.sh DASH_DIR [captura.png segundos...]
 #
 # DASH_DIR: un Dash con tilemap_*. Necesita DASH_KICKSTART (3.1). RTG=1: AmigaOS 3.2 con 256 colores.
+#   SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 ...   # con MUI 3.8 (el sistema de CoffinOS)
 set -e
 dash=$1; shift
 png=""
@@ -15,7 +16,7 @@ trap 'rm -rf "$tmp"' EXIT
 "$dash/dash" "$aqui/src/main.dash" -o "$tmp/Forja"
 maquina=""
 if [ -n "$RTG" ]; then
-  cp -r "$HOME/.cache/dash-emu/sys32rtg8" "$tmp/sys"
+  cp -r "${SISTEMA:-$HOME/.cache/dash-emu/sys32rtg8}" "$tmp/sys"
   export DASH_EMU_SYS_32_RTG="$tmp/sys"
   export DASH_KICKSTART_32="${DASH_KICKSTART_32:-$HOME/Descargas/Telegram Desktop/Kickstart v3.2.3 A1200.47.115_Pack_noSCSI.rom}"
   maquina="--machine rtg"
@@ -24,6 +25,9 @@ else
 fi
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+# el editor es una extensión de Forja
+. "$aqui/tests/extension.sh"
+extension Mapas editor_mapas
 python3 -I "$aqui/tests/mapa_ejemplo.py" "$tmp/tiles.txt" "$tmp/capas.txt"
 python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/tiles.iff" "$tmp/tiles.txt" --frja "1 0 16 6"
 # solo fondo y delante: la prueba pone ella la capa de choques y los objetos

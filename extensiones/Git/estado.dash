@@ -239,12 +239,12 @@ func srv_mirar() -> Bool
         # este dashgit no tiene servidor, o no arranca: cada orden, un proceso
         t = str_trim(run_finish(srv_run))
         srv_run = 0
-        srv_motivo = "acabó con código #{run_rc()}: " + t
+        srv_motivo = hueco(tr(21, "acabó con código %1: "), "#{run_rc()}") + t
         srv_perdido()
         return false
     end
     if time_ms() - srv_desde > SRV_ARRANQUE
-        srv_motivo = "no abrió su puerto en #{SRV_ARRANQUE} ms"
+        srv_motivo = hueco(tr(22, "no abrió su puerto en %1 ms"), "#{SRV_ARRANQUE}")
         srv_perdido()
         return false
     end
@@ -368,7 +368,7 @@ func git_orden(orden: String, tipo: Int, dato: String, cuerpo: String)
         return
     end
     if not _empezar(orden, tipo, dato, cuerpo)
-        git_texto = "No se puede ejecutar " + git_programa
+        git_texto = tr(19, "No se puede ejecutar ") + git_programa
         git_dato = orden
     end
 end
@@ -488,7 +488,7 @@ func git_mirar() -> Int
                 srv_escrito = time_ms()
             end
             if time_ms() - _inicio > SRV_ESPERA
-                srv_motivo = "no contestó en #{SRV_ESPERA} ms: " + _run_orden + " (pedido #{srv_n}; " + _srv_ver(_srv_respuesta()) + "; pedido: " + _srv_ver(_srv_pedido()) + "; " + _srv_vivo() + ")"
+                srv_motivo = hueco(tr(23, "no contestó en %1 ms: "), "#{SRV_ESPERA}") + _run_orden + " (pedido #{srv_n}; " + _srv_ver(_srv_respuesta()) + "; pedido: " + _srv_ver(_srv_pedido()) + "; " + _srv_vivo() + ")"
                 srv_perdido()
                 _en_marcha = false
                 o = _run_orden

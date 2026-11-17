@@ -13,7 +13,7 @@
           "tr": 301, "title": "Proyecto",
           "items": [
             { "tr": 302, "label": "Nuevo", "key": "N", "event": 30 },
-            { "tr": 352, "label": "Nuevo sprite...", "key": "B", "event": 36 },
+            { "tr": 646, "label": "Nuevo de extensión...", "key": "B", "event": 36 },
             { "tr": 303, "label": "Abrir...", "key": "O", "event": 31 },
             { "tr": 304, "label": "Guardar", "key": "S", "event": 32 },
             { "tr": 305, "label": "Guardar como...", "event": 33 },
@@ -33,9 +33,7 @@
             { "tr": 312, "label": "Depurar", "key": "G", "event": 12 },
             { "separator": true },
             { "tr": 354, "label": "Copiar la salida", "event": 21 },
-            { "tr": 355, "label": "Guardar la salida...", "event": 22 },
-            { "separator": true },
-            { "tr": 313, "label": "Preguntar a Inferencia", "key": "I", "event": 19 }
+            { "tr": 355, "label": "Guardar la salida...", "event": 22 }
           ]
         },
         {
@@ -202,14 +200,6 @@
               { "type": "label", "tr": 346, "text": "Compilador (dash):", "color": [220, 220, 210], "weight": 0 },
               { "type": "string", "name": "dashc", "text": "", "max": 300, "weight": 100 },
               { "type": "button", "name": "elegir_dashc", "tr": 356, "label": "Elegir...", "event": 61, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
-            ]
-          },
-          {
-            "type": "hgroup",
-            "children": [
-              { "type": "label", "tr": 347, "text": "Inferencia:", "color": [220, 220, 210], "weight": 0 },
-              { "type": "string", "name": "inferencia", "text": "", "max": 300, "weight": 100 },
-              { "type": "button", "name": "elegir_inferencia", "tr": 357, "label": "Elegir...", "event": 62, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           },
           {

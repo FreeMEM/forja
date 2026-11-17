@@ -1,0 +1,13 @@
+# Mapas: el editor de mapas de tiles de Forja (docs/MAPAS_DISENO.md)
+nombre = Mapas
+version = 1.0
+autor = FreeMEM
+licencia = MIT
+descripcion = El editor de mapas de tiles: capas, tiles con espejo, caja, relleno, capas de choques, objetos con su sprite, y el código para cargarlo en un programa. Los tiles salen de un BOB (un fotograma por tile).
+programa = Mapas
+arranque = menu
+tipos = .fmap
+nuevo = _Mapa | mapa | Un mapa de tiles: una rejilla de tiles de un tileset (un BOB con un fotograma por tile).
+# en inglés (con el catálogo inglés de Forja)
+descripcion.english = The tile map editor: layers, tiles with mirroring, box, fill, collision layers, objects with their sprite, and the code to load it in a program. The tiles come from a BOB (one frame per tile).
+nuevo.english = _Map | mapa | A tile map: a grid of tiles from a tileset (a BOB with one frame per tile).

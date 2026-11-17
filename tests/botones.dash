@@ -74,15 +74,14 @@ end
 
 Main
     n = 0
-    while campos().length < 13 and n < 600
+    while campos().length < 12 and n < 600
         time_delay(10)
         n = n + 10
     end
-    ver("la barra está (9 botones)", campos().length == 13)
-    if campos().length == 13
+    ver("la barra está (8 botones)", campos().length == 12)
+    if campos().length == 12
         activar()
-        ver("al empezar: Compilar, Ejecutar y Depurar encendidos, el depurador apagado", boton(10)[2] == 1 and boton(11)[2] == 1 and boton(12)[2] == 1 and boton(13)[2] == 0 and boton(17)[2] == 0 and boton(19)[2] == 1)
-        ver("Inferencia a la derecha", boton(19)[0] > boton(17)[0] + boton(17)[1])
+        ver("al empezar: Compilar, Ejecutar y Depurar encendidos, el depurador apagado", boton(10)[2] == 1 and boton(11)[2] == 1 and boton(12)[2] == 1 and boton(13)[2] == 0 and boton(17)[2] == 0)
         b = boton(11)
         input_move(b[0] + b[1] / 2, centro_y())
         time_delay(10)

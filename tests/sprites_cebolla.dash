@@ -22,15 +22,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Sprites)
+func activar() -> Bool
+    return activar_titulo("Sprites")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -39,7 +48,7 @@ end
 
 func sonda() -> [String]
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-sprites-sonda.txt")
     if t == nil
         return [""]
     end
@@ -62,17 +71,17 @@ end
 
 # El centro de la celda x, y en la ventana
 func cx(x: Int) -> Int
-    return campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+    return campo("FORJA_SPRITES_LIENZO", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
 end
 
 func cy(y: Int) -> Int
-    return campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+    return campo("FORJA_SPRITES_LIENZO", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
 end
 
 # El color de pantalla en el centro de la celda x, y (por la sonda primero, para que el dibujo esté hecho)
 func pantalla(x: Int, y: Int) -> Int
     sonda()
-    w = window_find("Forja")
+    w = window_find("Sprites")
     return screen_pixel(window_found_box(w, 0) + cx(x), window_found_box(w, 1) + cy(y))
 end
 
@@ -80,10 +89,10 @@ end
 # pequeñas, de 4 píxeles en 640x256, es un píxel que no cae en el centro justo)
 func en_celda(x: Int, y: Int, color: Int) -> Bool
     sonda()
-    w = window_find("Forja")
+    w = window_find("Sprites")
     z = campo("FORJA_SPRITE", 2)
-    x0 = window_found_box(w, 0) + campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + x * z
-    y0 = window_found_box(w, 1) + campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + y * z
+    x0 = window_found_box(w, 0) + campo("FORJA_SPRITES_LIENZO", 0) + campo("FORJA_SPRITE", 0) + x * z
+    y0 = window_found_box(w, 1) + campo("FORJA_SPRITES_LIENZO", 1) + campo("FORJA_SPRITE", 1) + y * z
     j = 0
     while j < z
         i = 0
@@ -134,7 +143,7 @@ Main
     if fallos == 0
         anotar("TODO BIEN")
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
     n = 0
     while n < 100 and input_active_title() != "Cambios sin guardar"

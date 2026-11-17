@@ -1,7 +1,7 @@
 # Prueba de src/mapas.dash sin ventana: celdas, lápiz, caja, relleno, capas, tamaño, deshacer y rehacer, guardar y
 # leer. tests/mapas_base.sh la ejecuta.
 
-import "../src/mapas.dash"
+import "../extensiones/Mapas/mapas.dash"
 
 var fallos: Int = 0
 

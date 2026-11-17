@@ -1,7 +1,7 @@
 # Hace de usuario del editor de sprites de principio a fin: abre un pincel comprimido de DPaint (pincel.iff, sin
 # FRJA: un BOB de 3 fotogramas de 16x16), dibuja, rellena y deshace, duplica y voltea un fotograma, lo pasa a
-# sprite de hardware, guarda con Amiga-S y comprueba que bob_load y sprite_load leen lo guardado. Mide el cambio de
-# pestaña entre el sprite y un texto. Después crea un BOB con Amiga-B, lo toca y sale descartando.
+# sprite de hardware, guarda con Amiga-S y comprueba que bob_load y sprite_load leen lo guardado. Mide lo que tarda
+# un clic en el proyecto a un texto (en Forja) y al sprite (su ventana). Después crea un BOB con Amiga-B, lo toca y sale descartando.
 # Lo arranca tests/sprites.sh; anota en DH0:Prueba/sprites.txt y deja lo que debe haber en el fichero en
 # DH0:Prueba/esperado.txt (las filas de la sonda) para que el script lo compare con tests/iff.py.
 
@@ -25,15 +25,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Sprites)
+func activar() -> Bool
+    return activar_titulo("Sprites")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -42,7 +51,7 @@ end
 
 func sonda_texto() -> String
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-sprites-sonda.txt")
     if t == nil
         return ""
     end
@@ -82,14 +91,16 @@ func px(f: Int, x: Int, y: Int) -> String
 end
 
 func cx(x: Int) -> Int
-    return campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+    return campo("FORJA_SPRITES_LIENZO", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
 end
 
 func cy(y: Int) -> Int
-    return campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+    return campo("FORJA_SPRITES_LIENZO", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
 end
 
+# (el panel del proyecto es de la ventana de Forja)
 func fila_proyecto(i: Int)
+    activar_forja()
     f = campo("FORJA_PROYECTO", 2)
     input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + i * f + f / 2, 0)
 end
@@ -100,9 +111,16 @@ func abrir_fila(i: Int, nombre: String) -> Int
     fila_proyecto(i)
     n = 0
     while n < 200
-        t = file_read_text("RAM:forja-sonda.txt")
-        if t != nil and str_ends(str_split(t, "\n")[0], " " + nombre)
-            return time_ms() - t0
+        # un .dash, en Forja (su sonda); un .iff, en la ventana de la extensión Sprites, que se pone delante
+        if str_ends(nombre, ".iff")
+            if str_starts(input_active_title(), "Sprites") and str_ends(input_active_title(), nombre)
+                return time_ms() - t0
+            end
+        else
+            t = file_read_text("RAM:forja-sonda.txt")
+            if t != nil and str_ends(str_split(t, "\n")[0], " " + nombre)
+                return time_ms() - t0
+            end
         end
         time_delay(2)
         n = n + 1
@@ -204,8 +222,8 @@ Main
             anotar("clic perdido en el proyecto: se repite")
             ms2 = abrir_fila(2, "pincel.iff")
         end
-        anotar("cambio de pestaña: al texto #{ms1} ms, al sprite #{ms2} ms (con la espera de la sonda)")
-        ver("los cambios de pestaña llegan", ms1 >= 0 and ms2 >= 0, "#{ms1} #{ms2}")
+        anotar("del proyecto: al texto #{ms1} ms (en Forja), al sprite #{ms2} ms (su ventana delante)")
+        ver("los clics en el proyecto llegan", ms1 >= 0 and ms2 >= 0, "#{ms1} #{ms2}")
         # un BOB nuevo, tocado, y salir descartando
         activar()
         input_move(cx(8), cy(8))
@@ -225,7 +243,7 @@ Main
     if fallos == 0
         anotar("TODO BIEN")
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
     if esperar_ventana("Cambios sin guardar")
         anotar("bien: salir con el BOB tocado pregunta")

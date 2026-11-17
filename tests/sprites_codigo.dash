@@ -22,15 +22,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Sprites)
+func activar() -> Bool
+    return activar_titulo("Sprites")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -39,7 +48,7 @@ end
 
 func sonda() -> [String]
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-sprites-sonda.txt")
     if t == nil
         return [""]
     end
@@ -55,7 +64,7 @@ func salida() -> String
 end
 
 func al_sprite()
-    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + 4)
+    input_move(campo("FORJA_SPRITES_LIENZO", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_SPRITES_LIENZO", 1) + campo("FORJA_SPRITE", 1) + 4)
     time_delay(5)
 end
 
@@ -92,6 +101,7 @@ Main
         end
         ver("y lo dice", str_contains(salida(), "portapapeles"), salida())
         # bola.iff desde el proyecto: "/", bola.iff, main.dash, nave.iff...
+        activar_forja()
         f = campo("FORJA_PROYECTO", 2)
         input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + f + f / 2, 0)
         n = 0
@@ -107,6 +117,6 @@ Main
     if fallos == 0
         anotar("TODO BIEN")
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
 end

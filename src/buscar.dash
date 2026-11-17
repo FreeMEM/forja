@@ -83,7 +83,7 @@ end
 # Las líneas de un fichero: las del editor si está abierto, si no las del disco (en Latin-1, como el editor)
 func bp_lineas_de(ruta: String) -> [String]
     k = ed_buscar_ruta(ruta)
-    if k >= 0 and documentos[k].sprite == nil and documentos[k].mapa == nil
+    if k >= 0
         return documentos[k].lineas
     end
     t = file_read_text(ruta)

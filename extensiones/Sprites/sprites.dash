@@ -9,7 +9,7 @@
 #
 # Un fotograma es una lista de ancho * alto colores, fila a fila. El color 0 es el transparente.
 
-import "tema.dash"
+import "../../src/tema.dash"
 
 const SP_MAX_DESHACER = 50
 

@@ -21,7 +21,7 @@ Main
     dir_create("DH0:Ext/Dos")
     dir_create("DH0:Ext/Vacio")
     # (en UTF-8, como lo escribiría un PC; # empieza una nota)
-    file_write_text("DH0:Ext/Uno/manifiesto.txt", "# una de prueba\nnombre = Úno\nversion = 1.2\nautor = Ana\ndescripcion = Hace cosas\nprograma = UnoProg\narranque = menu\nsucesos = guardado  CAMBIADO\ntipos = .spr .dash .Bob\nmenu = Contar | | contar\nmenu = Fecha | ctrl alt d | fecha   # con tecla\nmenu = Sin orden\n")
+    file_write_text("DH0:Ext/Uno/manifiesto.txt", "# una de prueba\nnombre = Úno\nversion = 1.2\nautor = Ana\ndescripcion = Hace cosas\nprograma = UnoProg\narranque = menu\nsucesos = guardado  CAMBIADO\ntipos = .spr .dash .Bob\nmenu = Contar | | contar\nmenu = Fecha | ctrl alt d | fecha   # con tecla\nmenu = Sin orden\nnuevo = _Uno | uno | Uno nuevo\nnuevo = _Otro | otro\nmenu.english = Count | | contar\ndescripcion.english = Does things\n")
     file_write_text("DH0:Ext/Uno/UnoProg", "x")
     file_write_text("DH0:Ext/Dos/manifiesto.txt", "nombre = Dos\nmenu = Dos\ntipos = .doc\n")
     env_set("Forja/extensiones_apagadas", "dos", false)
@@ -43,6 +43,14 @@ Main
     ver("teclas en bruto", ext_tecla_codigo("f3") == 0x52 and ext_tecla_codigo("amiga m") == 0x37 and ext_tecla_codigo("ctrl 1") == 0x01 and ext_tecla_codigo("ctrl ñ") == -1)
     ver("calificadores", ext_tecla_q("shift ctrl alt amiga x") == 15)
     ver("tipo de fichero de una activa", ext_para_fichero("DH0:a/b.SPR") == u and ext_para_fichero("DH0:a/b.doc") == -1 and ext_para_fichero("x.dash") == -1)
+    # nuevo, lo de otro idioma (sin catálogo, no cuenta), el patrón de abrir, SINGUARDAR y GUARDAR (API 4)
+    ver("nuevo: dos, con su descripción", e.nuevos.length == 2 and e.nuevos[0] == "_Uno|uno|Uno nuevo" and e.nuevos[1] == "_Otro|otro|")
+    ver("sin catálogo, menu.english y descripcion.english no cuentan", e.menus[0] == "Contar||contar" and e.descripcion == "Hace cosas")
+    ns = ext_nuevos()
+    ver("los nuevos de las activas, con su extensión", ns.length == 2 and ns[0] == "#{u}|_Uno|uno|Uno nuevo")
+    ver("el patrón de abrir lleva los tipos de las activas", ext_patron_tipos("dash|dashui") == "dash|dashui|spr|bob")
+    ver("SINGUARDAR", ext_poner_sin_guardar("uno", ["a.spr", "", "b.spr"]) and e.sin_guardar.length == 2 and not ext_poner_sin_guardar("nadie", ["x"]))
+    ver("parada: sus sin guardar no cuentan", ext_sin_guardar().length == 0)
 
     # la cola: solo si está en marcha y lo pide
     ext_suceso("GUARDADO", "DH0:a.dash")
@@ -55,6 +63,13 @@ Main
     ver("el aviso en ENV:Forja/Avisos/Uno", file_read_text("ENV:Forja/Avisos/Uno") == "1\n" and not ext_por_avisar)
     ver("SUCESOS los da y vacía la cola", ext_sucesos("uno") == "GUARDADO DH0:a.dash\n" and e.cola.length == 0)
     ver("SUCESOS sin nada", ext_sucesos("Uno") == "")
+    ver("en marcha: sus sin guardar cuentan", ext_sin_guardar().length == 2 and ext_sin_guardar()[1] == "b.spr")
+    ext_pedir_guardar()
+    ver("GUARDAR a la que tiene sin guardar", e.cola.length == 1 and e.cola[0] == "GUARDAR")
+    ext_sucesos("Uno")
+    ext_poner_sin_guardar("Uno", [])
+    ext_mensajes.clear()
+    ext_mensajes_tipo.clear()
     i = 0
     while i < 70
         ext_suceso("CAMBIADO", "DH0:a.dash #{i}")

@@ -1,7 +1,7 @@
 # Leer y escribir IFF ILBM con src/sprites.dash, y que bob_load y sprite_load de Dash lean lo escrito.
 # tests/sprites_iff.sh pone en DH0:Prueba los pinceles de tests/iff.py y comprueba después los ficheros escritos.
 
-import "../src/sprites.dash"
+import "../extensiones/Sprites/sprites.dash"
 
 var fallos: Int = 0
 var registro: String = ""

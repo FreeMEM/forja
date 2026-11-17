@@ -59,7 +59,7 @@ func ctx_proyecto() -> String
     if p.length == 0 or p[0] == ""
         return ""
     end
-    t = "Proyecto: " + p[0] + " (ficheros:"
+    t = hueco(tr(69, "Proyecto: %1 (ficheros:"), p[0])
     i = 1
     while i < p.length and i < 80
         if i > 1
@@ -102,7 +102,7 @@ func ctx_contexto(ruta: String, texto: String, desde: Int, hasta: Int) -> String
         r = r + "\n"
     end
     if texto.length <= tope * 2 / 3
-        r = r + _bloque("El fichero " + ruta + " entero", texto)
+        r = r + _bloque(hueco(tr(70, "El fichero %1 entero"), ruta), texto)
     else
         ls = str_split(texto, "\n")
         a = desde - CTX_ALREDEDOR
@@ -119,14 +119,14 @@ func ctx_contexto(ruta: String, texto: String, desde: Int, hasta: Int) -> String
             trozo = trozo + ls[n - 1] + "\n"
             n = n + 1
         end
-        r = r + _bloque("Las líneas #{a} a #{b} del fichero " + ruta + " (tiene #{ls.length}; lo demás no cabe)", trozo)
+        r = r + _bloque(str_replace(str_replace(hueco2(tr(71, "Las líneas %1 a %2 del fichero %3 (tiene %4; lo demás no cabe)"), "#{a}", "#{b}"), "%3", ruta), "%4", "#{ls.length}"), trozo)
     end
     for imp in ctx_importados(ruta, texto)
         t = ctx_leer(imp)
         if t != "" and r.length + t.length < tope
-            r = r + _bloque("Lo que importa, " + imp, t)
+            r = r + _bloque(tr(72, "Lo que importa, ") + imp, t)
         elif t != ""
-            r = r + "(" + imp + " no cabe: si lo necesitas, léelo con la herramienta leer)\n"
+            r = r + "(" + hueco(tr(73, "%1 no cabe: si lo necesitas, léelo con la herramienta leer"), imp) + ")\n"
         end
     end
     return r

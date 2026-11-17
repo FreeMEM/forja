@@ -100,7 +100,7 @@ func proyecto_leer(cajon: String)
             if nombre != ".git"
                 cajones.push(nombre + "/")
             end
-        elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui") or sp_extension(nombre) or ext_para_fichero(nombre) >= 0
+        elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui") or ext_para_fichero(nombre) >= 0
             ficheros.push(nombre)
         end
         i = i + 1

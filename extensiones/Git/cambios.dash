@@ -133,9 +133,9 @@ func gc_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gc_desde = gc_desde_valido(gc_desde)
     if git_lineas.length == 0
         gfx_pen(tema.tenue)
-        t = "Sin cambios."
+        t = tr(18, "Sin cambios.")
         if git_raiz == ""
-            t = "El proyecto no está en un repositorio de git."
+            t = tr(11, "El proyecto no está en un repositorio de git.")
         end
         gfx_text_at(x + 8, y + gc_y0 + 2 + base_letra, t)
         return

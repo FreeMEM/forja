@@ -23,15 +23,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Sprites)
+func activar() -> Bool
+    return activar_titulo("Sprites")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -40,7 +49,7 @@ end
 
 func sonda() -> [String]
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-sprites-sonda.txt")
     if t == nil
         return [""]
     end
@@ -66,11 +75,11 @@ end
 
 # El centro del píxel x, y en la ventana
 func cx(x: Int) -> Int
-    return campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+    return campo("FORJA_SPRITES_LIENZO", 0) + campo("FORJA_SPRITE", 0) + x * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
 end
 
 func cy(y: Int) -> Int
-    return campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
+    return campo("FORJA_SPRITES_LIENZO", 1) + campo("FORJA_SPRITE", 1) + y * campo("FORJA_SPRITE", 2) + campo("FORJA_SPRITE", 2) / 2
 end
 
 Main
@@ -107,7 +116,7 @@ Main
     if fallos == 0
         anotar("TODO BIEN")
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
     # pregunta por los cambios: Descartar
     n = 0

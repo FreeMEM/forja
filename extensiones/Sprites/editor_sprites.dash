@@ -1,0 +1,633 @@
+# Sprites: el editor de sprites de hardware y BOBs de Forja, como extensión (docs/EXTENSIONES.md y
+# docs/SPRITES_LOOP.md de Forja). Abre los ficheros de sus tipos (imágenes IFF ILBM: .iff, .ilbm, .lbm, .brush, .bob,
+# .spr) en una ventana suya, con una pestaña por fichero. Forja se los pasa con EDITAR (desde el panel del proyecto,
+# Abrir o ARexx) y le pide uno nuevo con NUEVO (Amiga-B en Forja). Al guardar, se lo dice a Forja (GUARDADO); los
+# que tienen cambios, con SINGUARDAR (Forja pregunta por ellos al salir y puede pedir GUARDAR). Compilar y Ejecutar
+# piden a Forja el programa del cajón del sprite (COMPILAR fichero).
+#
+#   ./dash extensiones/Sprites/editor_sprites.dash -o Extensiones/Sprites/Sprites    (desde el cajón de Forja)
+#
+# Para las pruebas (ENV:FORJA_SONDA): RAM:forja-sprites-sonda.txt lleva "0 0 nombre" y sp_sonda del activo;
+# ENV:FORJA_SPRITES_LIENZO dice dónde está el lienzo en su ventana ("x y ancho alto"), ENV:FORJA_SPRITE,
+# FORJA_SPRITE_PANEL y FORJA_SPRITE_BOTONES la geometría del editor (desde la esquina del lienzo) y
+# ENV:FORJA_SPRITES_PESTANAS los centros de las pestañas ("x,y x,y...") y ENV:FORJA_SPRITES_DIBUJO lo que tardó el último
+# dibujo entero (ms).
+
+@version "Sprites 1.0 (Forja)"
+@catalog "Sprites.catalog" 1 "español"
+
+import "lib/forja.dash"
+import "sprites.dash"
+
+const EV_LIENZO = 1
+const EV_ARRASTRE = 2
+const EV_TIC = 3
+const EV_VENTANA = 4         # el botón de cerrar de la ventana
+const EV_DESACTIVADA = 5     # la ventana deja de ser la activa: la vista animada se para
+const EV_NUEVO = 10
+const EV_ABRIR = 11
+const EV_GUARDAR = 12
+const EV_GUARDAR_COMO = 13
+const EV_CERRAR = 14
+const EV_COMPILAR = 15
+const EV_EJECUTAR = 16
+const EV_DESHACER = 20
+const EV_REHACER = 21
+const EV_CORTAR = 22
+const EV_COPIAR = 23
+const EV_PEGAR = 24
+const EV_FORJA = 25          # Ventana > Forja: la ventana de Forja delante
+const ALTO_PESTANAS = 18
+const Q_AMIGA = 8
+
+struct Hoja
+    nombre: String
+    ruta: String          # "" si no se ha guardado
+    s: Sprite
+    cambiado: Bool
+end
+
+var app: Int = 0
+var win: Int = 0
+var lienzo: Int = 0
+var abierta: Bool = false
+var hojas: [Hoja] = []
+var activa: Int = -1
+var sonda: Bool = false
+var tic_armado: Bool = false
+var zona_x: Int = 0
+var zona_y: Int = 0
+var zona_ancho: Int = 0
+var zona_alto: Int = 0
+var _pest_x1: [Int] = []
+var _pest_x2: [Int] = []
+var sin_guardar_dicho: String = "-"   # lo último mandado con SINGUARDAR
+var sonda_antes: String = ""
+var sonda_geo: String = ""
+
+func nombre_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/" or c == ":"
+            return ruta[i + 1:]
+        end
+        i = i - 1
+    end
+    return ruta
+end
+
+func actual() -> Hoja
+    if activa < 0 or activa >= hojas.length
+        return nil
+    end
+    return hojas[activa]
+end
+
+func buscar(ruta: String) -> Int
+    i = 0
+    while i < hojas.length
+        if hojas[i].ruta != "" and str_lower(hojas[i].ruta) == str_lower(ruta)
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Un aviso en su barra de estado y en la salida de Forja (tipo 0 normal, 1 error, 2 bien)
+func avisar(texto: String, tipo: Int)
+    sp_mensaje = texto
+    sp_mensaje_tipo = tipo
+    forja_aviso_tipo(texto, tipo)
+    redibujar()
+end
+
+func redibujar()
+    if abierta
+        mui_canvas_redraw(lienzo)
+    end
+end
+
+func poner_titulo()
+    h = actual()
+    if abierta and h != nil
+        mui_set_text(win, tr(1, "Sprites") + ": " + h.nombre)
+    end
+end
+
+# --- La ventana ---
+
+func hacer_ventana()
+    win = mui_window_begin(tr(1, "Sprites"), 41)
+    mui_menu_begin(tr(2, "Proyecto"))
+    mui_menu_item(tr(3, "Nuevo sprite..."), "B", EV_NUEVO)
+    mui_menu_item(tr(4, "Abrir..."), "O", EV_ABRIR)
+    mui_menu_item(tr(5, "Guardar"), "S", EV_GUARDAR)
+    mui_menu_item(tr(6, "Guardar como..."), "", EV_GUARDAR_COMO)
+    mui_menu_separator()
+    mui_menu_item(tr(7, "Compilar el programa"), "K", EV_COMPILAR)
+    mui_menu_item(tr(8, "Ejecutar el programa"), "E", EV_EJECUTAR)
+    mui_menu_separator()
+    mui_menu_item(tr(9, "Cerrar pestaña"), "W", EV_CERRAR)
+    mui_menu_end()
+    mui_menu_begin(tr(10, "Editar"))
+    mui_menu_item(tr(11, "Deshacer"), "Z", EV_DESHACER)
+    mui_menu_item(tr(12, "Rehacer"), "R", EV_REHACER)
+    mui_menu_separator()
+    mui_menu_item(tr(13, "Cortar el fotograma"), "X", EV_CORTAR)
+    mui_menu_item(tr(14, "Copiar el fotograma"), "C", EV_COPIAR)
+    mui_menu_item(tr(15, "Pegar el fotograma"), "V", EV_PEGAR)
+    mui_menu_end()
+    mui_menu_begin(tr(16, "Ventana"))
+    mui_menu_item(tr(17, "Forja"), "", EV_FORJA)
+    mui_menu_end()
+    lienzo = mui_canvas(320, 180)
+    mui_window_end()
+    mui_canvas_on_draw(lienzo, dibujar)
+    mui_canvas_on_input(lienzo, EV_LIENZO)
+    mui_canvas_on_drag(lienzo, EV_ARRASTRE)
+    mui_canvas_take_keys(lienzo, true)
+    mui_on_close(win, EV_VENTANA)
+    mui_on_deactivate(win, EV_DESACTIVADA)
+    mui_window_size(win, 90, 90)
+end
+
+func abrir_ventana()
+    if not abierta
+        abierta = mui_window_open(win) != 0
+    end
+    mui_window_activate(win)
+    poner_titulo()
+    redibujar()
+end
+
+# --- Dibujar ---
+
+func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    gfx_mode(0)
+    h = actual()
+    if h == nil
+        gfx_pen(tema.fondo)
+        gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+        return
+    end
+    if mui_canvas_updating() and sp_celda_sola >= 0
+        sp_dibujar_celda(h.s, sp_celda_sola)
+        return
+    end
+    if mui_canvas_updating() and sp_solo_rejilla
+        sp_dibujar_rejilla_sola(h.s)
+        return
+    end
+    if mui_canvas_updating() and sp_solo_vista
+        sp_dibujar_vista(h.s)
+        return
+    end
+    dibujar_pestanas(x, y, ancho)
+    zona_x = x
+    zona_y = y
+    zona_ancho = ancho
+    zona_alto = alto
+    sp_dibujar(h.s, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
+end
+
+func dibujar_pestanas(x: Int, y: Int, ancho: Int)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + ALTO_PESTANAS - 1)
+    usar_panel(0)
+    _pest_x1.clear()
+    _pest_x2.clear()
+    tx = x + 4
+    i = 0
+    for h in hojas
+        nombre = h.nombre
+        if h.cambiado
+            nombre = nombre + " *"
+        end
+        w = font_text_width(nombre) + 20
+        if i == activa
+            gfx_pen(tema.fondo)
+            gfx_rect(tx, y + 2, tx + w - 1, y + ALTO_PESTANAS - 1)
+            gfx_pen(tema.acento)
+            gfx_rect(tx, y + 2, tx + w - 1, y + 3)
+            gfx_pen(tema.texto)
+        else
+            gfx_pen(tema.tenue)
+        end
+        gfx_text_at(tx + 10, y + (ALTO_PESTANAS - font_height()) / 2 + 2 + font_baseline(), nombre)
+        _pest_x1.push(tx - x)
+        _pest_x2.push(tx + w - 1 - x)
+        tx = tx + w + 2
+        i = i + 1
+    end
+end
+
+func pestana_en(mx: Int, my: Int) -> Int
+    if my < 0 or my >= ALTO_PESTANAS
+        return -1
+    end
+    i = 0
+    while i < _pest_x1.length
+        if mx >= _pest_x1[i] and mx <= _pest_x2[i]
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Lo que pide el editor tras un clic, una tecla o un arrastre (SP_CAMBIO, SP_TODO, SP_CELDAS, SP_REJILLA, SP_CODIGO)
+func resultado(h: Hoja, r: Int)
+    if (r & SP_CAMBIO) != 0
+        if not h.cambiado
+            h.cambiado = true
+            r = r | SP_TODO       # el " *" de la pestaña
+        end
+    end
+    if (r & SP_CODIGO) != 0
+        if h.ruta == ""
+            avisar(tr(134, "Guarda el sprite primero: el código lleva el nombre de su fichero."), 1)
+            return
+        end
+        if clip_write_text(latin1_to_utf8(sp_codigo(h.s, h.nombre)))
+            avisar(tr(135, "El código para cargarlo está en el portapapeles (Amiga-V en el .dash)."), 2)
+        else
+            avisar(tr(136, "No se puede escribir en el portapapeles."), 1)
+        end
+        return
+    end
+    if not abierta
+        return
+    end
+    if (r & SP_TODO) != 0
+        redibujar()
+    elif (r & SP_CELDAS) != 0
+        for i in sp_tocados
+            z = sp_zona_celda(h.s, i)
+            sp_celda_sola = i
+            mui_canvas_update_area(lienzo, z[0], z[1], z[2], z[3])
+        end
+        sp_celda_sola = -1
+    elif (r & SP_REJILLA) != 0
+        z = sp_zona_rejilla(h.s)
+        sp_solo_rejilla = true
+        mui_canvas_update_area(lienzo, z[0], z[1], z[2], z[3])
+        sp_solo_rejilla = false
+    end
+end
+
+# --- Abrir, nuevo, guardar y cerrar ---
+
+func anadir(nombre: String, ruta: String, s: Sprite)
+    for h in hojas
+        if h.s != nil
+            h.s.reproduciendo = false
+        end
+    end
+    hojas.push(Hoja(nombre, ruta, s, false))
+    activa = hojas.length - 1
+    sp_mensaje = ""
+    abrir_ventana()
+end
+
+func editar(ruta: String)
+    i = buscar(ruta)
+    if i >= 0
+        activa = i
+        abrir_ventana()
+        return
+    end
+    s = sp_leer(ruta)
+    if s == nil
+        avisar(sp_error, 1)
+        return
+    end
+    anadir(nombre_de(ruta), ruta, s)
+end
+
+func nuevo(que: String)
+    if que == ""
+        if not abierta
+            abrir_ventana()
+        end
+        r = mui_request(win, tr(88, "Nuevo sprite"), tr(89, "¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter."), tr(18, "_Sprite|_BOB|_Cancelar"))
+        if r == 1
+            que = "sprite"
+        elif r == 2
+            que = "bob"
+        else
+            return
+        end
+    end
+    anadir(tr(19, "sin nombre") + ".iff", "", sp_nuevo(que == "sprite"))
+end
+
+func guardar_en(h: Hoja, ruta: String) -> Bool
+    if not sp_escribir(h.s, ruta)
+        avisar(sp_error, 1)
+        return false
+    end
+    h.ruta = ruta
+    h.nombre = nombre_de(ruta)
+    h.cambiado = false
+    # Forja lo dice en su salida, se lo cuenta a las demás extensiones y vuelve a leer el proyecto
+    forja_guardado(ruta)
+    sp_mensaje = tr(20, "Guardado: ") + ruta
+    sp_mensaje_tipo = 2
+    poner_titulo()
+    redibujar()
+    return true
+end
+
+func guardar_como(h: Hoja) -> Bool
+    if not file_save_dialog(tr(21, "Guardar ") + h.nombre, SP_PATRON)
+        return false
+    end
+    return guardar_en(h, file_fullpath())
+end
+
+func guardar(h: Hoja) -> Bool
+    if h.ruta == ""
+        return guardar_como(h)
+    end
+    return guardar_en(h, h.ruta)
+end
+
+# Cierra la pestaña i (pregunta si tiene cambios); false si se canceló
+func cerrar(i: Int) -> Bool
+    h = hojas[i]
+    if h.cambiado
+        r = mui_request(win, tr(22, "Cambios sin guardar"), h.nombre + tr(23, " tiene cambios sin guardar."), tr(24, "_Guardar|_Descartar|_Cancelar"))
+        if r == 0 or (r == 1 and not guardar(h))
+            return false
+        end
+    end
+    hojas.remove(i)
+    if activa >= hojas.length
+        activa = hojas.length - 1
+    end
+    sp_mensaje = ""
+    poner_titulo()
+    redibujar()
+    return true
+end
+
+# El botón de cerrar de la ventana: todas las pestañas
+func cerrar_todas() -> Bool
+    while hojas.length > 0
+        activa = hojas.length - 1
+        if not cerrar(activa)
+            return false
+        end
+    end
+    return true
+end
+
+func compilar(ejecutar: Bool)
+    h = actual()
+    ruta = ""
+    if h != nil
+        ruta = h.ruta
+    end
+    forja_compilar(ruta, ejecutar)
+    if forja_rc == 5
+        avisar(tr(25, "Forja está ocupada: ya compila o ejecuta."), 1)
+    elif forja_rc != 0
+        avisar(tr(91, "Para compilar, abre el .dash del programa."), 1)
+    end
+end
+
+# SINGUARDAR: los que tienen cambios (Forja pregunta por ellos al salir)
+func decir_sin_guardar()
+    t = ""
+    var ns: [String] = []
+    for h in hojas
+        if h.cambiado
+            t = t + "\n" + h.nombre
+            ns.push(h.nombre)
+        end
+    end
+    if t != sin_guardar_dicho
+        sin_guardar_dicho = t
+        forja_sin_guardar(ns)
+    end
+end
+
+# --- Eventos ---
+
+func en_lienzo()
+    h = actual()
+    if h == nil
+        return
+    end
+    rueda = mui_canvas_wheel(lienzo)
+    teclas = mui_canvas_qualifiers(lienzo)
+    mx = mui_canvas_mouse_x(lienzo)
+    my = mui_canvas_mouse_y(lienzo)
+    if rueda != 0
+        resultado(h, sp_ir_fotograma(h.s, -rueda))
+    elif mui_canvas_button(lienzo) == 1 and pestana_en(mx, my) >= 0
+        if hojas[activa].s != nil
+            hojas[activa].s.reproduciendo = false
+        end
+        activa = pestana_en(mx, my)
+        sp_mensaje = ""
+        poner_titulo()
+        redibujar()
+    elif mui_canvas_button(lienzo) == 1
+        resultado(h, sp_clic(h.s, mx, my, teclas))
+    elif mui_canvas_key(lienzo) >= 0 and (teclas & Q_AMIGA) == 0
+        resultado(h, sp_tecla(h.s, mui_canvas_key(lienzo), teclas, mui_canvas_char(lienzo)))
+    end
+end
+
+func editar_evento(ev: Int)
+    h = actual()
+    if h == nil
+        return
+    end
+    if ev == EV_COPIAR or ev == EV_CORTAR
+        sp_copiar_fotograma(h.s)
+        if ev == EV_CORTAR
+            sp_vaciar_fotograma(h.s)
+            h.cambiado = true
+        end
+    elif ev == EV_PEGAR
+        if (sp_pegar_fotograma(h.s) & SP_CAMBIO) != 0
+            h.cambiado = true
+        end
+    elif ev == EV_DESHACER and sp_deshacer(h.s)
+        h.cambiado = true
+    elif ev == EV_REHACER and sp_rehacer(h.s)
+        h.cambiado = true
+    end
+    redibujar()
+end
+
+# Un evento de la ventana; true si se ha cerrado (y la extensión acaba)
+func evento(ev: Int) -> Bool
+    h = actual()
+    if ev == EV_LIENZO
+        en_lienzo()
+    elif ev == EV_ARRASTRE and h != nil
+        resultado(h, sp_arrastrar(h.s, mui_canvas_mouse_x(lienzo), mui_canvas_mouse_y(lienzo), mui_canvas_drag(lienzo) == 2))
+    elif ev == EV_TIC
+        tic_armado = false
+        if h != nil and sp_avanzar(h.s) and abierta
+            z = sp_zona_vista()
+            sp_solo_vista = true
+            mui_canvas_update_area(lienzo, z[0], z[1], z[2], z[3])
+            sp_solo_vista = false
+        end
+    elif ev == EV_DESACTIVADA
+        # (como al cambiar de pestaña en Forja: la animación no gasta mientras se hace otra cosa)
+        parada = false
+        for o in hojas
+            if o.s.reproduciendo
+                o.s.reproduciendo = false
+                parada = true
+            end
+        end
+        if parada
+            redibujar()
+        end
+    elif ev == EV_NUEVO
+        nuevo("")
+    elif ev == EV_ABRIR
+        if file_open_dialog(tr(4, "Abrir..."), SP_PATRON)
+            editar(file_fullpath())
+        end
+    elif ev == EV_GUARDAR and h != nil
+        guardar(h)
+    elif ev == EV_GUARDAR_COMO and h != nil
+        guardar_como(h)
+    elif ev == EV_CERRAR and h != nil
+        cerrar(activa)
+    elif ev == EV_VENTANA
+        cerrar_todas()
+    elif ev == EV_COMPILAR or ev == EV_EJECUTAR
+        compilar(ev == EV_EJECUTAR)
+    elif ev >= EV_DESHACER and ev <= EV_PEGAR
+        editar_evento(ev)
+    elif ev == EV_FORJA
+        forja_delante()
+    end
+    if hojas.length == 0
+        if abierta
+            mui_window_close(win)
+            abierta = false
+        end
+        return true
+    end
+    return false
+end
+
+func publicar_sonda()
+    h = actual()
+    t = "0 0 \n"
+    if h != nil
+        t = "0 0 " + h.nombre + "\n" + sp_sonda(h.s)
+    end
+    if t != sonda_antes
+        sonda_antes = t
+        n = 0
+        while not file_write_text("RAM:forja-sprites-sonda.txt", t) and n < 20
+            time_delay(1)
+            n = n + 1
+        end
+    end
+    if h == nil or not abierta
+        return
+    end
+    p = ""
+    i = 0
+    while i < _pest_x1.length
+        p = p + "#{(_pest_x1[i] + _pest_x2[i]) / 2},#{ALTO_PESTANAS / 2} "
+        i = i + 1
+    end
+    g = "#{zona_x} #{zona_y} #{zona_ancho} #{zona_alto}|" + sp_geometria() + "|" + sp_geometria_panel() + "|" + sp_botones() + "|" + p
+    if g != sonda_geo
+        sonda_geo = g
+        env_set("FORJA_SPRITES_LIENZO", "#{zona_x} #{zona_y} #{zona_ancho} #{zona_alto}", false)
+        env_set("FORJA_SPRITE", sp_geometria(), false)
+        env_set("FORJA_SPRITE_PANEL", sp_geometria_panel(), false)
+        env_set("FORJA_SPRITE_BOTONES", sp_botones(), false)
+        env_set("FORJA_SPRITES_PESTANAS", p, false)
+    end
+    env_set("FORJA_SPRITES_DIBUJO", "#{sp_ms_dibujo}", false)
+end
+
+# Lo que manda Forja; true si hay que acabar
+func suceso() -> Bool
+    if forja_tipo == "SALIR"
+        return true
+    elif forja_tipo == "EDITAR"
+        editar(forja_dato)
+    elif forja_tipo == "NUEVO"
+        nuevo(forja_dato)
+    elif forja_tipo == "GUARDAR"
+        # Forja se cierra y pidió guardar: los que tienen ruta; los demás, con la petición
+        for h in hojas
+            if h.cambiado
+                guardar(h)
+            end
+        end
+    end
+    return false
+end
+
+Main
+    sonda = env_get("FORJA_SONDA") != ""
+    if not forja_empezar("Sprites")
+        Print "Sprites es una extensión de Forja: la arranca Forja."
+    else
+        app = mui_app_begin("ForjaSprites", "FORJASPRITES")
+        if app == 0
+            forja_aviso_tipo(tr(26, "Sprites: no se puede abrir MUI."), 1)
+        else
+            hacer_ventana()
+            salir = false
+            ev = 0
+            while not salir
+                if ev != 0 and evento(ev)
+                    salir = true
+                end
+                # (lo primero, los sucesos que ya esperan: el EDITAR o NUEVO que la ha arrancado)
+                s = forja_suceso(-1)
+                while s != "" and not salir
+                    if suceso()
+                        salir = true
+                    end
+                    s = forja_suceso(-1)
+                end
+                # sin ningún fichero, la extensión acaba (Forja la vuelve a arrancar con el siguiente)
+                if hojas.length == 0
+                    salir = true
+                end
+                if salir
+                    break
+                end
+                h = actual()
+                if h != nil and h.s.reproduciendo and not tic_armado
+                    tic_armado = true
+                    mui_timer(sp_intervalo(h.s), EV_TIC)
+                end
+                decir_sin_guardar()
+                if sonda
+                    publicar_sonda()
+                end
+                ev = mui_wait_event_signals(forja_senal())
+                if ev == -1
+                    ev = EV_VENTANA
+                end
+            end
+            if sonda
+                file_write_text("RAM:forja-sprites-sonda.txt", "0 0 \n")
+            end
+            mui_app_end()
+        end
+        forja_acabar()
+    end
+end

@@ -16,6 +16,9 @@ trap 'rm -rf "$tmp"' EXIT
 cp -r "$HOME/.cache/dash-emu/sys31muisslweb" "$tmp/sys"
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+# el editor es una extensión de Forja
+. "$aqui/tests/extension.sh"
+extension Sprites editor_sprites
 # nave.iff: un sprite de hardware de 3 fotogramas, sin GRAB (al guardar, Forja lo pone)
 python3 -I - "$tmp/nave.txt" <<'PY'
 import sys

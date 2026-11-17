@@ -14,8 +14,10 @@
 # fichero activo", para las pruebas).
 
 @version "Git 0.1 (Forja)"
+@catalog "Git.catalog" 1 "español"
 
 import "lib/forja.dash"
+import "lib/red/idioma.dash"
 import "cambios.dash"
 import "vista.dash"
 import "git.dashui"
@@ -95,10 +97,10 @@ func al_dia()
         detalle = ""
         corto = ""
         if git_cambios == 1
-            detalle = "1 cambio"
+            detalle = tr(1, "1 cambio")
             corto = "1"
         elif git_cambios > 1
-            detalle = "#{git_cambios} cambios"
+            detalle = hueco(tr(2, "%1 cambios"), "#{git_cambios}")
             corto = "#{git_cambios}"
         end
         forja_zona("rama", git_rama, detalle, corto)
@@ -150,7 +152,7 @@ end
 # Una orden de dashgit para la salida de Forja (lo que escriba sale ahí al acabar)
 func a_la_salida(orden: String)
     if salida_ocupada
-        forja_aviso_tipo("Git: espera a que acabe la orden de antes.", 1)
+        forja_aviso_tipo(tr(3, "Git: espera a que acabe la orden de antes."), 1)
         return
     end
     if proyecto == ""
@@ -159,7 +161,7 @@ func a_la_salida(orden: String)
         git_mirar_cajon(proyecto)
     end
     if proyecto == ""
-        forja_aviso_tipo("Abre antes un fichero del proyecto.", 1)
+        forja_aviso_tipo(tr(4, "Abre antes un fichero del proyecto."), 1)
         return
     end
     # lo que haya sin guardar va antes al disco
@@ -187,7 +189,7 @@ func mirar()
     end
     if srv_motivo != motivo_dicho
         motivo_dicho = srv_motivo
-        forja_aviso_tipo("Git: sin el servidor de dashgit (" + srv_motivo + "): cada orden irá en un proceso, más lento.", 1)
+        forja_aviso_tipo(hueco(tr(5, "Git: sin el servidor de dashgit (%1): cada orden irá en un proceso, más lento."), srv_motivo), 1)
     end
     r = git_mirar()
     while r != G_NADA
@@ -202,7 +204,7 @@ func mirar()
             end
         elif r == G_DIFF
             if str_trim(git_texto) == ""
-                forja_aviso("Sin diferencias con el último commit: " + git_dato)
+                forja_aviso(tr(6, "Sin diferencias con el último commit: ") + git_dato)
             else
                 ver_vista(git_dato, git_texto)
             end
@@ -211,12 +213,12 @@ func mirar()
                 forja_aviso(str_trim(git_texto))
             end
             if git_rc == 0
-                forja_aviso_tipo("Git: hecho en " + segundos(time_ms() - salida_inicio) + ".", 2)
+                forja_aviso_tipo(hueco(tr(7, "Git: hecho en %1."), segundos(time_ms() - salida_inicio)), 2)
                 if git_commit
                     mui_set_text(vc.mensaje, "")
                 end
             else
-                forja_aviso_tipo("Git acabó con código #{git_rc}.", 1)
+                forja_aviso_tipo(hueco(tr(8, "Git acabó con código %1."), "#{git_rc}"), 1)
             end
             git_commit = false
             # un init o un clone pueden haber hecho el repositorio: se busca otra vez
@@ -232,7 +234,7 @@ func mirar()
             if str_trim(git_texto) != ""
                 forja_aviso_tipo(str_trim(git_texto), 1)
             end
-            forja_aviso_tipo("Git falló: " + git_dato, 1)
+            forja_aviso_tipo(tr(9, "Git falló: ") + git_dato, 1)
         end
         r = git_mirar()
     end
@@ -250,7 +252,7 @@ end
 # --- La vista de diferencias ---
 
 func ver_vista(rel: String, texto: String)
-    nombre = nombre_de(rel) + " (cambios)"
+    nombre = nombre_de(rel) + tr(10, " (cambios)")
     vistas[nombre] = texto
     var ls: [String] = str_split(str_replace(texto, "\r\n", "\n"), "\n")
     if ls.length > 0 and ls[ls.length - 1] == ""
@@ -311,7 +313,7 @@ end
 
 func panel_abrir()
     if git_raiz == ""
-        forja_aviso_tipo("El proyecto no está en un repositorio de git.", 1)
+        forja_aviso_tipo(tr(11, "El proyecto no está en un repositorio de git."), 1)
     end
     mui_window_open(vc.window)
     vc_abierta = true
@@ -324,12 +326,12 @@ end
 func confirmar()
     m = str_trim(mui_get_text(vc.mensaje))
     if m == ""
-        forja_aviso_tipo("Escribe el mensaje del commit.", 1)
+        forja_aviso_tipo(tr(12, "Escribe el mensaje del commit."), 1)
         mui_set_active(vc.window, vc.mensaje)
         return
     end
     if gc_preparados() == 0
-        mui_request(vc.window, "Nada preparado", "Marca la casilla de los ficheros que van en el commit.", "_Vale")
+        mui_request(vc.window, tr(13, "Nada preparado"), tr(14, "Marca la casilla de los ficheros que van en el commit."), tr(15, "_Vale"))
         return
     end
     if salida_ocupada
@@ -395,7 +397,7 @@ func menu(orden: String)
     elif orden == "diff-fichero"
         a = str_split(forja_activo(), "\n")
         if a.length < 3 or a[0] == "" or git_relativa(a[0]) == "?"
-            forja_aviso_tipo("Este fichero no está en el repositorio del proyecto.", 1)
+            forja_aviso_tipo(tr(16, "Este fichero no está en el repositorio del proyecto."), 1)
         else
             if a[2] == "1"
                 forja_orden("GUARDAR \"" + a[0] + "\"")
@@ -529,7 +531,7 @@ Main
     else
         app = mui_app_begin("ForjaGit", "FORJAGIT")
         if app == 0
-            forja_aviso_tipo("Git: no se puede abrir MUI.", 1)
+            forja_aviso_tipo(tr(17, "Git: no se puede abrir MUI."), 1)
         else
             vc = GitCambios_create()
             mui_canvas_on_draw(vc.lista, gc_dibujar)

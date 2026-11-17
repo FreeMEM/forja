@@ -19,8 +19,10 @@
 # pruebas.
 
 @version "Copiloto 0.1 (Forja e Inferencia)"
+@catalog "Inferencia.catalog" 1 "español"
 
 import "lib/forja.dash"
+import "lib/red/idioma.dash"
 import "diferencias.dash"
 import "contexto.dash"
 import "copiloto.dashui"
@@ -35,7 +37,6 @@ const EV_CANCELAR = 11
 const EV_CERRAR = 12
 const TIC_MS = 300
 const ICONO = ".....##...../.....##...../....####..../...######.../.##########./############/.##########./...######.../....####..../.....##...../.....##...../............"
-const AYUDA_VISTA = "a: aceptar el cambio   r: rechazarlo   (también en el menú Inferencia)"
 
 var app: Int = 0
 var pet: Peticion = nil
@@ -77,11 +78,11 @@ var tras_compilar: String = ""     # lo que se hace al llegar COMPILADO (explica
 var sugerir: Bool = false          # sugerencias al escribir
 
 func aviso(t: String)
-    forja_aviso_tipo("Inferencia: " + t, 0)
+    forja_aviso_tipo(tr(6, "Inferencia: ") + t, 0)
 end
 
 func aviso_error(t: String)
-    forja_aviso_tipo("Inferencia: " + t, 1)
+    forja_aviso_tipo(tr(6, "Inferencia: ") + t, 1)
 end
 
 func armar_tic(ms: Int)
@@ -91,20 +92,21 @@ func armar_tic(ms: Int)
     end
 end
 
-# La zona de la barra de botones: solo mientras hay algo que contar
+# La zona de la barra de botones (el botón Inferencia que antes era de Forja): siempre, con lo que haya que contar.
+# Un clic sin nada pendiente es "Preguntar sobre esto"
 func zona_al_dia()
     if pedido != "" and pedido != "completar"
-        forja_zona(ICONO, "Copiloto", "pensando...", "...")
+        forja_zona(ICONO, "Inferencia", tr(1, "pensando..."), "...")
     elif c_hay
-        forja_zona(ICONO, "Copiloto", "a: aceptar, r: rechazar", "a / r")
+        forja_zona(ICONO, "Inferencia", tr(2, "a: aceptar, r: rechazar"), "a / r")
     elif errores > 0
         if errores == 1
-            forja_zona(ICONO, "Copiloto", "1 error: arreglarlo", "1")
+            forja_zona(ICONO, "Inferencia", tr(3, "1 error: arreglarlo"), "1")
         else
-            forja_zona(ICONO, "Copiloto", "#{errores} errores: arreglar", "#{errores}")
+            forja_zona(ICONO, "Inferencia", hueco(tr(4, "%1 errores: arreglar"), "#{errores}"), "#{errores}")
         end
     else
-        forja_zona("", "", "", "")
+        forja_zona(ICONO, "Inferencia", "", "")
     end
 end
 
@@ -131,19 +133,19 @@ func inf_lista() -> Bool
         return true
     end
     if inf_rc == -3
-        aviso_error("Inferencia no contesta. ¿Está esperando algo en su ventana?")
+        aviso_error(tr(8, "Inferencia no contesta. ¿Está esperando algo en su ventana?"))
         return false
     end
     if inf_rc == -2
-        aviso_error("falta rexxsyslib.library.")
+        aviso_error(tr(9, "falta rexxsyslib.library."))
         return false
     end
     # (DETRAS: su ventana se abre detrás, sin quitarle el teclado a Forja)
     if not run_program("\"" + ruta_inferencia() + "\" DETRAS")
-        aviso_error("no se puede arrancar " + ruta_inferencia() + ". Pon su ruta en las preferencias de Forja (ENV:Forja/inferencia).")
+        aviso_error(hueco(tr(10, "no se puede arrancar %1. Di dónde está con Inferencia > Dónde está Inferencia... (ENVARC:Forja/inferencia)."), ruta_inferencia()))
         return false
     end
-    aviso("arrancando Inferencia...")
+    aviso(tr(11, "arrancando Inferencia..."))
     arrancando = true
     t0 = time_ms()
     while time_ms() - t0 < ARRANQUE_MS
@@ -161,7 +163,7 @@ func inf_lista() -> Bool
         end
     end
     arrancando = false
-    aviso_error("Inferencia no arrancó (" + ruta_inferencia() + "). Necesita MUI y un 68020 o mejor; con MUI 3.8, mira el README de Inferencia.")
+    aviso_error(hueco(tr(12, "Inferencia no arrancó (%1). Necesita MUI y un 68020 o mejor; con MUI 3.8, mira el README de Inferencia."), ruta_inferencia()))
     return false
 end
 
@@ -181,12 +183,12 @@ var a_version: Int = 0
 func leer_activo() -> Bool
     r = forja_lote(["ACTIVO", "CURSOR", "ELEGIDO", "VERSION", "TEXTO"])
     if r.length < 5
-        aviso_error("abre antes un fichero de Dash.")
+        aviso_error(tr(13, "abre antes un fichero de Dash."))
         return false
     end
     a = str_split(r[0], "\n")
     if a.length < 4 or (a[3] != "texto" and a[3] != "dashui")
-        aviso_error("delante tiene que haber un fichero de texto.")
+        aviso_error(tr(14, "delante tiene que haber un fichero de texto."))
         return false
     end
     a_ruta = a[0]
@@ -242,17 +244,17 @@ func a_la_conversacion(titulo: String, texto: String, pregunta: String) -> Bool
     end
     inf("ADJUNTAR " + titulo + "\n" + texto)
     if inf_rc != 0
-        aviso_error("Inferencia no aceptó el texto (RC #{inf_rc}).")
+        aviso_error(hueco(tr(15, "Inferencia no aceptó el texto (RC %1)."), "#{inf_rc}"))
         return false
     end
     pr = ctx_proyecto()
     if pr != ""
-        inf("ADJUNTAR proyecto\n" + pr + "El fichero de delante es " + a_ruta + "; el cursor está en la línea #{a_l}.")
+        inf("ADJUNTAR proyecto\n" + pr + hueco2(tr(16, "El fichero de delante es %1; el cursor está en la línea %2."), a_ruta, "#{a_l}"))
     end
     if pregunta != ""
         inf("PREGUNTA " + pregunta)
         if inf_rc == 5
-            aviso_error("Inferencia está ocupada: el código va con tu próxima pregunta.")
+            aviso_error(tr(17, "Inferencia está ocupada: el código va con tu próxima pregunta."))
         end
     end
     inf("MOSTRAR")
@@ -264,15 +266,15 @@ func preguntar()
         return
     end
     if a_sel != ""
-        a_la_conversacion(a_nombre + ", líneas #{a_sel_desde} a #{a_sel_hasta} (" + a_ruta + ")", a_sel, "")
-        aviso("Inferencia tiene las líneas elegidas: escribe allí la pregunta.")
+        a_la_conversacion(a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{a_sel_desde}", "#{a_sel_hasta}") + " (" + a_ruta + ")", a_sel, "")
+        aviso(tr(19, "Inferencia tiene las líneas elegidas: escribe allí la pregunta."))
     else
         t = a_texto
         if t.length > ctx_tope()
-            t = t[0:ctx_tope()] + "\n[cortado: sigue en el fichero]"
+            t = t[0:ctx_tope()] + "\n" + tr(20, "[cortado: sigue en el fichero]")
         end
         a_la_conversacion(a_nombre + " (" + a_ruta + ")", t, "")
-        aviso("Inferencia tiene el fichero: escribe allí la pregunta.")
+        aviso(tr(21, "Inferencia tiene el fichero: escribe allí la pregunta."))
     end
 end
 
@@ -281,8 +283,8 @@ func explicar()
         return
     end
     elegir_lineas(false)
-    que = a_nombre + ", líneas #{p_desde} a #{p_hasta} (" + a_ruta + ")"
-    a_la_conversacion(que, ctx_lineas(a_texto, p_desde, p_hasta), "Explica qué hace este código de Dash (" + que + "), paso a paso y en pocas palabras.")
+    que = a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}") + " (" + a_ruta + ")"
+    a_la_conversacion(que, ctx_lineas(a_texto, p_desde, p_hasta), hueco(tr(22, "Explica qué hace este código de Dash (%1), paso a paso y en pocas palabras."), que))
 end
 
 # --- Los errores de compilar ---
@@ -315,13 +317,13 @@ end
 func con_error(que: String)
     if not leer_error()
         if errores == 0
-            aviso("la última compilación no dio errores. Compilo otra vez para ver.")
+            aviso(tr(23, "la última compilación no dio errores. Compilo otra vez para ver."))
         end
         tras_compilar = que
         forja_orden("COMPILAR")
         if forja_rc != 0
             tras_compilar = ""
-            aviso_error("Forja está ocupada compilando o ejecutando: prueba después.")
+            aviso_error(tr(24, "Forja está ocupada compilando o ejecutando: prueba después."))
         end
         return
     end
@@ -332,7 +334,7 @@ func con_error(que: String)
     if que == "explicar-error"
         a = e_linea - 12
         b = e_linea + 12
-        a_la_conversacion("error de compilación en " + a_nombre, e_texto + "\n\n" + ctx_numeradas(a_texto, a, b), "Explica este error de compilación de Dash y cómo se arregla.")
+        a_la_conversacion(tr(25, "error de compilación en ") + a_nombre, e_texto + "\n\n" + ctx_numeradas(a_texto, a, b), tr(26, "Explica este error de compilación de Dash y cómo se arregla."))
         return
     end
     if not cp_bloque(str_split(a_texto, "\n"), e_linea, false)
@@ -348,15 +350,15 @@ func con_error(que: String)
     end
     p_desde = cp_desde
     p_hasta = cp_hasta
-    t = "Arregla este error de compilación de Dash.\n" + e_texto + "\n\nEl error está en la línea #{e_linea} de " + a_ruta + ". Devuelve las líneas #{p_desde} a #{p_hasta} (abajo, con su número delante) ya arregladas, enteras y sin los números, en un solo bloque ```dash. Antes del bloque, una línea que diga qué estaba mal.\n\n" + ctx_numeradas(a_texto, p_desde, p_hasta) + "\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
-    encargo("arreglar", "Arreglar el error: " + a_nombre + ", líneas #{p_desde} a #{p_hasta}", t)
+    t = tr(63, "Arregla este error de compilación de Dash.") + "\n" + e_texto + "\n\n" + str_replace(hueco2(tr(64, "El error está en la línea %1 de %2. Devuelve las líneas %3 a %4 (abajo, con su número delante) ya arregladas, enteras y sin los números, en un solo bloque ```dash. Antes del bloque, una línea que diga qué estaba mal."), "#{e_linea}", a_ruta), "%3 a %4", "#{p_desde} a #{p_hasta}") + "\n\n" + ctx_numeradas(a_texto, p_desde, p_hasta) + "\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
+    encargo("arreglar", tr(27, "Arreglar el error: ") + a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"), t)
 end
 
 # --- Los encargos: la respuesta sale como una vista de diferencias ---
 
 func encargo(tipo: String, titulo: String, texto: String)
     if pedido != "" and pedido != "completar"
-        aviso_error("ya hay un encargo en marcha (un clic en la zona Copiloto lo cancela).")
+        aviso_error(tr(28, "ya hay un encargo en marcha (un clic en la zona Inferencia lo cancela)."))
         return
     end
     if c_hay
@@ -367,11 +369,11 @@ func encargo(tipo: String, titulo: String, texto: String)
     end
     inf("ENCARGO " + tipo + "\n" + texto)
     if inf_rc == 5
-        aviso_error("Inferencia está con otro encargo: prueba después.")
+        aviso_error(tr(29, "Inferencia está con otro encargo: prueba después."))
         return
     end
     if inf_rc != 0
-        aviso_error("Inferencia no aceptó el encargo (RC #{inf_rc}).")
+        aviso_error(hueco(tr(30, "Inferencia no aceptó el encargo (RC %1)."), "#{inf_rc}"))
         return
     end
     pedido = tipo
@@ -393,8 +395,8 @@ func documentar()
     end
     elegir_lineas(true)
     nombre = cp_nombre_funcion(str_split(a_texto, "\n")[p_desde - 1])
-    t = "Documenta este código de Dash (líneas #{p_desde} a #{p_hasta} de " + a_ruta + "): pon encima unas líneas de comentario, con #, que digan qué hace, qué recibe y qué devuelve. Si ya tiene comentario, mejóralo. No cambies el código. Devuelve esas líneas con el comentario delante, enteras, en un solo bloque ```dash.\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
-    encargo("documentar", "Documentar " + nombre + ": " + a_nombre + ", líneas #{p_desde} a #{p_hasta}", t)
+    t = str_replace(hueco2(tr(65, "Documenta este código de Dash (líneas %1 a %2 de %3): pon encima unas líneas de comentario, con #, que digan qué hace, qué recibe y qué devuelve. Si ya tiene comentario, mejóralo. No cambies el código. Devuelve esas líneas con el comentario delante, enteras, en un solo bloque ```dash."), "#{p_desde}", "#{p_hasta}"), "%3", a_ruta) + "\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
+    encargo("documentar", hueco(tr(31, "Documentar %1: "), nombre) + a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"), t)
 end
 
 func cambiar_abrir()
@@ -402,11 +404,11 @@ func cambiar_abrir()
         return
     end
     if pet == nil
-        aviso_error("no se puede abrir la ventana de MUI.")
+        aviso_error(tr(32, "no se puede abrir la ventana de MUI."))
         return
     end
     elegir_lineas(false)
-    mui_set_text(pet.que, "¿Qué cambio en " + a_nombre + ", líneas #{p_desde} a #{p_hasta}?")
+    mui_set_text(pet.que, hueco(tr(33, "¿Qué cambio en %1?"), a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}")))
     mui_window_open(pet.window)
     mui_set_active(pet.window, pet.orden)
     pet_abierta = true
@@ -428,8 +430,8 @@ func cambiar_pedir()
     p_desde = d
     p_hasta = h
     mui_set_text(pet.orden, "")
-    t = "Cambia este código de Dash (líneas #{p_desde} a #{p_hasta} de " + a_ruta + ") así: " + orden + "\nDevuelve esas líneas ya cambiadas, enteras, en un solo bloque ```dash (puedes añadir o quitar líneas). Antes del bloque, una línea que diga qué cambiaste.\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
-    encargo("cambiar", "Cambiar: " + a_nombre + ", líneas #{p_desde} a #{p_hasta}", t)
+    t = str_replace(hueco2(tr(66, "Cambia este código de Dash (líneas %1 a %2 de %3) así: "), "#{p_desde}", "#{p_hasta}"), "%3", a_ruta) + orden + "\n" + tr(67, "Devuelve esas líneas ya cambiadas, enteras, en un solo bloque ```dash (puedes añadir o quitar líneas). Antes del bloque, una línea que diga qué cambiaste.") + "\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
+    encargo("cambiar", tr(34, "Cambiar: ") + a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"), t)
 end
 
 func base_de(nombre: String) -> String
@@ -449,12 +451,12 @@ func escribir_prueba()
         funcion = ""
     end
     nuevo = cajon_de(a_ruta) + "prueba_" + base_de(nombre_de(a_ruta)) + ".dash"
-    que = "la función " + funcion
+    que = hueco(tr(35, "la función %1"), funcion)
     if funcion == ""
-        que = "el código de las líneas #{p_desde} a #{p_hasta}"
+        que = hueco2(tr(36, "el código de las líneas %1 a %2"), "#{p_desde}", "#{p_hasta}")
     end
-    t = "Escribe un programa de prueba en Dash, el fichero " + nombre_de(nuevo) + " (en el mismo cajón que " + nombre_de(a_ruta) + "), para " + que + ": que la llame con varios casos, compruebe cada resultado con if y escriba con Print \"bien: ...\" o \"FALLO: ...\". Si " + nombre_de(a_ruta) + " no tiene Main, impórtalo con import \"" + nombre_de(a_ruta) + "\"; si lo tiene, copia en la prueba lo que haga falta. Devuelve el fichero entero en un solo bloque ```dash.\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
-    encargo("prueba", "Escribir la prueba: " + nombre_de(nuevo), t)
+    t = str_replace(hueco2(tr(68, "Escribe un programa de prueba en Dash, el fichero %1 (en el mismo cajón que %2), para %3: que la llame con varios casos, compruebe cada resultado con if y escriba con Print \"bien: ...\" o \"FALLO: ...\". Si %2 no tiene Main, impórtalo con import \"%2\"; si lo tiene, copia en la prueba lo que haga falta. Devuelve el fichero entero en un solo bloque ```dash."), nombre_de(nuevo), nombre_de(a_ruta)), "%3", que) + "\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
+    encargo("prueba", tr(37, "Escribir la prueba: ") + nombre_de(nuevo), t)
     if pedido == "prueba"
         # la respuesta es un fichero: nuevo, o lo que tenga si ya existe (se cambia entero)
         p_ruta = nuevo
@@ -486,7 +488,7 @@ func al_llegar(tipo: String, r: String)
     end
     codigo = cp_codigo(texto)
     if str_trim(codigo) == ""
-        aviso_error("la respuesta no trae código:")
+        aviso_error(tr(38, "la respuesta no trae código:"))
         for l in cp_fuera(texto, 6)
             aviso(l)
         end
@@ -499,7 +501,7 @@ func al_llegar(tipo: String, r: String)
     nuevas = str_split(codigo, "\n")
     cp_diferencias(viejas, nuevas)
     if dif_cambios == 0
-        aviso("Inferencia no propone ningún cambio.")
+        aviso(tr(39, "Inferencia no propone ningún cambio."))
         return
     end
     c_hay = true
@@ -511,14 +513,14 @@ func al_llegar(tipo: String, r: String)
     c_crear = p_crear
     c_tipo = tipo
     c_vista = nombre_de(p_ruta) + " (Inferencia)"
-    c_lineas = ["# " + p_titulo, "# " + AYUDA_VISTA]
+    c_lineas = ["# " + p_titulo, "# " + tr(7, "a: aceptar el cambio   r: rechazarlo   (también en el menú Inferencia)")]
     c_colores = "##"
     if c_crear
-        c_lineas.push("# Fichero nuevo: " + p_ruta)
+        c_lineas.push("# " + tr(40, "Fichero nuevo: ") + p_ruta)
         c_colores = c_colores + "#"
     end
     if usadas != ""
-        c_lineas.push("# Ha mirado: " + usadas)
+        c_lineas.push("# " + tr(41, "Ha mirado: ") + usadas)
         c_colores = c_colores + "#"
     end
     for l in cp_fuera(texto, 6)
@@ -532,7 +534,7 @@ func al_llegar(tipo: String, r: String)
     end
     c_colores = c_colores + dif_colores
     ver_vista()
-    aviso("el cambio está en la pestaña " + c_vista + ": a lo acepta, r lo rechaza.")
+    aviso(hueco(tr(42, "el cambio está en la pestaña %1: a lo acepta, r lo rechaza."), c_vista))
 end
 
 func ver_vista()
@@ -570,21 +572,21 @@ end
 
 func aceptar()
     if not c_hay
-        aviso_error("no hay ningún cambio que aceptar.")
+        aviso_error(tr(43, "no hay ningún cambio que aceptar."))
         return
     end
     if c_crear
         if file_exists(c_ruta)
-            aviso_error(c_ruta + " ya existe: pide la prueba otra vez.")
+            aviso_error(hueco(tr(44, "%1 ya existe: pide la prueba otra vez."), c_ruta))
             return
         end
         if not file_write_text(c_ruta, c_nuevo + "\n")
-            aviso_error("no se puede escribir " + c_ruta + ".")
+            aviso_error(hueco(tr(45, "no se puede escribir %1."), c_ruta))
             return
         end
         quitar_vista()
         forja_abrir(c_ruta, 1)
-        forja_aviso_tipo("Inferencia: escrito " + c_ruta + ".", 2)
+        forja_aviso_tipo(tr(6, "Inferencia: ") + hueco(tr(46, "escrito %1."), c_ruta), 2)
         zona_al_dia()
         return
     end
@@ -596,7 +598,7 @@ func aceptar()
         if ctx_lineas(actual, desde, hasta) != c_viejo
             n = buscar_bloque(actual, c_viejo)
             if n == 0
-                aviso_error("el código cambió desde que lo leyó Inferencia: pide el cambio otra vez.")
+                aviso_error(tr(47, "el código cambió desde que lo leyó Inferencia: pide el cambio otra vez."))
                 return
             end
             hasta = n + hasta - desde
@@ -604,7 +606,7 @@ func aceptar()
         end
     end
     if not forja_cambiar(c_ruta, desde, hasta, c_nuevo)
-        aviso_error("Forja no aceptó el cambio en " + c_ruta + ".")
+        aviso_error(hueco(tr(48, "Forja no aceptó el cambio en %1."), c_ruta))
         return
     end
     quitar_vista()
@@ -613,20 +615,20 @@ func aceptar()
         errores = -1
     end
     forja_abrir(c_ruta, desde)
-    forja_aviso_tipo("Inferencia: cambiado " + nombre_de(c_ruta) + " (Amiga-Z lo deshace).", 2)
+    forja_aviso_tipo(tr(6, "Inferencia: ") + hueco(tr(49, "cambiado %1 (Amiga-Z lo deshace)."), nombre_de(c_ruta)), 2)
     zona_al_dia()
 end
 
 func rechazar()
     if not c_hay
-        aviso_error("no hay ningún cambio que rechazar.")
+        aviso_error(tr(50, "no hay ningún cambio que rechazar."))
         return
     end
     quitar_vista()
     if c_ruta != "" and not c_crear
         forja_abrir(c_ruta, c_desde)
     end
-    aviso("cambio rechazado.")
+    aviso(tr(51, "cambio rechazado."))
     zona_al_dia()
 end
 
@@ -636,10 +638,10 @@ func sugerencias_alternar()
     sugerir = not sugerir
     if sugerir
         env_set("Forja/inferencia_sugerencias", "si", true)
-        aviso("sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan.")
+        aviso(tr(52, "sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan."))
     else
         env_set("Forja/inferencia_sugerencias", "no", true)
-        aviso("sugerencias al escribir apagadas.")
+        aviso(tr(53, "sugerencias al escribir apagadas."))
     end
 end
 
@@ -686,7 +688,7 @@ func pedir_sugerencia(ruta: String)
     if not inf_lista()
         return
     end
-    t = "Fichero " + a[1] + ". El cursor está al final de la línea #{l}:\n" + linea + "\n\nLo de antes (hasta esa línea):\n```dash\n" + antes + "\n```\n\nLo de después:\n```dash\n" + despues + "\n```"
+    t = hueco2(tr(54, "Fichero %1. El cursor está al final de la línea %2:"), a[1], "#{l}") + "\n" + linea + "\n\n" + tr(55, "Lo de antes (hasta esa línea):") + "\n```dash\n" + antes + "\n```\n\n" + tr(56, "Lo de después:") + "\n```dash\n" + despues + "\n```"
     inf("ENCARGO completar\n" + t)
     if inf_rc != 0
         sonda_sug("no: ENCARGO RC #{inf_rc}")
@@ -734,7 +736,7 @@ func tic()
     end
     r = inf("ENCARGADO")
     if inf_rc == -1
-        aviso_error("Inferencia se ha cerrado.")
+        aviso_error(tr(57, "Inferencia se ha cerrado."))
         pedido = ""
         zona_al_dia()
         return
@@ -742,7 +744,7 @@ func tic()
     if inf_rc != 0 or r == "pidiendo"
         if time_ms() - p_inicio > ENCARGO_MAX_MS
             inf("CANCELAR")
-            aviso_error("el encargo tardaba demasiado: cancelado.")
+            aviso_error(tr(58, "el encargo tardaba demasiado: cancelado."))
             pedido = ""
             zona_al_dia()
             return
@@ -756,7 +758,7 @@ func tic()
         al_llegar(tipo, r[6:])
     elif str_starts(r, "error\n")
         if tipo != "completar"
-            aviso_error("el modelo dio un error: " + r[6:])
+            aviso_error(tr(59, "el modelo dio un error: ") + r[6:])
         end
     end
     zona_al_dia()
@@ -765,7 +767,7 @@ end
 func cancelar()
     inf("CANCELAR")
     pedido = ""
-    aviso("encargo cancelado.")
+    aviso(tr(60, "encargo cancelado."))
     zona_al_dia()
 end
 
@@ -788,6 +790,12 @@ func menu(orden: String)
         rechazar()
     elif orden == "sugerencias"
         sugerencias_alternar()
+    elif orden == "elegir"
+        # dónde está Inferencia (antes, en las preferencias de Forja): ENVARC:Forja/inferencia
+        if file_open_dialog(tr(5, "Dónde está Inferencia"), "#?")
+            env_set("Forja/inferencia", file_fullpath(), true)
+            aviso(file_fullpath())
+        end
     end
 end
 
@@ -825,7 +833,7 @@ func suceso()
             if errores > 0
                 con_error(que)
             else
-                aviso("compila sin errores: no hay nada que explicar ni arreglar.")
+                aviso(tr(61, "compila sin errores: no hay nada que explicar ni arreglar."))
             end
         end
         zona_al_dia()
@@ -838,6 +846,8 @@ func suceso()
             ver_vista()
         elif errores > 0
             con_error("arreglar")
+        else
+            preguntar()
         end
     end
 end
@@ -873,9 +883,10 @@ Main
         sugerir = env_get("Forja/inferencia_sugerencias") == "si"
         app = mui_app_begin("ForjaCopiloto", "FORJACOPILOTO")
         if app == 0
-            forja_aviso_tipo("Inferencia: no se puede abrir MUI; el copiloto no arranca.", 1)
+            forja_aviso_tipo(tr(62, "Inferencia: no se puede abrir MUI; el copiloto no arranca."), 1)
         else
             pet = Peticion_create()
+            zona_al_dia()
             salir = false
             while not salir
                 ev = mui_wait_event_signals(forja_senal() | rexx_signal())

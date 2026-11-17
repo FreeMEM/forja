@@ -17,3 +17,13 @@ menu = Añadir los ficheros nuevos | | add
 menu = Cambios y confirmar... | | cambios
 menu = Traer del servidor (pull) | | pull
 menu = Subir al servidor (push) | | push
+# en inglés (con el catálogo inglés de Forja)
+descripcion.english = Git with dashgit: the branch and the changes in the bar, a letter on the changed files of the project, marks in the margin while you type, the Changes panel to stage and commit, and the differences.
+menu.english = Status | | estado
+menu.english = Differences | | diff
+menu.english = Differences of this file | | diff-fichero
+menu.english = History | | log
+menu.english = Add the new files | | add
+menu.english = Changes and commit... | | cambios
+menu.english = Pull from the server | | pull
+menu.english = Push to the server | | push

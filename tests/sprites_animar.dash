@@ -1,5 +1,5 @@
 # Hace de usuario de la vista animada del editor de sprites: Espacio la pone en marcha (los fotogramas pasan solos),
-# + y - cambian la velocidad, Espacio la para, los botones de la página Animar, y cambiar de pestaña la para.
+# + y - cambian la velocidad, Espacio la para, los botones de la página Animar, e ir a la ventana de Forja la para.
 # Sale con Amiga-Q (descartando). Lo arranca tests/sprites_animar.sh; anota en DH0:Prueba/sprites_animar.txt.
 
 const AMIGA = 8
@@ -21,15 +21,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Sprites)
+func activar() -> Bool
+    return activar_titulo("Sprites")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -38,7 +47,7 @@ end
 
 func sonda() -> [String]
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-sprites-sonda.txt")
     if t == nil
         return [""]
     end
@@ -93,7 +102,7 @@ func boton(accion: Int)
     for b in str_split(env_get("FORJA_SPRITE_BOTONES"), " ")
         p = str_split(b, ",")
         if p.length == 3 and p[0] == "#{accion}"
-            input_click(campo("FORJA_EDITOR", 0) + Int(p[1]), campo("FORJA_EDITOR", 1) + Int(p[2]), 0)
+            input_click(campo("FORJA_SPRITES_LIENZO", 0) + Int(p[1]), campo("FORJA_SPRITES_LIENZO", 1) + Int(p[2]), 0)
             time_delay(30)
             return
         end
@@ -101,7 +110,9 @@ func boton(accion: Int)
     ver("el botón #{accion} se ve", false, env_get("FORJA_SPRITE_BOTONES"))
 end
 
+# (el panel del proyecto es de la ventana de Forja)
 func fila_proyecto(i: Int)
+    activar_forja()
     f = campo("FORJA_PROYECTO", 2)
     input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + i * f + f / 2, 0)
 end
@@ -115,7 +126,7 @@ Main
     if n >= 600
         ver("la ventana de Forja aparece", false, "")
     else
-        input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + 4)
+        input_move(campo("FORJA_SPRITES_LIENZO", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_SPRITES_LIENZO", 1) + campo("FORJA_SPRITE", 1) + 4)
         input_text(" ")
         ver("Espacio la pone en marcha", esperar(12, "true"), sonda()[1])
         d = distintos(8)
@@ -141,24 +152,21 @@ Main
         ver("el botón Reproducir", esperar(12, "true"), sonda()[1])
         boton(7003)
         ver("el botón de la cebolla", esperar(11, "true"), sonda()[1])
-        # cambiar de pestaña la para: red.dash y vuelta (el proyecto: "/", main.dash, red.dash, vacio.iff...)
+        # ir a Forja la para: red.dash en Forja y vacio.iff otra vez (el proyecto: "/", main.dash, red.dash, vacio.iff...)
         fila_proyecto(2)
-        n = 0
-        while n < 10 and not str_ends(sonda()[0], " red.dash")
-            n = n + 1
-        end
+        time_delay(50)
         fila_proyecto(3)
         n = 0
         while n < 10 and sonda()[0] != "0 0 vacio.iff"
             n = n + 1
         end
-        ver("al volver de otra pestaña está parada", cabecera(12) == "false", sonda()[0] + " / " + sonda()[1])
+        ver("al volver de la ventana de Forja está parada", cabecera(12) == "false", sonda()[0] + " / " + sonda()[1])
         time_delay(100)
     end
     if fallos == 0
         anotar("TODO BIEN")
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
     n = 0
     while n < 100 and input_active_title() != "Cambios sin guardar"

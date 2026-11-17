@@ -1,0 +1,88 @@
+## version $VER: Git.catalog 1.0 (17.11.2026)
+## language english
+## codeset 0
+;
+MSG_1
+1 change
+; 1 cambio
+MSG_2
+%1 changes
+; %1 cambios
+MSG_3
+Git: wait for the previous command to finish.
+; Git: espera a que acabe la orden de antes.
+MSG_4
+Open a file of the project first.
+; Abre antes un fichero del proyecto.
+MSG_5
+Git: without the dashgit server (%1): each command will run in its own process, slower.
+; Git: sin el servidor de dashgit (%1): cada orden irá en un proceso, más lento.
+MSG_6
+No differences with the last commit: 
+; Sin diferencias con el último commit: 
+MSG_7
+Git: done in %1.
+; Git: hecho en %1.
+MSG_8
+Git ended with code %1.
+; Git acabó con código %1.
+MSG_9
+Git failed: 
+; Git falló: 
+MSG_10
+ (changes)
+;  (cambios)
+MSG_11
+The project is not in a git repository.
+; El proyecto no está en un repositorio de git.
+MSG_12
+Write the commit message.
+; Escribe el mensaje del commit.
+MSG_13
+Nothing staged
+; Nada preparado
+MSG_14
+Tick the box of the files that go in the commit.
+; Marca la casilla de los ficheros que van en el commit.
+MSG_15
+_OK
+; _Vale
+MSG_16
+This file is not in the repository of the project.
+; Este fichero no está en el repositorio del proyecto.
+MSG_17
+Git: cannot open MUI.
+; Git: no se puede abrir MUI.
+MSG_18
+No changes.
+; Sin cambios.
+MSG_19
+Cannot run 
+; No se puede ejecutar 
+MSG_21
+ended with code %1: 
+; acabó con código %1: 
+MSG_22
+did not open its port in %1 ms
+; no abrió su puerto en %1 ms
+MSG_23
+did not answer in %1 ms: 
+; no contestó en %1 ms: 
+MSG_30
+Changes (Forja)
+; Cambios (Forja)
+MSG_31
+Message:
+; Mensaje:
+MSG_32
+_Differences
+; _Diferencias
+MSG_33
+_Stage all
+; _Preparar todo
+MSG_34
+_Unstage all
+; _Quitar todo
+MSG_35
+C_ommit
+; C_onfirmar

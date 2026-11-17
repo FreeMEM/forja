@@ -3,7 +3,7 @@
   "windows": [
     {
       "name": "Peticion",
-      "title": "Inferencia: cambiar el código",
+      "tr": 74, "title": "Inferencia: cambiar el código",
       "id": 1,
       "size": [45, 12],
       "close": 12,
@@ -16,9 +16,9 @@
           {
             "type": "hgroup",
             "children": [
-              { "type": "button", "name": "pedir", "label": "_Pedir", "event": 10, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "pedir", "tr": 75, "label": "_Pedir", "event": 10, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "space" },
-              { "type": "button", "name": "cancelar", "label": "_Cancelar", "event": 11, "background": [44, 44, 52], "color": [220, 220, 210] }
+              { "type": "button", "name": "cancelar", "tr": 76, "label": "_Cancelar", "event": 11, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           }
         ]

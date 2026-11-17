@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/editor/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/ext-editores/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -20,8 +20,6 @@ MSG_10 (10//)
 No se puede ejecutar 
 MSG_11 (11//)
 . Pon su ruta en ENV:Forja/dashc.
-MSG_12 (12//)
-Inferencia no aparece.
 MSG_13 (13//)
 No compila: un error (clic en él para ir a su línea).
 MSG_14 (14//)
@@ -46,14 +44,6 @@ MSG_23 (23//)
 Vista previa: 
 MSG_24 (24//)
 No está \"
-MSG_25 (25//)
-No se puede arrancar 
-MSG_26 (26//)
-. Pon su ruta en ENV:Forja/inferencia.
-MSG_27 (27//)
-Arrancando Inferencia...
-MSG_28 (28//)
-Mandado a Inferencia.
 MSG_29 (29//)
 Forja 
 MSG_31 (31//)
@@ -96,8 +86,6 @@ MSG_70 (70//)
 La línea %1 no tiene código: el punto no para ahí.
 MSG_71 (71//)
 Cambiado %1 veces.
-MSG_72 (72//)
-Inferencia no lo aceptó (RC %1).
 MSG_73 (73//)
 ventana 
 MSG_74 (74//)
@@ -108,278 +96,12 @@ MSG_76 (76//)
 Amiga-D enseña el fichero como texto.
 MSG_77 (77//)
 Los textos no pueden llevar #
-MSG_80 (80//)
-No hay memoria para el fichero.
-MSG_81 (81//)
-No se puede escribir 
-MSG_82 (82//)
-No se puede leer 
-MSG_83 (83//)
- no es una imagen IFF ILBM.
-MSG_84 (84//)
-: a la imagen le falta BMHD o BODY.
-MSG_85 (85//)
-: solo imágenes de 1 a 8 planos, sin comprimir o con ByteRun1.
-MSG_86 (86//)
-: la imagen está cortada.
-MSG_87 (87//)
-Sprite de hardware
-MSG_88 (88//)
-Nuevo sprite
-MSG_89 (89//)
-¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter.
 MSG_91 (91//)
 Para compilar, abre el .dash del programa.
-MSG_92 (92//)
-Inferencia lee texto: un sprite no se le puede mandar.
-MSG_93 (93//)
-Lápiz
-MSG_94 (94//)
-Línea
-MSG_95 (95//)
-Caja
-MSG_96 (96//)
-Relleno
-MSG_97 (97//)
-Cuentagotas
-MSG_98 (98//)
-Agarre
-MSG_99 (99//)
-fotograma %1 de %2
-MSG_100 (100//)
-color %1
-MSG_101 (101//)
-PALETA
-MSG_103 (103//)
-Gotas
-MSG_104 (104//)
-TAMAÑO
-MSG_105 (105//)
-Ancho
-MSG_106 (106//)
-Alto
-MSG_107 (107//)
-Colores
-MSG_108 (108//)
-Es un BOB (T)
-MSG_109 (109//)
-Sprite de hardware (T)
-MSG_110 (110//)
-Un sprite de hardware mide 16 de ancho (T cambia el tipo).
-MSG_111 (111//)
-Un sprite de hardware tiene 3 colores y el transparente (T cambia el tipo).
-MSG_112 (112//)
-Ahora es un BOB.
-MSG_113 (113//)
-Ahora es un sprite de hardware: 16 de ancho y 4 colores.
-MSG_114 (114//)
-Dibujo
-MSG_115 (115//)
-Hace falta al menos un fotograma.
-MSG_116 (116//)
-Fotograma copiado.
-MSG_117 (117//)
-No hay ningún fotograma copiado.
-MSG_118 (118//)
-cebolla
-MSG_119 (119//)
-Animar
-MSG_120 (120//)
-Reproducir (Espacio)
-MSG_121 (121//)
-Parar (Espacio)
-MSG_122 (122//)
-Tics
-MSG_123 (123//)
-Piel de cebolla (O)
-MSG_124 (124//)
-Copiar el código (C)
-MSG_125 (125//)
-sprite de hardware de 16 x %1
-MSG_126 (126//)
-colores
-MSG_127 (127//)
-fotogramas
-MSG_128 (128//)
-tics por fotograma
-MSG_129 (129//)
-No se puede cargar 
-MSG_131 (131//)
-animarlo: en cada wait_vblank(), cuenta = cuenta + 1 y
-MSG_134 (134//)
-Guarda el sprite primero: el código lleva el nombre de su fichero.
-MSG_135 (135//)
-El código para cargarlo está en el portapapeles (Amiga-V en el .dash).
-MSG_136 (136//)
-No se puede escribir en el portapapeles.
-MSG_137 (137//)
-Tamaño
-MSG_138 (138//)
-BOB de %1 x %2
-MSG_139 (139//)
-Sprite acoplado
-MSG_140 (140//)
-Sprite acoplado (T)
-MSG_141 (141//)
-Ahora es un sprite acoplado: 16 de ancho y 16 colores.
-MSG_142 (142//)
-sprite acoplado de 16 x %1
-MSG_143 (143//)
-Un sprite acoplado tiene 15 colores y el transparente (T cambia el tipo).
-MSG_144 (144//)
-sus colores, los del fichero (en una pantalla propia del programa)
-MSG_145 (145//)
-sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)
-MSG_150 (150//)
-Ya hay %1 mapas abiertos: cierra uno.
-MSG_151 (151//)
-No hay memoria para el mapa.
-MSG_152 (152//)
-fondo
-MSG_153 (153//)
-No se puede leer el tileset %1: 
-MSG_154 (154//)
-El tileset %1 tiene fotogramas de %2: no son los tiles de este mapa.
-MSG_155 (155//)
-No es un mapa de tiles (FORM FMAP), o está cortado.
-MSG_156 (156//)
-No se puede guardar el mapa.
-MSG_157 (157//)
-Un mapa tiene como mucho 8 capas.
-MSG_158 (158//)
-capa %1
-MSG_159 (159//)
-Es la única capa.
-MSG_160 (160//)
-Lápiz
-MSG_161 (161//)
-Caja
-MSG_162 (162//)
-Relleno
-MSG_163 (163//)
-Gotas
-MSG_164 (164//)
-Borrar
-MSG_165 (165//)
-Mapa %1, tiles de %2
-MSG_166 (166//)
-capa %1: %2
-MSG_167 (167//)
-tile %1
-MSG_168 (168//)
-Espejo H
-MSG_169 (169//)
-Espejo V
-MSG_170 (170//)
-TILES
-MSG_171 (171//)
-Sin tileset (página Mapa)
-MSG_172 (172//)
-CAPAS
-MSG_173 (173//)
-Nueva
-MSG_174 (174//)
-Quitar
-MSG_175 (175//)
-Atrás
-MSG_176 (176//)
-Delante
-MSG_177 (177//)
-MAPA
-MSG_178 (178//)
-Ancho
-MSG_179 (179//)
-Alto
-MSG_180 (180//)
-Zoom
-MSG_181 (181//)
-Tiles de %1
-MSG_182 (182//)
-Rejilla (G)
-MSG_183 (183//)
-TILESET
-MSG_184 (184//)
-(ninguno)
-MSG_185 (185//)
-Elegir tileset...
-MSG_186 (186//)
-Copiar el código (C)
-MSG_187 (187//)
-Tiles
-MSG_188 (188//)
-Capas
-MSG_189 (189//)
-Mapa
-MSG_190 (190//)
-mapa de %1 tiles de %2
-MSG_191 (191//)
-capas
-MSG_192 (192//)
-los colores del tileset, en la paleta de la pantalla
-MSG_193 (193//)
-pintar la pantalla (aquí, 320 x 256 de tiles de %1): la capa 0 y las demás encima
-MSG_194 (194//)
-Un mapa de tiles: una rejilla de tiles de un tileset (un BOB con un fotograma por tile).
-MSG_195 (195//)
-_Sprite|_BOB|_Mapa|_Cancelar
-MSG_196 (196//)
-Guarda el mapa primero: el código lleva el nombre de su fichero.
-MSG_197 (197//)
-Tileset del mapa
-MSG_198 (198//)
-Los fotogramas de %1 miden %2: los tiles del mapa son de otro tamaño (8, 16 o 32).
-MSG_199 (199//)
-Tileset: %1
-MSG_200 (200//)
-Sólido
-MSG_201 (201//)
-Plataforma
-MSG_202 (202//)
-Escalera
-MSG_203 (203//)
-Daño
-MSG_204 (204//)
-jugador
-MSG_205 (205//)
-enemigo
-MSG_206 (206//)
-moneda
-MSG_207 (207//)
-puerta
-MSG_208 (208//)
-otro
-MSG_209 (209//)
-Un mapa tiene como mucho 256 objetos.
-MSG_210 (210//)
-CHOQUES
-MSG_211 (211//)
-Es de tiles
-MSG_212 (212//)
-Es de choques (*)
-MSG_213 (213//)
-PONER
-MSG_214 (214//)
-ELEGIDO
-MSG_215 (215//)
-Ninguno: clic en uno
-MSG_216 (216//)
-Sprite: %1
-MSG_217 (217//)
-Sprite...
-MSG_218 (218//)
-Objetos
-MSG_219 (219//)
-la capa %1 es de choques: no se pinta; tilemap_get(0, %1, x, y) dice qué hay en la celda x, y (1 sólido, 2 plataforma, 3 escalera, 4 daño)
-MSG_220 (220//)
-%1 objetos: tilemap_object_find busca los de una clase; x e y en píxeles del mapa
-MSG_221 (221//)
-Sprite del objeto
 MSG_222 (222//)
 Guardar la salida
 MSG_223 (223//)
 El compilador de Dash
-MSG_224 (224//)
-Inferencia
 MSG_230 (230//)
 No hay un nombre en el cursor.
 MSG_231 (231//)
@@ -416,8 +138,6 @@ MSG_311 (311//)
 Ejecutar
 MSG_312 (312//)
 Depurar
-MSG_313 (313//)
-Preguntar a Inferencia
 MSG_314 (314//)
 Edición
 MSG_315 (315//)
@@ -456,8 +176,6 @@ MSG_331 (331//)
 Salir
 MSG_332 (332//)
 Parar
-MSG_333 (333//)
-Inferencia
 MSG_334 (334//)
 Buscar y cambiar (Forja)
 MSG_335 (335//)
@@ -484,8 +202,6 @@ MSG_345 (345//)
 Preferencias de Forja
 MSG_346 (346//)
 Compilador (dash):
-MSG_347 (347//)
-Inferencia:
 MSG_348 (348//)
 Abrir lo de la última vez:
 MSG_349 (349//)
@@ -494,8 +210,6 @@ MSG_350 (350//)
 _Usar
 MSG_351 (351//)
 _Cancelar
-MSG_352 (352//)
-Nuevo sprite...
 MSG_353 (353//)
 En su propia pantalla (al arrancar):
 MSG_354 (354//)
@@ -503,8 +217,6 @@ Copiar la salida
 MSG_355 (355//)
 Guardar la salida...
 MSG_356 (356//)
-Elegir...
-MSG_357 (357//)
 Elegir...
 MSG_369 (369//)
 Código
@@ -738,6 +450,20 @@ MSG_633 (633//)
 Instalar y _activar|_Instalar|_Cancelar
 MSG_634 (634//)
 Instalada la extensión %1.
+MSG_640 (640//)
+%1 es un fichero IFF: lo abre una extensión (como Sprites o Mapas), y no hay ninguna activa para él.
+MSG_641 (641//)
+Una extensión no ha guardado sus ficheros: Forja sigue abierta.
+MSG_642 (642//)
+Ninguna extensión activa hace ficheros nuevos (como Sprites o Mapas).
+MSG_643 (643//)
+_Cancelar
+MSG_644 (644//)
+Nuevo
+MSG_645 (645//)
+¿Qué vas a hacer?
+MSG_646 (646//)
+Nuevo de extensión...
 MSG_700 (700//)
 Ayuda de Dash (Forja)
 MSG_701 (701//)

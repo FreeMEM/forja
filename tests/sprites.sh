@@ -6,6 +6,7 @@
 #   tests/sprites.sh DASH_DIR [captura.png segundos...]
 #
 # Necesita DASH_KICKSTART (3.1). REAL=1: la CPU a la velocidad de un A1200. RTG=1: AmigaOS 3.2 con 256 colores.
+#   SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 ...   # con MUI 3.8 (el sistema de CoffinOS)
 set -e
 dash=$1; shift
 png=""
@@ -16,7 +17,7 @@ trap 'rm -rf "$tmp"' EXIT
 "$dash/dash" "$aqui/src/main.dash" -o "$tmp/Forja"
 maquina=""
 if [ -n "$RTG" ]; then
-  cp -r "$HOME/.cache/dash-emu/sys32rtg8" "$tmp/sys"
+  cp -r "${SISTEMA:-$HOME/.cache/dash-emu/sys32rtg8}" "$tmp/sys"
   export DASH_EMU_SYS_32_RTG="$tmp/sys"
   export DASH_KICKSTART_32="${DASH_KICKSTART_32:-$HOME/Descargas/Telegram Desktop/Kickstart v3.2.3 A1200.47.115_Pack_noSCSI.rom}"
   maquina="--machine rtg"
@@ -25,6 +26,9 @@ else
 fi
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+# el editor es una extensión de Forja
+. "$aqui/tests/extension.sh"
+extension Sprites editor_sprites
 # pincel.iff: como uno de DPaint (ByteRun1, sin FRJA), 48x16 en 2 planos
 python3 -I - "$tmp/pincel.txt" <<'PY'
 import sys

@@ -10,7 +10,7 @@
 # Se ve con tilemap_draw sobre dos BOB hechos aquí con los lápices de la pantalla y el zoom: uno para la primera
 # capa que se ve (el color 0, gris del tema) y otro para las demás (el color 0, transparente).
 
-import "sprites.dash"
+import "../Sprites/sprites.dash"
 
 const MP_MAX_DESHACER = 50
 const MP_MAX_MAPAS = 4         # abiertos a la vez (cada uno usa dos BOB de Dash para verse)

@@ -43,6 +43,28 @@ Plan y bitácora del bucle que empezó el 2026-11-16. El análisis de partida es
   - las extensiones se cargan solo al usarlas;
   - la ayuda se lee del disco a trozos, sin cargarla entera;
   - hay que medir cuánta memoria usa Forja hoy y dejar un tope en las pruebas (paso 0.3).
+- **Medido** (2026-11-17, paso 0.3, `tests/memoria.sh`; A1200 emulado con AmigaOS 3.1 y MUI 5, 2 MB de chip y 8 de
+  fast; el proyecto `tests/prueba/juego` abierto). Chip: 75 KB en todos los casos. Fast:
+
+  | Forja | Quieta | Compilando (lo más alto) |
+  |-------|--------|--------------------------|
+  | sin extensiones | 2,5 MB | 4,4 MB |
+  | con Git (y el servidor de dashgit) | 3,3 MB | 5,2 MB |
+  | con todas (Git, el copiloto, Sprites y Mapas) | 3,0-3,6 MB | 4,9-5,5 MB |
+  | con todas, y un sprite y un mapa abiertos | 4,2 MB | |
+
+  - De los 2,5 MB, unos 0,9 se quedan al salir: MUI, sus clases y las fuentes, que el sistema guarda cargadas.
+    Forja sola son 1,6 MB. Antes de sacar los editores, Forja sin extensiones usaba 2,7 MB (170 KB más).
+  - Compilar (dash para el Amiga, `main.dash` con dos módulos) suma 1,9 MB mientras dura.
+  - Sprites y Mapas, solo al abrir uno de sus ficheros: 0,3 MB cada una.
+  - Inferencia (la aplicación, con AmiSSL) no cuenta: el copiloto no la arranca hasta usarlo.
+  - Con MUI 3.8 en la máquina de CoffinOS (68040, RTG): 4,5 MB quieta, 5,3 con Git, 8,6 con todo abierto (las
+    ventanas en una pantalla de tarjeta gráfica gastan más; esas máquinas tienen memoria de sobra). Compilar allí dura
+    0,2 s y la prueba no llega a ver el pico.
+  - **Conclusión**: con 2 MB de chip y 4 de fast quedan unos 5,8 MB libres tras arrancar el sistema. Caben Forja y
+    compilar (4,4 MB), y justo con Git (5,2 MB). Con todas las extensiones y compilando (5,5 MB) se queda sin
+    margen, y sin contar Inferencia. Se queda el mínimo de 2 + 4 MB para Forja con Git, y 8 MB de fast recomendados
+    para el copiloto, los editores e Inferencia.
 
 ## Plan
 
@@ -52,7 +74,8 @@ VS Code.
 ### Fase 0. Base
 - 0.1 [F] Probar Forja en la máquina CoffinOS emulada y apuntar lo que falle.
 - 0.2 [F] Borrar las ramas ya fusionadas (`git log main..rama` vacío) y sus worktrees.
-- 0.3 [F] Medir la memoria de Forja con un proyecto mediano y fijar el tope.
+- 0.3 [F] Medir la memoria de Forja con un proyecto mediano y fijar el tope. Medido (ver "Memoria mínima"); falta
+  el tope en las pruebas.
 
 ### Fase 1. Sistema de extensiones
 - 1.1 [F] Manifiesto, carga, ciclo de vida y gestor de extensiones.
@@ -60,7 +83,7 @@ VS Code.
 - 1.3 [F] Un módulo de Dash para escribir extensiones, más una extensión de ejemplo con su prueba.
 - 1.4 [G][F] Git como extensión: las salidas para máquinas de dashgit, la rama en la barra, marcas, panel de
   cambios y diferencias. Ya está empezado, en módulos que luego pasan a la extensión.
-- 1.5 [F] Editores de sprites y de mapas como extensiones.
+- 1.5 [F] Editores de sprites y de mapas como extensiones (hecho en la rama `ext-editores`, ver la bitácora).
 - 1.6 [I][F] Inferencia como copiloto (hecho en la rama `copiloto`, ver la bitácora):
   - pregunta sobre la selección o el fichero;
   - escribe o cambia código en el editor, con vista previa y "aceptar";
@@ -337,3 +360,59 @@ VS Code.
     rápida ya va en MUI 3.8 y 5 sin ventana; `mui_list_add_lines`, para la lista de la ayuda (aquí no hay listas de
     MUI); `--check` con todos los errores, módulos sin Main y `--texto`: para la fase 3.5 (errores en cualquier
     fichero del proyecto); `str_join`, para quitar los "unir" a mano. Quedan para después.
+- 2026-11-17, rama `ext-editores`: **1.5 hecho, los editores de sprites y de mapas son extensiones**
+  (`extensiones/Sprites` y `extensiones/Mapas`, MIT), como decidió el usuario. Forja ya no tiene nada de sprites ni de
+  mapas dentro (fuera `src/sprites.dash` y `src/mapas.dash`, las pestañas de sprite y de mapa, la salida que se ocultaba
+  y su sonda): pesa 170 KB menos para quien solo programa.
+  - **Cada una, su ventana** (MUI, una pestaña por fichero), con los mismos `sprites.dash` y `mapas.dash` de antes
+    (Mapas importa el de Sprites para leer el tileset) y el tema de Forja. Arranca con el primer fichero suyo que se
+    abre (`EDITAR`) o se pide nuevo (`NUEVO`), y acaba al cerrar la última pestaña. Menús Proyecto (Nuevo con
+    Amiga-B, Abrir, Guardar, Guardar como, Compilar y Ejecutar el programa, Cerrar pestaña), Editar (deshacer,
+    rehacer; en Sprites, cortar, copiar y pegar el fotograma; en Mapas, elegir el tileset) y Ventana > Forja. La vista
+    animada se para cuando su ventana deja de ser la activa (como antes al cambiar de pestaña).
+  - **La API, versión 4** (de forma general, en `docs/EXTENSIONES.md` y `lib/forja.dash`): `nuevo = título | orden |
+    descripción` en el manifiesto (Proyecto > Nuevo de extensión..., Amiga-B, enseña los de todas y manda `NUEVO
+    orden`); `GUARDADO nombre fichero` (Forja lo dice en la salida, lo pasa a las demás y lee otra vez el proyecto);
+    `SINGUARDAR nombre` y sus ficheros con cambios (Forja pregunta por ellos al salir; con Guardar manda `GUARDAR` y
+    espera, 20 s como mucho); `COMPILAR fichero` y `EJECUTAR fichero` (el programa del cajón de ese fichero, abierto o
+    no: el `main.dash` del cajón de un sprite); `DELANTE` (la ventana de Forja). Abrir y el panel del proyecto ya
+    llevaban los `tipos`; la petición de Abrir los deja elegir. Un fichero IFF sin extensión que lo abra no se abre
+    como texto: se dice. En `lib/forja.dash`: `forja_guardado`, `forja_sin_guardar`, `forja_compilar`, `forja_delante`.
+  - **Pruebas**: las 13 de sprites (`sprites`, `sprites_forja`, `_lapiz`, `_paleta`, `_herramientas`, `_tamano`,
+    `_fotogramas`, `_cebolla`, `_animar`, `_codigo`, `_dibujo`, `_base`, `_iff`) y las de mapas (`mapas_base`,
+    `mapas_forja`) ponen la extensión en el disco (`tests/extension.sh`) y miran su ventana y su sonda
+    (`RAM:forja-sprites-sonda.txt`, `ENV:FORJA_SPRITES_LIENZO`...). Amiga-Q, en la ventana de Forja, pregunta por lo
+    que tiene la extensión sin guardar. `sprites_forja` prueba ahora la API nueva: abrir desde el proyecto, guardar
+    (Forja lo dice), Amiga-B en Forja y compilar desde el sprite. TODO BIEN en MUI 5 (A1200); `sprites` y
+    `mapas_forja`, también en MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`) y `sprites` en RTG con MUI 5
+    (`mapas_forja` ya no pide zoom 1 al empezar: en RTG empieza con 2). Tiempos (A1200 a toda velocidad): un clic en el proyecto hasta ver delante la
+    ventana del sprite, 0,25 s; el dibujo entero, como antes (16x16 117 ms, 64x64 227 ms; un mapa, 225 ms).
+- 2026-11-17, rama `ext-editores`: **el botón Inferencia pasa a la extensión** (el copiloto), como pasó con git.
+  Forja no tiene nada de Inferencia dentro: fuera el botón de la barra, Programa > Preguntar a Inferencia (Amiga-I),
+  la preferencia "Inferencia:" y su código (`ADJUNTAR`). El copiloto pone siempre su zona, Inferencia, a la derecha
+  de la barra de botones (con el icono de antes); un clic sin nada pendiente es "Preguntar sobre esto", que ahora va
+  con Amiga-I. "Dónde está Inferencia..." en su menú guarda `ENVARC:Forja/inferencia`. Sin el botón de la derecha,
+  en 640 de ancho los ocho botones cabían con nombre y la zona de git ya no (lo vio `tests/git_panel.sh`): la barra
+  cuenta ahora el sitio del texto de las zonas al decidir si los botones en gris llevan nombre.
+- 2026-11-17, rama `ext-editores`: **catálogo inglés** de lo que faltaba. Los tr 600 a 634 ya estaban traducidos (la
+  bitácora no lo decía); faltaban los nuevos (640 a 646). Las extensiones tienen ahora su catálogo: `@catalog
+  "X.catalog"` y `tr()` en Git (28 textos), Inferencia (76, también lo que se le pide al modelo) y en Sprites y Mapas
+  (los de antes de Forja, con su traducción, y los de sus ventanas). `tools/catalogos.py` hace los de Forja y los de
+  todas las extensiones (`extensiones/X/catalogos/`), y `tools/paquete.py` los pone en `Extensiones/X/Catalogs`. El
+  manifiesto, en otro idioma: `descripcion.english`, `menu.english`, `nuevo.english` (con el catálogo de Forja en ese
+  idioma; Git, Inferencia, Sprites y Mapas los tienen).
+- 2026-11-17, rama `ext-editores`: **`tests/proyecto.sh` arreglado.** No era el espacio de "Mi juego" ni las rutas
+  de `dash --check`: con la CPU lenta (`REAL=1`, o el emulador cargado) una comprobación de un guardado anterior
+  (`dash --check`, a prioridad -1) acababa después de compilar. Su resultado ("Sin errores.") quitaba los errores
+  que acababa de marcar la compilación y añadía una línea a la salida, que se movía: el clic de la prueba caía fuera.
+  Ahora, al compilar, la comprobación en marcha se para (lo guardado se comprueba después). TODO BIEN con y sin
+  `REAL=1`. La prueba espera un poco más a que el clic llegue y, si falla, dice dónde estaba la salida.
+- 2026-11-17, rama `ext-editores`: **paso 0.3, la memoria medida** (`tests/memoria.sh`, ver "Memoria mínima").
+- Pruebas tras todo esto (rama `ext-editores`), TODO BIEN: en MUI 5 (A1200, 3.1) teclas, ficheros, completar, buscar,
+  errores, compilar, ayuda, editor, editor_base, extensiones, extensiones_base, git_panel, botones, proyecto (también
+  `REAL=1`), copiloto (con su servidor falso, bajo `flock`), las 13 de sprites y las 2 de mapas; en MUI 3.8
+  (`sys32rtg38`, RTG) editor, ayuda, extensiones, git_panel_coffin, copiloto, sprites y mapas_forja.
+  - **Falta en Forja**: los ficheros de una extensión (un sprite, un mapa) no se guardan en la sesión; sus pestañas son
+    de su ventana, no de la de Forja; Amiga-Q en la ventana de una extensión no cierra Forja (va a Forja con Ventana >
+    Forja); la prueba de memoria no pone aún un tope.
+  - **Falta en Dash**: nada nuevo.
