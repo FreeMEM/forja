@@ -240,7 +240,9 @@ VS Code.
     si no del disco (UTF-8 a Latin-1). `TEXTODISCO` no hace falta: Inferencia quiere Latin-1.
   - **Sugerencias al escribir**: apagadas al empezar (`ENVARC:Forja/inferencia_sugerencias`). Tras `CAMBIADO` (pausa
     de 900 ms) con el cursor al final de una línea, un `ENCARGO completar` (80 tokens, sin herramientas); Forja la
-    enseña en gris y Tab la mete. Contra el servidor falso, en FS-UAE a toda velocidad, llega en TIEMPO_SUG. Contra un
+    enseña en gris y Tab la mete. Contra el servidor falso (HTTP, en el PC), de la última tecla a verla: 3,7 s en el
+    A1200 emulado a toda velocidad (con la pausa de 0,9 s y el flujo SSE en trozos), 1,6 s en el 68040 de MUI 3.8 y 5 s
+    con la CPU de un A1200 (`REAL=1`, contando que esa vez arrancaba Inferencia). Contra un
     modelo de verdad por HTTPS en un 68020 no sirve (el saludo de TLS ya tarda más de un minuto): por eso apagadas;
     con Ollama en la red local, o un Amiga rápido, puede valer.
   - **La API, versión 3**: `SUGERENCIA` (texto en gris tras el cursor; Tab lo mete; se va al escribir, al mover el
@@ -249,9 +251,13 @@ VS Code.
   - **MUI 3.8**: el copiloto solo usa una ventanita con un campo de una línea (va en 3.8). Inferencia, en 3.8, salía
     sin cuadro para escribir (Textinput no viene con MUI 3.8): ahora, sin Textinput, su ventana va con una línea.
   - **Pruebas** en FS-UAE: `tests/copiloto.sh` (Forja, el copiloto, la Inferencia de verdad, el servidor falso de
-    Inferencia con `tests/guiones_copiloto`, la ayuda de Dash y dashc) RESULTADOS. Siguen en TODO BIEN:
-    extensiones_base, extensiones (MUI 5), git_panel, teclas, ficheros y rexx; en Inferencia, encargo (nueva), clics,
-    arexx, flujo, juntos y sistema.
+    Inferencia con `tests/guiones_copiloto`, la ayuda de Dash y dashc): TODO BIEN en MUI 5 (A1200, 3.1, dos veces) y en
+    MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`, Inferencia con su ventana de una línea). Tras unir main (rama
+    `ayuda`) siguen en TODO BIEN: extensiones_base, extensiones (MUI 5 y 3.8), git_panel, teclas, ficheros, rexx y ayuda
+    (esta con un dashc.amiga que sabe `--check`); en Inferencia, encargo (nueva), clics, arexx, flujo, juntos (con la
+    Forja de la rama) y sistema.
+  - Tras unir main: `ERRORES` da también los errores marcados por `dash --check` si no hay de compilar (la ruta en
+    minúsculas), así "Explicar el error" y "Arreglar el error" no tienen que compilar si Forja ya los marcó.
   - **Falta**: el botón Inferencia de Forja (Amiga-I) sigue dentro de Forja, aparte del copiloto (hace lo de
     "Preguntar sobre esto"; se podría pasar a la extensión, como pasó con git); los textos del copiloto, sin catálogo
     inglés (como Git); la sugerencia es de una línea y solo al final de la línea; "Escribir la prueba" no compila ni
