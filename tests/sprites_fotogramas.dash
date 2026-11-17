@@ -27,15 +27,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Sprites)
+func activar() -> Bool
+    return activar_titulo("Sprites")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -44,7 +53,7 @@ end
 
 func sonda() -> [String]
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-sprites-sonda.txt")
     if t == nil
         return [""]
     end
@@ -71,7 +80,7 @@ func boton(accion: Int)
     for b in str_split(env_get("FORJA_SPRITE_BOTONES"), " ")
         p = str_split(b, ",")
         if p.length == 3 and p[0] == "#{accion}"
-            input_click(campo("FORJA_EDITOR", 0) + Int(p[1]), campo("FORJA_EDITOR", 1) + Int(p[2]), 0)
+            input_click(campo("FORJA_SPRITES_LIENZO", 0) + Int(p[1]), campo("FORJA_SPRITES_LIENZO", 1) + Int(p[2]), 0)
             time_delay(30)
             return
         end
@@ -93,7 +102,7 @@ Main
     if n >= 600
         ver("la ventana de Forja aparece", false, "")
     else
-        input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_EDITOR", 1) + campo("FORJA_SPRITE", 1) + 4)
+        input_move(campo("FORJA_SPRITES_LIENZO", 0) + campo("FORJA_SPRITE", 0) + 4, campo("FORJA_SPRITES_LIENZO", 1) + campo("FORJA_SPRITE", 1) + 4)
         input_text("d")
         ver("D duplica: 2 fotogramas, en el segundo", fotos() == "2 1" and fila(1, 0) == "1000000000000002", fotos() + " / " + fila(1, 0))
         input_text("h")
@@ -129,7 +138,7 @@ Main
     if fallos == 0
         anotar("TODO BIEN")
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
     n = 0
     while n < 100 and input_active_title() != "Cambios sin guardar"

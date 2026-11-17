@@ -1,5 +1,5 @@
-# Hace de usuario del editor de mapas en Forja con nivel.fmap (40 x 20, dos capas, tiles de 16, el tileset de
-# tests/mapa_ejemplo.py; en 640 x 256 empieza con zoom 1): elige tiles, pinta, espejo, borra, arrastra el lápiz, caja, relleno y deshacer, cuentagotas,
+# Hace de usuario del editor de mapas (la extensión Mapas) con nivel.fmap (40 x 20, dos capas, tiles de 16, el tileset de
+# tests/mapa_ejemplo.py; en 640 x 256 empieza con zoom 1, en RTG con 2): elige tiles, pinta, espejo, borra, arrastra el lápiz, caja, relleno y deshacer, cuentagotas,
 # una capa nueva, el ancho, el zoom y el desplazamiento; la capa nueva pasa a choques y se pinta en ella; pone dos
 # objetos y arrastra uno; y guarda (Amiga-S). tests/mapas_forja.sh mira el fichero.
 # Lo arranca tests/mapas_forja.sh; anota en DH0:Prueba/mapas_forja.txt.
@@ -24,15 +24,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Mapas)
+func activar() -> Bool
+    return activar_titulo("Mapas")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -41,7 +50,7 @@ end
 
 func sonda() -> [String]
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-mapas-sonda.txt")
     if t == nil
         return [""]
     end
@@ -74,11 +83,11 @@ end
 
 # El centro de la celda x, y del mapa en la pantalla (con la vista y el zoom de ahora)
 func cx(x: Int) -> Int
-    return campo("FORJA_EDITOR", 0) + campo("FORJA_MAPA", 0) + (x - Int(cabecera(9))) * campo("FORJA_MAPA", 2) + campo("FORJA_MAPA", 2) / 2
+    return campo("FORJA_MAPAS_LIENZO", 0) + campo("FORJA_MAPA", 0) + (x - Int(cabecera(9))) * campo("FORJA_MAPA", 2) + campo("FORJA_MAPA", 2) / 2
 end
 
 func cy(y: Int) -> Int
-    return campo("FORJA_EDITOR", 1) + campo("FORJA_MAPA", 1) + (y - Int(cabecera(10))) * campo("FORJA_MAPA", 2) + campo("FORJA_MAPA", 2) / 2
+    return campo("FORJA_MAPAS_LIENZO", 1) + campo("FORJA_MAPA", 1) + (y - Int(cabecera(10))) * campo("FORJA_MAPA", 2) + campo("FORJA_MAPA", 2) / 2
 end
 
 # Un clic en el botón de esa acción del panel (FORJA_MAPA_BOTONES: "acción,x,y ...")
@@ -87,7 +96,7 @@ func boton(accion: Int) -> Bool
     for b in str_split(str_trim(env_get("FORJA_MAPA_BOTONES")), " ")
         p = str_split(b, ",")
         if p.length == 3 and Int(p[0]) == accion
-            input_click(campo("FORJA_EDITOR", 0) + Int(p[1]), campo("FORJA_EDITOR", 1) + Int(p[2]), 0)
+            input_click(campo("FORJA_MAPAS_LIENZO", 0) + Int(p[1]), campo("FORJA_MAPAS_LIENZO", 1) + Int(p[2]), 0)
             time_delay(10)
             return true
         end
@@ -106,10 +115,12 @@ Main
         ver("la ventana de Forja aparece con el mapa", false, "")
     else
         input_move(cx(5), cy(5))
-        ver("nivel.fmap: 40 x 20, tiles de 16, 2 capas, 6 tiles, zoom 1", str_starts(sonda()[1], "40 20 16 2 0 1 0 0 1 0 0 6 0 0"), sonda()[1])
+        # (el zoom del principio depende del alto de la ventana: 1 en 640 x 256, 2 en una pantalla de tarjeta gráfica)
+        z0 = Int(cabecera(8))
+        ver("nivel.fmap: 40 x 20, tiles de 16, 2 capas, 6 tiles, zoom #{z0}", str_starts(sonda()[1], "40 20 16 2 0 1 0 0 #{z0} 0 0 6 0 0") and (z0 == 1 or z0 == 2), sonda()[1])
         boton(1003)
         ver("el tile 3 del panel", cabecera(5) == "3", sonda()[1])
-        anotar("(dibujo: " + env_get("FORJA_DIBUJO") + " ms)")
+        anotar("(dibujo: " + env_get("FORJA_MAPAS_DIBUJO") + " ms)")
         input_click(cx(1), cy(1), 0)
         ver("pintar la celda 1, 1", celda(1, 1) == "3", sonda()[3])
         input_text("h")
@@ -122,7 +133,7 @@ Main
         input_text("p")
         boton(1002)
         input_drag(cx(0), cy(3), cx(4), cy(3))
-        anotar("(dibujo: " + env_get("FORJA_DIBUJO") + " ms)")
+        anotar("(dibujo: " + env_get("FORJA_MAPAS_DIBUJO") + " ms)")
         ver("arrastrar el lápiz: una fila de tiles 2", celda(0, 3) == "2" and celda(2, 3) == "2" and celda(4, 3) == "2" and celda(5, 3) == "0", sonda()[5])
         input_text("b")
         input_drag(cx(6), cy(2), cx(8), cy(4))
@@ -146,7 +157,7 @@ Main
         boton(4001)
         ver("el ancho, uno más", cabecera(0) == "41", sonda()[1])
         boton(4005)
-        ver("zoom 2", cabecera(8) == "2", sonda()[1])
+        ver("zoom #{z0 * 2}", cabecera(8) == "#{z0 * 2}", sonda()[1])
         input_move(cx(2), cy(1))
         input_key(DERECHA, 0)
         ver("la flecha mueve la vista", cabecera(9) == "1", sonda()[1])
@@ -181,7 +192,7 @@ Main
             anotar("eventos: " + e)
         end
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
     n = 0
     while n < 20 and input_active_title() != "Cambios sin guardar"

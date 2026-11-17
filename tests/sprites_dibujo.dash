@@ -22,15 +22,24 @@ func ver(paso: String, cierto: Bool, detalle: String)
     end
 end
 
-func activar() -> Bool
-    if input_active_title() != "Forja"
-        w = window_find("Forja")
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
         if w != 0
             window_found_activate(w)
             time_delay(10)
         end
     end
-    return input_active_title() == "Forja"
+    return str_starts(input_active_title(), t)
+end
+
+# La ventana del editor (la extensión Sprites)
+func activar() -> Bool
+    return activar_titulo("Sprites")
+end
+
+func activar_forja() -> Bool
+    return activar_titulo("Forja")
 end
 
 func campo(nombre: String, i: Int) -> Int
@@ -39,14 +48,16 @@ end
 
 func nombre_activo() -> String
     time_delay(25)
-    t = file_read_text("RAM:forja-sonda.txt")
+    t = file_read_text("RAM:forja-sprites-sonda.txt")
     if t == nil
         return ""
     end
     return str_split(t, "\n")[0]
 end
 
+# (el panel del proyecto es de la ventana de Forja)
 func fila_proyecto(i: Int)
+    activar_forja()
     f = campo("FORJA_PROYECTO", 2)
     input_click(campo("FORJA_PROYECTO", 0) + 30, campo("FORJA_PROYECTO", 1) + i * f + f / 2, 0)
     time_delay(50)
@@ -62,14 +73,14 @@ func medir(i: Int, nombre: String, lado: Int)
     ver("abre " + nombre, nombre_activo() == "0 0 " + nombre, nombre_activo())
     z = campo("FORJA_SPRITE", 2)
     gx = campo("FORJA_SPRITE", 0)
-    ancho = campo("FORJA_EDITOR", 2)
-    ver(nombre + ": zoom #{z}, la rejilla cabe", z >= 1 and gx >= 0 and gx + lado * z <= ancho, env_get("FORJA_SPRITE") + " / " + env_get("FORJA_EDITOR"))
-    anotar(nombre + ": dibujo entero " + env_get("FORJA_DIBUJO") + " ms")
+    ancho = campo("FORJA_SPRITES_LIENZO", 2)
+    ver(nombre + ": zoom #{z}, la rejilla cabe", z >= 1 and gx >= 0 and gx + lado * z <= ancho, env_get("FORJA_SPRITE") + " / " + env_get("FORJA_SPRITES_LIENZO"))
+    anotar(nombre + ": dibujo entero " + env_get("FORJA_SPRITES_DIBUJO") + " ms")
 end
 
 Main
     n = 0
-    while n < 600 and not (env_get("FORJA_PROYECTO") != "" and activar())
+    while n < 600 and not (env_get("FORJA_PROYECTO") != "" and activar_forja())
         time_delay(5)
         n = n + 1
     end
@@ -90,6 +101,6 @@ Main
     if fallos == 0
         anotar("TODO BIEN")
     end
-    activar()
+    activar_forja()
     input_key(0x10, AMIGA)
 end

@@ -28,7 +28,7 @@ const EXT_SUBMENUS = 3          # los submenús propios (ventana.dashui: ext_s0 
 const EXT_SUB_OPCIONES = 10     # ... con 10 opciones cada uno (ext_s0_0 a ext_s0_9): las ranuras 12 a 41
 const EXT_TOTAL = 42            # todas las ranuras (eventos EV_EXT_MENU + ranura)
 const EXT_PAUSA = 1200          # sin escribir este tiempo, CAMBIADO (la extensión puede pedir otro: pausa)
-const EXT_API = "3"             # la versión de la API (HOLA la da): la 2 trae ZONA, VISTA, RAYAS, submenu, pausa; la 3, SUGERENCIA y cerrar una VISTA
+const EXT_API = "4"             # la versión de la API (HOLA la da): la 2 trae ZONA, VISTA, RAYAS, submenu, pausa; la 3, SUGERENCIA y cerrar una VISTA; la 4, nuevo, NUEVO, GUARDADO, SINGUARDAR, GUARDAR, DELANTE y COMPILAR fichero
 const EXT_AVISOS = "ENV:Forja/Avisos"
 
 struct Extension
@@ -54,6 +54,8 @@ struct Extension
     submenu: String = ""  # el título de su menú propio ("": sus opciones van sueltas en Extensiones)
     pausa: Int = 1200     # cuánto sin escribir antes de CAMBIADO (ms)
     cambio_visto: Int = 0 # el último cambio del que se le dio CAMBIADO (ext_cambio_n)
+    nuevos: [String] = nil      # lo que hace nuevo (nuevo = en el manifiesto): "título|orden|descripción"
+    sin_guardar: [String] = nil # sus ficheros con cambios sin guardar (SINGUARDAR): Forja pregunta al salir
 end
 
 var extensiones: [Extension] = []
@@ -89,7 +91,9 @@ end
 
 # --- El manifiesto ---
 
-# Lee Extensiones/<id>/manifiesto.txt; nil si no hay. Líneas "clave = valor"; # empieza una nota.
+# Lee Extensiones/<id>/manifiesto.txt; nil si no hay. Líneas "clave = valor"; # empieza una nota. "clave.idioma"
+# (descripcion.english, menu.english, nuevo.english...) vale en lugar de "clave" con el catálogo de Forja en ese
+# idioma: las de menu y nuevo, todas a la vez (si hay alguna en su idioma, las otras no cuentan).
 func ext_leer_manifiesto(cajon: String, id: String) -> Extension
     dir = ruta_unir(cajon, id)
     texto = file_read_text(ruta_unir(dir, "manifiesto.txt"))
@@ -103,6 +107,14 @@ func ext_leer_manifiesto(cajon: String, id: String) -> Extension
     var menus: [String] = []
     var cola: [String] = []
     e = Extension(id, dir, id, "", "", "", "", ruta_unir(dir, id), "menu", " ", tipos, menus, true, EXT_PARADA, cola, 0, 0, "", false)
+    var nuevos: [String] = []
+    var sin_guardar: [String] = []
+    e.nuevos = nuevos
+    e.sin_guardar = sin_guardar
+    idioma = str_lower(catalog_language())
+    var menus_idioma: [String] = []
+    var nuevos_idioma: [String] = []
+    var con_idioma: String = " "      # las claves que ya tomaron el valor de su idioma
     for linea in str_split(str_replace(texto, "\r", ""), "\n")
         l = linea
         p = str_find(l, "#")
@@ -115,6 +127,18 @@ func ext_leer_manifiesto(cajon: String, id: String) -> Extension
         end
         clave = str_lower(str_trim(l[0:p]))
         valor = str_trim(l[p + 1:])
+        en_idioma = false
+        q = str_find(clave, ".")
+        if q > 0
+            if idioma == "" or clave[q + 1:] != idioma
+                continue
+            end
+            clave = clave[0:q]
+            en_idioma = true
+            con_idioma = con_idioma + clave + " "
+        elif str_contains(con_idioma, " " + clave + " ") and clave != "menu" and clave != "nuevo"
+            continue        # (ya tiene el de su idioma)
+        end
         if clave == "nombre"
             e.nombre = valor
         elif clave == "version"
@@ -149,6 +173,20 @@ func ext_leer_manifiesto(cajon: String, id: String) -> Extension
                     tipos.push(t)
                 end
             end
+        elif clave == "nuevo"
+            # nuevo = título | orden | descripción: Amiga-B (Nuevo de extensión...) lo ofrece; NUEVO orden
+            partes = str_split(valor, "|")
+            if partes.length >= 2 and str_trim(partes[0]) != ""
+                d = ""
+                if partes.length >= 3
+                    d = str_trim(partes[2])
+                end
+                if en_idioma
+                    nuevos_idioma.push(str_trim(partes[0]) + "|" + str_trim(partes[1]) + "|" + d)
+                else
+                    nuevos.push(str_trim(partes[0]) + "|" + str_trim(partes[1]) + "|" + d)
+                end
+            end
         elif clave == "menu"
             partes = str_split(valor, "|")
             titulo = str_trim(partes[0])
@@ -160,9 +198,23 @@ func ext_leer_manifiesto(cajon: String, id: String) -> Extension
             if partes.length >= 3 and str_trim(partes[2]) != ""
                 orden = str_trim(partes[2])
             end
-            if titulo != ""
+            if titulo != "" and en_idioma
+                menus_idioma.push(titulo + "|" + tecla + "|" + orden)
+            elif titulo != ""
                 menus.push(titulo + "|" + tecla + "|" + orden)
             end
+        end
+    end
+    if menus_idioma.length > 0
+        menus.clear()
+        for m in menus_idioma
+            menus.push(m)
+        end
+    end
+    if nuevos_idioma.length > 0
+        nuevos.clear()
+        for m in nuevos_idioma
+            nuevos.push(m)
         end
     end
     if not file_exists(e.programa)
@@ -382,6 +434,7 @@ end
 func ext_parada(i: Int)
     e = extensiones[i]
     e.estado = EXT_PARADA
+    e.sin_guardar.clear()
     e.cola.clear()
     e.esperando = 0
     marcas_quitar_ext(e.id)
@@ -400,6 +453,7 @@ func ext_despedir(i: Int)
         ext_avisar()
     end
     e.estado = EXT_PARADA
+    e.sin_guardar.clear()
     e.esperando = 0
     marcas_quitar_ext(e.id)
     bb_zona_quitar(e.id)
@@ -710,6 +764,91 @@ func ext_editar(i: Int, ruta: String)
     if e.estado == EXT_PARADA
         ext_arrancar(i)
     end
+end
+
+# NUEVO orden a la extensión i (un sprite, un mapa nuevo), arrancándola si hace falta
+func ext_nuevo(i: Int, orden: String)
+    e = extensiones[i]
+    if e.estado == EXT_VIVA and not ext_viva(e)
+        ext_parada(i)
+    end
+    ext_suceso_a(i, "NUEVO " + orden)
+    if e.estado == EXT_PARADA
+        ext_arrancar(i)
+    end
+end
+
+# Lo que hacen nuevo las activas: "extensión|título|orden|descripción" (la extensión, por su número)
+func ext_nuevos() -> [String]
+    var r: [String] = []
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.activa and e.error == ""
+            for n in e.nuevos
+                r.push("#{i}|" + n)
+            end
+        end
+        i = i + 1
+    end
+    return r
+end
+
+# Los finales de los ficheros de las activas, para el patrón de la petición de abrir: base|iff|ilbm...
+func ext_patron_tipos(base: String) -> String
+    t = base
+    for e in extensiones
+        if e.activa and e.error == ""
+            for x in e.tipos
+                if str_starts(x, ".") and not str_contains("|" + t + "|", "|" + x[1:] + "|")
+                    t = t + "|" + x[1:]
+                end
+            end
+        end
+    end
+    return t
+end
+
+# SINGUARDAR: los ficheros con cambios sin guardar de una extensión (sustituye la lista de antes)
+func ext_poner_sin_guardar(id: String, nombres: [String]) -> Bool
+    i = ext_buscar(id)
+    if i < 0
+        return false
+    end
+    e = extensiones[i]
+    e.sin_guardar.clear()
+    for n in nombres
+        if n != ""
+            e.sin_guardar.push(n)
+        end
+    end
+    return true
+end
+
+# Los de todas las que están en marcha
+func ext_sin_guardar() -> [String]
+    var r: [String] = []
+    for e in extensiones
+        if e.estado != EXT_PARADA
+            for n in e.sin_guardar
+                r.push(n)
+            end
+        end
+    end
+    return r
+end
+
+# GUARDAR a las que tienen ficheros sin guardar (Forja se cierra y se eligió Guardar)
+func ext_pedir_guardar()
+    i = 0
+    while i < extensiones.length
+        e = extensiones[i]
+        if e.estado != EXT_PARADA and e.sin_guardar.length > 0
+            ext_suceso_a(i, "GUARDAR")
+        end
+        i = i + 1
+    end
+    ext_avisar()
 end
 
 # --- Activar, desactivar e instalar (el gestor) ---

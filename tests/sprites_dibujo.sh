@@ -16,7 +16,7 @@ trap 'rm -rf "$tmp"' EXIT
 "$dash/dash" "$aqui/src/main.dash" -o "$tmp/Forja"
 maquina=""
 if [ -n "$RTG" ]; then
-  cp -r "$HOME/.cache/dash-emu/sys32rtg8" "$tmp/sys"
+  cp -r "${SISTEMA:-$HOME/.cache/dash-emu/sys32rtg8}" "$tmp/sys"
   export DASH_EMU_SYS_32_RTG="$tmp/sys"
   export DASH_KICKSTART_32="${DASH_KICKSTART_32:-$HOME/Descargas/Telegram Desktop/Kickstart v3.2.3 A1200.47.115_Pack_noSCSI.rom}"
   maquina="--machine rtg"
@@ -25,6 +25,9 @@ else
 fi
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+# el editor es una extensión de Forja
+. "$aqui/tests/extension.sh"
+extension Sprites editor_sprites
 # tres imágenes con muchos tramos (lo peor para el dibujo)
 python3 -I - "$tmp" <<'PY'
 import sys

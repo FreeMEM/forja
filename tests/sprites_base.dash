@@ -1,6 +1,6 @@
 # Prueba de src/sprites.dash sin ventana: píxeles, paleta, deshacer y rehacer. tests/sprites_base.sh la ejecuta.
 
-import "../src/sprites.dash"
+import "../extensiones/Sprites/sprites.dash"
 
 var fallos: Int = 0
 

@@ -92,22 +92,30 @@ programa cae con "Program failed (error #80000004)".
 `tests/buscar.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/buscar.dash` busca, cambia todo y va a una
 línea por ARexx, y abre las ventanas de buscar (Amiga-F) e ir a la línea (Amiga-L) por teclado.
 
-Editor de sprites (`docs/SPRITES_LOOP.md`): `tests/sprites_base.sh <worktree de Dash>` prueba `src/sprites.dash` sin
+Los editores de sprites y de mapas son extensiones (`extensiones/Sprites`, `extensiones/Mapas`): sus pruebas las
+compilan y las ponen en `DH0:Prueba/Extensiones` (`tests/extension.sh`), y miran su ventana ("Sprites: x", "Mapas: x")
+con su sonda: `RAM:forja-sprites-sonda.txt` y `ENV:FORJA_SPRITES_LIENZO`, `FORJA_SPRITE`, `FORJA_SPRITE_PANEL`,
+`FORJA_SPRITE_BOTONES`, `FORJA_SPRITES_PESTANAS`, `FORJA_SPRITES_DIBUJO` (y `RAM:forja-mapas-sonda.txt`,
+`FORJA_MAPAS_LIENZO`, `FORJA_MAPA`, `FORJA_MAPA_BOTONES`, `FORJA_MAPAS_DIBUJO`). Amiga-Q se pulsa en la ventana de Forja,
+que pregunta por los que la extensión tiene sin guardar.
+
+Editor de sprites (`docs/SPRITES_LOOP.md`): `tests/sprites_base.sh <worktree de Dash>` prueba `extensiones/Sprites/sprites.dash` sin
 ventana (píxeles, deshacer y rehacer). `python3 tests/iff.py` crea imágenes IFF ILBM de prueba y lee las que guarda
 Forja (`python3 tests/iff.py prueba` se prueba a sí mismo).
 `tests/sprites_iff.sh <worktree de Dash>` lee pinceles de `iff.py` (ByteRun1, plano de máscara, GRAB), escribe y
 vuelve a leer, comprueba que `bob_load` y `sprite_load` cargan lo escrito y que `iff.py` lo lee igual. Necesita
 `DASH_KICKSTART` (3.1): con la ROM de AROS, `sprite_load` se queda colgado.
 
-`tests/sprites_forja.sh <worktree de Dash>`: `tests/sprites_forja.dash` abre `nave.iff` (de `iff.py`), lo ve en el
-panel del proyecto, cambia de pestaña, guarda con Amiga-S, crea un BOB con Amiga-B, compila desde la pestaña del
-sprite (compila el `.dash` abierto) y prueba Inferencia; `iff.py` comprueba el fichero guardado.
+`tests/sprites_forja.sh <worktree de Dash>`: `tests/sprites_forja.dash` hace que Forja abra `nave.iff` (de `iff.py`) en
+la extensión, lo pone delante desde el panel del proyecto, guarda con Amiga-S (Forja lo dice), crea un BOB con Amiga-B
+en Forja (la petición con lo que hacen las extensiones) y compila desde el sprite (el `main.dash` de su cajón);
+`iff.py` comprueba el fichero guardado.
 
 `tests/sprites_dibujo.sh <worktree de Dash> [captura.png segundos...]` mide el dibujo entero del editor de sprites
 con 16x16, 32x32 y 64x64 (píxeles casi al azar, lo peor) y una bola de 32x32 (como un sprite de verdad).
 `REAL=1` para los tiempos de un A1200; `RTG=1` para ver los colores en las capturas.
 
-Editor de mapas (`docs/MAPAS_DISENO.md`): `tests/mapas_base.sh <Dash>` prueba `src/mapas.dash` sin ventana
+Editor de mapas (`docs/MAPAS_DISENO.md`): `tests/mapas_base.sh <Dash>` prueba `extensiones/Mapas/mapas.dash` sin ventana
 (celdas, caja, relleno, capas, tamaño, deshacer, guardar y leer). `tests/mapas_forja.sh <Dash>`: `tests/mapas_forja.dash`
 elige tiles, pinta, pone espejo, borra, arrastra el lápiz, hace una caja y un relleno, deshace, usa el cuentagotas,
 crea una capa, cambia el ancho y el zoom, mueve la vista y guarda; `tests/fmap.py` mira el fichero guardado.
@@ -227,3 +235,4 @@ El editor cómodo (fase 2 de `docs/FORJA_LOOP.md`):
   dibujo entero. Con `capturas/`: `editor-colores.png`, `editor-pareja.png`, `editor-cambios.png`,
   `editor-esquema.png`, `editor-renombrar.png` y `editor-plegado.png`. `RTG=1` (256 colores), `REAL=1` (la CPU de un
   A1200) y con MUI 3.8 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`.
+

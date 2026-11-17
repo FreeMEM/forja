@@ -126,7 +126,7 @@ Conclusiones:
 
 ## 8. Fase 2 (hecha, 2026-11-03)
 
-El editor en Forja (`src/mapas.dash`). Lo de la fase 1 cambió un poco para él: en `tilemap_draw` cada celda mide lo
+El editor en Forja (`src/mapas.dash`; desde el paso 1.5 de `docs/FORJA_LOOP.md`, la extensión Mapas, `extensiones/Mapas`). Lo de la fase 1 cambió un poco para él: en `tilemap_draw` cada celda mide lo
 que un fotograma del BOB (el editor tiene zoom haciendo un BOB mayor) y las celdas vacías dejan ver lo de debajo.
 - Abre y guarda `.fmap`; Amiga-B crea un mapa (y pide el tileset: un mapa nuevo toma el lado de sus tiles).
 - Vista con zoom 1, 2 o 4 (el primero, 2 si caben 8 filas; si no, 1), rejilla, flechas y rueda. Hasta 4 mapas

@@ -3,7 +3,7 @@
   "windows": [
     {
       "name": "GitCambios",
-      "title": "Cambios (Forja)",
+      "tr": 30, "title": "Cambios (Forja)",
       "id": 7,
       "size": [60, 50],
       "close": 86,
@@ -21,18 +21,18 @@
           {
             "type": "hgroup", "weight": 0,
             "children": [
-              { "type": "label", "text": "Mensaje:", "color": [220, 220, 210], "weight": 0 },
+              { "type": "label", "tr": 31, "text": "Mensaje:", "color": [220, 220, 210], "weight": 0 },
               { "type": "string", "name": "mensaje", "text": "", "max": 300, "ack": 80, "weight": 100 }
             ]
           },
           {
             "type": "hgroup", "weight": 0,
             "children": [
-              { "type": "button", "name": "diferencias", "label": "_Diferencias", "event": 81, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "todo", "label": "_Preparar todo", "event": 82, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "button", "name": "nada", "label": "_Quitar todo", "event": 83, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "diferencias", "tr": 32, "label": "_Diferencias", "event": 81, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "todo", "tr": 33, "label": "_Preparar todo", "event": 82, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "nada", "tr": 34, "label": "_Quitar todo", "event": 83, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "space" },
-              { "type": "button", "name": "confirmar", "label": "C_onfirmar", "event": 80, "background": [44, 44, 52], "color": [220, 220, 210] }
+              { "type": "button", "name": "confirmar", "tr": 35, "label": "C_onfirmar", "event": 80, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           }
         ]

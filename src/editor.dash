@@ -11,8 +11,6 @@
 import "tema.dash"
 import "sintaxis.dash"
 import "diseno.dash"
-import "sprites.dash"
-import "mapas.dash"
 import "codigo.dash"
 import "marcas.dash"
 import "errores.dash"
@@ -68,8 +66,6 @@ struct Documento
     rehacer: [Cambio]
     diseno: Bool          # un .dashui que se ve con el editor de ventanas (Amiga-D: como texto)
     puntos: [Int]         # las líneas (desde 1) con punto de parada
-    sprite: Sprite        # un sprite o un BOB (sprites.dash); nil en los de texto
-    mapa: Mapa = nil      # un mapa de tiles (mapas.dash); nil en los demás
     version: Int = 0      # sube con cada cambio del texto (codigo.dash vuelve a leerlo si cambió)
     vista: Int = 0        # 1: una pestaña de solo lectura de una extensión (VISTA, docs/EXTENSIONES.md)
     vista_ext: String = ""    # de qué extensión es la vista
@@ -169,7 +165,7 @@ func ed_abrir_texto(nombre: String, ruta: String, texto: String)
     var d2: [Cambio] = []
     diseno = str_ends(str_lower(nombre), ".dashui")
     var pp: [Int] = []
-    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno, pp, nil))
+    documentos.push(Documento(nombre, ruta, _lineas_de(texto), 0, 0, 0, 0, -1, 0, false, utf8, d1, d2, diseno, pp))
     activo = documentos.length - 1
 end
 
@@ -197,7 +193,7 @@ func ed_abrir_vista(ext: String, nombre: String, lineas: [String], colores: Stri
     if lineas.length == 0
         lineas.push("")
     end
-    documentos.push(Documento(nombre, "", lineas, 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, nil, nil, 0, 1, ext, colores))
+    documentos.push(Documento(nombre, "", lineas, 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, 0, 1, ext, colores))
     activo = documentos.length - 1
 end
 
@@ -216,24 +212,6 @@ func ed_color_vista(c: String) -> Int
         return tema.cursor
     end
     return tema.texto
-end
-
-# Una pestaña con el editor de sprites
-func ed_abrir_sprite(nombre: String, ruta: String, s: Sprite)
-    var d1: [Cambio] = []
-    var d2: [Cambio] = []
-    var pp: [Int] = []
-    documentos.push(Documento(nombre, ruta, [""], 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, s))
-    activo = documentos.length - 1
-end
-
-# Una pestaña con el editor de mapas
-func ed_abrir_mapa(nombre: String, ruta: String, m: Mapa)
-    var d1: [Cambio] = []
-    var d2: [Cambio] = []
-    var pp: [Int] = []
-    documentos.push(Documento(nombre, ruta, [""], 0, 0, 0, 0, -1, 0, false, false, d1, d2, false, pp, nil, m))
-    activo = documentos.length - 1
 end
 
 func ed_actual() -> Documento
@@ -659,9 +637,6 @@ func ed_cambiar_todo(d: Documento, t: String, nuevo: String, mayus: Bool) -> Int
 end
 
 func ed_cerrar(i: Int)
-    if documentos[i].mapa != nil
-        mp_cerrar(documentos[i].mapa)
-    end
     documentos.remove(i)
     if activo >= documentos.length
         activo = documentos.length - 1
@@ -1177,7 +1152,7 @@ end
 
 # La sangría de los bloques, solo en el código de Dash (no en un .dashui ni en otro texto)
 func es_codigo_dash(d: Documento) -> Bool
-    return d.sprite == nil and d.mapa == nil and not d.diseno and d.vista == 0 and not str_ends(str_lower(d.nombre), ".dashui")
+    return not d.diseno and d.vista == 0 and not str_ends(str_lower(d.nombre), ".dashui")
 end
 
 func ed_tabulador(d: Documento)
@@ -2999,43 +2974,6 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     tema_preparar()
     gfx_mode(0)
     d = ed_actual()
-    if d != nil and d.sprite != nil
-        if mui_canvas_updating() and sp_celda_sola >= 0
-            sp_dibujar_celda(d.sprite, sp_celda_sola)
-            return
-        end
-        if mui_canvas_updating() and sp_solo_rejilla
-            sp_dibujar_rejilla_sola(d.sprite)
-            return
-        end
-        if mui_canvas_updating() and sp_solo_vista
-            sp_dibujar_vista(d.sprite)
-            return
-        end
-        _dibujar_pestanas(x, y, ancho)
-        ed_zona_x = x
-        ed_zona_y = y
-        ed_zona_ancho = ancho
-        ed_zona_alto = alto
-        sp_dibujar(d.sprite, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
-        ed_ms_dibujo = sp_ms_dibujo
-        return
-    end
-    if d != nil and d.mapa != nil
-        if mui_canvas_updating() and mp_celda_sola >= 0
-            mp_dibujar_celda(d.mapa, mp_celda_sola)
-            return
-        end
-        _dibujar_pestanas(x, y, ancho)
-        ed_zona_x = x
-        ed_zona_y = y
-        ed_zona_ancho = ancho
-        ed_zona_alto = alto
-        mp_cajon = mp_cajon_de(d.ruta)
-        mp_dibujar(d.mapa, x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
-        ed_ms_dibujo = mp_ms_dibujo
-        return
-    end
     if d != nil and d.diseno
         if not mui_canvas_updating()
             _dibujar_pestanas(x, y, ancho)
@@ -3185,7 +3123,7 @@ end
 func ed_capas_geometria(d: Documento)
     ed_lista_alto = 0
     ed_ayuda_alto = 0
-    if d == nil or d.sprite != nil or d.mapa != nil or d.diseno
+    if d == nil or d.diseno
         return
     end
     fila = ed_fila_y(d, d.cl)

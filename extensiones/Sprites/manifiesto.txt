@@ -1,0 +1,15 @@
+# Sprites: el editor de sprites de hardware y BOBs de Forja (docs/SPRITES_LOOP.md)
+nombre = Sprites
+version = 1.0
+autor = FreeMEM
+licencia = MIT
+descripcion = El editor de sprites de hardware y BOBs: dibujar con lápiz, línea, caja y relleno, la paleta, los fotogramas y la animación, la cebolla, el punto de agarre, IFF ILBM, y el código para usarlos en un programa.
+programa = Sprites
+arranque = menu
+tipos = .iff .ilbm .lbm .brush .bob .spr
+nuevo = _Sprite | sprite | Un sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.
+nuevo = _BOB | bob | Un BOB: del tamaño y los colores que quieras; lo pinta el blitter.
+# en inglés (con el catálogo inglés de Forja)
+descripcion.english = The editor of hardware sprites and BOBs: draw with pencil, line, box and fill, the palette, frames and animation, onion skin, the grab point, IFF ILBM, and the code to use them in a program.
+nuevo.english = _Sprite | sprite | A hardware sprite: 16 pixels wide, 3 colours and the transparent one.
+nuevo.english = _BOB | bob | A BOB: any size and colours you like; the blitter draws it.

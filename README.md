@@ -16,7 +16,7 @@ castellano o en inglés, según el idioma de las Preferencias de Locale (el cat�
   [Dash](https://github.com/FreeMEM/dash/releases) trae la orden `dash` y también Forja y dashgit, y su instalador lo deja
   todo listo. Forja busca el compilador en `ENV:Forja/dashc` (en Preferencias, con un botón para elegirlo), si no en
   `DASH:dash` y si no como `dash` en el camino de órdenes.
-- Para el botón Inferencia, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
+- Para el copiloto (la extensión Inferencia), [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
 - Para git (la extensión Git), [dashgit](https://github.com/FreeMEM/dashgit) con su orden `servidor`: se busca en
   `ENV:Forja/dashgit`, si no en `DASH:dashgit` y si no como `dashgit` en el camino de órdenes. Para traer y subir por
   https, AmiSSL y una pila TCP/IP.
@@ -101,9 +101,10 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 - **Ir a la definición** (Amiga-J o Ctrl+clic): al fichero y la línea donde se define el nombre, abriéndolo si hace
   falta; Amiga-U vuelve. **Dónde se usa** (Amiga-H): la lista en la salida, y un clic lleva a cada sitio. Los
   símbolos se leen al abrir o cambiar de fichero y tras un momento sin escribir (en el menú Código).
-- **La barra de arriba**: Compilar, Ejecutar, Depurar, los botones del depurador e Inferencia, cada uno con un icono
+- **La barra de arriba**: Compilar, Ejecutar, Depurar y los botones del depurador, cada uno con un icono
   de color y su nombre. Los que no valen ahora salen en gris, y el que está bajo el puntero se ilumina. Si la ventana
-  es estrecha, primero los grises y luego todos se quedan solo con el icono.
+  es estrecha, primero los grises y luego todos se quedan solo con el icono. A la derecha, las zonas de las
+  extensiones (Inferencia, la rama de git).
 - **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea. La salida
   guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
   Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...". En un proyecto de varios
@@ -124,10 +125,23 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 - **Ventanas `.dashui`**: se abren en el editor de ventanas (Amiga-D cambia a texto). El árbol de objetos y sus
   propiedades; "+" añade, Supr quita, Alt+flechas mueve. Amiga-P abre la vista previa con MUI de verdad. Se guarda
   igual que la extensión de VS Code.
-- **Inferencia** (Amiga-I): le manda el fichero, o las líneas elegidas.
-- **Sprites y BOBs**: las imágenes IFF ILBM (también los pinceles de DPaint) se abren en su propio editor, y
-  Amiga-B crea un sprite de hardware (16 de ancho, 3 colores y el transparente) o un BOB (del tamaño y los
-  colores que quieras). Se guardan como IFF, y `sprite_load` y `bob_load` de Dash los cargan tal cual.
+- **Versiones nuevas de Dash**: Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay, pregunta si
+  la baja e instala en el cajón de Dash (`DASH:`): la orden dash, Forja, Inferencia, `lib/` y los ejemplos. Antes de
+  cambiar nada lo comprueba todo; si algo llega mal, Dash se queda como estaba. Al empezar mira una vez al día y solo
+  avisa en la salida (se apaga en las preferencias). Hace falta la red y AmiSSL. También por ARexx: `ACTUALIZAR`.
+### Sprites y mapas
+
+Los editores de sprites y de mapas son dos extensiones (`Extensiones/Sprites` y `Extensiones/Mapas`): quien solo
+programa no los carga. Arrancan al abrir uno de sus ficheros (desde el panel del proyecto, Abrir o la sesión) o al
+pedir uno nuevo con Amiga-B, cada una con su ventana y una pestaña por fichero, y acaban al cerrar la última. En su
+ventana, Amiga-S guarda (la salida de Forja lo dice y el panel del proyecto lo ve), Amiga-K y Amiga-E compilan y
+ejecutan el programa del cajón del sprite (`main.dash`), y Ventana > Forja vuelve a Forja. Al salir de Forja, los
+que tienen cambios sin guardar cuentan en su pregunta.
+
+- **Sprites y BOBs** (la extensión Sprites): las imágenes IFF ILBM (también los pinceles de DPaint) se abren en su
+  ventana, y Amiga-B (en Forja o en esa ventana) crea un sprite de hardware (16 de ancho, 3 colores y el transparente)
+  o un BOB (del tamaño y los colores que quieras). Se guardan como IFF, y `sprite_load` y `bob_load` de Dash los
+  cargan tal cual.
   - Dibujar: P lápiz, L línea, B caja (con Mayúsculas al empezar, rellena), F relleno, K cuentagotas, A punto
     de agarre. Alt + clic borra; Ctrl + clic coge el color. Arriba, abajo y las cifras eligen color; las barras
     R G B lo cambian.
@@ -139,12 +153,8 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   - C copia al portapapeles las líneas de Dash que lo cargan, con sus colores y cómo animarlo.
 
   ![El editor de sprites con una nave de 4 fotogramas](docs/img/sprites.png)
-- **Versiones nuevas de Dash**: Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay, pregunta si
-  la baja e instala en el cajón de Dash (`DASH:`): la orden dash, Forja, Inferencia, `lib/` y los ejemplos. Antes de
-  cambiar nada lo comprueba todo; si algo llega mal, Dash se queda como estaba. Al empezar mira una vez al día y solo
-  avisa en la salida (se apaga en las preferencias). Hace falta la red y AmiSSL. También por ARexx: `ACTUALIZAR`.
-- **Mapas de tiles**: los ficheros `.fmap` (IFF `FORM FMAP`) se abren en el editor de mapas, y Amiga-B también
-  crea un mapa nuevo. El tileset es un BOB del editor de sprites, con un fotograma por tile de 8, 16 o 32; el mapa
+- **Mapas de tiles** (la extensión Mapas): los ficheros `.fmap` (IFF `FORM FMAP`) se abren en su ventana, y
+  Amiga-B también crea un mapa nuevo. El tileset es un BOB del editor de sprites, con un fotograma por tile de 8, 16 o 32; el mapa
   guarda su nombre. `tilemap_load` y `tilemap_draw` de Dash los cargan y los pintan.
   - Herramientas: P lápiz, B caja, F relleno, K cuentagotas, E borrar. Alt + clic borra; Ctrl + clic coge el tile.
     H y V ponen el tile en espejo; la coma y el punto cambian de tile. En el panel, la página Tiles elige el tile.
@@ -165,7 +175,7 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 Git es una extensión (`Extensiones/Git`), que usa [dashgit](https://github.com/FreeMEM/dashgit). **dashgit está en
 alfa**: aún hay mucho que probar, así que ten copia de lo importante.
 
-- En la barra de botones, a la izquierda de Inferencia, la rama y "N cambios"; un clic abre el panel Cambios.
+- En la barra de botones, a la derecha, la rama y "N cambios"; un clic abre el panel Cambios.
 - En el panel del proyecto, una letra en cada fichero o cajón con cambios: M (cambiado), A (nuevo en el índice),
   D (borrado), U (conflicto), ? (sin seguir).
 - En el margen del editor, rayas frente al último commit: añadida (raya llena, verde), cambiada (a trozos, azul) y
@@ -189,9 +199,11 @@ El cajón `.git` no se ve en el panel del proyecto.
 Inferencia, la IA del Amiga, es también una extensión (`Extensiones/Inferencia`): un programa pequeño, el copiloto,
 que lee el código y el proyecto en Forja y se lo pasa a [Inferencia](https://github.com/FreeMEM/inferencia) por
 ARexx. Inferencia pone el modelo, la clave y la red (sus preferencias son las de siempre); si no está abierta, el
-copiloto la arranca (`ENV:Forja/inferencia`). Su menú, Inferencia, en la barra de menús:
+copiloto la arranca (`ENVARC:Forja/inferencia`: Inferencia > Dónde está Inferencia... lo elige). En la barra de botones,
+a la derecha, la zona Inferencia (el botón que antes era de Forja): un clic es "Preguntar sobre esto". Su menú,
+Inferencia, en la barra de menús:
 
-- **Preguntar sobre esto** (Ctrl Alt I): las líneas elegidas, o el fichero, y la lista del proyecto van a la
+- **Preguntar sobre esto** (Amiga-I, o un clic en la zona Inferencia): las líneas elegidas, o el fichero, y la lista del proyecto van a la
   conversación de Inferencia; escribes allí la pregunta.
 - **Explicar la selección**: lo elegido, o la función del cursor; la explicación sale en Inferencia.
 - **Cambiar el código...** (Ctrl Alt C): dices qué cambiar en lo elegido (o en la función del cursor).
@@ -206,7 +218,7 @@ copiloto la arranca (`ENV:Forja/inferencia`). Su menú, Inferencia, en la barra 
 Lo que cambia código no toca nada al llegar: la respuesta sale en una pestaña de solo lectura con las diferencias
 (en verde lo que pone, en rojo lo que quita). `a` (o Aceptar el cambio, Ctrl Alt Y) lo aplica, y Amiga-Z lo
 deshace; `r` (o Rechazar, Ctrl Alt N) lo descarta. Mientras Inferencia piensa o hay un cambio por aceptar, la barra
-de botones lo dice (Copiloto); un clic cancela lo que se está pidiendo o vuelve a enseñar el cambio. Para estos
+de botones lo dice (en la zona Inferencia); un clic cancela lo que se está pidiendo o vuelve a enseñar el cambio. Para estos
 encargos, Inferencia lee el fichero, lo que importa y la lista del proyecto, con un tope de 16000 caracteres
 (`ENV:Forja/inferencia_tope`), y puede leer otros ficheros y buscar en la ayuda de Dash (`DASH:Ayuda/Dash.ayuda`)
 para no inventarse funciones.
@@ -214,7 +226,7 @@ para no inventarse funciones.
 ### ARexx
 
 Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, `SELECCION`,
-`CAMBIAR fichero desde hasta texto`, `GUARDAR [fichero]`, `COMPILAR`, `EJECUTAR`, `ESTADO`, `ERRORES`,
+`CAMBIAR fichero desde hasta texto`, `GUARDAR [fichero]`, `COMPILAR [fichero]`, `EJECUTAR [fichero]`, `ESTADO`, `ERRORES`,
 `BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea` y `SALIDA` (el texto de la salida). Para las extensiones
 hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas propias, por lotes):
 [docs/EXTENSIONES.md](docs/EXTENSIONES.md). La extensión Git tiene su puerto, `FORJAEXT.GIT`: `GIT orden de dashgit`
@@ -224,10 +236,13 @@ hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas pr
 
 Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones (o un menú suyo en
 la barra), teclas, marcas y rayas en el margen, letras en el proyecto, una zona en la barra de botones, un texto en la
-barra, pestañas de solo lectura o un editor para un tipo de fichero. Git y el copiloto de Inferencia son dos de ellas. Hablan con Forja por ARexx;
+barra, pestañas de solo lectura o un editor para un tipo de fichero con su ventana. Git, el copiloto de Inferencia, Sprites y
+Mapas son extensiones. Hablan con Forja por ARexx;
 si una cae o se cuelga, Forja sigue. Extensiones > Gestor de extensiones... las enseña, las activa o las desactiva y
 las instala desde un cajón o un `.lha`. La de ejemplo, Contar, cuenta las líneas y las palabras del fichero y mete
-la fecha con Ctrl Alt D. Cómo escribir una, con `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md).
+la fecha con Ctrl Alt D. Cómo escribir una, con `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md). Cada
+una puede llevar su catálogo (`Catalogs/english/X.catalog` en su cajón) y su manifiesto, textos en otro idioma
+(`descripcion.english`, `menu.english`).
 
 ## Compilar
 

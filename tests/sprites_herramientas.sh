@@ -15,7 +15,7 @@ trap 'rm -rf "$tmp"' EXIT
 "$dash/dash" "$aqui/src/main.dash" -o "$tmp/Forja"
 maquina=""
 if [ -n "$RTG" ]; then
-  cp -r "$HOME/.cache/dash-emu/sys32rtg8" "$tmp/sys"
+  cp -r "${SISTEMA:-$HOME/.cache/dash-emu/sys32rtg8}" "$tmp/sys"
   export DASH_EMU_SYS_32_RTG="$tmp/sys"
   export DASH_KICKSTART_32="${DASH_KICKSTART_32:-$HOME/Descargas/Telegram Desktop/Kickstart v3.2.3 A1200.47.115_Pack_noSCSI.rom}"
   maquina="--machine rtg"
@@ -24,6 +24,9 @@ else
 fi
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+# el editor es una extensión de Forja
+. "$aqui/tests/extension.sh"
+extension Sprites editor_sprites
 python3 -I -c "import sys; open(sys.argv[1], 'w').write('16 16 2\n' + '\n'.join(['0' * 16] * 16) + '\npaleta 000000 E0E0E0 E08030 3060C0\n')" "$tmp/vacio.txt"
 python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/vacio.iff" "$tmp/vacio.txt" --frja "1 1 16 6"
 "$dash/dash" "$aqui/tests/sprites_herramientas.dash" -o "$tmp/sys/Prueba/SpritesHerramientas"

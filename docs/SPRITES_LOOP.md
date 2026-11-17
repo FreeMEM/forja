@@ -83,7 +83,7 @@ Por dónde se engancha (el editor de ventanas `diseno.dash` es el modelo a segui
   - Sprite de hardware: 16 de ancho, 2 planos, color 0 transparente.
   - BOB: de 1 a 256 de ancho y alto, de 1 a 8 planos.
   - Pasar de uno a otro (T) recorta o rellena con deshacer.
-- **Código:** `src/sprites.dash`, con el prefijo `sp_`, importado desde `editor.dash` como `diseno.dash`.
+- **Código:** `src/sprites.dash`, con el prefijo `sp_`, importado desde `editor.dash` como `diseno.dash`. Desde el paso 1.5 de `docs/FORJA_LOOP.md` es la extensión Sprites (`extensiones/Sprites`), con su ventana.
   - `Documento` gana `sprite: Sprite` (nil en los de texto) y `lineas = [""]`.
   - `struct Sprite`: ancho y alto del fotograma, planos, si es de hardware, paleta (256 RGB), `fotos: [[Int]]`,
     el fotograma actual, color, herramienta, velocidad (tics de 1/50 s), cebolla, agarre, deshacer y rehacer.

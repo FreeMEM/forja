@@ -15,6 +15,9 @@ trap 'rm -rf "$tmp"' EXIT
 cp -r "$HOME/.cache/dash-emu/sys31muisslweb" "$tmp/sys"
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+# el editor es una extensión de Forja
+. "$aqui/tests/extension.sh"
+extension Sprites editor_sprites
 python3 -I - "$tmp" <<'PY'
 import sys
 d = sys.argv[1]

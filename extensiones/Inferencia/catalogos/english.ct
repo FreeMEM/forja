@@ -1,0 +1,232 @@
+## version $VER: Inferencia.catalog 1.0 (17.11.2026)
+## language english
+## codeset 0
+;
+MSG_1
+thinking...
+; pensando...
+MSG_2
+a: accept, r: reject
+; a: aceptar, r: rechazar
+MSG_3
+1 error: fix it
+; 1 error: arreglarlo
+MSG_4
+%1 errors: fix
+; %1 errores: arreglar
+MSG_5
+Where Inferencia is
+; Dónde está Inferencia
+MSG_6
+Inferencia: 
+; Inferencia: 
+MSG_7
+a: accept the change   r: reject it   (also in the Inferencia menu)
+; a: aceptar el cambio   r: rechazarlo   (también en el menú Inferencia)
+MSG_8
+Inferencia does not answer. Is it waiting for something in its window?
+; Inferencia no contesta. ¿Está esperando algo en su ventana?
+MSG_9
+rexxsyslib.library is missing.
+; falta rexxsyslib.library.
+MSG_10
+cannot start %1. Say where it is with Inferencia > Where is Inferencia... (ENVARC:Forja/inferencia).
+; no se puede arrancar %1. Di dónde está con Inferencia > Dónde está Inferencia... (ENVARC:Forja/inferencia).
+MSG_11
+starting Inferencia...
+; arrancando Inferencia...
+MSG_12
+Inferencia did not start (%1). It needs MUI and a 68020 or better; with MUI 3.8, see the README of Inferencia.
+; Inferencia no arrancó (%1). Necesita MUI y un 68020 o mejor; con MUI 3.8, mira el README de Inferencia.
+MSG_13
+open a Dash file first.
+; abre antes un fichero de Dash.
+MSG_14
+there has to be a text file in front.
+; delante tiene que haber un fichero de texto.
+MSG_15
+Inferencia did not take the text (RC %1).
+; Inferencia no aceptó el texto (RC %1).
+MSG_16
+The file in front is %1; the cursor is on line %2.
+; El fichero de delante es %1; el cursor está en la línea %2.
+MSG_17
+Inferencia is busy: the code goes with your next question.
+; Inferencia está ocupada: el código va con tu próxima pregunta.
+MSG_18
+, lines %1 to %2
+; , líneas %1 a %2
+MSG_19
+Inferencia has the chosen lines: write your question there.
+; Inferencia tiene las líneas elegidas: escribe allí la pregunta.
+MSG_20
+[cut: the rest is in the file]
+; [cortado: sigue en el fichero]
+MSG_21
+Inferencia has the file: write your question there.
+; Inferencia tiene el fichero: escribe allí la pregunta.
+MSG_22
+Explain what this Dash code (%1) does, step by step and in a few words.
+; Explica qué hace este código de Dash (%1), paso a paso y en pocas palabras.
+MSG_23
+the last compilation gave no errors. I compile again to see.
+; la última compilación no dio errores. Compilo otra vez para ver.
+MSG_24
+Forja is busy compiling or running: try later.
+; Forja está ocupada compilando o ejecutando: prueba después.
+MSG_25
+compilation error in 
+; error de compilación en 
+MSG_26
+Explain this Dash compilation error and how to fix it.
+; Explica este error de compilación de Dash y cómo se arregla.
+MSG_27
+Fix the error: 
+; Arreglar el error: 
+MSG_28
+there is already a task running (a click on the Inferencia zone cancels it).
+; ya hay un encargo en marcha (un clic en la zona Inferencia lo cancela).
+MSG_29
+Inferencia is on another task: try later.
+; Inferencia está con otro encargo: prueba después.
+MSG_30
+Inferencia did not take the task (RC %1).
+; Inferencia no aceptó el encargo (RC %1).
+MSG_31
+Document %1: 
+; Documentar %1: 
+MSG_32
+cannot open the MUI window.
+; no se puede abrir la ventana de MUI.
+MSG_33
+What do I change in %1?
+; ¿Qué cambio en %1?
+MSG_34
+Change: 
+; Cambiar: 
+MSG_35
+the function %1
+; la función %1
+MSG_36
+the code of lines %1 to %2
+; el código de las líneas %1 a %2
+MSG_37
+Write the test: 
+; Escribir la prueba: 
+MSG_38
+the answer brings no code:
+; la respuesta no trae código:
+MSG_39
+Inferencia proposes no change.
+; Inferencia no propone ningún cambio.
+MSG_40
+New file: 
+; Fichero nuevo: 
+MSG_41
+Looked at: 
+; Ha mirado: 
+MSG_42
+the change is in the tab %1: a accepts it, r rejects it.
+; el cambio está en la pestaña %1: a lo acepta, r lo rechaza.
+MSG_43
+there is no change to accept.
+; no hay ningún cambio que aceptar.
+MSG_44
+%1 already exists: ask for the test again.
+; %1 ya existe: pide la prueba otra vez.
+MSG_45
+cannot write %1.
+; no se puede escribir %1.
+MSG_46
+written %1.
+; escrito %1.
+MSG_47
+the code changed since Inferencia read it: ask for the change again.
+; el código cambió desde que lo leyó Inferencia: pide el cambio otra vez.
+MSG_48
+Forja did not take the change in %1.
+; Forja no aceptó el cambio en %1.
+MSG_49
+changed %1 (Amiga-Z undoes it).
+; cambiado %1 (Amiga-Z lo deshace).
+MSG_50
+there is no change to reject.
+; no hay ningún cambio que rechazar.
+MSG_51
+change rejected.
+; cambio rechazado.
+MSG_52
+suggestions while typing on. When you stop at the end of a line, Inferencia proposes how it goes on (in grey); Tab puts it in. They go over the network: with a 68020 or a far server they are slow.
+; sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan.
+MSG_53
+suggestions while typing off.
+; sugerencias al escribir apagadas.
+MSG_54
+File %1. The cursor is at the end of line %2:
+; Fichero %1. El cursor está al final de la línea %2:
+MSG_55
+What comes before (up to that line):
+; Lo de antes (hasta esa línea):
+MSG_56
+What comes after:
+; Lo de después:
+MSG_57
+Inferencia has closed.
+; Inferencia se ha cerrado.
+MSG_58
+the task took too long: cancelled.
+; el encargo tardaba demasiado: cancelado.
+MSG_59
+the model gave an error: 
+; el modelo dio un error: 
+MSG_60
+task cancelled.
+; encargo cancelado.
+MSG_61
+it compiles without errors: there is nothing to explain or fix.
+; compila sin errores: no hay nada que explicar ni arreglar.
+MSG_62
+Inferencia: cannot open MUI; the copilot does not start.
+; Inferencia: no se puede abrir MUI; el copiloto no arranca.
+MSG_63
+Fix this Dash compilation error.
+; Arregla este error de compilación de Dash.
+MSG_64
+The error is on line %1 of %2. Give back lines %3 to %4 (below, with their number in front) already fixed, whole and without the numbers, in a single ```dash block. Before the block, one line saying what was wrong.
+; El error está en la línea %1 de %2. Devuelve las líneas %3 a %4 (abajo, con su número delante) ya arregladas, enteras y sin los números, en un solo bloque ```dash. Antes del bloque, una línea que diga qué estaba mal.
+MSG_65
+Document this Dash code (lines %1 to %2 of %3): put above it a few comment lines, with #, saying what it does, what it takes and what it returns. If it already has a comment, improve it. Do not change the code. Give back those lines with the comment in front, whole, in a single ```dash block.
+; Documenta este código de Dash (líneas %1 a %2 de %3): pon encima unas líneas de comentario, con #, que digan qué hace, qué recibe y qué devuelve. Si ya tiene comentario, mejóralo. No cambies el código. Devuelve esas líneas con el comentario delante, enteras, en un solo bloque ```dash.
+MSG_66
+Change this Dash code (lines %1 to %2 of %3) like this: 
+; Cambia este código de Dash (líneas %1 a %2 de %3) así: 
+MSG_67
+Give back those lines already changed, whole, in a single ```dash block (you can add or remove lines). Before the block, one line saying what you changed.
+; Devuelve esas líneas ya cambiadas, enteras, en un solo bloque ```dash (puedes añadir o quitar líneas). Antes del bloque, una línea que diga qué cambiaste.
+MSG_68
+Write a test program in Dash, the file %1 (in the same drawer as %2), for %3: it calls it with several cases, checks each result with if and writes with Print \"bien: ...\" or \"FALLO: ...\". If %2 has no Main, import it with import \"%2\"; if it has, copy into the test what is needed. Give back the whole file in a single ```dash block.
+; Escribe un programa de prueba en Dash, el fichero %1 (en el mismo cajón que %2), para %3: que la llame con varios casos, compruebe cada resultado con if y escriba con Print \"bien: ...\" o \"FALLO: ...\". Si %2 no tiene Main, impórtalo con import \"%2\"; si lo tiene, copia en la prueba lo que haga falta. Devuelve el fichero entero en un solo bloque ```dash.
+MSG_69
+Project: %1 (files:
+; Proyecto: %1 (ficheros:
+MSG_70
+The whole file %1
+; El fichero %1 entero
+MSG_71
+Lines %1 to %2 of the file %3 (it has %4; the rest does not fit)
+; Las líneas %1 a %2 del fichero %3 (tiene %4; lo demás no cabe)
+MSG_72
+What it imports, 
+; Lo que importa, 
+MSG_73
+%1 does not fit: if you need it, read it with the read tool
+; %1 no cabe: si lo necesitas, léelo con la herramienta leer
+MSG_74
+Inferencia: change the code
+; Inferencia: cambiar el código
+MSG_75
+_Ask
+; _Pedir
+MSG_76
+_Cancel
+; _Cancelar

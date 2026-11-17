@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""El paquete de Forja: el cajón Forja con sus iconos y sus extensiones (Extensiones/Git, Extensiones/Inferencia), y el .lha. dashc
+"""El paquete de Forja: el cajón Forja con sus iconos y sus extensiones (Extensiones/Git, Inferencia, Sprites y Mapas), y el .lha. dashc
 y dashgit no van dentro: son de Dash.
 
     python3 tools/paquete.py 0.1 [DASH_DIR]   →  build/paquete/Forja/...  y  build/forja-0.1.lha
@@ -89,6 +89,10 @@ def main():
     # el catálogo inglés (tools/catalogos.py), junto al programa: PROGDIR:Catalogs/english
     subprocess.run([sys.executable, str(raiz / "tools/catalogos.py"), str(dash), "catalog"], check=True)
     shutil.copytree(build / "Catalogs", caj / "Catalogs")
+    # los de las extensiones, junto a su programa (su PROGDIR:Catalogs/english)
+    for d in sorted((build / "Extensiones").glob("*/Catalogs")):
+        if (caj / "Extensiones" / d.parent.name).exists():
+            shutil.copytree(d, caj / "Extensiones" / d.parent.name / "Catalogs")
     lha = build / f"forja-{version}.lha"
     lha.unlink(missing_ok=True)
     subprocess.run(["/opt/amiga/bin/lha", "ao5q", str(lha), "Forja", "Forja.info"], cwd=dest, check=True)

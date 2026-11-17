@@ -2,14 +2,16 @@
 
 Una extensión es un programa aparte que añade algo a Forja: opciones de menú (sueltas o en un menú suyo), teclas,
 marcas y rayas en el margen del código, letras en el proyecto, una zona en la barra de botones, un texto en la barra,
-pestañas de solo lectura con colores y teclas propias, un editor para un tipo de fichero. Habla con Forja por su puerto ARexx, `FORJA.1`. Si cae o se cuelga,
-Forja sigue en pie.
+pestañas de solo lectura con colores y teclas propias, un editor para un tipo de fichero con su ventana. Habla con
+Forja por su puerto ARexx, `FORJA.1`. Si cae o se cuelga, Forja sigue en pie.
 
 Se escriben en Dash con `lib/forja.dash`, pero valen en cualquier lenguaje que hable ARexx (también un script).
 
 La de ejemplo es `extensiones/Contar`: cuenta las líneas y las palabras del fichero, lo pone en la barra y mete la
 fecha en el cursor con Ctrl Alt D. `extensiones/Git` (git con dashgit) usa casi todo lo demás. `extensiones/Inferencia`
 (el copiloto, que habla con Inferencia) usa las vistas para enseñar un cambio antes de aceptarlo y `SUGERENCIA`.
+`extensiones/Sprites` y `extensiones/Mapas` (los editores de sprites y de mapas de tiles) abren sus tipos de fichero en
+una ventana suya y hacen ficheros nuevos (`tipos`, `nuevo`, `GUARDADO`, `SINGUARDAR`, `COMPILAR fichero`).
 
 ## Dónde van
 
@@ -49,11 +51,17 @@ En el cajón `Extensiones` junto a Forja, una por cajón:
 | `menu` | Una opción del menú: `título \| tecla \| orden`. La tecla y la orden pueden faltar; sin orden, es el título. Puede haber varias. |
 | `submenu` | El título de su menú propio (`submenu = Git`): un menú más en la barra de menús, tras Extensiones, con sus opciones (10 como mucho). Hay 3 entre todas; si no quedan, van sueltas en Extensiones. |
 | `pausa` | Cuántos milisegundos sin escribir antes de `CAMBIADO` (por defecto 1200; 300 como poco). |
-| `tipos` | Los ficheros que abre ella, por su final: `.spr .bob`. Forja no los abre: se los pasa con `EDITAR`. Los `.dash` y `.dashui` son siempre de Forja. |
+| `tipos` | Los ficheros que abre ella, por su final: `.spr .bob`. Forja no los abre: se los pasa con `EDITAR` (desde el panel del proyecto, Abrir, la sesión o ARexx). El panel del proyecto los lista y la petición de Abrir los deja elegir. Los `.dash` y `.dashui` son siempre de Forja. |
+| `nuevo` | Un fichero nuevo que hace ella: `título \| orden \| descripción` (`nuevo = _BOB \| bob \| Un BOB: del tamaño...`). Proyecto > Nuevo de extensión... (Amiga-B) enseña la descripción de cada uno y un botón con su título (el `_` marca su tecla); el elegido le llega como `NUEVO orden`. Puede haber varios. |
+
+**En otro idioma**: `clave.idioma = valor` vale en lugar de `clave` cuando el catálogo de Forja es de ese idioma
+(`descripcion.english = Counts the lines...`, `menu.english = Count the words | | contar`). Sirve para `nombre`,
+`descripcion`, `submenu`, `menu` y `nuevo`; las de `menu` y `nuevo` van todas a la vez: si hay alguna en su idioma, las
+otras no cuentan (la orden, la tercera parte, tiene que ser la misma). Sin catálogo (en castellano), no cuentan.
 
 Teclas: `ctrl`, `alt`, `shift`, `amiga` y una letra, una cifra o `f1` a `f10`. Por ejemplo `ctrl alt d` o `f3`.
 Funcionan con el puntero sobre el editor. Las de Forja van antes: `amiga s` nunca llega a una extensión. Libres hoy:
-F2, F3, F4 y F8, y Amiga con M, T o Y.
+Amiga con M, T o Y, y Ctrl Alt con casi todas las letras (Amiga-I es de Inferencia; F1 a F10 son de Forja).
 
 ## Cómo arranca y cómo habla
 
@@ -120,7 +128,9 @@ Cada uno es una línea: el tipo, un espacio y el dato.
 | Suceso | Cuándo | Hay que pedirlo |
 |--------|--------|-----------------|
 | `MENU orden` | Se eligió su opción del menú o se pulsó su tecla. | No |
-| `EDITAR ruta` | Se abrió un fichero de sus `tipos`. | No |
+| `EDITAR ruta` | Se abrió un fichero de sus `tipos`. Si ya lo tiene abierto, que ponga delante su ventana. | No |
+| `NUEVO orden` | Se eligió uno de sus `nuevo` en Amiga-B. | No |
+| `GUARDAR` | Forja se cierra y el usuario eligió Guardar: que guarde los que dijo con `SINGUARDAR` (los que no tienen nombre, con su petición) y lo diga con `SINGUARDAR`. | No |
 | `SALIR` | Forja se cierra, o la desactivan en el gestor. Debe acabar. | No |
 | `ABIERTO ruta` | Se abrió un fichero en una pestaña nueva. | `abierto` |
 | `GUARDADO ruta` | Se guardó. | `guardado` |
@@ -141,13 +151,14 @@ Un fichero sin guardar no tiene ruta: va su nombre ("sin nombre.dash").
 Al puerto `FORJA.1`. Las líneas y columnas cuentan desde 1. Un fichero entre comillas si lleva espacios. RC 0 bien,
 5 si no había nada que hacer, 10 si la orden está mal o no se puede.
 
-Las de "el fichero activo" valen solo con un fichero de texto delante (no con un sprite o un mapa): si no, RC 10.
+Las de "el fichero activo" son del fichero de texto de delante en Forja (los de las extensiones, como un sprite, están
+en su ventana y Forja no los ve).
 
 ### La extensión
 
 | Orden | Respuesta |
 |-------|-----------|
-| `HOLA nombre` | La versión de la API y la de Forja: `3 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA). |
+| `HOLA nombre` | La versión de la API y la de Forja: `4 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA; la 4, `nuevo`, `NUEVO`, `GUARDAR`, `GUARDADO`, `SINGUARDAR`, `DELANTE` y `COMPILAR fichero`). |
 | `SUCESOS nombre` | Sus sucesos, uno por línea, y la cola queda vacía. |
 | `ADIOS nombre` | Se va. Forja quita sus marcas y su texto. |
 | `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 10 en cada menú propio). |
@@ -156,7 +167,7 @@ Las de "el fichero activo" valen solo con un fichero de texto delante (no con un
 
 | Orden | Respuesta |
 |-------|-----------|
-| `ACTIVO` | Del fichero de delante, una cosa por línea: ruta (vacía si no se ha guardado), nombre, cambiado (0 o 1), tipo (`texto`, `dashui`, `sprite`, `mapa` o `vista`, una pestaña de solo lectura) y número de líneas. RC 5 si no hay ninguno. |
+| `ACTIVO` | Del fichero de delante, una cosa por línea: ruta (vacía si no se ha guardado), nombre, cambiado (0 o 1), tipo (`texto`, `dashui` o `vista`, una pestaña de solo lectura) y número de líneas. RC 5 si no hay ninguno. |
 | `TEXTO [fichero]` | Todo el texto, guardado o no. Sin fichero, el activo. El fichero tiene que estar abierto. |
 | `TEXTODISCO [fichero]` | El texto como se guardaría: en UTF-8 si el fichero lo estaba (`TEXTO` va siempre en Latin-1). Para compararlo con el del disco (git). |
 | `VERSION [fichero]` | Cuántos cambios lleva el texto: sube con cada uno. Para `RAYAS` con versión. |
@@ -191,7 +202,17 @@ Todo con deshacer, como si lo hubiera escrito el usuario.
 | `ABRIR fichero [línea]` | Lo abre, o va a su pestaña. Si es de un tipo de una extensión, se lo pasa a ella. |
 | `GUARDAR [fichero]` | Lo guarda. |
 | `IRA línea`, `BUSCAR texto`, `CAMBIARTODO buscar cambiar` | Como en el menú. |
-| `COMPILAR`, `EJECUTAR` | Sin esperar: `ESTADO` dice cuándo acaba; también el suceso `COMPILADO`. |
+| `COMPILAR [fichero]`, `EJECUTAR [fichero]` | Sin esperar: `ESTADO` dice cuándo acaba; también el suceso `COMPILADO`. Sin fichero, el programa del fichero de delante. Con un fichero que no es un programa (un sprite, un mapa, un módulo), el de su cajón: un `.dash` abierto con `Main` de ese cajón o el de encima, si no su `main.dash` o el del proyecto, abierto o no. RC 5 si ya compila o ejecuta; 10 si no hay programa. |
+
+### Los ficheros de una extensión
+
+Para las que abren sus propios tipos de fichero (`tipos`, `nuevo`) en una ventana suya.
+
+| Orden | Qué hace |
+|-------|----------|
+| `GUARDADO nombre fichero` | Guardó un fichero suyo: Forja dice "Guardado: fichero" en la salida, lo cuenta a las extensiones que piden `guardado` y, si es del cajón del proyecto, lee otra vez el panel (sale el fichero nuevo). |
+| `SINGUARDAR nombre`, y un fichero por línea | Sus ficheros con cambios sin guardar (los nombres; sin líneas, ninguno). Sustituye la lista de antes. Al salir, Forja los cuenta con los suyos en "Cambios sin guardar": con Guardar le manda `GUARDAR` y espera (20 s como mucho) a que la lista quede vacía; si no, Forja sigue abierta. Con Descartar, se pierden. |
+| `DELANTE` | La ventana de Forja, delante y activa (Ventana > Forja en la de la extensión). |
 
 ### La ventana
 
@@ -202,7 +223,7 @@ Todo con deshacer, como si lo hubiera escrito el usuario.
 | `MARCAS nombre fichero`, y una marca por línea: `línea símbolo` | Sus marcas en el margen de ese fichero. Sustituyen las suyas de antes; sin líneas, las quita. |
 | `MARCASPROYECTO nombre`, y una por línea: `letras ruta` | Sus letras junto a los ficheros y cajones del panel del proyecto (rutas enteras; un cajón, sin `/` al final), a la derecha. Sustituyen las suyas. El color sale de la última letra: `A` verde; `D`, `U` y `!` rojo; `?` gris; las demás, azul. |
 | `RAYAS nombre fichero [versión]`, y una por línea: `línea símbolos` | Sus rayas en el margen de ese fichero, pegadas al texto: `+` añadida (raya llena, verde), `~` cambiada (raya a trozos, azul), `-` se quitaron líneas justo encima (un triángulo rojo arriba), `_` se quitaron justo debajo (abajo; para lo quitado tras la última). Se juntan: `~-`. Sustituyen las suyas; sin líneas, las quita. Con versión (la de `VERSION`), solo si el texto sigue en esa: si no, RC 5 y nada cambia. |
-| `ZONA nombre icono\|texto\|detalle\|corto` | Su zona en la barra de botones, a la izquierda de Inferencia: un icono (uno de Forja, como `rama`, o uno propio: 12 filas de 12 separadas por `/`, con `#` los píxeles), un texto y un detalle en otro color. Si no cabe el detalle, va el corto; si tampoco, solo el texto; si tampoco, no se ve. Un clic da `ZONA`. Sin texto ni detalle, la quita. |
+| `ZONA nombre icono\|texto\|detalle\|corto` | Su zona en la barra de botones, a la derecha: un icono (uno de Forja, como `rama` o `inferencia`, o uno propio: 12 filas de 12 separadas por `/`, con `#` los píxeles), un texto y un detalle en otro color. Si no cabe el detalle, va el corto; si tampoco, solo el texto; si tampoco, no se ve. Un clic da `ZONA`. Sin texto ni detalle, la quita. |
 | `VISTA nombre "título"`, y una por línea: el color (un carácter) y el texto | Una pestaña de solo lectura, delante; si ya tiene una con ese título, la vuelve a llenar. El color de cada línea: `+` verde, `-` rojo, `@` azul, `#` gris, `!` amarillo; otro (un espacio), el del texto. Sus teclas llegan con `TECLA`; el cursor se mueve con `CURSOR`. No se guarda ni se escribe en ella. Sin ninguna línea detrás, cierra esa pestaña suya (RC 5 si no la hay). |
 | `SUGERENCIA nombre línea columna versión`, y el texto en la línea siguiente | Una sugerencia en gris tras el cursor del fichero activo, como la de un copiloto: Tab la mete (con deshacer), Esc la quita y se va sola al escribir o al mover el cursor. Solo si el cursor está en esa línea y columna, al final de la línea, sin nada elegido, y el texto sigue en esa versión (`VERSION`): si no, RC 5 y no sale. Una línea. Si a la vez está la lista para completar, Tab es de la lista. `SUGERENCIA nombre` sin más quita la suya. |
 
@@ -235,6 +256,22 @@ va vacía. En `lib/forja.dash`: `forja_lote(["ACTIVO", "CURSOR"])`.
 
 Para leer el fichero entero, `TEXTO` de una vez es mucho más rápido que línea a línea.
 
+## Un editor para un tipo de fichero
+
+Así van `extensiones/Sprites` y `extensiones/Mapas`:
+
+    tipos = .iff .ilbm .lbm .brush .bob .spr
+    nuevo = _Sprite | sprite | Un sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.
+    arranque = menu
+
+- Arranca la primera vez que se abre uno de sus ficheros (`EDITAR`) o se pide uno nuevo (`NUEVO`), y abre su ventana
+  MUI con una pestaña por fichero. Si ya lo tiene abierto, pone delante su ventana.
+- Guarda ella, con Amiga-S en su ventana, y lo dice con `GUARDADO`; los que tienen cambios, con `SINGUARDAR`, para que
+  Forja pregunte por ellos al salir. Si le llega `GUARDAR`, los guarda.
+- Compilar y Ejecutar (Amiga-K y Amiga-E en su ventana) son `COMPILAR fichero` y `EJECUTAR fichero`: Forja compila el
+  programa del cajón del sprite, aunque no esté abierto.
+- Cuando se cierra su última pestaña, acaba (y suelta su memoria). Forja la vuelve a arrancar con el siguiente.
+
 ## lib/forja.dash
 
 | Función | Qué hace |
@@ -262,10 +299,22 @@ Para leer el fichero entero, `TEXTO` de una vez es mucho más rápido que línea
 | `forja_texto_disco(ruta)`, `forja_version_texto(ruta)` | `TEXTODISCO` y `VERSION`. |
 | `forja_cerrar_vista(nombre)` | Cierra su pestaña de solo lectura. |
 | `forja_sugerencia(línea, columna, versión, texto)` | `SUGERENCIA` (texto `""`: la quita). |
+| `forja_guardado(ruta)` | `GUARDADO`: guardó un fichero suyo. |
+| `forja_sin_guardar(nombres)` | `SINGUARDAR`: los suyos con cambios sin guardar (`[]`: ninguno). |
+| `forja_compilar(ruta, ejecutar)` | `COMPILAR` o `EJECUTAR` el programa de ese fichero (ruta `""`: el de delante en Forja). |
+| `forja_delante()` | `DELANTE`. |
 
 El `import "lib/forja.dash"` lo encuentra `./dash` subiendo de cajón en cajón desde el fichero que importa: una
 extensión en `extensiones/X/` del repositorio de Forja (o en `Forja/Extensiones/X/`, con `Forja/lib/forja.dash`)
 compila sin más. Si algún día pasa a la `lib/` de Dash, el `import` no cambia.
+
+## Su catálogo
+
+Los textos de la extensión, como los de Forja: `@catalog "X.catalog" 1 "español"` en su programa y `tr(número,
+"texto")`. El catálogo va en `Catalogs/<idioma>/X.catalog` dentro de su cajón (su `PROGDIR:`). En el repositorio de
+Forja, `python3 tools/catalogos.py cd`, `ct` y `catalog` hacen también los de las extensiones
+(`extensiones/X/catalogos/X.cd` y `english.ct`; el `.catalog`, en `build/Extensiones/X/Catalogs/english`), y
+`tools/paquete.py` los pone junto a cada una. Git, Inferencia, Sprites y Mapas tienen el inglés.
 
 ## El gestor
 
@@ -289,3 +338,5 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
   añadir o quitar un menú con la ventana abierta la cierra y la abre (los del arranque se hacen antes de abrirla).
 - Paneles propios dentro de la ventana de Forja: hoy cada extensión pinta sus ventanas.
 - Probar la instalación desde un `.lha` en el emulador (no tiene `C:LhA`).
+- Los ficheros que tiene abiertos una extensión (un sprite, un mapa) no se guardan en la sesión de Forja: al volver a
+  abrir Forja no se abren solos.

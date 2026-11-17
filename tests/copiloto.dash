@@ -3,7 +3,7 @@
 #   - Documentar la función: el encargo usa la ayuda de Dash; la pestaña con las diferencias; a la acepta; Amiga-Z lo
 #     deshace; la zona de la barra mientras espera;
 #   - Cambiar el código... (Ctrl Alt C): la ventana para decir qué; r rechaza;
-#   - Explicar la selección y Preguntar sobre esto (Ctrl Alt I): a la conversación de Inferencia, con el código;
+#   - Explicar la selección y Preguntar sobre esto (Amiga-I): a la conversación de Inferencia, con el código;
 #   - Escribir la prueba: un fichero nuevo, que se escribe y se abre al aceptar (menú Aceptar);
 #   - con dashc: compilar un error (la zona lo dice), Explicar el error y Arreglar el error (Ctrl Alt Y acepta);
 #   - Sugerencias al escribir: el texto en gris tras el cursor (SUGERENCIA) y Tab lo mete.
@@ -167,7 +167,13 @@ Main
         n = n + 1
     end
     ver("el copiloto arranca con Forja", puerto(EXT), "")
-    ver("sin nada, sin zona", not str_contains(rexx("ZONA"), "Copiloto"), rexx("ZONA"))
+    # (su zona llega tras abrir su puerto)
+    n = 0
+    while n < 100 and not str_contains(rexx("ZONA"), "Inferencia|Inferencia|")
+        time_delay(5)
+        n = n + 1
+    end
+    ver("sin nada, la zona Inferencia sola", str_contains(rexx("ZONA"), "Inferencia|Inferencia|") and not str_contains(rexx("ZONA"), "aceptar"), rexx("ZONA"))
 
     # (COPILOTO_SOLO=sugerencias: solo lo último)
     if env_get("COPILOTO_SOLO") != "sugerencias"
@@ -180,14 +186,14 @@ Main
         v = rexx("TEXTO")
         ver("la vista: el comentario añadido", str_contains(v, "\n+ # El doble de un n") and str_contains(v, "\n  func doble(x: Int) -> Int"), v)
         ver("la vista: miró la ayuda de Dash", str_contains(v, "Ha mirado: ayuda Int"), v)
-        ver("la zona de la barra: a o r", str_contains(rexx("ZONA"), "Inferencia|Copiloto|a: aceptar"), rexx("ZONA"))
+        ver("la zona de la barra: a o r", str_contains(rexx("ZONA"), "Inferencia|Inferencia|a: aceptar"), rexx("ZONA"))
         time_delay(30)
         screen_save_png("DH0:Prueba/copiloto-documentar.png")
         tecla(0x20, 0)        # a
         ver("a acepta", esperar("libre", 100), estado())
         ver("el comentario, en el fichero", rexx("LINEAS 3 4 \"" + MAIN + "\"") == "# El doble de un número.\n# x: el número. Devuelve x por 2.", rexx("LINEAS 3 5 \"" + MAIN + "\""))
         ver("la vista se cierra y vuelve el fichero", not str_contains(rexx("ABIERTOS"), "(Inferencia)") and str_starts(rexx("ACTIVO"), MAIN), rexx("ABIERTOS"))
-        ver("sin zona otra vez", not str_contains(rexx("ZONA"), "Copiloto"), rexx("ZONA"))
+        ver("la zona sola otra vez", str_contains(rexx("ZONA"), "Inferencia|Inferencia|") and not str_contains(rexx("ZONA"), "aceptar"), rexx("ZONA"))
         tecla(0x31, AMIGA)    # Amiga-Z
         ver("Amiga-Z lo deshace de una vez", rexx("LINEA 3") == "func doble(x: Int) -> Int", rexx("LINEAS 1 5"))
 
@@ -220,13 +226,13 @@ Main
         time_delay(20)
         screen_save_png("DH0:Prueba/copiloto-explicar.png")
 
-        # --- Preguntar sobre esto (Ctrl Alt I): el fichero va con la pregunta ---
+        # --- Preguntar sobre esto (Amiga-I, antes de Forja): el fichero va con la pregunta ---
         rexx("CURSOR 1 1")
-        tecla(0x17, CTRL + ALT)
+        tecla(0x17, AMIGA)
         time_delay(20)
         rexx_send(INF, "PREGUNTA Que hace este fichero?")
         r = respuesta_con("Que hace este fichero", 300)
-        ver("Ctrl Alt I: la pregunta lleva el fichero", str_contains(r, "func saludo(nombre: String)") and str_contains(r, "Que hace este fichero"), r)
+        ver("Amiga-I: la pregunta lleva el fichero", str_contains(r, "func saludo(nombre: String)") and str_contains(r, "Que hace este fichero"), r)
 
         # --- Escribir la prueba: un fichero nuevo ---
         rexx("ABRIR \"" + MAIN + "\"")

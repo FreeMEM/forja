@@ -16,8 +16,7 @@
 # errores van a la salida y un clic en uno lleva a su línea. Ejecutar (Amiga-E) compila y ejecuta; mientras el
 # programa corre, el botón es Parar (Ctrl-C).
 #
-# Inferencia (Amiga-I o el botón) le manda el fichero activo, o las líneas elegidas, con ADJUNTAR, y la enseña;
-# si no está abierta, la arranca (ENV:Forja/inferencia, o "Inferencia" del camino de órdenes).
+# Inferencia (el copiloto), git, los sprites y los mapas son extensiones (extensiones/, docs/EXTENSIONES.md).
 #
 # Puerto ARexx FORJA.1: ABRIR fichero [línea]; ABIERTO fichero (1 o 0); TEXTO fichero (lo que hay en el editor,
 # guardado o no); SELECCION (fichero, desde, hasta y el texto, en líneas); CAMBIAR fichero desde hasta texto
@@ -42,8 +41,8 @@
 # Amiga-J o Ctrl+clic: ir a la definición; Amiga-U: volver; Amiga-H: dónde se usa (en la salida). Los símbolos se
 # leen al abrir o cambiar de fichero y tras REPOSO_MS sin escribir. Preferencia ENV:Forja/completar ("no" la apaga).
 #
-# Las imágenes IFF ILBM se abren en el editor de sprites (sprites.dash); Amiga-B crea un sprite de hardware, un BOB
-# o un mapa de tiles. Los .fmap (IFF FORM FMAP) se abren en el editor de mapas (mapas.dash).
+# Los ficheros de otros tipos (imágenes IFF, mapas .fmap...) los abren las extensiones que los piden (tipos = en su
+# manifiesto: Sprites y Mapas); Amiga-B hace uno nuevo de los que hacen ellas (nuevo =).
 #
 # Para las pruebas: ENV:FORJA_PRUEBA con un fichero lo abre al empezar. Con ENV:FORJA_SONDA, para un programa que
 # hace de usuario (tests/teclas.dash, tests/ficheros.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y
@@ -79,7 +78,6 @@ const EV_PASO = 14
 const EV_ENTRAR = 15
 const EV_SALIR_FUNCION = 16
 const EV_PARAR = 17
-const EV_INFERENCIA = 19
 const EV_BARRA = 3
 const EV_EDITOR = 4
 const EV_ARRASTRE = 5
@@ -93,7 +91,6 @@ const EV_ARRASTRE_SALIDA = 20
 const EV_COPIAR_SALIDA = 21
 const EV_GUARDAR_SALIDA = 22
 const EV_ELEGIR_DASHC = 61
-const EV_ELEGIR_INFERENCIA = 62
 const EV_ELEGIR_EJECUTABLES = 76
 const EV_ZONA = 89              # = BB_EV_ZONA: un clic en la zona de una extensión en la barra de botones
 const EV_ACTIVADA = 90          # la ventana de Forja pasa a ser la activa (mui_on_activate): VUELTA
@@ -154,7 +151,7 @@ const EV_DISENO = 46
 const EV_VISTA = 47
 const EV_VISTA_CERRADA = 60
 const EV_PREFERENCIAS = 35
-const EV_NUEVO_SPRITE = 36
+const EV_NUEVO_EXT = 36         # Nuevo de extensión... (Amiga-B): un sprite, un mapa...
 const EV_BUSCAR = 48
 const EV_IRA = 49
 const EV_SIGUIENTE = 50
@@ -182,8 +179,6 @@ var vx: GestorExt = nil
 var va: VentanaAyuda = nil
 var app: Int = 0
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
-var inferencia_espera: Int = 0      # tics esperando a que arranque Inferencia
-var inferencia_pendiente: String = ""
 var sonda: Bool = false
 var sonda_editor: String = ""
 var barra_total: Int = -1
@@ -194,7 +189,6 @@ var sonda_vistas: String = ""
 var sonda_lista: String = ""
 var sonda_pestanas: String = ""
 var sonda_salida: String = ""
-var sonda_sprite: String = ""      # lo último publicado del editor de sprites
 var sonda_eventos: String = ""     # los eventos recibidos, en orden (RAM:forja-eventos.txt)
 var abierta: Bool = false
 var tarea: Int = NADA
@@ -271,44 +265,6 @@ func avisar(texto: String, tipo: Int)
     if abierta
         mui_canvas_redraw(v.salida)
     end
-    d = ed_actual()
-    if d != nil and d.sprite != nil
-        # con un sprite la salida está oculta: el aviso va a su barra de estado
-        sp_mensaje = texto
-        sp_mensaje_tipo = tipo
-        if abierta
-            mui_canvas_redraw(v.editor)
-        end
-    elif d != nil and d.mapa != nil
-        mp_mensaje = texto
-        mp_mensaje_tipo = tipo
-        if abierta
-            mui_canvas_redraw(v.editor)
-        end
-    end
-end
-
-# Con un sprite delante, la salida y la barra se ocultan: la rejilla necesita el alto (en 640x256 no hay más)
-var _salida_oculta: Bool = false
-
-func ajustar_paneles()
-    d = ed_actual()
-    for o in documentos
-        if o.sprite != nil and o != d
-            o.sprite.reproduciendo = false
-        end
-    end
-    ocultar = d != nil and (d.sprite != nil or d.mapa != nil)
-    if ocultar != _salida_oculta
-        _salida_oculta = ocultar
-        # el grupo de la salida entero: con la salida y su barra ocultas dentro, el grupo vacío no deja crecer la
-        # ventana a lo ancho y MUI la encoge a su mínimo
-        mui_set_visible(v.grupo_salida, not ocultar)
-        mui_set_visible(v.balance_salida, not ocultar)
-        mui_set_visible(v.barra, not ocultar)
-        sp_mensaje = ""
-        mp_mensaje = ""
-    end
 end
 
 func nombre_de(ruta: String) -> String
@@ -323,8 +279,8 @@ func nombre_de(ruta: String) -> String
     return nombre
 end
 
-# Abre un fichero en una pestaña nueva, o va a la suya si ya está abierto. Una imagen IFF ILBM va al editor de
-# sprites.
+# Abre un fichero en una pestaña nueva, o va a la suya si ya está abierto. Uno de los tipos de una extensión (una
+# imagen IFF, un mapa) se lo pasa a ella (EDITAR).
 func abrir(ruta: String) -> Bool
     abrir_delegado = false
     i = ed_buscar_ruta(ruta)
@@ -346,29 +302,23 @@ func abrir(ruta: String) -> Bool
     return true
 end
 
+# ¿Empieza por FORM, como un IFF (una imagen ILBM, un mapa FMAP)?
+func es_iff(ruta: String) -> Bool
+    fh = file_open(ruta, 1005)
+    if fh == 0
+        return false
+    end
+    ok = file_read_byte(fh) == 70 and file_read_byte(fh) == 79 and file_read_byte(fh) == 82 and file_read_byte(fh) == 77
+    file_close(fh)
+    return ok
+end
+
 func abrir_nuevo(ruta: String) -> Bool
     l = str_lower(ruta)
-    if not str_ends(l, ".dash") and not str_ends(l, ".dashui") and mp_es_mapa(ruta)
-        m = mp_leer(ruta)
-        if m == nil
-            avisar(mp_error, 1)
-            return false
-        end
-        ed_abrir_mapa(nombre_de(ruta), ruta, m)
-        if mp_error != ""
-            avisar(mp_error, 1)
-            mp_error = ""
-        end
-        return true
-    end
-    if not str_ends(l, ".dash") and not str_ends(l, ".dashui") and sp_es_ilbm(ruta)
-        s = sp_leer(ruta)
-        if s == nil
-            avisar(sp_error, 1)
-            return false
-        end
-        ed_abrir_sprite(nombre_de(ruta), ruta, s)
-        return true
+    if not str_ends(l, ".dash") and not str_ends(l, ".dashui") and es_iff(ruta)
+        # una imagen, un mapa...: los abren las extensiones (Sprites, Mapas) por el final de su nombre
+        avisar(hueco(tr(640, "%1 es un fichero IFF: lo abre una extensión (como Sprites o Mapas), y no hay ninguna activa para él."), nombre_de(ruta)), 1)
+        return false
     end
     texto = file_read_text(ruta)
     if texto == nil
@@ -380,18 +330,7 @@ func abrir_nuevo(ruta: String) -> Bool
 end
 
 func guardar_en(d: Documento, ruta: String) -> Bool
-    if d.sprite != nil
-        if not sp_escribir(d.sprite, ruta)
-            avisar(sp_error, 1)
-            return false
-        end
-    elif d.mapa != nil
-        mp_tileset_relativo(d.mapa, mp_cajon_de(ruta))
-        if not mp_escribir(d.mapa, ruta)
-            avisar(mp_error, 1)
-            return false
-        end
-    elif not file_write_text(ruta, ed_texto_disco(d))
+    if not file_write_text(ruta, ed_texto_disco(d))
         avisar(tr(2, "No se puede escribir ") + ruta, 1)
         return false
     end
@@ -410,13 +349,7 @@ func guardar_en(d: Documento, ruta: String) -> Bool
 end
 
 func guardar_como(d: Documento) -> Bool
-    patron = "#?.(dash|dashui)"
-    if d.sprite != nil
-        patron = SP_PATRON
-    elif d.mapa != nil
-        patron = "#?.fmap"
-    end
-    if not file_save_dialog(tr(458, "Guardar ") + d.nombre, patron)
+    if not file_save_dialog(tr(458, "Guardar ") + d.nombre, "#?.(dash|dashui)")
         return false
     end
     return guardar_en(d, file_fullpath())
@@ -439,29 +372,37 @@ func cambiados() -> Int
     return n
 end
 
+# Amiga-B: un fichero nuevo de los que hacen las extensiones (nuevo = en su manifiesto: un sprite, un BOB, un
+# mapa...). La petición enseña la descripción de cada uno y un botón por cada uno; NUEVO orden a la que lo hace.
+func nuevo_de_extension()
+    ns = ext_nuevos()
+    if ns.length == 0
+        avisar(tr(642, "Ninguna extensión activa hace ficheros nuevos (como Sprites o Mapas)."), 1)
+        return
+    end
+    texto = tr(645, "¿Qué vas a hacer?") + "\n"
+    botones = ""
+    for n in ns
+        p = str_split(n, "|")
+        texto = texto + "\n" + str_replace(p[1], "_", "") + ": " + p[3]
+        botones = botones + p[1] + "|"
+    end
+    r = mui_request(v.window, tr(644, "Nuevo"), texto, botones + tr(643, "_Cancelar"))
+    if r >= 1 and r <= ns.length
+        p = str_split(ns[r - 1], "|")
+        ext_nuevo(Int(p[0]), p[2])
+    end
+end
+
 # Las órdenes del menú Proyecto. Devuelve true si hay que salir.
 func proyecto(ev: Int) -> Bool
     d = ed_actual()
     if ev == EV_NUEVO
         ed_abrir_texto("sin nombre.dash", "", NUEVO)
-    elif ev == EV_NUEVO_SPRITE
-        r = mui_request(v.window, tr(88, "Nuevo sprite"), tr(89, "¿Qué vas a dibujar?\n\nUn sprite de hardware: 16 píxeles de ancho, 3 colores y el transparente.\nUn BOB: del tamaño y los colores que quieras; lo pinta el blitter.") + "\n" + tr(194, "Un mapa de tiles: una rejilla de tiles de un tileset (un BOB con un fotograma por tile)."), tr(195, "_Sprite|_BOB|_Mapa|_Cancelar"))
-        if r == 1
-            ed_abrir_sprite("sin nombre.iff", "", sp_nuevo(true))
-        elif r == 2
-            ed_abrir_sprite("sin nombre.iff", "", sp_nuevo(false))
-        elif r == 3
-            m = mp_nuevo(64, 32, 16)
-            if m == nil
-                avisar(mp_error, 1)
-            else
-                ed_abrir_mapa("sin nombre.fmap", "", m)
-                ajustar_paneles()
-                elegir_tileset(ed_actual())
-            end
-        end
+    elif ev == EV_NUEVO_EXT
+        nuevo_de_extension()
     elif ev == EV_ABRIR
-        if file_open_dialog("Abrir", "#?.(dash|dashui|iff|ilbm|lbm|brush|bob|spr|fmap)")
+        if file_open_dialog(tr(303, "Abrir..."), "#?.(" + ext_patron_tipos("dash|dashui") + ")")
             ruta = file_fullpath()
             if abrir(ruta) and cajon_de(ruta) != proyecto_cajon
                 proyecto_leer(cajon_de(ruta))
@@ -488,7 +429,7 @@ func proyecto(ev: Int) -> Bool
         ed_cerrar(activo)
         ext_suceso("CERRADO", cerrada)
     elif ev == EV_SALIR
-        n = cambiados()
+        n = cambiados() + ext_sin_guardar().length
         if n > 0
             texto = hueco(tr(452, "Hay %1 ficheros con cambios sin guardar."), "#{n}")
             if n == 1
@@ -503,6 +444,11 @@ func proyecto(ev: Int) -> Bool
                     if o.cambiado and not guardar(o)
                         return false
                     end
+                end
+                # los de las extensiones (un sprite, un mapa): GUARDAR a cada una, y se espera a que digan que ya
+                if not ext_guardar_todo()
+                    avisar(tr(641, "Una extensión no ha guardado sus ficheros: Forja sigue abierta."), 1)
+                    return false
                 end
             end
         end
@@ -665,17 +611,24 @@ func compilar(y_ejecutar: Bool)
         return
     end
     d = ed_actual()
-    if d != nil and (d.sprite != nil or d.mapa != nil)
-        d = programa_abierto()
-        if d == nil
+    desde = compilar_desde
+    compilar_desde = ""
+    ruta = ""
+    if desde != ""
+        # COMPILAR fichero (de una extensión: un sprite, un mapa): el programa de su cajón, abierto o no
+        ruta = programa_de_ruta(desde)
+        if ruta == ""
             avisar(tr(91, "Para compilar, abre el .dash del programa."), 1)
             return
         end
-    end
-    if d == nil
+        d = nil
+        k = ed_buscar_ruta(ruta)
+        if k >= 0
+            d = documentos[k]
+        end
+    elif d == nil
         return
-    end
-    if d.ruta == "" and d.temporal == "" and not guardar_como(d)
+    elif d.ruta == "" and d.temporal == "" and not guardar_como(d)
         return
     end
     # lo que haya sin guardar va al disco antes (dashc lee los ficheros)
@@ -686,10 +639,12 @@ func compilar(y_ejecutar: Bool)
     end
     redibujar()
     # un módulo (sin Main) no es un programa: se compila el de su proyecto
-    ruta = programa_de(d)
+    if desde == ""
+        ruta = programa_de(d)
+    end
     nombre = nombre_de(ruta)
     tarea_exe = ejecutable_de(ruta)
-    if d.ruta == ""
+    if desde == "" and d.ruta == ""
         # un ejemplo de la ayuda (Probar), sin nombre: desde T:, y su ejecutable ahí
         if not file_write_text(d.temporal, ed_texto_disco(d))
             avisar(tr(2, "No se puede escribir ") + d.temporal, 1)
@@ -700,7 +655,7 @@ func compilar(y_ejecutar: Bool)
         tarea_exe = sin_dash(ruta)
     end
     tarea_dash = ruta
-    if d.ruta != "" and not cajon_listo(cajon_ejecutables())
+    if (desde != "" or d.ruta != "") and not cajon_listo(cajon_ejecutables())
         avisar(tr(377, "No se puede crear el cajón de los ejecutables: ") + cajon_ejecutables(), 1)
         return
     end
@@ -741,7 +696,17 @@ func programa_de(d: Documento) -> String
     if str_ends(str_lower(d.ruta), ".dash") and tiene_main(d.lineas)
         return d.ruta
     end
-    cajon = cajon_de(d.ruta)
+    r = programa_de_ruta(d.ruta)
+    if r == ""
+        return d.ruta
+    end
+    return r
+end
+
+# El programa de un fichero que no lo es (un módulo, un sprite, un mapa): un .dash abierto con Main de su cajón o del
+# de encima; si no, el main.dash de esos cajones o del proyecto; si no, el primer .dash abierto con Main. "" si nada.
+func programa_de_ruta(ruta: String) -> String
+    cajon = cajon_de(ruta)
     var cajones: [String] = [cajon]
     if cajon_de(cajon) != "" and cajon_de(cajon) != cajon
         cajones.push(cajon_de(cajon))
@@ -751,7 +716,7 @@ func programa_de(d: Documento) -> String
     end
     for c in cajones
         for o in documentos
-            if o.ruta != "" and o.sprite == nil and o.mapa == nil and str_lower(cajon_de(o.ruta)) == str_lower(c) and str_ends(str_lower(o.ruta), ".dash") and tiene_main(o.lineas)
+            if o.ruta != "" and str_lower(cajon_de(o.ruta)) == str_lower(c) and str_ends(str_lower(o.ruta), ".dash") and tiene_main(o.lineas)
                 return o.ruta
             end
         end
@@ -760,23 +725,12 @@ func programa_de(d: Documento) -> String
             return m
         end
     end
-    return d.ruta
-end
-
-# Desde una pestaña de sprite se compila el programa: main.dash si está abierto, si no el primer .dash
-func programa_abierto() -> Documento
-    var otro: Documento = nil
     for o in documentos
-        if o.sprite == nil and o.mapa == nil and str_ends(str_lower(o.nombre), ".dash")
-            if str_lower(o.nombre) == "main.dash"
-                return o
-            end
-            if otro == nil
-                otro = o
-            end
+        if o.ruta != "" and str_ends(str_lower(o.ruta), ".dash") and tiene_main(o.lineas)
+            return o.ruta
         end
     end
-    return otro
+    return ""
 end
 
 # El único temporizador de MUI: uno nuevo cancela el anterior, así que todo lo que espera pasa por tic()
@@ -824,29 +778,9 @@ func tic()
     ext_reposo()
     actualizar_tic()
     indice_en_reposo()
-    d = ed_actual()
-    if d != nil and d.sprite != nil and sp_avanzar(d.sprite)
-        z = sp_zona_vista()
-        sp_solo_vista = true
-        mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
-        sp_solo_vista = false
-        escribir_sonda()
-    end
     if bienvenida_parpadear()
         z = bienvenida_zona()
         mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
-    end
-    if inferencia_espera > 0
-        if inferencia_mandar()
-            redibujar()
-        else
-            inferencia_espera = inferencia_espera - 1
-            if inferencia_espera == 0
-                avisar(tr(12, "Inferencia no aparece."), 1)
-            elif tarea == NADA
-                armar_tic(TIC_MS, EV_TIC)
-            end
-        end
     end
     if tarea == NADA
         return
@@ -1357,7 +1291,6 @@ func ajustar_barra()
 end
 
 func redibujar()
-    ajustar_paneles()
     mui_canvas_redraw(v.editor)
     ajustar_barra()
     escribir_sonda()
@@ -1374,7 +1307,7 @@ func clave_de(d: Documento) -> String
 end
 
 func es_codigo(d: Documento) -> Bool
-    return d != nil and d.sprite == nil and d.mapa == nil and not d.diseno and d.vista == 0
+    return d != nil and not d.diseno and d.vista == 0
 end
 
 # Los símbolos al día: los de los ficheros abiertos (con lo que tienen sin guardar) y lo que importa el activo
@@ -1385,9 +1318,7 @@ func indice_al_dia()
     end
     cx_empezar()
     for o in documentos
-        if o.sprite == nil and o.mapa == nil
-            cx_fichero(clave_de(o), o.lineas, o.version)
-        end
+        cx_fichero(clave_de(o), o.lineas, o.version)
     end
     # (sin requesters: buscar lo importado en DASH: no debe pedir que se inserte ese volumen si no existe)
     cajon = cajon_de(dashc())
@@ -1530,7 +1461,7 @@ func orden_editor(o: Int)
         return
     end
     d = ed_actual()
-    if d == nil or d.sprite != nil or d.mapa != nil or d.diseno
+    if d == nil or d.diseno
         return
     end
     cerrar_capas()
@@ -1652,7 +1583,7 @@ end
 func ventana_buscar_proyecto(cambiar: Bool)
     d = ed_actual()
     t = ""
-    if d != nil and d.sprite == nil and d.mapa == nil
+    if d != nil
         t = ed_seleccion(d)
         if t == "" or str_contains(t, "\n")
             t = palabra_del_cursor(d)
@@ -2112,7 +2043,6 @@ func probar_ejemplo()
     dos_requesters(true)
     d.temporal = t + "forja_" + nombre
     cerrar_capas()
-    ajustar_paneles()
     redibujar()
     mui_window_activate(v.window)
     compilar(true)
@@ -2539,17 +2469,11 @@ func escribir_sonda()
             sonda_fichero("RAM:forja-sonda.txt", "0 0 \n")
             return
         end
-        if d.sprite != nil
-            sonda_fichero("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + sp_sonda(d.sprite))
-        elif d.mapa != nil
-            sonda_fichero("RAM:forja-sonda.txt", "0 0 " + d.nombre + "\n" + mp_sonda(d.mapa))
-        else
-            sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
-            env_set("FORJA_DIBUJOS", "#{ed_dibujos}", false)
-            if ed_vistas != sonda_vistas
-                sonda_vistas = ed_vistas
-                sonda_fichero("RAM:forja-vistas.txt", ed_vistas)
-            end
+        sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
+        env_set("FORJA_DIBUJOS", "#{ed_dibujos}", false)
+        if ed_vistas != sonda_vistas
+            sonda_vistas = ed_vistas
+            sonda_fichero("RAM:forja-vistas.txt", ed_vistas)
         end
         env_set("FORJA_DIBUJO", "#{ed_ms_dibujo}", false)
         env_set("FORJA_DISENO", "#{dv_sel} #{dv_prop} #{dv_editando} " + dv_mensaje, false)
@@ -2604,36 +2528,6 @@ func edicion(ev: Int)
     end
     d = ed_actual()
     if d == nil
-        return
-    end
-    if d.mapa != nil
-        if ev == EV_DESHACER and mp_deshacer(d.mapa)
-            d.cambiado = true
-        elif ev == EV_REHACER and mp_rehacer(d.mapa)
-            d.cambiado = true
-        end
-        redibujar()
-        return
-    end
-    if d.sprite != nil
-        if ev == EV_COPIAR or ev == EV_CORTAR
-            sp_copiar_fotograma(d.sprite)
-            if ev == EV_CORTAR
-                sp_vaciar_fotograma(d.sprite)
-                d.cambiado = true
-            end
-        elif ev == EV_PEGAR
-            if (sp_pegar_fotograma(d.sprite) & SP_CAMBIO) != 0
-                d.cambiado = true
-            end
-        elif ev == EV_DESHACER and sp_deshacer(d.sprite)
-            d.cambiado = true
-        elif ev == EV_REHACER and sp_rehacer(d.sprite)
-            d.cambiado = true
-        elif ev == EV_DISENO or ev == EV_VISTA
-            avisar(tr(20, "El editor de ventanas es para ficheros .dashui."), 1)
-        end
-        redibujar()
         return
     end
     if d.vista != 0 and ev != EV_COPIAR and ev != EV_TODO
@@ -2700,119 +2594,6 @@ func alternar_punto(d: Documento, n: Int)
     redibujar()
 end
 
-# Lo que pide el editor de mapas tras un clic, una tecla o un arrastre (SP_CAMBIO, SP_TODO, SP_CELDAS, SP_CODIGO y
-# MP_TILESET)
-func mp_resultado(d: Documento, r: Int)
-    if (r & SP_CAMBIO) != 0
-        d.cambiado = true
-    end
-    if (r & MP_TILESET) != 0
-        elegir_tileset(d)
-        return
-    end
-    if (r & MP_SPRITE) != 0
-        if file_open_dialog(tr(221, "Sprite del objeto"), SP_PATRON) and mp_objeto_sprite(d.mapa, file_fullpath(), mp_cajon_de(d.ruta))
-            d.cambiado = true
-        end
-        redibujar()
-        return
-    end
-    if (r & SP_CODIGO) != 0
-        if d.ruta == ""
-            avisar(tr(196, "Guarda el mapa primero: el código lleva el nombre de su fichero."), 1)
-            return
-        end
-        if clip_write_text(latin1_to_utf8(mp_codigo(d.mapa, d.nombre)))
-            avisar(tr(135, "El código para cargarlo está en el portapapeles (Amiga-V en el .dash)."), 2)
-        else
-            avisar(tr(136, "No se puede escribir en el portapapeles."), 1)
-        end
-        return
-    end
-    if (r & SP_TODO) != 0
-        redibujar()
-    elif (r & SP_CELDAS) != 0
-        for i in mp_tocados
-            z = mp_zona_celda(d.mapa, i)
-            mp_celda_sola = i
-            mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
-        end
-        mp_celda_sola = -1
-        escribir_sonda()
-    end
-end
-
-# El tileset del mapa, con la petición de ficheros. Un mapa nuevo y sin tocar toma el lado de sus tiles; si no, el
-# tileset tiene que tener tiles del lado del mapa
-func elegir_tileset(d: Documento)
-    m = d.mapa
-    if not file_open_dialog(tr(197, "Tileset del mapa"), SP_PATRON)
-        return
-    end
-    ruta = file_fullpath()
-    s = sp_leer(ruta)
-    if s == nil
-        avisar(sp_error, 1)
-        return
-    end
-    ts = tilemap_tile_size(m.id)
-    if s.ancho != ts
-        if (s.ancho == 8 or s.ancho == 16 or s.ancho == 32) and d.ruta == "" and m.deshacer.length == 0
-            tilemap_create(m.id, tilemap_width(m.id), tilemap_height(m.id), s.ancho, 1)
-            tilemap_layer_set(m.id, 0, tr(152, "fondo"), 0, true)
-        else
-            avisar(hueco2(tr(198, "Los fotogramas de %1 miden %2: los tiles del mapa son de otro tamaño (8, 16 o 32)."), nombre_de(ruta), "#{s.ancho}"), 1)
-            return
-        end
-    end
-    tilemap_set_tileset(m.id, ruta)
-    if d.ruta != ""
-        mp_tileset_relativo(m, mp_cajon_de(d.ruta))
-    end
-    if mp_leer_tileset(m, mp_cajon_de(d.ruta))
-        d.cambiado = true
-        avisar(hueco(tr(199, "Tileset: %1"), tilemap_tileset(m.id)), 2)
-    else
-        avisar(mp_error, 1)
-    end
-    redibujar()
-end
-
-# Lo que pide el editor de sprites tras un clic o un arrastre (SP_CAMBIO, SP_TODO, SP_CELDAS)
-func sp_resultado(d: Documento, r: Int)
-    if (r & SP_CAMBIO) != 0
-        d.cambiado = true
-    end
-    if (r & SP_CODIGO) != 0
-        if d.ruta == ""
-            avisar(tr(134, "Guarda el sprite primero: el código lleva el nombre de su fichero."), 1)
-            return
-        end
-        if clip_write_text(latin1_to_utf8(sp_codigo(d.sprite, d.nombre)))
-            avisar(tr(135, "El código para cargarlo está en el portapapeles (Amiga-V en el .dash)."), 2)
-        else
-            avisar(tr(136, "No se puede escribir en el portapapeles."), 1)
-        end
-        return
-    end
-    if (r & SP_TODO) != 0
-        redibujar()
-    elif (r & SP_CELDAS) != 0
-        for i in sp_tocados
-            z = sp_zona_celda(d.sprite, i)
-            sp_celda_sola = i
-            mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
-        end
-        sp_celda_sola = -1
-        escribir_sonda()
-    elif (r & SP_REJILLA) != 0
-        z = sp_zona_rejilla(d.sprite)
-        sp_solo_rejilla = true
-        mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
-        sp_solo_rejilla = false
-    end
-end
-
 # Si la vista previa está abierta, se rehace con lo cambiado
 func rehacer_vista()
     if dv_vista != 0 and dv_error_carga == ""
@@ -2843,8 +2624,8 @@ end
 
 # Amiga + letra sobre el editor: el evento de su opción del menú (0 si no es ninguna)
 func atajo(letra: String) -> Int
-    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "i", "d", "p", "f", "l", "g", "b", "j", "u", "h"]
-    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_INFERENCIA, EV_DISENO, EV_VISTA, EV_BUSCAR, EV_IRA, EV_DEPURAR, EV_NUEVO_SPRITE, EV_DEFINICION, EV_VOLVER, EV_REFERENCIAS]
+    var letras: [String] = ["x", "c", "v", "z", "r", "a", "q", "n", "o", "s", "w", "k", "e", "d", "p", "f", "l", "g", "b", "j", "u", "h"]
+    var eventos: [Int] = [EV_CORTAR, EV_COPIAR, EV_PEGAR, EV_DESHACER, EV_REHACER, EV_TODO, EV_SALIR, EV_NUEVO, EV_ABRIR, EV_GUARDAR, EV_CERRAR, EV_COMPILAR, EV_EJECUTAR, EV_DISENO, EV_VISTA, EV_BUSCAR, EV_IRA, EV_DEPURAR, EV_NUEVO_EXT, EV_DEFINICION, EV_VOLVER, EV_REFERENCIAS]
     l = str_lower(letra)
     i = 0
     while i < letras.length
@@ -2883,11 +2664,7 @@ func en_editor() -> Int
         # la lista para completar y la ayuda se cierran (lo que sigue lo redibuja todo)
         cerrar_capas()
     end
-    if rueda != 0 and d.sprite != nil
-        sp_resultado(d, sp_ir_fotograma(d.sprite, -rueda))
-    elif rueda != 0 and d.mapa != nil
-        mp_resultado(d, mp_rueda(d.mapa, rueda, teclas))
-    elif rueda != 0
+    if rueda != 0
         d.primera = ed_filas_desde(d, d.primera, -rueda * 3)
         maximo = d.lineas.length - ed_visibles
         if d.primera > maximo
@@ -2900,24 +2677,6 @@ func en_editor() -> Int
     elif mui_canvas_button(lienzo_teclas) == 1 and ed_pestana_en(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas)) >= 0
         activo = ed_pestana_en(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
         redibujar()
-    elif d.mapa != nil
-        if mui_canvas_button(lienzo_teclas) == 1
-            mp_resultado(d, mp_clic(d.mapa, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), teclas))
-        elif mui_canvas_key(lienzo_teclas) >= 0 and (teclas & Q_AMIGA) != 0
-            return atajo(mui_canvas_char(lienzo_teclas))
-        elif mui_canvas_key(lienzo_teclas) >= 0
-            mp_resultado(d, mp_tecla(d.mapa, mui_canvas_key(lienzo_teclas), teclas, mui_canvas_char(lienzo_teclas)))
-        end
-        return 0
-    elif d.sprite != nil
-        if mui_canvas_button(lienzo_teclas) == 1
-            sp_resultado(d, sp_clic(d.sprite, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), teclas))
-        elif mui_canvas_key(lienzo_teclas) >= 0 and (teclas & Q_AMIGA) != 0
-            return atajo(mui_canvas_char(lienzo_teclas))
-        elif mui_canvas_key(lienzo_teclas) >= 0
-            sp_resultado(d, sp_tecla(d.sprite, mui_canvas_key(lienzo_teclas), teclas, mui_canvas_char(lienzo_teclas)))
-        end
-        return 0
     elif mui_canvas_button(lienzo_teclas) == 1 and d.diseno
         dv_clic(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
         redibujar()
@@ -3080,23 +2839,6 @@ func publicar_sonda()
         sonda_fichero("RAM:forja-salida.txt", texto)
     end
     d = ed_actual()
-    if d != nil and d.sprite != nil
-        g = sp_geometria() + "|" + sp_geometria_panel() + "|" + sp_botones()
-        if g != sonda_sprite
-            sonda_sprite = g
-            env_set("FORJA_SPRITE", sp_geometria(), false)
-            env_set("FORJA_SPRITE_PANEL", sp_geometria_panel(), false)
-            env_set("FORJA_SPRITE_BOTONES", sp_botones(), false)
-        end
-    end
-    if d != nil and d.mapa != nil
-        g = mp_geometria(d.mapa) + "|" + mp_botones()
-        if g != sonda_sprite
-            sonda_sprite = g
-            env_set("FORJA_MAPA", mp_geometria(d.mapa), false)
-            env_set("FORJA_MAPA_BOTONES", mp_botones(), false)
-        end
-    end
     t = ed_pestanas_ventana()
     if t != sonda_pestanas
         sonda_pestanas = t
@@ -3332,7 +3074,6 @@ end
 
 func preferencias_abrir()
     mui_set_text(vp.dashc, dashc())
-    mui_set_text(vp.inferencia, env_get("Forja/inferencia"))
     mui_set_text(vp.ejecutables, cajon_ejecutables())
     mui_set_value(vp.recordar, recordar_sesion())
     mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
@@ -3348,7 +3089,6 @@ end
 
 func preferencias_aplicar(guardar: Bool)
     env_set("Forja/dashc", str_trim(mui_get_text(vp.dashc)), guardar)
-    env_set("Forja/inferencia", str_trim(mui_get_text(vp.inferencia)), guardar)
     env_set("Forja/ejecutables", str_trim(mui_get_text(vp.ejecutables)), guardar)
     if mui_get_value(vp.recordar) != 0
         env_set("Forja/recordar", "si", guardar)
@@ -3419,75 +3159,7 @@ func sesion_abrir() -> Bool
     return abiertos > 0
 end
 
-# --- Inferencia ---
-
-const PUERTO_INFERENCIA = "INFERENCIA.1"
-
-func inferencia_ruta() -> String
-    r = env_get("Forja/inferencia")
-    if r == ""
-        r = "Inferencia"
-    end
-    return r
-end
-
-# Manda a Inferencia el fichero activo (o las líneas elegidas) y la enseña; si no está abierta, la arranca y
-# lo manda cuando aparezca su puerto (tic)
-func boton_inferencia()
-    d = ed_actual()
-    if d == nil
-        return
-    end
-    if d.sprite != nil or d.mapa != nil
-        avisar(tr(92, "Inferencia lee texto: un sprite no se le puede mandar."), 1)
-        return
-    end
-    ed_lineas_seleccion(d)
-    que = d.nombre
-    texto = ed_texto(d)
-    if ed_hay_seleccion(d)
-        que = d.nombre + ", líneas #{ed_sel_desde} a #{ed_sel_hasta}"
-        texto = ed_seleccion(d)
-    end
-    ruta = d.ruta
-    if ruta == ""
-        ruta = d.nombre
-    end
-    # "ADJUNTAR título" y el texto en las líneas siguientes: Inferencia no tiene que leerlo de Forja
-    inferencia_pendiente = "ADJUNTAR " + que + " (" + ruta + ")\n" + texto
-    if not inferencia_mandar()
-        if inferencia_espera > 0
-            return
-        end
-        if run_start("Run >NIL: \"" + inferencia_ruta() + "\"", 5000) == 0
-            avisar(tr(25, "No se puede arrancar ") + inferencia_ruta() + tr(26, ". Pon su ruta en ENV:Forja/inferencia."), 1)
-            return
-        end
-        avisar(tr(27, "Arrancando Inferencia..."), 0)
-        inferencia_espera = 150
-        armar_tic(TIC_MS, EV_TIC)
-    end
-end
-
-# true si Inferencia lo recibió
-func inferencia_mandar() -> Bool
-    rexx_send(PUERTO_INFERENCIA, inferencia_pendiente)
-    if rexx_rc() == -1
-        return false
-    end
-    if rexx_rc() != 0
-        avisar(hueco(tr(72, "Inferencia no lo aceptó (RC %1)."), "#{rexx_rc()}"), 1)
-    else
-        rexx_send(PUERTO_INFERENCIA, "MOSTRAR")
-        avisar(tr(28, "Mandado a Inferencia."), 2)
-    end
-    inferencia_pendiente = ""
-    inferencia_espera = 0
-    return true
-end
-
-# --- Las extensiones (extensiones.dash, docs/EXTENSIONES.md) ---
-
+var compilar_desde: String = ""    # COMPILAR fichero (una extensión): compilar el programa de ese fichero
 var abrir_delegado: Bool = false   # el último abrir() lo mandó a una extensión (EDITAR)
 var ext_items: [Int] = []          # las opciones sueltas del menú Extensiones (ext_m0...)
 # Los menús propios de las extensiones (submenu = título), en la barra de menús tras Extensiones: su objeto (0 si no
@@ -3713,6 +3385,25 @@ end
 
 # Al salir: hasta 2 s atendiendo ARexx para que las que están en marcha recojan su SALIR. Una orden que llegara a un
 # puerto que ya no atiende nadie dejaría a la extensión esperando para siempre.
+# Forja se cierra y se eligió Guardar: GUARDAR a las extensiones con ficheros sin guardar, y se espera (atendiendo
+# ARexx) a que digan con SINGUARDAR que ya no les queda ninguno, 20 s como mucho (pueden preguntar dónde guardar uno
+# nuevo). false si alguna no lo hizo.
+func ext_guardar_todo() -> Bool
+    if ext_sin_guardar().length == 0
+        return true
+    end
+    ext_pedir_guardar()
+    t0 = time_ms()
+    while time_ms() - t0 < 20000
+        if ext_sin_guardar().length == 0
+            return true
+        end
+        mui_timer(200, EV_TIC)
+        mui_wait_event()
+    end
+    return ext_sin_guardar().length == 0
+end
+
 func ext_esperar_salida()
     t0 = time_ms()
     while time_ms() - t0 < 2000
@@ -3942,7 +3633,7 @@ func orden_rexx(linea: String) -> String
 end
 
 # El documento de texto de una orden: el del fichero p[i] si lo trae (abierto), o el activo; nil si no lo hay o no es
-# de texto (un sprite, un mapa)
+# de texto
 func _doc_texto(p: [String], i: Int) -> Documento
     var d: Documento = nil
     if p.length > i and p[i] != ""
@@ -3953,7 +3644,7 @@ func _doc_texto(p: [String], i: Int) -> Documento
     else
         d = ed_actual()
     end
-    if d == nil or d.sprite != nil or d.mapa != nil
+    if d == nil
         return nil
     end
     return d
@@ -3982,6 +3673,33 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
     elif orden == "ADIOS" and p.length >= 2
         ext_adios(p[1])
         return ""
+    elif orden == "GUARDADO" and p.length >= 3
+        # GUARDADO extensión fichero: guardó uno suyo (un sprite, un mapa). Lo dice la salida, llega a las demás
+        # (GUARDADO) y, si es del cajón del proyecto, el panel se lee otra vez
+        avisar(tr(3, "Guardado: ") + p[2], 2)
+        ext_suceso("GUARDADO", p[2])
+        if str_lower(cajon_de(p[2])) == str_lower(proyecto_cajon)
+            proyecto_leer(proyecto_cajon)
+            if abierta
+                mui_canvas_redraw(v.proyecto)
+            end
+        end
+        return ""
+    elif orden == "SINGUARDAR" and p.length >= 2
+        # SINGUARDAR extensión, y en cada línea siguiente un fichero suyo con cambios sin guardar (ninguna: ninguno)
+        ls = str_split(linea, "\n")
+        cab = _partes(ls[0], 99)
+        ls.remove(0)
+        if cab.length < 2 or not ext_poner_sin_guardar(cab[1], ls)
+            _rexx_falla(10)
+        end
+        return ""
+    elif orden == "DELANTE"
+        # la ventana de Forja delante y activa (desde la ventana de una extensión)
+        if abierta
+            mui_window_activate(v.window)
+        end
+        return ""
     elif orden == "ACTIVO"
         d = ed_actual()
         if d == nil
@@ -3991,10 +3709,6 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         tipo = "texto"
         if d.vista != 0
             tipo = "vista"
-        elif d.sprite != nil
-            tipo = "sprite"
-        elif d.mapa != nil
-            tipo = "mapa"
         elif d.diseno
             tipo = "dashui"
         end
@@ -4155,7 +3869,6 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
             d = documentos[i]
             if d.vista != 0 and d.vista_ext == cab[1] and d.nombre == cab[2]
                 ed_cerrar(i)
-                ajustar_paneles()
                 redibujar()
                 return ""
             end
@@ -4183,7 +3896,6 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         end
         cab = _partes(ls[0], 99)
         ed_abrir_vista(p[1], cab[2], textos, colores)
-        ajustar_paneles()
         redibujar()
         return ""
     elif orden == "SUGERENCIA"
@@ -4248,7 +3960,7 @@ func orden_sugerencia(linea: String) -> String
     if ls.length > 1
         t = str_replace(ls[1], "\t", "    ")
     end
-    if d == nil or d.vista != 0 or d.sprite != nil or d.mapa != nil or d.diseno or t == ""
+    if d == nil or d.vista != 0 or d.diseno or t == ""
         _rexx_falla(5)
         return ""
     end
@@ -4455,6 +4167,14 @@ func orden_una(linea: String) -> String
             _rexx_falla(5)
             return ""
         end
+        # COMPILAR fichero: el programa de ese fichero (de una extensión: un sprite, un mapa), abierto o no
+        if p.length >= 2 and p[1] != ""
+            if programa_de_ruta(p[1]) == ""
+                _rexx_falla(10)
+                return ""
+            end
+            compilar_desde = p[1]
+        end
         errores_ultimos = ""
         compilar(orden == "EJECUTAR")
         return ""
@@ -4618,17 +4338,11 @@ func atender(ev: Int)
         if file_open_dialog(tr(223, "El compilador de Dash"), "#?")
             mui_set_text(vp.dashc, file_fullpath())
         end
-    elif ev == EV_ELEGIR_INFERENCIA
-        if file_open_dialog(tr(224, "Inferencia"), "#?")
-            mui_set_text(vp.inferencia, file_fullpath())
-        end
     elif ev == EV_ELEGIR_EJECUTABLES
         # el cajón donde está el diálogo al aceptar (el nombre de fichero no cuenta)
         if file_open_dialog(tr(378, "El cajón de los ejecutables"), "#?")
             mui_set_text(vp.ejecutables, file_get_path())
         end
-    elif ev == EV_INFERENCIA
-        boton_inferencia()
     elif ev == EV_DEPURAR
         depurar()
     elif ev >= EV_SEGUIR and ev <= EV_PARAR
@@ -4643,10 +4357,6 @@ func atender(ev: Int)
         dv_cerrar_vista()
     elif ev >= EV_CORTAR and ev <= EV_VISTA
         edicion(ev)
-    elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().mapa != nil
-        mp_resultado(ed_actual(), mp_arrastrar(ed_actual().mapa, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), mui_canvas_drag(v.editor) == 2))
-    elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().sprite != nil
-        sp_resultado(ed_actual(), sp_arrastrar(ed_actual().sprite, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), mui_canvas_drag(v.editor) == 2))
     elif ev == EV_ARRASTRE
         if mui_canvas_drag(v.editor) == 1
             ed_arrastrar(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
@@ -4737,7 +4447,6 @@ Main
         salida_anadir(tr(29, "Forja ") + VERSION + ".", 0)
         salida_anadir(tr(31, "Listo."), 2)
 
-        ajustar_paneles()
         mui_set_visible(v.barra_variables, false)     # la de abajo del panel de las variables, solo al depurar
         mui_window_open(v.window)
         abierta = true
@@ -4828,7 +4537,7 @@ Main
             if ev == -1
                 ev = EV_SALIR
             end
-            if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR) or ev == EV_NUEVO_SPRITE
+            if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR) or ev == EV_NUEVO_EXT
                 if proyecto(ev)
                     sesion_guardar()
                     break
@@ -4841,10 +4550,6 @@ Main
             ajustar_barras_paneles()
             if ed_actual() == nil and not tic_armado
                 armar_tic(500, EV_TIC)
-            end
-            # la vista animada del sprite: el tic la avanza (un fotograma por tic, o menos si va lenta)
-            if ed_actual() != nil and ed_actual().sprite != nil and ed_actual().sprite.reproduciendo and not tic_armado
-                armar_tic(sp_intervalo(ed_actual().sprite), EV_TIC)
             end
             actualizar_armar()
             if sonda

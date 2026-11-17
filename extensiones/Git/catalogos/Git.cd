@@ -1,0 +1,58 @@
+; Texts of /home/freemem/Projects/forja/.worktrees/ext-editores/extensiones/Git/git.dash (tools/catalogo.py)
+;
+MSG_1 (1//)
+1 cambio
+MSG_2 (2//)
+%1 cambios
+MSG_3 (3//)
+Git: espera a que acabe la orden de antes.
+MSG_4 (4//)
+Abre antes un fichero del proyecto.
+MSG_5 (5//)
+Git: sin el servidor de dashgit (%1): cada orden irá en un proceso, más lento.
+MSG_6 (6//)
+Sin diferencias con el último commit: 
+MSG_7 (7//)
+Git: hecho en %1.
+MSG_8 (8//)
+Git acabó con código %1.
+MSG_9 (9//)
+Git falló: 
+MSG_10 (10//)
+ (cambios)
+MSG_11 (11//)
+El proyecto no está en un repositorio de git.
+MSG_12 (12//)
+Escribe el mensaje del commit.
+MSG_13 (13//)
+Nada preparado
+MSG_14 (14//)
+Marca la casilla de los ficheros que van en el commit.
+MSG_15 (15//)
+_Vale
+MSG_16 (16//)
+Este fichero no está en el repositorio del proyecto.
+MSG_17 (17//)
+Git: no se puede abrir MUI.
+MSG_18 (18//)
+Sin cambios.
+MSG_19 (19//)
+No se puede ejecutar 
+MSG_21 (21//)
+acabó con código %1: 
+MSG_22 (22//)
+no abrió su puerto en %1 ms
+MSG_23 (23//)
+no contestó en %1 ms: 
+MSG_30 (30//)
+Cambios (Forja)
+MSG_31 (31//)
+Mensaje:
+MSG_32 (32//)
+_Diferencias
+MSG_33 (33//)
+_Preparar todo
+MSG_34 (34//)
+_Quitar todo
+MSG_35 (35//)
+C_onfirmar

@@ -16,6 +16,9 @@ trap 'rm -rf "$tmp"' EXIT
 cp -r "$HOME/.cache/dash-emu/sys31muisslweb" "$tmp/sys"
 mkdir -p "$tmp/sys/Prueba"
 cp -r "$aqui/tests/prueba/." "$tmp/sys/Prueba/"
+# el editor es una extensión de Forja
+. "$aqui/tests/extension.sh"
+extension Sprites editor_sprites
 python3 -I -c "import sys; open(sys.argv[1], 'w').write('16 16 2\n' + '\n'.join(['0' * 16] * 16) + '\npaleta 000000 E0E0E0 E08030 3060C0\n')" "$tmp/vacio.txt"
 python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/juego/vacio.iff" "$tmp/vacio.txt" --frja "1 1 16 6"
 "$dash/dash" "$aqui/tests/sprites_lapiz.dash" -o "$tmp/sys/Prueba/SpritesLapiz"

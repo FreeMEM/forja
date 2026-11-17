@@ -16,7 +16,7 @@ English or Spanish, following the Locale preferences (the English catalog is in 
   [Dash](https://github.com/FreeMEM/dash/releases) has the `dash` command and also Forja and dashgit, and its installer sets
   everything up. Forja looks for the compiler in `ENV:Forja/dashc` (in the preferences, with a button to choose it),
   then `DASH:dash`, then as `dash` in the command path.
-- For the Inferencia button, [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
+- For the copilot (the Inferencia extension), [Inferencia](https://github.com/FreeMEM/inferencia) (`ENV:Forja/inferencia`).
 - For git (the Git extension), [dashgit](https://github.com/FreeMEM/dashgit) with its `servidor` command: it is looked
   for in `ENV:Forja/dashgit`, then `DASH:dashgit`, then as `dashgit` in the command path. To pull and push over https,
   AmiSSL and a TCP/IP stack.
@@ -85,9 +85,10 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 - **Go to definition** (Amiga-J or Ctrl+click): to the file and line where the name is defined, opening it if
   needed; Amiga-U goes back. **Find uses** (Amiga-H): the list in the output, and a click goes to each place. The
   symbols are read when a file is opened or shown and after a moment without typing (in the Code menu).
-- **The top bar**: Build, Run, Debug, the debugger buttons and Inferencia, each with a coloured icon and its name.
+- **The top bar**: Build, Run, Debug and the debugger buttons, each with a coloured icon and its name.
   The ones that do nothing right now are grey, and the one under the pointer lights up. In a narrow window, first
-  the grey ones and then all of them show only their icon.
+  the grey ones and then all of them show only their icon. On the right, the zones of the extensions (Inferencia,
+  the git branch).
 - **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line. The
   output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
@@ -108,9 +109,22 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 - **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;
   "+" adds, Del removes, Alt+arrows moves. Amiga-P opens the preview with real MUI. It saves the same way as the VS
   Code extension.
-- **Inferencia** (Amiga-I): sends it the file, or the selected lines.
-- **Sprites and BOBs**: IFF ILBM pictures (DPaint brushes too) open in their own editor, and Amiga-B makes a
-  hardware sprite (16 wide, 3 colours and the transparent one) or a BOB (any size and colours). They are saved as
+- **New Dash versions**: Project > Look for a new version of Dash looks on GitHub and, if there is one, asks whether
+  to download it and install it in the Dash drawer (`DASH:`): the dash command, Forja, Inferencia, `lib/` and the
+  examples. It checks everything before changing anything; if something arrives damaged, Dash stays as it was. At
+  startup it looks once a day and only tells you in the output (it can be turned off in the preferences). It needs
+  the network and AmiSSL. Also through ARexx: `ACTUALIZAR`.
+### Sprites and maps
+
+The sprite and map editors are two extensions (`Extensiones/Sprites` and `Extensiones/Mapas`): if you only write code,
+they are not loaded. They start when one of their files is opened (from the project panel, Open or the session) or a
+new one is asked for with Amiga-B, each with its own window and a tab per file, and they end when the last tab is
+closed. In their window, Amiga-S saves (Forja's output says so and the project panel sees it), Amiga-K and Amiga-E
+build and run the program of the sprite's drawer (`main.dash`), and Window > Forja goes back to Forja. When Forja
+quits, their unsaved files count in its question.
+
+- **Sprites and BOBs** (the Sprites extension): IFF ILBM pictures (DPaint brushes too) open in its window, and
+  Amiga-B (in Forja or in that window) makes a hardware sprite (16 wide, 3 colours and the transparent one) or a BOB (any size and colours). They are saved as
   IFF, and Dash's `sprite_load` and `bob_load` load them as they are.
   - Drawing: P pencil, L line, B box (filled with Shift when you start), F fill, K eyedropper, A handle point.
     Alt + click erases; Ctrl + click picks the colour. Up, down and the digits choose a colour; the R G B bars
@@ -123,12 +137,7 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   - C copies to the clipboard the Dash lines that load it, with its colours and how to animate it.
 
   ![The sprite editor with a 4-frame ship](docs/img/sprites-en.png)
-- **New Dash versions**: Project > Look for a new version of Dash looks on GitHub and, if there is one, asks whether
-  to download it and install it in the Dash drawer (`DASH:`): the dash command, Forja, Inferencia, `lib/` and the
-  examples. It checks everything before changing anything; if something arrives damaged, Dash stays as it was. At
-  startup it looks once a day and only tells you in the output (it can be turned off in the preferences). It needs
-  the network and AmiSSL. Also through ARexx: `ACTUALIZAR`.
-- **Tile maps**: `.fmap` files (IFF `FORM FMAP`) open in the map editor, and Amiga-B also makes a new map. The
+- **Tile maps** (the Mapas extension): `.fmap` files (IFF `FORM FMAP`) open in its window, and Amiga-B also makes a new map. The
   tileset is a BOB from the sprite editor, with one frame a tile of 8, 16 or 32; the map keeps its name. Dash's
   `tilemap_load` and `tilemap_draw` load and draw them.
   - Tools: P pencil, B box, F fill, K pick, E erase. Alt + click erases; Ctrl + click picks the tile. H and V
@@ -150,7 +159,7 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 Git is an extension (`Extensiones/Git`) that uses [dashgit](https://github.com/FreeMEM/dashgit). **dashgit is in
 alpha**: there is still a lot to test, so keep a copy of what matters.
 
-- In the button bar, left of Inferencia, the branch and "N cambios" (changes); a click opens the Changes panel.
+- In the button bar, on the right, the branch and "N cambios" (changes); a click opens the Changes panel.
 - In the project panel, a letter on each changed file or drawer: M, A, D, U (conflict), ? (untracked).
 - In the editor margin, bars against the last commit: added (solid, green), changed (dashed, blue) and removed (a red
   triangle). They follow what you type, unsaved: they move with their lines, and after a pause the real ones arrive.
@@ -162,11 +171,20 @@ To be fast, the extension keeps dashgit open (`dashgit servidor`) instead of sta
 has no server, or stops answering, each command runs as a separate process. `SetEnv Forja/git_servidor no` turns it
 off. The `.git` drawer is hidden in the project panel.
 
+### The copilot: Inferencia
+
+Inferencia, the Amiga's AI, is an extension too (`Extensiones/Inferencia`): a small program, the copilot, that reads
+the code and the project in Forja and passes them to [Inferencia](https://github.com/FreeMEM/inferencia) over ARexx.
+In the button bar, on the right, the Inferencia zone (the button that used to be Forja's): a click is "Ask about
+this" (Amiga-I). Its Inferencia menu asks, explains, changes and documents code, writes tests and explains and fixes
+build errors; changes come in a read-only tab, `a` accepts and `r` rejects. Inferencia > Where is Inferencia... says
+where it is (`ENVARC:Forja/inferencia`).
+
 ### ARexx
 
 Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO file` (text), `SELECCION`
-(selection), `CAMBIAR file from to text` (change lines), `GUARDAR [file]` (save), `COMPILAR` (build), `EJECUTAR`
-(run), `ESTADO` (state), `ERRORES` (errors), `BUSCAR text` (find), `CAMBIARTODO find replace`, `IRA line` (go to),
+(selection), `CAMBIAR file from to text` (change lines), `GUARDAR [file]` (save), `COMPILAR [file]` (build),
+`EJECUTAR [file]` (run), `ESTADO` (state), `ERRORES` (errors), `BUSCAR text` (find), `CAMBIARTODO find replace`, `IRA line` (go to),
 and `SALIDA` (the output text). Extensions have more (cursor, selection, insert, marks, bars, the bar, own tabs,
 batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md) (in Spanish). The Git extension has its own port, `FORJAEXT.GIT`:
 `GIT dashgit command` (without waiting: its `ESTADO` says `git` while it runs), `CAMBIOS` and `GITESTADO`.
@@ -175,10 +193,13 @@ batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md) (in Spanish). The Git exten
 
 Separate programs in the `Extensiones` drawer next to Forja that add entries to the Extensiones menu (or a menu of
 their own in the menu bar), keys, marks and bars in the margin, letters in the project panel, a zone in the button bar, a
-text in the bar, read-only tabs, or an editor for a file type. Git is one of them. They talk to Forja over ARexx;
+text in the bar, read-only tabs, or an editor for a file type with its own window. Git, the Inferencia copilot,
+Sprites and Mapas are extensions. They talk to Forja over ARexx;
 if one crashes or hangs, Forja carries on. Extensiones > Gestor de extensiones... lists them, turns them on or off and
 installs them from a drawer or an `.lha`. The example one, Contar, counts the lines and words of the file and inserts
-the date with Ctrl Alt D. How to write one with `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md).
+the date with Ctrl Alt D. How to write one with `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md). Each
+one can bring its catalog (`Catalogs/english/X.catalog` in its drawer) and, in its manifest, texts in another
+language (`descripcion.english`, `menu.english`).
 
 ## Build
 

@@ -1,0 +1,154 @@
+; Texts of /home/freemem/Projects/forja/.worktrees/ext-editores/extensiones/Inferencia/copiloto.dash (tools/catalogo.py)
+;
+MSG_1 (1//)
+pensando...
+MSG_2 (2//)
+a: aceptar, r: rechazar
+MSG_3 (3//)
+1 error: arreglarlo
+MSG_4 (4//)
+%1 errores: arreglar
+MSG_5 (5//)
+Dónde está Inferencia
+MSG_6 (6//)
+Inferencia: 
+MSG_7 (7//)
+a: aceptar el cambio   r: rechazarlo   (también en el menú Inferencia)
+MSG_8 (8//)
+Inferencia no contesta. ¿Está esperando algo en su ventana?
+MSG_9 (9//)
+falta rexxsyslib.library.
+MSG_10 (10//)
+no se puede arrancar %1. Di dónde está con Inferencia > Dónde está Inferencia... (ENVARC:Forja/inferencia).
+MSG_11 (11//)
+arrancando Inferencia...
+MSG_12 (12//)
+Inferencia no arrancó (%1). Necesita MUI y un 68020 o mejor; con MUI 3.8, mira el README de Inferencia.
+MSG_13 (13//)
+abre antes un fichero de Dash.
+MSG_14 (14//)
+delante tiene que haber un fichero de texto.
+MSG_15 (15//)
+Inferencia no aceptó el texto (RC %1).
+MSG_16 (16//)
+El fichero de delante es %1; el cursor está en la línea %2.
+MSG_17 (17//)
+Inferencia está ocupada: el código va con tu próxima pregunta.
+MSG_18 (18//)
+, líneas %1 a %2
+MSG_19 (19//)
+Inferencia tiene las líneas elegidas: escribe allí la pregunta.
+MSG_20 (20//)
+[cortado: sigue en el fichero]
+MSG_21 (21//)
+Inferencia tiene el fichero: escribe allí la pregunta.
+MSG_22 (22//)
+Explica qué hace este código de Dash (%1), paso a paso y en pocas palabras.
+MSG_23 (23//)
+la última compilación no dio errores. Compilo otra vez para ver.
+MSG_24 (24//)
+Forja está ocupada compilando o ejecutando: prueba después.
+MSG_25 (25//)
+error de compilación en 
+MSG_26 (26//)
+Explica este error de compilación de Dash y cómo se arregla.
+MSG_27 (27//)
+Arreglar el error: 
+MSG_28 (28//)
+ya hay un encargo en marcha (un clic en la zona Inferencia lo cancela).
+MSG_29 (29//)
+Inferencia está con otro encargo: prueba después.
+MSG_30 (30//)
+Inferencia no aceptó el encargo (RC %1).
+MSG_31 (31//)
+Documentar %1: 
+MSG_32 (32//)
+no se puede abrir la ventana de MUI.
+MSG_33 (33//)
+¿Qué cambio en %1?
+MSG_34 (34//)
+Cambiar: 
+MSG_35 (35//)
+la función %1
+MSG_36 (36//)
+el código de las líneas %1 a %2
+MSG_37 (37//)
+Escribir la prueba: 
+MSG_38 (38//)
+la respuesta no trae código:
+MSG_39 (39//)
+Inferencia no propone ningún cambio.
+MSG_40 (40//)
+Fichero nuevo: 
+MSG_41 (41//)
+Ha mirado: 
+MSG_42 (42//)
+el cambio está en la pestaña %1: a lo acepta, r lo rechaza.
+MSG_43 (43//)
+no hay ningún cambio que aceptar.
+MSG_44 (44//)
+%1 ya existe: pide la prueba otra vez.
+MSG_45 (45//)
+no se puede escribir %1.
+MSG_46 (46//)
+escrito %1.
+MSG_47 (47//)
+el código cambió desde que lo leyó Inferencia: pide el cambio otra vez.
+MSG_48 (48//)
+Forja no aceptó el cambio en %1.
+MSG_49 (49//)
+cambiado %1 (Amiga-Z lo deshace).
+MSG_50 (50//)
+no hay ningún cambio que rechazar.
+MSG_51 (51//)
+cambio rechazado.
+MSG_52 (52//)
+sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan.
+MSG_53 (53//)
+sugerencias al escribir apagadas.
+MSG_54 (54//)
+Fichero %1. El cursor está al final de la línea %2:
+MSG_55 (55//)
+Lo de antes (hasta esa línea):
+MSG_56 (56//)
+Lo de después:
+MSG_57 (57//)
+Inferencia se ha cerrado.
+MSG_58 (58//)
+el encargo tardaba demasiado: cancelado.
+MSG_59 (59//)
+el modelo dio un error: 
+MSG_60 (60//)
+encargo cancelado.
+MSG_61 (61//)
+compila sin errores: no hay nada que explicar ni arreglar.
+MSG_62 (62//)
+Inferencia: no se puede abrir MUI; el copiloto no arranca.
+MSG_63 (63//)
+Arregla este error de compilación de Dash.
+MSG_64 (64//)
+El error está en la línea %1 de %2. Devuelve las líneas %3 a %4 (abajo, con su número delante) ya arregladas, enteras y sin los números, en un solo bloque ```dash. Antes del bloque, una línea que diga qué estaba mal.
+MSG_65 (65//)
+Documenta este código de Dash (líneas %1 a %2 de %3): pon encima unas líneas de comentario, con #, que digan qué hace, qué recibe y qué devuelve. Si ya tiene comentario, mejóralo. No cambies el código. Devuelve esas líneas con el comentario delante, enteras, en un solo bloque ```dash.
+MSG_66 (66//)
+Cambia este código de Dash (líneas %1 a %2 de %3) así: 
+MSG_67 (67//)
+Devuelve esas líneas ya cambiadas, enteras, en un solo bloque ```dash (puedes añadir o quitar líneas). Antes del bloque, una línea que diga qué cambiaste.
+MSG_68 (68//)
+Escribe un programa de prueba en Dash, el fichero %1 (en el mismo cajón que %2), para %3: que la llame con varios casos, compruebe cada resultado con if y escriba con Print \"bien: ...\" o \"FALLO: ...\". Si %2 no tiene Main, impórtalo con import \"%2\"; si lo tiene, copia en la prueba lo que haga falta. Devuelve el fichero entero en un solo bloque ```dash.
+MSG_69 (69//)
+Proyecto: %1 (ficheros:
+MSG_70 (70//)
+El fichero %1 entero
+MSG_71 (71//)
+Las líneas %1 a %2 del fichero %3 (tiene %4; lo demás no cabe)
+MSG_72 (72//)
+Lo que importa, 
+MSG_73 (73//)
+%1 no cabe: si lo necesitas, léelo con la herramienta leer
+MSG_74 (74//)
+Inferencia: cambiar el código
+MSG_75 (75//)
+_Pedir
+MSG_76 (76//)
+_Cancelar

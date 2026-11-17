@@ -1,5 +1,5 @@
 # La barra de botones de arriba, dibujada en un lienzo: Compilar, Ejecutar y Depurar, los del depurador (Seguir,
-# Paso, Entrar, Salir, Parar) e Inferencia a la derecha. Cada uno lleva un icono de color y su nombre; el que
+# Paso, Entrar, Salir, Parar) y las zonas de las extensiones a la derecha. Cada uno lleva un icono de color y su nombre; el que
 # está bajo el puntero se ilumina y los que no valen ahora salen en gris. Si no caben con nombre, los grises se
 # quedan solo con el icono, y si aún no caben, todos.
 #
@@ -18,7 +18,7 @@ struct BotonBarra
     evento: Int
     rgb: [Int]          # el color de su icono
     icono: String       # cuál: el nombre de su dibujo en _bb_dibujo
-    grupo: Int          # 0 los de siempre, 1 los del depurador, 2 Inferencia (a la derecha)
+    grupo: Int          # 0 los de siempre, 1 los del depurador, 2 a la derecha (ninguno hoy)
     activo: Bool
     x: Int              # dónde quedó al dibujarlo, y su ancho
     ancho: Int
@@ -37,7 +37,7 @@ var bb_pen_encima: Int = 0
 var bb_pen_fondo: Int = 0
 var bb_pen_raya: Int = 0
 
-# Las zonas de las extensiones (ZONA, docs/EXTENSIONES.md), a la izquierda de Inferencia: un icono, un texto y un
+# Las zonas de las extensiones (ZONA, docs/EXTENSIONES.md), a la derecha: un icono, un texto y un
 # detalle en otro color (git: la rama y "3 cambios"). Si no cabe el detalle, va el corto ("3"); si tampoco, solo el
 # texto; si tampoco, nada. Un clic ahí da BB_EV_ZONA, y bb_zona_clic dice de qué extensión.
 const BB_EV_ZONA = 89
@@ -113,7 +113,7 @@ func _bb_dibujo(nombre: String) -> [String]
     if nombre == "rama"
         return ["............", "...#....#...", "...#....#...", "...#....#...", "...#...#....", "...#..#.....", "...###......", "...#........", "...#........", "...#........", "...#........", "............"]
     end
-    # inferencia: un destello
+    # inferencia (para la zona del copiloto): un destello
     return ["............", ".....#......", ".....#......", "....###.....", "#..#####..#.", ".#########..", "...#####....", "....###...#.", ".....#...###", ".....#....#.", "............", "............"]
 end
 
@@ -166,7 +166,6 @@ func bb_crear()
     _bb_anadir(tr(330, "Entrar"), 15, azul, "entrar", 1)
     _bb_anadir(tr(331, "Salir"), 16, azul, "salir", 1)
     _bb_anadir(tr(332, "Parar"), 17, rojo, "parar", 1)
-    _bb_anadir(tr(333, "Inferencia"), 19, [190, 140, 240], "inferencia", 2)
 end
 
 func _bb_boton(evento: Int) -> BotonBarra
@@ -218,11 +217,17 @@ func _bb_ancho(b: BotonBarra, con_nombre: Bool) -> Int
     return 6 + 12 + 6
 end
 
-# 0 todos con nombre, 1 los grises sin nombre, 2 ninguno con nombre: lo primero que quepa
+# 0 todos con nombre, 1 los grises sin nombre, 2 ninguno con nombre: lo primero que quepa, dejando sitio para el texto
+# de las zonas de las extensiones (antes, el botón Inferencia de la derecha hacía que los grises perdieran el nombre y
+# dejaba ese sitio; sin él, la zona de git no cabía en 640 de ancho)
 func _bb_modo(ancho: Int) -> Int
+    zonas = 0
+    for z in bb_zonas
+        zonas = zonas + _bb_zona_ancho(z, "") + 12
+    end
     modo = 0
     while modo < 2
-        total = 8 + 2 * 13      # los márgenes y las dos rayas entre grupos
+        total = 8 + 2 * 13 + zonas      # los márgenes, las dos rayas entre grupos y las zonas
         for b in bb_botones
             total = total + _bb_ancho(b, modo == 0 or (modo == 1 and b.activo)) + 2
         end
@@ -287,7 +292,7 @@ func bb_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_rect(x, y + alto - 1, x + ancho - 1, y + alto - 1)
     usar_panel(0)
     modo = _bb_modo(ancho)
-    # Inferencia, a la derecha (las x de los botones, desde el borde de la zona, como las del ratón)
+    # los del grupo 2, a la derecha (las x de los botones, desde el borde de la zona, como las del ratón)
     derecha = ancho - 4
     for b in bb_botones
         if b.grupo == 2

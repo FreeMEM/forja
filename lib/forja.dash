@@ -380,3 +380,41 @@ func forja_version_texto(ruta: String) -> Int
     end
     return Int(r)
 end
+
+# --- Editores de otros tipos de fichero (tipos = y nuevo = en el manifiesto: Sprites, Mapas) ---
+
+# Guardó un fichero suyo: Forja lo dice en la salida, lo cuenta a las demás extensiones (GUARDADO) y, si es del cajón
+# del proyecto, lee otra vez el panel
+func forja_guardado(ruta: String)
+    forja_orden("GUARDADO " + forja_ext + " \"" + ruta + "\"")
+end
+
+# Sus ficheros con cambios sin guardar (los nombres; [] ninguno): Forja pregunta por ellos al salir y, si se elige
+# Guardar, le manda el suceso GUARDAR y espera a que esta lista quede vacía (20 s como mucho)
+func forja_sin_guardar(nombres: [String])
+    t = "SINGUARDAR " + forja_ext
+    for n in nombres
+        t = t + "\n" + n
+    end
+    forja_orden(t)
+end
+
+# Compilar (o compilar y ejecutar) el programa de un fichero que no es de Dash (un sprite, un mapa): el .dash con
+# Main abierto de su cajón o el de encima, o su main.dash, o el del proyecto. ruta "": el fichero activo de Forja.
+# forja_rc: 0 bien, 5 si Forja ya compila o ejecuta, 10 si no hay programa
+func forja_compilar(ruta: String, ejecutar: Bool) -> Bool
+    orden = "COMPILAR"
+    if ejecutar
+        orden = "EJECUTAR"
+    end
+    if ruta != ""
+        orden = orden + " \"" + ruta + "\""
+    end
+    forja_orden(orden)
+    return forja_rc == 0
+end
+
+# La ventana de Forja delante y activa
+func forja_delante()
+    forja_orden("DELANTE")
+end
