@@ -86,6 +86,8 @@ def main():
         (ext / "manifiesto.txt").write_bytes(man.read_text().encode("latin-1", "replace"))
     (caj / "lib").mkdir()
     shutil.copy(raiz / "lib/forja.dash", caj / "lib/forja.dash")
+    # sync.dash (pistas de sincronía y medidor, para demos y juegos: la extensión Demos), también fuera de la plantilla
+    shutil.copy(raiz / "plantillas/demo/sync.dash", caj / "lib/sync.dash")
     # el catálogo inglés (tools/catalogos.py), junto al programa: PROGDIR:Catalogs/english
     subprocess.run([sys.executable, str(raiz / "tools/catalogos.py"), str(dash), "catalog"], check=True)
     shutil.copytree(build / "Catalogs", caj / "Catalogs")

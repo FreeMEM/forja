@@ -1,0 +1,1418 @@
+# Demos: las herramientas de Forja para hacer demos, como extensión (FORJA_LOOP 5.2; el uso, en el README de Forja). Una
+# ventana con cuatro páginas:
+#
+#   Copper      degradados y cambios de color por línea, con la vista a la vista; los pone en el código (copper_* o
+#               una tabla para un bloque asm) y los vuelve a leer de él. "Probar" los enseña en una pantalla de verdad.
+#   Música      un MOD: sus patrones, la posición y la fila que suenan (lo toca ella o lo sigue de la demo).
+#   Sincronía   las pistas de sincronía (tipo Rocket) de un fichero .sync, editables mientras la demo corre.
+#   Medidor     las líneas de raster que gasta la demo en cada imagen.
+#
+# La demo usa plantillas/demo/sync.dash (va en la plantilla de demo). Habla con ella por su puerto DEMOSYNC (solo al
+# cambiar una clave) y lee su bloque de memoria (la fila, las líneas) unas veces por segundo.
+#
+#   ./dash extensiones/Demos/demos.dash -o Extensiones/Demos/Demos    (desde el cajón de Forja)
+#
+# Para las pruebas (ENV:FORJA_SONDA): RAM:forja-demos-sonda.txt dice lo que hay en cada página y
+# ENV:FORJA_DEMOS_LIENZO dónde está el lienzo en su ventana ("x y ancho alto").
+
+@version "Demos 1.0 (Forja)"
+
+import "lib/forja.dash"
+import "../../src/tema.dash"
+import "../../plantillas/demo/sync.dash"
+import "copper.dash"
+import "mod.dash"
+
+const EV_LIENZO = 1
+const EV_TIC = 3
+const EV_VENTANA = 4
+const EV_ABRIR = 11
+const EV_GUARDAR = 12
+const EV_GUARDAR_COMO = 13
+const EV_EXPORTAR = 14
+const EV_CERRAR = 15
+const EV_COMPILAR = 16
+const EV_EJECUTAR = 17
+const EV_PAGINA = 20          # 20 a 23: las páginas
+const EV_AL_CODIGO = 30
+const EV_LEER_CODIGO = 31
+const EV_PROBAR = 32
+const EV_FORJA = 40
+const ALTO_PESTANAS = 18
+const Q_MAYUS = 1
+const Q_CTRL = 2
+const Q_ALT = 4
+const Q_AMIGA = 8
+const K_ESPACIO = 64
+const K_RETROCESO = 65
+const K_RETURN = 68
+const K_INTRO = 67
+const K_ESC = 69
+const K_SUPR = 70
+const K_ARRIBA = 76
+const K_ABAJO = 77
+const K_DERECHA = 78
+const K_IZQUIERDA = 79
+const PAG_COPPER = 0
+const PAG_MUSICA = 1
+const PAG_SYNC = 2
+const PAG_MEDIDOR = 3
+const TIC_MS = 200
+const ANCHO_PISTA = 11        # letras por columna de pista
+
+var app: Int = 0
+var win: Int = 0
+var lienzo: Int = 0
+var abierta: Bool = false
+var pagina: Int = PAG_SYNC
+var sonda: Bool = false
+var sonda_antes: String = ""
+var sonda_geo: String = ""
+var mensaje: String = ""
+var mensaje_tipo: Int = 0
+var zona_x: Int = 0
+var zona_y: Int = 0
+var zona_ancho: Int = 0
+var zona_alto: Int = 0
+var _pest_x1: [Int] = []
+var _pest_x2: [Int] = []
+var _pens: {Int: Int} = {}
+var _pens_lista: [Int] = []
+var tics: Int = 0
+
+# la demo
+var demo_mem: Int = 0
+var demo_fila: Int = 0
+var demo_lineas: Int = 0
+var demo_pausa: Bool = false
+var demo_perdidos: Int = 0
+var demo_fotos: Int = 0
+var demo_anillo: [Int] = []
+var demo_fichero: String = ""
+var _barra_antes: String = ""
+var _pausa_vista: Bool = false    # la pausa ya se vio (el cursor queda libre)
+
+# la música que toca la extensión
+var suena: Bool = false
+var mus_pos: Int = 0
+var mus_fila: Int = 0
+
+# las pistas
+var sy_ruta: String = ""
+var sy_cambiado: Bool = false
+var sy_fila: Int = 0          # el cursor
+var sy_pista: Int = 0
+var sy_buffer: String = ""
+var sy_primera: Int = 0       # la primera pista que se ve
+var sin_guardar_dicho: String = "-"
+
+func nombre_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/" or c == ":"
+            return ruta[i + 1:]
+        end
+        i = i - 1
+    end
+    return ruta
+end
+
+func cajon_de(ruta: String) -> String
+    n = nombre_de(ruta)
+    return ruta[0:ruta.length - n.length]
+end
+
+func avisar(texto: String, tipo: Int)
+    mensaje = texto
+    mensaje_tipo = tipo
+    forja_aviso_tipo(texto, tipo)
+    redibujar()
+end
+
+func redibujar()
+    if abierta
+        mui_canvas_redraw(lienzo)
+    end
+end
+
+func conectada() -> Bool
+    return demo_mem != 0
+end
+
+# La fila que suena: la de la demo, o la de la música de la extensión
+func fila_ahora() -> Int
+    if conectada()
+        return demo_fila
+    end
+    if suena
+        return mus_pos * 64 + mus_fila
+    end
+    return -1
+end
+
+# --- La ventana ---
+
+func hacer_ventana()
+    win = mui_window_begin("Demos", 43)
+    mui_menu_begin("Proyecto")
+    mui_menu_item("Abrir...", "O", EV_ABRIR)
+    mui_menu_item("Guardar las pistas", "S", EV_GUARDAR)
+    mui_menu_item("Guardar las pistas como...", "", EV_GUARDAR_COMO)
+    mui_menu_item("Exportar las pistas (pistas_datos.dash)", "X", EV_EXPORTAR)
+    mui_menu_separator()
+    mui_menu_item("Compilar el programa", "K", EV_COMPILAR)
+    mui_menu_item("Ejecutar el programa", "E", EV_EJECUTAR)
+    mui_menu_separator()
+    mui_menu_item("Cerrar", "W", EV_CERRAR)
+    mui_menu_end()
+    mui_menu_begin("Ver")
+    mui_menu_item("Copper", "1", EV_PAGINA)
+    mui_menu_item("Música", "2", EV_PAGINA + 1)
+    mui_menu_item("Sincronía", "3", EV_PAGINA + 2)
+    mui_menu_item("Medidor", "4", EV_PAGINA + 3)
+    mui_menu_end()
+    mui_menu_begin("Copper")
+    mui_menu_item("Al código", "", EV_AL_CODIGO)
+    mui_menu_item("Leer del código", "", EV_LEER_CODIGO)
+    mui_menu_item("Probar en una pantalla", "", EV_PROBAR)
+    mui_menu_end()
+    mui_menu_begin("Ventana")
+    mui_menu_item("Forja", "", EV_FORJA)
+    mui_menu_end()
+    lienzo = mui_canvas(480, 230)
+    mui_window_end()
+    mui_canvas_on_draw(lienzo, dibujar)
+    mui_canvas_on_input(lienzo, EV_LIENZO)
+    mui_canvas_take_keys(lienzo, true)
+    mui_on_close(win, EV_VENTANA)
+    mui_window_size(win, 80, 80)
+end
+
+func abrir_ventana()
+    if not abierta
+        abierta = mui_window_open(win) != 0
+        mui_timer(TIC_MS, EV_TIC)
+    end
+    mui_window_activate(win)
+    redibujar()
+end
+
+func ver(p: Int)
+    pagina = p
+    mensaje = ""
+    abrir_ventana()
+end
+
+# --- Colores ---
+
+# El lápiz de un color de 12 bits (guardado: color_pen reserva uno en el Workbench)
+func pen_rgb(rgb: Int) -> Int
+    p = _pens.get(rgb, -1)
+    if p < 0
+        p = color_pen(((rgb >> 8) & 15) * 17, ((rgb >> 4) & 15) * 17, (rgb & 15) * 17)
+        _pens[rgb] = p
+        _pens_lista.push(p)
+    end
+    return p
+end
+
+func soltar_pens()
+    for p in _pens_lista
+        color_pen_free(p)
+    end
+    _pens_lista.clear()
+    _pens = {}
+end
+
+# --- Dibujar ---
+
+func texto(x: Int, y: Int, t: String, pen: Int)
+    gfx_pen(pen)
+    gfx_text_at(x, y + base_letra, t)
+end
+
+func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    gfx_mode(0)
+    zona_x = x
+    zona_y = y
+    zona_ancho = ancho
+    zona_alto = alto
+    gfx_pen(tema.fondo)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    dibujar_pestanas(x, y, ancho)
+    usar_codigo()
+    cy = y + ALTO_PESTANAS + 4
+    pie = y + alto - 2 * (alto_letra + 2) - 2
+    if pagina == PAG_COPPER
+        dibujar_copper(x + 4, cy, ancho - 8, pie - cy)
+    elif pagina == PAG_MUSICA
+        dibujar_musica(x + 4, cy, ancho - 8, pie - cy)
+    elif pagina == PAG_SYNC
+        dibujar_sync(x + 4, cy, ancho - 8, pie - cy)
+    else
+        dibujar_medidor(x + 4, cy, ancho - 8, pie - cy)
+    end
+    # abajo: las teclas de la página y el último aviso
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, pie, x + ancho - 1, y + alto - 1)
+    texto(x + 4, pie + 2, ayuda_teclas(), tema.tenue)
+    pen = tema.texto
+    if mensaje_tipo == 1
+        pen = tema.error
+    elif mensaje_tipo == 2
+        pen = tema.bien
+    end
+    texto(x + 4, pie + alto_letra + 4, mensaje, pen)
+end
+
+func ayuda_teclas() -> String
+    if pagina == PAG_COPPER
+        return "flechas parada  May/Alt+flechas línea  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  p probar"
+    elif pagina == PAG_MUSICA
+        return "Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía"
+    elif pagina == PAG_SYNC
+        return "flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  Amiga-S guarda"
+    end
+    return "Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)"
+end
+
+func dibujar_pestanas(x: Int, y: Int, ancho: Int)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + ALTO_PESTANAS - 1)
+    usar_panel(0)
+    _pest_x1.clear()
+    _pest_x2.clear()
+    tx = x + 4
+    i = 0
+    for t in ["Copper", "Música", "Sincronía", "Medidor"]
+        w = font_text_width(t) + 20
+        if i == pagina
+            gfx_pen(tema.fondo)
+            gfx_rect(tx, y + 2, tx + w - 1, y + ALTO_PESTANAS - 1)
+            gfx_pen(tema.acento)
+            gfx_rect(tx, y + 2, tx + w - 1, y + 3)
+            gfx_pen(tema.texto)
+        else
+            gfx_pen(tema.tenue)
+        end
+        gfx_text_at(tx + 10, y + (ALTO_PESTANAS - font_height()) / 2 + 2 + font_baseline(), t)
+        _pest_x1.push(tx - x)
+        _pest_x2.push(tx + w - 1 - x)
+        tx = tx + w + 2
+        i = i + 1
+    end
+    # a la derecha, la demo
+    e = "sin demo"
+    pen = tema.tenue
+    if conectada()
+        e = "demo: fila #{demo_fila}, #{demo_lineas} líneas"
+        if demo_pausa
+            e = e + " (pausa)"
+        end
+        pen = tema.bien
+    end
+    w = font_text_width(e)
+    if tx + w + 8 < x + ancho
+        gfx_pen(pen)
+        gfx_text_at(x + ancho - w - 6, y + (ALTO_PESTANAS - font_height()) / 2 + 2 + font_baseline(), e)
+    end
+end
+
+func pestana_en(mx: Int, my: Int) -> Int
+    if my < 0 or my >= ALTO_PESTANAS
+        return -1
+    end
+    i = 0
+    while i < _pest_x1.length
+        if mx >= _pest_x1[i] and mx <= _pest_x2[i]
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# --- Copper ---
+
+func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
+    if cu_paradas.length == 0
+        cu_nuevo()
+    end
+    c = cu_colores()
+    # la vista: las 256 líneas en el alto que haya, 160 de ancho
+    wv = 160
+    yy = 0
+    while yy < alto
+        l = yy * CU_LINEAS / alto
+        v = c[l]
+        if v < 0
+            gfx_pen(tema.fondo_panel)
+        else
+            gfx_pen(pen_rgb(v))
+        end
+        gfx_line(x, y + yy, x + wv - 1, y + yy)
+        yy = yy + 1
+    end
+    gfx_pen(tema.borde)
+    gfx_box(x - 1, y - 1, x + wv, y + alto)
+    # las paradas: una marca a la derecha de la vista
+    i = 0
+    for p in cu_paradas
+        py = y + p.linea * alto / CU_LINEAS
+        pen = tema.tenue
+        if i == cu_elegida
+            pen = tema.cursor
+        end
+        gfx_pen(pen)
+        gfx_line(x + wv + 2, py, x + wv + 10, py)
+        i = i + 1
+    end
+    # la lista
+    lx = x + wv + 16
+    modo = "degradado"
+    if not cu_degradado
+        modo = "cambios secos"
+    end
+    cod = "llamadas a copper_*"
+    if cu_tabla
+        cod = "tabla para asm"
+    end
+    texto(lx, y, "copper_" + cu_nombre + ": COLOR" + "#{cu_color}" + ", " + modo, tema.texto)
+    texto(lx, y + alto_letra + 2, "Código: " + cod + ", #{cu_instrucciones() + 2} instrucciones", tema.tenue)
+    ly = y + 2 * (alto_letra + 2) + 6
+    i = 0
+    for p in cu_paradas
+        if ly + alto_letra > y + alto
+            break
+        end
+        if i == cu_elegida
+            gfx_pen(tema.seleccion)
+            gfx_rect(lx - 2, ly - 1, lx + 22 * ancho_letra, ly + alto_letra)
+        end
+        gfx_pen(pen_rgb(p.rgb))
+        gfx_rect(lx, ly, lx + 2 * ancho_letra, ly + alto_letra - 2)
+        texto(lx + 3 * ancho_letra, ly, "línea #{p.linea}", tema.texto)
+        texto(lx + 14 * ancho_letra, ly, "$" + cu_hex(p.rgb), tema.sintaxis[4])
+        ly = ly + alto_letra + 2
+        i = i + 1
+    end
+end
+
+func copper_tecla(k: Int, q: Int, ch: String)
+    if cu_paradas.length == 0
+        cu_nuevo()
+    end
+    p = cu_paradas[cu_elegida]
+    paso = 1
+    if (q & Q_ALT) != 0
+        paso = 8
+    end
+    if k == K_ARRIBA or k == K_ABAJO
+        d = 1
+        if k == K_ARRIBA
+            d = -1
+        end
+        if (q & (Q_MAYUS | Q_ALT)) != 0
+            p.linea = p.linea + d * paso
+            if p.linea < 0
+                p.linea = 0
+            elif p.linea > CU_LINEAS - 1
+                p.linea = CU_LINEAS - 1
+            end
+            cu_ordenar()
+        else
+            cu_elegida = cu_elegida + d
+            if cu_elegida < 0
+                cu_elegida = 0
+            elif cu_elegida >= cu_paradas.length
+                cu_elegida = cu_paradas.length - 1
+            end
+        end
+    elif ch == "r" or ch == "g" or ch == "b" or ch == "R" or ch == "G" or ch == "B"
+        sh = 0
+        if ch == "r" or ch == "R"
+            sh = 8
+        elif ch == "g" or ch == "G"
+            sh = 4
+        end
+        v = (p.rgb >> sh) & 15
+        if ch == "r" or ch == "g" or ch == "b"
+            v = v + 1
+        else
+            v = v - 1
+        end
+        if v >= 0 and v <= 15
+            p.rgb = (p.rgb & (0xFFF - (15 << sh))) | (v << sh)
+        end
+    elif ch == "n"
+        linea = p.linea + 16
+        rgb = p.rgb
+        if cu_elegida + 1 < cu_paradas.length
+            s = cu_paradas[cu_elegida + 1]
+            linea = (p.linea + s.linea) / 2
+            c = cu_colores()
+            rgb = c[linea]
+        end
+        if linea > CU_LINEAS - 1
+            linea = CU_LINEAS - 1
+        end
+        cu_paradas.insert(cu_elegida + 1, CuParada(linea, rgb))
+        cu_elegida = cu_elegida + 1
+        cu_ordenar()
+    elif (k == K_SUPR or k == K_RETROCESO) and cu_paradas.length > 1
+        cu_paradas.remove(cu_elegida)
+        if cu_elegida >= cu_paradas.length
+            cu_elegida = cu_paradas.length - 1
+        end
+    elif ch == "d"
+        cu_degradado = not cu_degradado
+    elif ch == "t"
+        cu_tabla = not cu_tabla
+    elif ch == "c"
+        cu_color = (cu_color + 1) % 32
+    elif ch == "C"
+        cu_color = (cu_color + 31) % 32
+    elif k == K_RETURN or k == K_INTRO
+        al_codigo()
+        return
+    elif ch == "l"
+        leer_codigo()
+        return
+    elif ch == "p"
+        probar()
+        return
+    else
+        return
+    end
+    redibujar()
+end
+
+func copper_clic(mx: Int, my: Int)
+    cy = ALTO_PESTANAS + 4
+    alto = zona_alto - 2 * (alto_letra + 2) - 2 - cy
+    if mx < 4 or mx > 4 + 172 or my < cy or my >= cy + alto
+        return
+    end
+    l = (my - cy) * CU_LINEAS / alto
+    mejor = 0
+    dif = 9999
+    i = 0
+    for p in cu_paradas
+        d = p.linea - l
+        if d < 0
+            d = 0 - d
+        end
+        if d < dif
+            dif = d
+            mejor = i
+        end
+        i = i + 1
+    end
+    cu_elegida = mejor
+    redibujar()
+end
+
+# Pone el código en el fichero de delante de Forja: cambia su bloque si ya está; si no, lo mete en el cursor
+func al_codigo()
+    a = str_split(forja_activo(), "\n")
+    if forja_rc != 0 or a.length < 4 or a[3] != "texto"
+        avisar("Abre en Forja el .dash donde va el copper.", 1)
+        return
+    end
+    ruta = a[0]
+    t = forja_texto("")
+    b = cu_buscar_bloque(t)
+    codigo = cu_codigo()
+    if b[0] > 0 and ruta != ""
+        forja_cambiar(ruta, b[0], b[1], codigo[0:codigo.length - 1])
+        avisar("copper_" + cu_nombre + " cambiado en " + nombre_de(ruta) + " (líneas #{b[0]} a #{b[1]}).", 2)
+    else
+        forja_insertar(codigo)
+        avisar("copper_" + cu_nombre + " metido en el cursor de " + a[1] + ".", 2)
+    end
+end
+
+# Lee el bloque de copper del fichero de delante (el del cursor, si hay varios)
+func leer_codigo()
+    t = forja_texto("")
+    if forja_rc != 0
+        avisar("No hay un fichero delante en Forja.", 1)
+        return
+    end
+    forja_cursor()
+    if cu_leer_codigo(t, forja_cursor_linea)
+        avisar("Leído copper_" + cu_nombre + " (#{cu_paradas.length} paradas).", 2)
+    else
+        avisar("No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero.", 1)
+    end
+    redibujar()
+end
+
+# Lo enseña de verdad: una pantalla propia con la lista de copper, hasta un clic o 10 segundos
+func probar()
+    if not screen_open_custom(320, 256, 1, "Copper de Forja")
+        avisar("No se puede abrir la pantalla.", 1)
+        return
+    end
+    gfx_rgb(0, 0, 0, 0)
+    gfx_rgb(1, 15, 15, 15)
+    gfx_clear()
+    gfx_pen(1)
+    gfx_text_at(64, 16, "copper_" + cu_nombre + ": un clic vuelve")
+    c = cu_colores()
+    if copper_create(cu_instrucciones() + 4)
+        antes = -1
+        y = 0
+        for v in c
+            if v != antes and v >= 0
+                copper_wait(y, 0)
+                copper_color(cu_color, v)
+            end
+            antes = v
+            y = y + 1
+        end
+        copper_end()
+        copper_install()
+    end
+    if sonda
+        env_set("FORJA_DEMOS_PROBANDO", "1", false)
+    end
+    n = 0
+    while n < 500 and (peek_byte(0xBFE001) & 64) != 0
+        wait_vblank()
+        n = n + 1
+    end
+    copper_free()
+    screen_close()
+    env_set("FORJA_DEMOS_PROBANDO", "0", false)
+    abrir_ventana()
+end
+
+# --- Música ---
+
+func dibujar_musica(x: Int, y: Int, ancho: Int, alto: Int)
+    if mod_datos == 0
+        texto(x, y, "Abre un .mod (Amiga-O, o desde el panel del proyecto de Forja).", tema.tenue)
+        return
+    end
+    f = fila_ahora()
+    pos = mus_pos
+    fila = mus_fila
+    estado = "parada"
+    if conectada()
+        pos = demo_fila / 64
+        fila = demo_fila % 64
+        estado = "la de la demo"
+    elif suena
+        estado = "suena"
+    end
+    pat = mod_patron(pos)
+    texto(x, y, mod_titulo + "  (" + nombre_de(mod_ruta) + ")", tema.texto)
+    texto(x, y + alto_letra + 2, "posición #{pos}/#{mod_largo}  patrón #{pat}  fila #{fila}  -> sincronía #{pos * 64 + fila}   " + estado, tema.acento)
+    ty = y + 2 * (alto_letra + 2) + 4
+    n = (y + alto - ty) / (alto_letra + 1)
+    if n < 1
+        return
+    end
+    primera = fila - n / 2
+    k = 0
+    while k < n
+        r = primera + k
+        ry = ty + k * (alto_letra + 1)
+        if r >= 0 and r < 64
+            if r == fila
+                gfx_pen(tema.seleccion)
+                gfx_rect(x, ry - 1, x + ancho - 1, ry + alto_letra - 1)
+            end
+            num = "#{r}"
+            if r < 10
+                num = "0" + num
+            end
+            pen = tema.tenue
+            if r % 4 == 0
+                pen = tema.texto
+            end
+            texto(x, ry, num, pen)
+            ch = 0
+            while ch < 4
+                cx = x + (3 + ch * 11) * ancho_letra
+                if cx + 10 * ancho_letra < x + ancho
+                    texto(cx, ry, mod_celda(pat, r, ch), tema.sintaxis[4 + ch % 3])
+                end
+                ch = ch + 1
+            end
+        end
+        k = k + 1
+    end
+end
+
+func tocar(si: Bool)
+    if si and mod_datos != 0 and not conectada()
+        if music_load(mod_ruta)
+            music_play()
+            suena = true
+            mus_pos = 0
+            mus_fila = 0
+        else
+            avisar("music_load no puede con " + mod_ruta, 1)
+        end
+    elif not si and suena
+        music_stop()
+        music_free()
+        suena = false
+    end
+end
+
+func musica_tecla(k: Int, q: Int, ch: String)
+    if k == K_ESPACIO
+        if conectada()
+            mandar_demo(pausa_orden())
+        else
+            tocar(not suena)
+        end
+    elif k == K_IZQUIERDA or k == K_DERECHA
+        d = 1
+        if k == K_IZQUIERDA
+            d = -1
+        end
+        p = mus_pos + d
+        if p >= 0 and p < mod_largo
+            mus_pos = p
+            mus_fila = 0
+            if suena
+                music_position(p)
+            end
+        end
+    elif (k == K_ARRIBA or k == K_ABAJO) and not suena
+        if k == K_ARRIBA and mus_fila > 0
+            mus_fila = mus_fila - 1
+        elif k == K_ABAJO and mus_fila < 63
+            mus_fila = mus_fila + 1
+        end
+    elif k == K_RETURN or k == K_INTRO
+        f = fila_musica()
+        forja_insertar("#{f}")
+        avisar("Fila #{f} metida en el código (posición #{f / 64}, fila #{f % 64}).", 2)
+        return
+    elif ch == "s"
+        sy_fila = fila_musica()
+        pagina = PAG_SYNC
+    else
+        return
+    end
+    redibujar()
+end
+
+func fila_musica() -> Int
+    if conectada()
+        return demo_fila
+    end
+    return mus_pos * 64 + mus_fila
+end
+
+func cargar_mod(ruta: String)
+    tocar(false)
+    if mod_leer(ruta)
+        mus_pos = 0
+        mus_fila = 0
+        ver(PAG_MUSICA)
+    else
+        avisar(mod_error, 1)
+    end
+end
+
+# --- Sincronía ---
+
+func dibujar_sync(x: Int, y: Int, ancho: Int, alto: Int)
+    nombre = "(sin fichero)"
+    if sy_ruta != ""
+        nombre = nombre_de(sy_ruta)
+    end
+    if sy_cambiado
+        nombre = nombre + " *"
+    end
+    f = fila_ahora()
+    e = ""
+    if f >= 0
+        e = "  suena la fila #{f}"
+    end
+    texto(x, y, nombre + "  cursor: fila #{sy_fila} (posición #{sy_fila / 64}, #{sy_fila % 64})" + e, tema.texto)
+    if sync_pistas.length == 0
+        texto(x, y + 2 * (alto_letra + 2), "Sin pistas: n hace una (zoom, fundido, escena...).", tema.tenue)
+        return
+    end
+    # cuántas pistas caben y cuál es la primera
+    cabe = (ancho - 6 * ancho_letra) / (ANCHO_PISTA * ancho_letra)
+    if cabe < 1
+        cabe = 1
+    end
+    if sy_pista < sy_primera
+        sy_primera = sy_pista
+    elif sy_pista >= sy_primera + cabe
+        sy_primera = sy_pista - cabe + 1
+    end
+    hy = y + alto_letra + 4
+    i = 0
+    while i < cabe and sy_primera + i < sync_pistas.length
+        p = sync_pistas[sy_primera + i]
+        n = p.nombre
+        if n.length > ANCHO_PISTA - 1
+            n = n[0:ANCHO_PISTA - 1]
+        end
+        pen = tema.tenue
+        if sy_primera + i == sy_pista
+            pen = tema.acento
+        end
+        texto(x + (6 + i * ANCHO_PISTA) * ancho_letra, hy, n, pen)
+        i = i + 1
+    end
+    ty = hy + alto_letra + 3
+    n = (y + alto - ty) / (alto_letra + 1)
+    if n < 1
+        return
+    end
+    primera = sy_fila - n / 2
+    if primera < 0
+        primera = 0
+    end
+    k = 0
+    while k < n
+        r = primera + k
+        ry = ty + k * (alto_letra + 1)
+        if r == f
+            gfx_pen(tema.parada)
+            gfx_rect(x, ry - 1, x + ancho - 1, ry + alto_letra - 1)
+        end
+        pen = tema.tenue
+        if r % 16 == 0
+            pen = tema.texto
+        end
+        texto(x, ry, "#{r}", pen)
+        i = 0
+        while i < cabe and sy_primera + i < sync_pistas.length
+            j = sy_primera + i
+            p = sync_pistas[j]
+            cx = x + (6 + i * ANCHO_PISTA) * ancho_letra
+            if r == sy_fila and j == sy_pista
+                gfx_pen(tema.seleccion)
+                gfx_rect(cx - 2, ry - 1, cx + (ANCHO_PISTA - 1) * ancho_letra, ry + alto_letra - 1)
+            end
+            c = sync_clave_en(p, r)
+            if r == sy_fila and j == sy_pista and sy_buffer != ""
+                texto(cx, ry, sy_buffer + "_", tema.cursor)
+            elif c >= 0
+                texto(cx, ry, sync_texto(p.valores[c]) + " " + _letra_tipo(p.tipos[c]), tema.sintaxis[4])
+            elif p.filas.length > 0 and r > p.filas[0] and r < p.filas[p.filas.length - 1] + 1
+                texto(cx, ry, "  " + sync_texto(sync_valor_en(p, r, Fixed(0))), tema.borde)
+            end
+            i = i + 1
+        end
+        k = k + 1
+    end
+end
+
+func _letra_tipo(t: Int) -> String
+    if t == SYNC_LINEAL
+        return "/"
+    elif t == SYNC_SUAVE
+        return "~"
+    elif t == SYNC_RAMPA
+        return "^"
+    end
+    return "_"
+end
+
+func pausa_orden() -> String
+    if demo_pausa
+        return "SIGUE"
+    end
+    return "PAUSA"
+end
+
+# Una orden a la demo (sin quedarse esperando si no contesta)
+func mandar_demo(o: String) -> String
+    if not conectada()
+        return ""
+    end
+    r = rexx_send_wait("DEMOSYNC", o, 1000)
+    if rexx_rc() < 0
+        avisar("La demo no contesta (" + o + ").", 1)
+    end
+    return r
+end
+
+func cambiado()
+    sy_cambiado = true
+end
+
+func sync_tecla(k: Int, q: Int, ch: String)
+    var p: SyncPista = nil
+    if sy_pista < sync_pistas.length
+        p = sync_pistas[sy_pista]
+    end
+    if k == K_ARRIBA or k == K_ABAJO
+        d = 1
+        if (q & Q_MAYUS) != 0
+            d = 16
+        end
+        if k == K_ARRIBA
+            d = 0 - d
+        end
+        sy_fila = sy_fila + d
+        if sy_fila < 0
+            sy_fila = 0
+        end
+        sy_buffer = ""
+    elif k == K_IZQUIERDA and sy_pista > 0
+        sy_pista = sy_pista - 1
+        sy_buffer = ""
+    elif k == K_DERECHA and sy_pista + 1 < sync_pistas.length
+        sy_pista = sy_pista + 1
+        sy_buffer = ""
+    elif k == K_ESC
+        sy_buffer = ""
+    elif (k == K_RETURN or k == K_INTRO) and p != nil and sy_buffer != ""
+        v = sync_numero(sy_buffer)
+        if sync_error != ""
+            avisar("No es un número: " + sy_buffer, 1)
+            sy_buffer = ""
+            return
+        end
+        tipo = SYNC_LINEAL
+        c = sync_clave_en(p, sy_fila)
+        if c >= 0
+            tipo = p.tipos[c]
+        end
+        sync_clave(p, sy_fila, v, tipo)
+        mandar_demo("CLAVE " + p.nombre + " #{sy_fila} " + sync_texto(v) + " " + sync_tipo_nombre(tipo))
+        sy_buffer = ""
+        cambiado()
+    elif k == K_RETROCESO and sy_buffer != ""
+        sy_buffer = sy_buffer[0:sy_buffer.length - 1]
+    elif (k == K_SUPR or k == K_RETROCESO) and p != nil
+        if sync_quitar(p, sy_fila)
+            mandar_demo("QUITAR " + p.nombre + " #{sy_fila}")
+            cambiado()
+        end
+    elif ch != "" and str_find("0123456789.-", ch) >= 0 and p != nil
+        sy_buffer = sy_buffer + ch
+    elif ch == "i" and p != nil
+        c = sync_clave_en(p, sy_fila)
+        if c >= 0
+            p.tipos[c] = (p.tipos[c] + 1) % 4
+            mandar_demo("CLAVE " + p.nombre + " #{sy_fila} " + sync_texto(p.valores[c]) + " " + sync_tipo_nombre(p.tipos[c]))
+            avisar("Tipo de la clave: " + sync_tipo_nombre(p.tipos[c]), 0)
+            cambiado()
+        end
+    elif ch == "n"
+        nueva_pista()
+        return
+    elif k == K_ESPACIO
+        if conectada()
+            mandar_demo(pausa_orden())
+        elif mod_datos != 0
+            tocar(not suena)
+        end
+    elif ch == "g"
+        if conectada()
+            mandar_demo("IR #{sy_fila}")
+        elif suena
+            music_position(sy_fila / 64)
+        end
+    else
+        return
+    end
+    redibujar()
+end
+
+func nueva_pista()
+    if not abierta
+        return
+    end
+    n = str_trim(mui_request_text(win, "Nueva pista", "El nombre de la pista (sin espacios: la demo la lee con sync_valor):", "", "_Hacer|_Cancelar"))
+    n = str_replace(n, " ", "_")
+    if n == ""
+        return
+    end
+    if sync_buscar(n) >= 0
+        avisar("Ya hay una pista " + n + ".", 1)
+        return
+    end
+    sync_pista(n)
+    sy_pista = sync_pistas.length - 1
+    mandar_demo("PISTA " + n)
+    cambiado()
+    redibujar()
+end
+
+func cargar_sync(ruta: String) -> Bool
+    if not sync_cargar(ruta)
+        avisar("No se puede leer " + ruta, 1)
+        return false
+    end
+    sy_ruta = ruta
+    sy_cambiado = false
+    sy_pista = 0
+    sy_primera = 0
+    return true
+end
+
+func guardar_sync(como: Bool)
+    ruta = sy_ruta
+    if ruta == "" or como
+        abrir_ventana()
+        if not file_save_dialog("Guardar las pistas", "#?.sync")
+            return
+        end
+        ruta = file_fullpath()
+        if not str_ends(str_lower(ruta), ".sync")
+            ruta = ruta + ".sync"
+        end
+    end
+    if sync_guardar(ruta)
+        sy_ruta = ruta
+        sy_cambiado = false
+        forja_guardado(ruta)
+        mensaje = "Guardado: " + nombre_de(ruta)
+        mensaje_tipo = 2
+        redibujar()
+    else
+        avisar("No se puede escribir " + ruta, 1)
+    end
+end
+
+# pistas_datos.dash junto al .sync: las pistas como tablas, para la versión final sin fichero ni puerto
+func exportar()
+    if sy_ruta == ""
+        avisar("Guarda antes las pistas (Amiga-S): pistas_datos.dash va a su lado.", 1)
+        return
+    end
+    t = "# Las pistas de " + nombre_de(sy_ruta) + " como datos, para la versión final de la demo: sin el fichero .sync ni\n"
+    t = t + "# Forja (lo escribe Forja: Demos > Exportar las pistas; no se toca a mano). Lo usa sync.dash.\n\n"
+    t = t + "func pistas_datos()\n"
+    for p in sync_pistas
+        if p.filas.length == 0
+            t = t + "    sync_pista(\"" + p.nombre + "\")\n"
+        else
+            fs = ""
+            vs = ""
+            ts = ""
+            i = 0
+            while i < p.filas.length
+                if i > 0
+                    fs = fs + ", "
+                    vs = vs + ", "
+                    ts = ts + ", "
+                end
+                fs = fs + "#{p.filas[i]}"
+                vs = vs + "Fixed(" + sync_texto(p.valores[i]) + ")"
+                ts = ts + "#{p.tipos[i]}"
+                i = i + 1
+            end
+            t = t + "    sync_pista_datos(\"" + p.nombre + "\", [" + fs + "], [" + vs + "], [" + ts + "])\n"
+        end
+    end
+    t = t + "end\n"
+    ruta = cajon_de(sy_ruta) + "pistas_datos.dash"
+    if file_write_text(ruta, t)
+        forja_guardado(ruta)
+        avisar("Exportadas #{sync_pistas.length} pistas a " + ruta + ".", 2)
+    else
+        avisar("No se puede escribir " + ruta, 1)
+    end
+end
+
+func decir_sin_guardar()
+    d = ""
+    if sy_cambiado
+        d = nombre_de(sy_ruta)
+        if d == ""
+            d = "pistas.sync"
+        end
+    end
+    if d != sin_guardar_dicho
+        sin_guardar_dicho = d
+        if d == ""
+            forja_sin_guardar([])
+        else
+            forja_sin_guardar([d])
+        end
+    end
+end
+
+# --- Medidor ---
+
+func dibujar_medidor(x: Int, y: Int, ancho: Int, alto: Int)
+    if not conectada()
+        texto(x, y, "Sin demo. Ejecuta una que use sync.dash con VIVO = true (Amiga-E en Forja).", tema.tenue)
+        return
+    end
+    n = demo_anillo.length
+    suma = 0
+    maximo = 0
+    for v in demo_anillo
+        suma = suma + v
+        if v > maximo
+            maximo = v
+        end
+    end
+    media = 0
+    if n > 0
+        media = suma / n
+    end
+    texto(x, y, "Última imagen: #{demo_lineas} líneas (#{demo_lineas * 100 / SYNC_LINEAS_PAL} %)   media #{media}   máximo #{maximo}   perdidas #{demo_perdidos}", tema.texto)
+    gy = y + alto_letra + 6
+    gh = alto - alto_letra - 8
+    if gh < 10
+        return
+    end
+    # rayas al 25, 50, 75 y 100 % del fotograma
+    k = 1
+    while k <= 4
+        ly = gy + gh - gh * k / 4
+        gfx_pen(tema.borde)
+        gfx_line(x, ly, x + ancho - 1, ly)
+        k = k + 1
+    end
+    if n == 0
+        return
+    end
+    w = ancho / SYNC_ANILLO
+    if w < 2
+        w = 2
+    end
+    i = 0
+    for v in demo_anillo
+        h = v * gh / SYNC_LINEAS_PAL
+        if h > gh
+            h = gh
+        end
+        pen = tema.bien
+        if v * 4 > SYNC_LINEAS_PAL * 3
+            pen = tema.error
+        elif v * 2 > SYNC_LINEAS_PAL
+            pen = tema.cursor
+        end
+        gfx_pen(pen)
+        if h > 0
+            gfx_rect(x + i * w, gy + gh - h, x + i * w + w - 2, gy + gh - 1)
+        end
+        i = i + 1
+    end
+end
+
+# --- La demo ---
+
+func puerto_demo() -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == "DEMOSYNC"
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func conectar()
+    r = rexx_send_wait("DEMOSYNC", "HOLA", 1000)
+    if rexx_rc() != 0
+        return
+    end
+    p = str_find(r, " ")
+    dir = r
+    fichero = ""
+    if p > 0
+        dir = r[0:p]
+        fichero = r[p + 1:]
+    end
+    m = Int(dir)
+    if m == 0 or peek_long(m) != SYNC_MAGIA
+        return
+    end
+    demo_mem = m
+    demo_fichero = fichero
+    tocar(false)
+    if fichero != "" and str_find(fichero, ":") > 0
+        if sy_ruta == "" and not sy_cambiado
+            cargar_sync(fichero)
+        elif str_lower(fichero) == str_lower(sy_ruta) and sy_cambiado
+            # lo de Forja, sin guardar, a la demo
+            if file_write_text("T:forja-demos.sync", sync_a_texto())
+                mandar_demo("RECARGAR T:forja-demos.sync")
+            end
+        end
+    end
+    forja_aviso_tipo("Demos: la demo está conectada (" + nombre_de(fichero) + ").", 2)
+    redibujar()
+end
+
+func desconectar()
+    demo_mem = 0
+    demo_anillo.clear()
+    forja_barra("")
+    _barra_antes = ""
+    forja_aviso("Demos: la demo ha acabado.")
+    redibujar()
+end
+
+# Cada TIC_MS: lee la demo (o la busca), y la música propia
+func tic()
+    tics = tics + 1
+    antes_fila = fila_ahora()
+    if conectada()
+        if (tics % 5 == 0 and not puerto_demo()) or peek_long(demo_mem) != SYNC_MAGIA
+            desconectar()
+        else
+            demo_fila = peek_long(demo_mem + 8)
+            demo_fotos = peek_long(demo_mem + 12)
+            demo_lineas = peek_long(demo_mem + 16)
+            demo_pausa = peek_long(demo_mem + 20) != 0
+            demo_perdidos = peek_long(demo_mem + 28)
+            demo_anillo.clear()
+            i = peek_long(demo_mem + 24)
+            k = 0
+            hay = demo_fotos
+            if hay > SYNC_ANILLO
+                hay = SYNC_ANILLO
+            end
+            while k < hay
+                demo_anillo.push(peek_word(demo_mem + 32 + ((i - hay + k + SYNC_ANILLO) % SYNC_ANILLO) * 2))
+                k = k + 1
+            end
+            if not demo_pausa or not _pausa_vista
+                sy_fila = demo_fila
+            end
+            _pausa_vista = demo_pausa
+            if tics % 5 == 0
+                b = "demo: fila #{demo_fila}, #{demo_lineas} líneas"
+                if b != _barra_antes
+                    _barra_antes = b
+                    forja_barra(b)
+                end
+            end
+            if pagina == PAG_MEDIDOR or fila_ahora() != antes_fila or tics % 5 == 0
+                redibujar()
+            end
+        end
+    elif tics % 5 == 0 and puerto_demo()
+        conectar()
+    end
+    if suena and not conectada()
+        mus_pos = music_pos()
+        mus_fila = music_row()
+        sy_fila = mus_pos * 64 + mus_fila
+        if fila_ahora() != antes_fila
+            redibujar()
+        end
+    end
+end
+
+# --- Sucesos ---
+
+func en_lienzo()
+    mx = mui_canvas_mouse_x(lienzo)
+    my = mui_canvas_mouse_y(lienzo)
+    q = mui_canvas_qualifiers(lienzo)
+    if mui_canvas_button(lienzo) == 1
+        p = pestana_en(mx, my)
+        if p >= 0
+            ver(p)
+        elif pagina == PAG_COPPER
+            copper_clic(mx, my)
+        end
+        return
+    end
+    k = mui_canvas_key(lienzo)
+    if k < 0 or (q & Q_AMIGA) != 0
+        return
+    end
+    ch = mui_canvas_char(lienzo)
+    mensaje = ""
+    if pagina == PAG_COPPER
+        copper_tecla(k, q, ch)
+    elif pagina == PAG_MUSICA
+        musica_tecla(k, q, ch)
+    elif pagina == PAG_SYNC
+        sync_tecla(k, q, ch)
+    end
+end
+
+func editar(ruta: String)
+    l = str_lower(ruta)
+    if str_ends(l, ".mod")
+        cargar_mod(ruta)
+    elif str_ends(l, ".sync")
+        if sy_cambiado and str_lower(ruta) != str_lower(sy_ruta)
+            abrir_ventana()
+            r = mui_request(win, "Demos", "Las pistas de " + nombre_de(sy_ruta) + " tienen cambios sin guardar.", "_Guardar|_Descartar|_Cancelar")
+            if r == 1
+                guardar_sync(false)
+            elif r == 0
+                return
+            end
+        end
+        if cargar_sync(ruta)
+            ver(PAG_SYNC)
+        end
+    end
+end
+
+func evento(ev: Int) -> Bool
+    if ev == EV_LIENZO
+        en_lienzo()
+    elif ev == EV_TIC
+        if abierta
+            tic()
+            mui_timer(TIC_MS, EV_TIC)
+        end
+    elif ev >= EV_PAGINA and ev <= EV_PAGINA + 3
+        ver(ev - EV_PAGINA)
+    elif ev == EV_ABRIR
+        if file_open_dialog("Abrir pistas o MOD", "#?.(sync|mod)")
+            editar(file_fullpath())
+        end
+    elif ev == EV_GUARDAR
+        guardar_sync(false)
+    elif ev == EV_GUARDAR_COMO
+        guardar_sync(true)
+    elif ev == EV_EXPORTAR
+        exportar()
+    elif ev == EV_COMPILAR or ev == EV_EJECUTAR
+        r = sy_ruta
+        if r == ""
+            r = mod_ruta
+        end
+        if not forja_compilar(r, ev == EV_EJECUTAR)
+            avisar("Forja no encuentra el programa de " + nombre_de(r) + ".", 1)
+        end
+    elif ev == EV_AL_CODIGO
+        al_codigo()
+    elif ev == EV_LEER_CODIGO
+        leer_codigo()
+    elif ev == EV_PROBAR
+        probar()
+    elif ev == EV_FORJA
+        forja_delante()
+    elif ev == EV_CERRAR or ev == EV_VENTANA
+        if sy_cambiado
+            r = mui_request(win, "Demos", "Las pistas de " + nombre_de(sy_ruta) + " tienen cambios sin guardar.", "_Guardar|_Descartar|_Cancelar")
+            if r == 1
+                guardar_sync(false)
+            elif r == 0
+                return false
+            end
+        end
+        return true
+    end
+    return false
+end
+
+func publicar_sonda()
+    t = "pagina #{pagina}\n"
+    t = t + "demo #{demo_mem != 0} fila #{demo_fila} lineas #{demo_lineas} muestras #{demo_anillo.length} pausa #{demo_pausa}\n"
+    t = t + cu_sonda() + "\n"
+    t = t + "mod " + nombre_de(mod_ruta) + " suena #{suena} pos #{mus_pos} fila #{mus_fila} largo #{mod_largo} patrones #{mod_patrones} celda " + mod_celda(mod_patron(0), 0, 0) + "\n"
+    t = t + "sync " + nombre_de(sy_ruta) + " pistas #{sync_pistas.length} cursor #{sy_fila} #{sy_pista} cambiado #{sy_cambiado} buffer [" + sy_buffer + "]\n"
+    if sy_pista < sync_pistas.length
+        p = sync_pistas[sy_pista]
+        c = sync_clave_en(p, sy_fila)
+        clave = "-"
+        if c >= 0
+            clave = sync_texto(p.valores[c]) + " " + sync_tipo_nombre(p.tipos[c])
+        end
+        t = t + "pista " + p.nombre + " claves #{p.filas.length} aqui " + clave + " valor " + sync_texto(sync_valor_en(p, sy_fila, Fixed(0))) + "\n"
+    end
+    t = t + "mensaje " + mensaje + "\n"
+    if t != sonda_antes
+        sonda_antes = t
+        n = 0
+        while not file_write_text("RAM:forja-demos-sonda.txt", t) and n < 20
+            time_delay(1)
+            n = n + 1
+        end
+    end
+    if abierta
+        g = "#{zona_x} #{zona_y} #{zona_ancho} #{zona_alto}"
+        if g != sonda_geo
+            sonda_geo = g
+            env_set("FORJA_DEMOS_LIENZO", g, false)
+        end
+    end
+end
+
+func suceso() -> Bool
+    if forja_tipo == "SALIR"
+        return true
+    elif forja_tipo == "EDITAR"
+        editar(forja_dato)
+    elif forja_tipo == "MENU"
+        if forja_dato == "copper"
+            ver(PAG_COPPER)
+        elif forja_dato == "musica"
+            ver(PAG_MUSICA)
+        elif forja_dato == "medidor"
+            ver(PAG_MEDIDOR)
+        else
+            ver(PAG_SYNC)
+        end
+    elif forja_tipo == "GUARDAR"
+        if sy_cambiado
+            guardar_sync(false)
+        end
+    end
+    return false
+end
+
+Main
+    sonda = env_get("FORJA_SONDA") != ""
+    if not forja_empezar("Demos")
+        Print "Demos es una extensión de Forja: la arranca Forja."
+    else
+        app = mui_app_begin("ForjaDemos", "FORJADEMOS")
+        if app == 0
+            forja_aviso_tipo("Demos: no se puede abrir MUI.", 1)
+        else
+            cu_nuevo()
+            hacer_ventana()
+            salir = false
+            ev = 0
+            while not salir
+                if ev != 0 and evento(ev)
+                    salir = true
+                end
+                s = forja_suceso(-1)
+                while s != "" and not salir
+                    if suceso()
+                        salir = true
+                    end
+                    s = forja_suceso(-1)
+                end
+                if salir
+                    break
+                end
+                decir_sin_guardar()
+                if sonda
+                    publicar_sonda()
+                end
+                ev = mui_wait_event_signals(forja_senal())
+                if ev == -1
+                    ev = EV_VENTANA
+                end
+            end
+            tocar(false)
+            if conectada()
+                forja_barra("")
+            end
+            if sonda
+                file_write_text("RAM:forja-demos-sonda.txt", "acabada\n")
+            end
+            soltar_pens()
+            mui_app_end()
+        end
+        forja_acabar()
+    end
+end

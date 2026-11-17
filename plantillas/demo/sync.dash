@@ -1,0 +1,557 @@
+# sync.dash: pistas de sincronía y medidor de raster para demos (y juegos), con la extensión Demos de Forja.
+#
+# Una pista es un valor que cambia con la música ("zoom", "fundido", "escena"): claves en filas de la música
+# (posición * 64 + fila del patrón) y, entre una y la siguiente, escalón, lineal, suave o rampa. Se editan en Forja
+# (Extensiones > Demos, página Sincronía) mientras la demo corre, y el cambio se ve al momento.
+#
+#   import "sync.dash"
+#   import "pistas_datos.dash"          # lo escribe Forja al exportar (Demos > Exportar las pistas)
+#
+#   const VIVO = true                   # false en la versión final: sin puerto ARexx ni fichero .sync
+#
+#   if not VIVO or not sync_cargar("demo.sync")
+#       pistas_datos()                  # las pistas como tablas dentro del programa
+#   end
+#   sync_tocar("musica.mod")          # la música es el reloj (sin ella, los fotogramas)
+#   sync_empezar(VIVO)
+#   while ...
+#       wait_vblank()
+#       sync_fotograma()                # la fila de la música, las órdenes de Forja y el principio de la medida
+#       zoom = sync_valor("zoom")       # Fixed; sync_int("escena") da un Int
+#       ...                             # el trabajo de la imagen
+#       sync_fin()                      # las líneas de raster gastadas, para el medidor de Forja
+#       if sync_acabada                 # Forja pidió que acabe
+#           break
+#       end
+#   end
+#   sync_acabar()
+#
+# El reloj es la música si suena (music_pos, music_row); si no, los fotogramas (6 por fila, como un MOD a velocidad 6).
+#
+# Cómo habla con Forja, lo más ligero posible en un 68000: la demo no manda nada. Abre el puerto ARexx DEMOSYNC y
+# mira en cada imagen si llegó algo (rexx_get: sin nada, es un GetMsg vacío); Forja solo manda cuando se cambia una
+# clave. Lo que Forja lee a menudo (la fila, las líneas de cada imagen) lo deja la demo en un bloque de memoria
+# (SYNC_TAM bytes) cuya dirección le da con HOLA; Forja lo lee unas veces por segundo sin molestar a la demo:
+#   0 "DSYN", 4 versión (1), 8 fila, 12 fotograma, 16 líneas del último, 20 en pausa, 24 índice del anillo,
+#   28 fotogramas perdidos, 32 las líneas de los 64 últimos fotogramas (una palabra cada uno).
+
+const SYNC_MAGIA = 0x4453594E
+const SYNC_TAM = 160
+const SYNC_ANILLO = 64
+const SYNC_ESCALON = 0
+const SYNC_LINEAL = 1
+const SYNC_SUAVE = 2
+const SYNC_RAMPA = 3
+const SYNC_LINEAS_PAL = 313
+
+struct SyncPista
+    nombre: String
+    filas: [Int]
+    valores: [Fixed]
+    tipos: [Int]
+end
+
+var sync_pistas: [SyncPista] = []
+var sync_fila: Int = 0          # la fila de ahora: posición * 64 + fila del patrón
+var sync_lineas: Int = 0        # las líneas de raster del último fotograma (sync_fin)
+var sync_vivo: Bool = false     # con el puerto abierto, para Forja
+var sync_pausa: Bool = false
+var sync_acabada: Bool = false # Forja pidió que acabe (ACABAR)
+var sync_musica: Bool = false   # el reloj es la música (sync_tocar)
+var sync_error: String = ""
+var _sync_fichero: String = ""
+var _sync_mem: Int = 0
+var _sync_fotos: Int = 0        # fotogramas desde el principio (el reloj sin música)
+var _sync_cuenta: Int = 0       # fotogramas en esta fila
+var _sync_por_fila: Int = 6     # cuántos duró la fila de antes
+var _sync_fila_antes: Int = -1
+var _sync_linea0: Int = 0
+var _sync_ms: Int = 0
+var _sync_perdidos: Int = 0
+var _sync_indice: {String: Int} = {}
+
+# --- Las pistas ---
+
+func sync_tipo_nombre(t: Int) -> String
+    if t == SYNC_LINEAL
+        return "lineal"
+    elif t == SYNC_SUAVE
+        return "suave"
+    elif t == SYNC_RAMPA
+        return "rampa"
+    end
+    return "escalon"
+end
+
+func sync_tipo_de(nombre: String) -> Int
+    n = str_lower(nombre)
+    if n == "lineal"
+        return SYNC_LINEAL
+    elif n == "suave"
+        return SYNC_SUAVE
+    elif n == "rampa"
+        return SYNC_RAMPA
+    end
+    return SYNC_ESCALON
+end
+
+# El número de la pista con ese nombre, o -1
+func sync_buscar(nombre: String) -> Int
+    i = _sync_indice.get(nombre, -1)
+    if i >= 0 and i < sync_pistas.length and sync_pistas[i].nombre == nombre
+        return i
+    end
+    i = 0
+    while i < sync_pistas.length
+        if sync_pistas[i].nombre == nombre
+            _sync_indice[nombre] = i
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# La pista con ese nombre; si no está, una nueva vacía
+func sync_pista(nombre: String) -> SyncPista
+    i = sync_buscar(nombre)
+    if i >= 0
+        return sync_pistas[i]
+    end
+    var vs: [Fixed] = []
+    p = SyncPista(nombre, [], vs, [])
+    sync_pistas.push(p)
+    _sync_indice[nombre] = sync_pistas.length - 1
+    return p
+end
+
+# Pone (o cambia) la clave de esa fila
+func sync_clave(p: SyncPista, fila: Int, valor: Fixed, tipo: Int)
+    i = 0
+    while i < p.filas.length and p.filas[i] < fila
+        i = i + 1
+    end
+    if i < p.filas.length and p.filas[i] == fila
+        p.valores[i] = valor
+        p.tipos[i] = tipo
+        return
+    end
+    p.filas.insert(i, fila)
+    p.valores.insert(i, valor)
+    p.tipos.insert(i, tipo)
+end
+
+# Quita la clave de esa fila; false si no la había
+func sync_quitar(p: SyncPista, fila: Int) -> Bool
+    i = 0
+    while i < p.filas.length
+        if p.filas[i] == fila
+            p.filas.remove(i)
+            p.valores.remove(i)
+            p.tipos.remove(i)
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+# El número de la clave de esa fila en la pista, o -1
+func sync_clave_en(p: SyncPista, fila: Int) -> Int
+    i = 0
+    while i < p.filas.length
+        if p.filas[i] == fila
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# El valor de la pista en la fila y la fracción dada (de 0 a 1)
+func sync_valor_en(p: SyncPista, fila: Int, parte: Fixed) -> Fixed
+    n = p.filas.length
+    if n == 0
+        return Fixed(0)
+    end
+    if fila < p.filas[0]
+        return p.valores[0]
+    end
+    i = 0
+    while i + 1 < n and p.filas[i + 1] <= fila
+        i = i + 1
+    end
+    v0 = p.valores[i]
+    t = p.tipos[i]
+    if i + 1 >= n or t == SYNC_ESCALON
+        return v0
+    end
+    v1 = p.valores[i + 1]
+    f = (Fixed(fila - p.filas[i]) + parte) / Fixed(p.filas[i + 1] - p.filas[i])
+    if t == SYNC_SUAVE
+        f = f * f * (Fixed(3) - f * 2)
+    elif t == SYNC_RAMPA
+        f = f * f
+    end
+    return v0 + (v1 - v0) * f
+end
+
+# El valor de la pista ahora (0 si no existe)
+func sync_valor(nombre: String) -> Fixed
+    i = sync_buscar(nombre)
+    if i < 0
+        return Fixed(0)
+    end
+    return sync_valor_en(sync_pistas[i], sync_fila, sync_parte())
+end
+
+func sync_int(nombre: String) -> Int
+    return Int(sync_valor(nombre))
+end
+
+# La fracción de la fila que suena, de 0 a 1: los fotogramas que lleva frente a los que duró la de antes
+func sync_parte() -> Fixed
+    c = _sync_cuenta
+    if c >= _sync_por_fila
+        c = _sync_por_fila - 1
+    end
+    return Fixed(c) / Fixed(_sync_por_fila)
+end
+
+# Una pista desde tablas (lo que escribe Forja al exportar, en pistas_datos.dash)
+func sync_pista_datos(nombre: String, filas: [Int], valores: [Fixed], tipos: [Int])
+    p = sync_pista(nombre)
+    i = 0
+    while i < filas.length
+        sync_clave(p, filas[i], valores[i], tipos[i])
+        i = i + 1
+    end
+end
+
+# --- Texto ---
+
+# "1.5" -> Fixed (hasta 4 decimales); "x" si no es un número
+func sync_numero(texto: String) -> Fixed
+    sync_error = ""
+    s = str_trim(texto)
+    neg = false
+    if str_starts(s, "-")
+        neg = true
+        s = s[1:]
+    end
+    p = str_find(s, ".")
+    if p < 0
+        p = str_find(s, ",")
+    end
+    ent = s
+    dec = ""
+    if p >= 0
+        ent = s[0:p]
+        dec = s[p + 1:]
+    end
+    if ent == ""
+        ent = "0"
+    end
+    if dec.length > 4
+        dec = dec[0:4]
+    end
+    if not _sync_cifras(ent) or not _sync_cifras(dec) or (ent == "0" and dec == "" and s != "0" and s != "0." and s != "0,")
+        sync_error = texto
+        return Fixed(0)
+    end
+    v = Fixed(Int(ent))
+    if dec != ""
+        div = 1
+        k = 0
+        while k < dec.length
+            div = div * 10
+            k = k + 1
+        end
+        v = v + Fixed(Int(dec)) / Fixed(div)
+    end
+    if neg
+        v = Fixed(0) - v
+    end
+    return v
+end
+
+func _sync_cifras(s: String) -> Bool
+    i = 0
+    while i < s.length
+        c = str_code(s, i)
+        if c < 48 or c > 57
+            return false
+        end
+        i = i + 1
+    end
+    return true
+end
+
+# Fixed -> "1.5", "-0.25", "3" (hasta 3 decimales, redondeado; sin pasar por v * 1000, que no cabe en un Fixed)
+func sync_texto(v: Fixed) -> String
+    neg = v < Fixed(0)
+    a = v
+    if neg
+        a = Fixed(0) - v
+    end
+    ent = Int(a)
+    resto = Int((a - Fixed(ent)) * 1000 + Fixed(0.5))
+    if resto >= 1000
+        ent = ent + 1
+        resto = 0
+    end
+    milesimas = ent + resto
+    t = "#{ent}"
+    if resto != 0
+        d = "#{resto + 1000}"
+        d = d[1:]
+        while str_ends(d, "0")
+            d = d[0:d.length - 1]
+        end
+        t = t + "." + d
+    end
+    if neg and milesimas != 0
+        t = "-" + t
+    end
+    return t
+end
+
+# El texto de un fichero .sync: "pista nombre" y, debajo, "fila valor tipo" por clave
+func sync_a_texto() -> String
+    t = "# Pistas de sincronía (Forja, extensión Demos)\n"
+    for p in sync_pistas
+        t = t + "pista " + p.nombre + "\n"
+        i = 0
+        while i < p.filas.length
+            t = t + "#{p.filas[i]} " + sync_texto(p.valores[i]) + " " + sync_tipo_nombre(p.tipos[i]) + "\n"
+            i = i + 1
+        end
+    end
+    return t
+end
+
+func sync_de_texto(texto: String)
+    sync_pistas.clear()
+    _sync_indice = {}
+    var p: SyncPista = nil
+    for linea in str_split(texto, "\n")
+        l = str_trim(linea)
+        if l != "" and not str_starts(l, "#")
+            if str_starts(l, "pista ")
+                p = sync_pista(str_trim(l[6:]))
+            elif p != nil
+                c = str_split(l, " ")
+                if c.length >= 2
+                    tipo = SYNC_ESCALON
+                    if c.length >= 3
+                        tipo = sync_tipo_de(c[2])
+                    end
+                    sync_clave(p, Int(c[0]), sync_numero(c[1]), tipo)
+                end
+            end
+        end
+    end
+end
+
+func sync_cargar(fichero: String) -> Bool
+    _sync_fichero = fichero
+    t = file_read_text(fichero)
+    if t == nil
+        return false
+    end
+    sync_de_texto(t)
+    return true
+end
+
+func sync_guardar(fichero: String) -> Bool
+    return file_write_text(fichero, sync_a_texto())
+end
+
+# --- El reloj, el medidor y Forja ---
+
+# La línea de la pantalla por la que va el haz (VPOSR y VHPOSR), de 0 a 312 en PAL
+func sync_linea() -> Int
+    a = peek_word(0xDFF004)
+    b = peek_word(0xDFF006)
+    if (peek_word(0xDFF004) & 1) != (a & 1)
+        a = peek_word(0xDFF004)
+        b = peek_word(0xDFF006)
+    end
+    return ((a & 1) << 8) | ((b >> 8) & 255)
+end
+
+# Carga un MOD y lo toca: desde ahora el reloj es la música. false si no se puede
+func sync_tocar(fichero: String) -> Bool
+    if not music_load(fichero)
+        return false
+    end
+    music_play()
+    sync_musica = true
+    return true
+end
+
+# Empieza el reloj. Con vivo, abre el puerto DEMOSYNC para Forja y el bloque que Forja lee
+func sync_empezar(vivo: Bool)
+    _sync_ms = time_ms()
+    _sync_fotos = 0
+    _sync_fila_antes = -1
+    if vivo and _sync_mem == 0 and rexx_port("DEMOSYNC")
+        _sync_mem = amiga_alloc(SYNC_TAM)
+        if _sync_mem != 0
+            poke_long(_sync_mem + 4, 1)
+            poke_long(_sync_mem, SYNC_MAGIA)
+            sync_vivo = true
+        end
+    end
+end
+
+func sync_acabar()
+    if _sync_mem != 0
+        poke_long(_sync_mem, 0)
+        amiga_free(_sync_mem, SYNC_TAM)
+        _sync_mem = 0
+    end
+    sync_vivo = false
+    if sync_musica
+        music_stop()
+        music_free()
+        sync_musica = false
+    end
+end
+
+# Lleva la demo a esa fila (con música, al principio de su patrón: Dash no salta aún a una fila)
+func sync_ir(fila: Int)
+    if sync_musica
+        music_position(fila / 64)
+    end
+    _sync_fotos = fila * 6
+    sync_fila = fila
+    _sync_cuenta = 0
+end
+
+func sync_pausar(si: Bool)
+    if si == sync_pausa
+        return
+    end
+    sync_pausa = si
+    if sync_musica
+        if si
+            music_pause()
+        else
+            music_resume()
+        end
+    end
+end
+
+# Tras wait_vblank, al principio de cada imagen
+func sync_fotograma()
+    _sync_linea0 = sync_linea()
+    ahora = time_ms()
+    if ahora - _sync_ms > 30 and _sync_ms != 0
+        _sync_perdidos = _sync_perdidos + (ahora - _sync_ms + 10) / 20 - 1
+    end
+    _sync_ms = ahora
+    if not sync_pausa
+        _sync_fotos = _sync_fotos + 1
+    end
+    f = _sync_fotos / 6
+    if sync_musica
+        f = music_pos() * 64 + music_row()
+    end
+    if f != _sync_fila_antes
+        if _sync_fila_antes >= 0 and f == _sync_fila_antes + 1 and _sync_cuenta >= 1 and _sync_cuenta <= 32
+            _sync_por_fila = _sync_cuenta
+        end
+        _sync_cuenta = 0
+        _sync_fila_antes = f
+    elif not sync_pausa
+        _sync_cuenta = _sync_cuenta + 1
+    end
+    sync_fila = f
+    if sync_vivo
+        _sync_ordenes()
+        poke_long(_sync_mem + 8, sync_fila)
+        poke_long(_sync_mem + 12, _sync_fotos)
+        pausa = 0
+        if sync_pausa
+            pausa = 1
+        end
+        poke_long(_sync_mem + 20, pausa)
+        poke_long(_sync_mem + 28, _sync_perdidos)
+    end
+end
+
+# Al acabar el trabajo de la imagen: cuántas líneas de raster se gastaron desde sync_fotograma
+func sync_fin() -> Int
+    n = sync_linea() - _sync_linea0
+    if n < 0
+        n = n + SYNC_LINEAS_PAL
+    end
+    sync_lineas = n
+    if sync_vivo
+        i = peek_long(_sync_mem + 24)
+        poke_word(_sync_mem + 32 + i * 2, n)
+        poke_long(_sync_mem + 16, n)
+        poke_long(_sync_mem + 24, (i + 1) % SYNC_ANILLO)
+    end
+    return n
+end
+
+# Las órdenes de Forja (por el puerto DEMOSYNC)
+func _sync_ordenes()
+    o = rexx_get()
+    while o != ""
+        _sync_orden(o)
+        o = rexx_get()
+    end
+end
+
+func _sync_orden(o: String)
+    c = str_split(o, " ")
+    que = str_upper(c[0])
+    if que == "HOLA"
+        f = _sync_fichero
+        if f != ""
+            f = file_real_path(f)
+        end
+        rexx_reply(0, "#{_sync_mem} " + f)
+    elif que == "CLAVE" and c.length >= 4
+        tipo = SYNC_ESCALON
+        if c.length >= 5
+            tipo = sync_tipo_de(c[4])
+        end
+        sync_clave(sync_pista(c[1]), Int(c[2]), sync_numero(c[3]), tipo)
+        rexx_reply(0, "")
+    elif que == "QUITAR" and c.length >= 3
+        i = sync_buscar(c[1])
+        if i >= 0
+            sync_quitar(sync_pistas[i], Int(c[2]))
+        end
+        rexx_reply(0, "")
+    elif que == "PISTA" and c.length >= 2
+        sync_pista(c[1])
+        rexx_reply(0, "")
+    elif que == "RECARGAR" and c.length >= 2
+        t = file_read_text(c[1])
+        if t != nil
+            sync_de_texto(t)
+        end
+        rexx_reply(0, "")
+    elif que == "VALOR" and c.length >= 2
+        rexx_reply(0, sync_texto(sync_valor(c[1])))
+    elif que == "ACABAR"
+        sync_acabada = true
+        rexx_reply(0, "")
+    elif que == "PAUSA"
+        sync_pausar(true)
+        rexx_reply(0, "")
+    elif que == "SIGUE"
+        sync_pausar(false)
+        rexx_reply(0, "")
+    elif que == "IR" and c.length >= 2
+        sync_ir(Int(c[1]))
+        rexx_reply(0, "")
+    else
+        rexx_reply(10, "")
+    end
+end

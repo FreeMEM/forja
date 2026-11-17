@@ -1,0 +1,148 @@
+# La extensión Demos sin ventana (tests/demos_base.sh): las pistas de sincronía (plantillas/demo/sync.dash), el
+# modelo del copper y su código, el lector de MOD y el enlace con una demo de verdad (la de la plantilla, que corre
+# aparte: su puerto DEMOSYNC, su bloque de memoria, CLAVE, VALOR, PAUSA, IR y ACABAR). Acaba con "TODO BIEN".
+
+import "../plantillas/demo/sync.dash"
+import "../extensiones/Demos/copper.dash"
+import "../extensiones/Demos/mod.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso + ": [" + detalle + "]"
+        fallos = fallos + 1
+    end
+end
+
+func puerto(nombre: String) -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func pistas()
+    ver("números", sync_texto(sync_numero("1.5")) == "1.5" and sync_texto(sync_numero("-0.25")) == "-0.25" and sync_texto(sync_numero("40")) == "40" and sync_texto(sync_numero("3,125")) == "3.125" and sync_texto(sync_numero("-100.5")) == "-100.5", sync_texto(sync_numero("40")) + " " + sync_texto(sync_numero("-100.5")))
+    sync_numero("1x")
+    ver("un número mal escrito", sync_error != "", sync_error)
+    p = sync_pista("zoom")
+    sync_clave(p, 64, sync_numero("2.5"), SYNC_SUAVE)
+    sync_clave(p, 0, sync_numero("1"), SYNC_LINEAL)
+    sync_clave(p, 128, sync_numero("-0.25"), SYNC_ESCALON)
+    ver("claves en orden", p.filas.length == 3 and p.filas[0] == 0 and p.filas[2] == 128, "#{p.filas}")
+    ver("lineal", sync_texto(sync_valor_en(p, 32, Fixed(0))) == "1.75", sync_texto(sync_valor_en(p, 32, Fixed(0))))
+    ver("lineal con fracción", sync_texto(sync_valor_en(p, 32, Fixed(0.5))) == "1.762", sync_texto(sync_valor_en(p, 32, Fixed(0.5))))
+    ver("suave", sync_texto(sync_valor_en(p, 96, Fixed(0))) == "1.125", sync_texto(sync_valor_en(p, 96, Fixed(0))))
+    ver("escalón y después de la última", sync_texto(sync_valor_en(p, 300, Fixed(0))) == "-0.25", "")
+    sync_clave(p, 64, sync_numero("3"), SYNC_RAMPA)
+    ver("rampa", sync_texto(sync_valor_en(p, 96, Fixed(0))) == "2.188", sync_texto(sync_valor_en(p, 96, Fixed(0))))
+    t = sync_a_texto()
+    sync_de_texto(t)
+    ver("el texto del .sync, ida y vuelta", sync_a_texto() == t and sync_pistas.length == 1, t)
+    ver("quitar una clave", sync_quitar(sync_pistas[0], 64) and sync_pistas[0].filas.length == 2, "")
+    sync_pistas.clear()
+    sync_pista_datos("v", [0, 10], [Fixed(1.5), Fixed(-2)], [1, 0])
+    ver("pistas de tablas (lo exportado)", sync_texto(sync_valor_en(sync_pistas[0], 5, Fixed(0))) == "-0.25", sync_texto(sync_valor_en(sync_pistas[0], 5, Fixed(0))))
+end
+
+func copper()
+    cu_nuevo()
+    c = cu_colores()
+    ver("copper: antes de la primera parada", c[0] == -1 and c[39] == -1, "")
+    ver("copper: las paradas", c[40] == 0x00F and c[128] == 0xF80 and c[255] == 0x000, cu_hex(c[40]) + " " + cu_hex(c[128]))
+    ver("copper: degradado", c[84] != 0x00F and c[84] != 0xF80, cu_hex(c[84]))
+    n = cu_instrucciones()
+    cu_degradado = false
+    ver("copper: cambios secos", cu_colores()[127] == 0x00F and cu_instrucciones() == 6, "#{cu_instrucciones()}")
+    cu_degradado = true
+    codigo = cu_codigo()
+    ver("copper: código con copper_*", str_contains(codigo, "copper_wait(40, 0)\n    copper_color(0, 0x00F)") and str_contains(codigo, "copper_install()") and str_contains(codigo, "copper_create(#{n + 2})"), codigo[0:200])
+    file_write_text("DH0:Prueba/copper_gen.dash", codigo)
+    texto = "Main\n    Print 1\nend\n\n" + codigo
+    b = cu_buscar_bloque(texto)
+    ver("copper: el bloque en un texto", b[0] == 5 and b[1] == str_split(texto, "\n").length - 1, "#{b}")
+    cu_paradas[1].rgb = 0x0F0
+    cu_color = 3
+    ver("copper: leer del código", cu_leer_codigo(texto, 7) and cu_paradas[1].rgb == 0xF80 and cu_color == 0 and cu_paradas.length == 3, cu_sonda())
+    cu_tabla = true
+    codigo = cu_codigo()
+    ver("copper: tabla para asm", str_contains(codigo, "-> Int") and str_contains(codigo, "poke_word"), "")
+    file_write_text("DH0:Prueba/copper_tabla.dash", codigo)
+    cu_tabla = false
+end
+
+func musica()
+    ver("mod: leer", mod_leer("DH0:Prueba/musica.mod"), mod_error)
+    ver("mod: cabecera", mod_largo == 6 and mod_patrones == 4 and mod_titulo == "forja demos" and mod_orden[4] == 3, "#{mod_largo} #{mod_patrones} " + mod_titulo)
+    ver("mod: celdas", mod_celda(0, 0, 0) == "C-1 01 ..." and mod_celda(0, 0, 3) == "--- .. F06" and mod_celda(1, 4, 2) == "C-2 03 ...", mod_celda(0, 0, 0) + "|" + mod_celda(0, 0, 3) + "|" + mod_celda(1, 4, 2))
+    ver("mod: no es un MOD", not mod_leer("DH0:Prueba/copper_gen.dash") and mod_error != "", mod_error)
+end
+
+func demo()
+    dir_change("DH0:Prueba/demo")
+    run_start("DH0:Prueba/demo/Barras", 60000)
+    n = 0
+    while n < 100 and not puerto("DEMOSYNC")
+        time_delay(5)
+        n = n + 1
+    end
+    ver("la demo abre DEMOSYNC", puerto("DEMOSYNC"), "")
+    r = rexx_send_wait("DEMOSYNC", "HOLA", 2000)
+    p = str_find(r, " ")
+    m = 0
+    if p > 0
+        m = Int(r[0:p])
+    end
+    ver("HOLA: su memoria y su .sync", m != 0 and peek_long(m) == SYNC_MAGIA and str_ends(str_lower(r), "demo.sync") and str_find(r, ":") > 0, r)
+    if m == 0
+        return
+    end
+    f1 = peek_long(m + 8)
+    time_delay(100)
+    f2 = peek_long(m + 8)
+    ver("la fila avanza con la música", f2 > f1 and f2 - f1 < 40, "#{f1} #{f2}")
+    l = peek_long(m + 16)
+    ver("las líneas de raster (las barras esperan línea a línea)", l > 150 and l < 312, "#{l}")
+    ver("el anillo de líneas", peek_word(m + 32) > 150 and peek_long(m + 24) < SYNC_ANILLO, "#{peek_word(m + 32)}")
+    rexx_send_wait("DEMOSYNC", "CLAVE prueba 0 7.5 escalon", 1000)
+    ver("CLAVE y VALOR", rexx_send_wait("DEMOSYNC", "VALOR prueba", 1000) == "7.5", "")
+    rexx_send_wait("DEMOSYNC", "PAUSA", 1000)
+    time_delay(10)
+    f1 = peek_long(m + 8)
+    time_delay(50)
+    ver("PAUSA", peek_long(m + 20) == 1 and peek_long(m + 8) == f1, "#{f1} #{peek_long(m + 8)}")
+    rexx_send_wait("DEMOSYNC", "IR 128", 1000)
+    rexx_send_wait("DEMOSYNC", "SIGUE", 1000)
+    time_delay(10)
+    ver("IR y SIGUE", peek_long(m + 20) == 0 and peek_long(m + 8) >= 128 and peek_long(m + 8) < 150, "#{peek_long(m + 8)}")
+    file_write_text("RAM:otra.sync", "pista velocidad\n0 0 escalon\npista nueva\n0 3 escalon\n")
+    rexx_send_wait("DEMOSYNC", "RECARGAR RAM:otra.sync", 1000)
+    ver("RECARGAR", rexx_send_wait("DEMOSYNC", "VALOR nueva", 1000) == "3" and rexx_send_wait("DEMOSYNC", "VALOR prueba", 1000) == "0", "")
+    rexx_send_wait("DEMOSYNC", "ACABAR", 1000)
+    n = 0
+    while n < 50 and puerto("DEMOSYNC")
+        time_delay(5)
+        n = n + 1
+    end
+    ver("ACABAR: la demo se va", not puerto("DEMOSYNC"), "")
+end
+
+Main
+    pistas()
+    copper()
+    musica()
+    demo()
+    if fallos == 0
+        Print "TODO BIEN"
+    else
+        Print "#{fallos} fallos"
+    end
+end

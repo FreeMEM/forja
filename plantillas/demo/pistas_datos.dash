@@ -1,0 +1,7 @@
+# Las pistas de demo.sync como datos, para la versión final de la demo: sin el fichero .sync ni
+# Forja (lo escribe Forja: Demos > Exportar las pistas; no se toca a mano). Lo usa sync.dash.
+
+func pistas_datos()
+    sync_pista_datos("velocidad", [0, 64, 128], [Fixed(2), Fixed(6), Fixed(2)], [1, 2, 0])
+    sync_pista_datos("subida", [0, 32, 48, 64], [Fixed(0), Fixed(0), Fixed(40), Fixed(0)], [0, 2, 2, 0])
+end

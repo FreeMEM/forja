@@ -145,7 +145,7 @@ vigilado en el depurador. Sin `.forja`, Forja funciona como antes.
   | Commodity | En Exchange (Mostrar, Ocultar, Quitar...) y una tecla rápida que abre una ventanita con la hora |
   | Aplicación MUI | La ventana en `ventana.dashui` (se cambia con el editor de ventanas), con su menú |
   | Juego | Su pantalla, un sprite de hardware que se mueve con el joystick o los cursores y un nivel con monedas |
-  | Demo | Su pantalla, el bucle de cada imagen y un bloque `asm ... end` que pinta barras de color línea a línea |
+  | Demo | Su pantalla, el bucle de cada imagen, un bloque `asm ... end` que pinta barras de color línea a línea y sus pistas de sincronía (`sync.dash`, `demo.sync`) para la extensión Demos |
   | 3D con MiniGL | Un cubo que gira con `gl_*`; pide una FPU (compila con `--fpu`) y `minigl.library` |
 
 - **Abrir un proyecto**: Proyecto > Abrir proyecto..., Abrir... con un `.forja`, un clic en él en el panel o un doble
@@ -222,6 +222,40 @@ que tienen cambios sin guardar cuentan en su pregunta.
 
   ![El editor de mapas con un nivel de 40 x 20](docs/img/mapas.png)
 
+### Demos
+
+Las herramientas para hacer demos son una extensión (`Extensiones/Demos`), con su menú Demos y una ventana de cuatro
+páginas (Amiga-1 a Amiga-4). Se abre también con un `.sync` o un `.mod` del proyecto. La plantilla Demo ya las usa:
+trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y su versión exportada,
+`pistas_datos.dash`.
+
+- **Pistas de sincronía**, como Rocket: valores que cambian con la música ("velocidad", "fundido", "escena"), con
+  claves en filas de la música (posición × 64 + fila) y, de una a la siguiente, escalón, lineal, suave o rampa. Una
+  tabla con una columna por pista: las flechas mueven el cursor (con Mayúsculas, de 16 en 16), las cifras y Return
+  ponen una clave, Supr la quita, `i` cambia su tipo y `n` hace una pista. Amiga-S las guarda en el `.sync`.
+  - Con la demo en marcha (la que usa `sync.dash` con `VIVO = true`), la extensión se conecta sola: la fila que suena
+    se ve en la tabla y en la barra de Forja, Espacio la para y la deja seguir, `g` la lleva a la fila del cursor, y
+    cada clave que se cambia llega a la demo al momento.
+  - Amiga-X las exporta a `pistas_datos.dash`: tablas dentro del programa. Con `VIVO = false`, la versión final no
+    necesita ni el `.sync` ni Forja.
+  - En la demo: `sync_valor("zoom")` (un `Fixed`) o `sync_int("escena")`. El reloj es la música si suena
+    (`sync_tocar("musica.mod")`); si no, las imágenes (6 por fila).
+  - Cómo hablan, lo más ligero para un 68000: la demo abre el puerto ARexx `DEMOSYNC` y en cada imagen solo mira si
+    llegó algo (un `GetMsg` vacío casi siempre); la extensión manda algo solo al cambiar una clave. La fila y las
+    líneas las deja la demo en un bloque de memoria, que la extensión lee cinco veces por segundo.
+- **Visor de MOD**: los patrones del módulo con la fila que suena resaltada. Espacio lo toca o lo para (con
+  `music_*`); izquierda y derecha cambian de posición. Si la demo está en marcha, sigue a la suya. Return mete en el
+  código la fila de sincronía (posición × 64 + fila) y `s` lleva el cursor de las pistas allí.
+- **Editor de copper**: degradados y cambios de color por línea, con la vista al lado. Unas paradas (una línea y un
+  color de 12 bits): flechas para elegir, Mayúsculas o Alt + flechas para moverla, `r` `g` `b` suben cada color (con
+  Mayúsculas, bajan), `n` añade, Supr quita, `d` cambia entre degradado y cambios secos y `c` el registro de color
+  (COLOR00 es el fondo). Return lo pone en el fichero de delante: llamadas a `copper_*` o (`t`) una tabla de 256
+  colores para un bloque `asm`. Si el bloque ya está, lo cambia allí; `l` lo vuelve a leer del código. `p` lo prueba
+  de verdad en una pantalla propia (un clic vuelve).
+- **Medidor de raster**: cuántas líneas de la pantalla gasta cada imagen de la demo, con las 64 últimas en barras
+  (verde hasta media imagen, amarillo hasta tres cuartos, rojo por encima), la media, el máximo y las imágenes
+  perdidas. La demo mide entre `sync_fotograma()` (tras `wait_vblank`) y `sync_fin()`. Vale igual para un juego.
+
 ### Git
 
 Git es una extensión (`Extensiones/Git`), que usa [dashgit](https://github.com/FreeMEM/dashgit). **dashgit está en
@@ -291,8 +325,8 @@ hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas pr
 
 Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones (o un menú suyo en
 la barra), teclas, marcas y rayas en el margen, letras en el proyecto, una zona en la barra de botones, un texto en la
-barra, pestañas de solo lectura o un editor para un tipo de fichero con su ventana. Git, el copiloto de Inferencia, Sprites y
-Mapas son extensiones. Hablan con Forja por ARexx;
+barra, pestañas de solo lectura o un editor para un tipo de fichero con su ventana. Git, el copiloto de Inferencia, Sprites,
+Mapas y Demos son extensiones. Hablan con Forja por ARexx;
 si una cae o se cuelga, Forja sigue. Extensiones > Gestor de extensiones... las enseña, las activa o las desactiva y
 las instala desde un cajón o un `.lha`. La de ejemplo, Contar, cuenta las líneas y las palabras del fichero y mete
 la fecha con Ctrl Alt D. Cómo escribir una, con `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md). Cada

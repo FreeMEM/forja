@@ -1,0 +1,19 @@
+# Demos: las herramientas de Forja para hacer demos (el uso, en el README de Forja)
+nombre = Demos
+version = 1.0
+autor = FreeMEM
+licencia = MIT
+descripcion = Herramientas para demos: editor de copper (degradados al código), visor de MOD, pistas de sincronía tipo Rocket editables mientras la demo corre, y medidor de líneas de raster.
+programa = Demos
+arranque = menu
+submenu = Demos
+menu = Editor de copper | | copper
+menu = Visor de MOD | | musica
+menu = Pistas de sincronía | | sync
+menu = Medidor de raster | | medidor
+tipos = .sync .mod
+descripcion.english = Demo tools: copper editor (gradients into code), MOD viewer, Rocket-like sync tracks editable while the demo runs, and a raster line meter.
+menu.english = Copper editor | | copper
+menu.english = MOD viewer | | musica
+menu.english = Sync tracks | | sync
+menu.english = Raster meter | | medidor
