@@ -623,3 +623,8 @@ VS Code.
     Forja dice lo que pesa el ejecutable y avisa si pasa del tope (para intros de 4 y 64 KB).
   - README en castellano e inglés como es Forja 0.7 (el inglés no tenía la ayuda de Dash, los errores marcados ni
     Demos). Forja no tiene otra ayuda propia: el paquete lleva los README como `LEEME` y `README`.
+  - De Dash PR #190 (llegó durante el remate): **Depurar > Cambiar valor...** con `dbg_set` (la variable del último
+    clic en el panel, también lo vigilado, o la del cursor; "nombre = valor" en la pregunta de la lista rápida; lo que
+    no se puede cambiar se dice con el porqué de Dash), y **el icono de los `.forja` con `icon_save`** en lugar del
+    `.info` escrito a mano en hexadecimal: la imagen del yunque va en el paquete (`Forja/Iconos/proyecto.info`, de
+    `tools/plantillas.py`), y Forja le pone su ruta como herramienta; sin ella, el icono de proyecto del sistema.

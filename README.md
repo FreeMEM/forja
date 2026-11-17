@@ -187,6 +187,9 @@ vigilado en el depurador. Sin `.forja`, Forja funciona como antes.
   `[n]` se despliega como las demás). Otra vez la misma, se quita.
 - **El valor bajo el ratón**: parado, con el puntero sobre un nombre del código sale su valor (con lo de delante:
   `naves[i].x`).
+- **Cambiar valor...** (menú Depurar): con el programa parado, cambia una variable `Int`, `Char`, `Bool`, `Fixed` o
+  `Float` (la del último clic en el panel, también lo vigilado, o la del cursor). Se escribe `nombre = valor`; al
+  seguir, el programa usa el nuevo. Un texto, una lista o un struct no se cambian, y lo dice.
 - **Ejecutar hasta aquí** (Ctrl F10): sigue hasta la línea del cursor; sin depurar, empieza a depurar y para ahí.
 - **Ver los registros** y **Ver la memoria...** (de una dirección o una expresión: `a0`, `$C01000`, `buffer + 16`): en
   el panel, d0-d7, a0-a7 y el PC, y 64 bytes con sus letras.

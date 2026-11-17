@@ -176,6 +176,10 @@ before.
 - **Watch an expression**: at the top of the panel, with its value at each stop. The same one again removes it.
 - **Value under the mouse**: stopped, with the pointer over a name in the code, its value shows (with what comes
   before it: `naves[i].x`).
+- **Change value...** (Depurar menu): with the program stopped, changes an `Int`, `Char`, `Bool`, `Fixed` or
+  `Float` variable (the one last clicked in the panel, also a watched one, or the one at the cursor). You write
+  `name = value`; when it goes on, the program uses the new one. A string, a list or a struct cannot be changed, and
+  it says so.
 - **Run to here** (Ctrl F10): goes on to the cursor line; when not debugging, starts debugging and stops there.
 - **Show the registers** and **Show memory...** (at an address or expression: `a0`, `$C01000`, `buffer + 16`).
 - With a project, breakpoints (with condition and count) and watches are saved in the `.forja`.
