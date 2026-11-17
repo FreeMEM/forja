@@ -1,0 +1,308 @@
+# El copiloto de Forja (extensiones/Inferencia) en el emulador, con Forja e Inferencia de verdad y el servidor falso
+# de Inferencia (guiones en tests/guiones_copiloto), como un usuario (menús, teclas) y por ARexx:
+#   - Documentar la función: el encargo usa la ayuda de Dash; la pestaña con las diferencias; a la acepta; Amiga-Z lo
+#     deshace; la zona de la barra mientras espera;
+#   - Cambiar el código... (Ctrl Alt C): la ventana para decir qué; r rechaza;
+#   - Explicar la selección y Preguntar sobre esto (Ctrl Alt I): a la conversación de Inferencia, con el código;
+#   - Escribir la prueba: un fichero nuevo, que se escribe y se abre al aceptar (menú Aceptar);
+#   - con dashc: Explicar el error (compila primero) y Arreglar el error (Ctrl Alt Y acepta);
+#   - Sugerencias al escribir: el texto en gris tras el cursor (SUGERENCIA) y Tab lo mete.
+# Lo arranca tests/copiloto.sh; anota en DH0:Prueba/copiloto.txt.
+
+const FORJA = "FORJA.1"
+const INF = "INFERENCIA.1"
+const EXT = "FORJAEXT.INFERENCIA"
+const MAIN = "DH0:Prueba/copiloto/main.dash"
+const PRUEBA = "DH0:Prueba/copiloto/prueba_main.dash"
+const AMIGA = 8
+const ALT = 4
+const CTRL = 2
+const M_INF = 5            # el menú Inferencia: tras Proyecto, Programa, Edición, Código y Extensiones
+const I_EXPLICAR = 1
+const I_DOCUMENTAR = 3
+const I_PRUEBA = 4
+const I_EXPLICAR_ERROR = 5
+const I_ARREGLAR = 6
+const I_ACEPTAR = 7
+const I_SUGERENCIAS = 9
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/copiloto.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and not str_starts(input_active_title(), titulo)
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return str_starts(input_active_title(), titulo)
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+# El puntero sobre el editor de Forja (activa): el teclado va a él
+func al_editor() -> Bool
+    if not activar("Forja")
+        return false
+    end
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+    return true
+end
+
+func tecla(codigo: Int, calif: Int)
+    if al_editor()
+        input_key(codigo, calif)
+        time_delay(10)
+    end
+end
+
+func menu(item: Int) -> Bool
+    if not activar("Forja")
+        return false
+    end
+    r = input_menu(M_INF, item, 5)
+    time_delay(10)
+    return r
+end
+
+func puerto(nombre: String) -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func estado() -> String
+    return rexx_send(EXT, "ESTADO")
+end
+
+# Espera (hasta decimas décimas) a que el estado del copiloto empiece así
+func esperar(prefijo: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas and not str_starts(estado(), prefijo)
+        time_delay(5)
+        n = n + 1
+    end
+    return str_starts(estado(), prefijo)
+end
+
+func tipo_activo() -> String
+    a = str_split(rexx("ACTIVO"), "\n")
+    if a.length < 4
+        return ""
+    end
+    return a[3]
+end
+
+# Espera a que la respuesta de la conversación de Inferencia tenga ese trozo
+func respuesta_con(trozo: String, decimas: Int) -> String
+    n = 0
+    r = ""
+    while n < decimas
+        if rexx_send(INF, "ESTADO") == "libre"
+            r = rexx_send(INF, "RESPUESTA")
+            if str_contains(r, trozo)
+                return r
+            end
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return r
+end
+
+func salida_dice(texto: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        if str_contains(rexx("SALIDA"), texto)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+Main
+    run_command("Run >NIL: DH0:Prueba/Forja " + MAIN)
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("Forja contesta", n < 600, "")
+    n = 0
+    while n < 300 and (not puerto(EXT) or env_get("FORJA_EDITOR") == "")
+        time_delay(5)
+        n = n + 1
+    end
+    ver("el copiloto arranca con Forja", puerto(EXT), "")
+    ver("sin nada, sin zona", not str_contains(rexx("ZONA"), "Copiloto"), rexx("ZONA"))
+
+    # (COPILOTO_SOLO=sugerencias: solo lo último)
+    if env_get("COPILOTO_SOLO") != "sugerencias"
+        # --- Documentar la función (arranca Inferencia) ---
+        rexx("CURSOR 4 5")
+        ver("menú Inferencia > Documentar la función", menu(I_DOCUMENTAR), "")
+        ver("Inferencia arranca y el cambio llega", esperar("cambio", 900), estado())
+        ver("el puerto de Inferencia", puerto(INF), "")
+        ver("la pestaña de la vista, delante", tipo_activo() == "vista", rexx("ACTIVO"))
+        v = rexx("TEXTO")
+        ver("la vista: el comentario añadido", str_contains(v, "\n+ # El doble de un n") and str_contains(v, "\n  func doble(x: Int) -> Int"), v)
+        ver("la vista: miró la ayuda de Dash", str_contains(v, "Ha mirado: ayuda Int"), v)
+        ver("la zona de la barra: a o r", str_contains(rexx("ZONA"), "Inferencia|Copiloto|a: aceptar"), rexx("ZONA"))
+        time_delay(30)
+        screen_save_png("DH0:Prueba/copiloto-documentar.png")
+        tecla(0x20, 0)        # a
+        ver("a acepta", esperar("libre", 100), estado())
+        ver("el comentario, en el fichero", rexx("LINEAS 3 4 \"" + MAIN + "\"") == "# El doble de un número.\n# x: el número. Devuelve x por 2.", rexx("LINEAS 3 5 \"" + MAIN + "\""))
+        ver("la vista se cierra y vuelve el fichero", not str_contains(rexx("ABIERTOS"), "(Inferencia)") and str_starts(rexx("ACTIVO"), MAIN), rexx("ABIERTOS"))
+        ver("sin zona otra vez", not str_contains(rexx("ZONA"), "Copiloto"), rexx("ZONA"))
+        tecla(0x31, AMIGA)    # Amiga-Z
+        ver("Amiga-Z lo deshace de una vez", rexx("LINEA 3") == "func doble(x: Int) -> Int", rexx("LINEAS 1 5"))
+
+        # --- Cambiar el código... (Ctrl Alt C): la ventana; r rechaza ---
+        rexx("CURSOR 4 5")
+        tecla(0x33, CTRL + ALT)
+        if activar("Inferencia: cambiar")
+            ver("Ctrl Alt C abre la ventana", true, "")
+            input_text("multiplica por 3")
+            input_key(0x44, 0)
+            ver("el cambio llega", esperar("cambio", 300), estado())
+            v = rexx("TEXTO")
+            ver("la vista: quita x * 2 y pone x * 3", str_contains(v, "\n-     return x * 2") and str_contains(v, "\n+     return x * 3"), v)
+            ver("la vista: lo que dijo el modelo", str_contains(v, "\nAhora multiplica por 3."), v)
+            tecla(0x13, 0)    # r
+            ver("r rechaza", esperar("libre", 100), estado())
+            ver("el fichero sigue igual", rexx("LINEA 4 \"" + MAIN + "\"") == "    return x * 2", rexx("LINEA 4 \"" + MAIN + "\""))
+            ver("la vista se cierra", not str_contains(rexx("ABIERTOS"), "(Inferencia)"), rexx("ABIERTOS"))
+        else
+            ver("Ctrl Alt C abre la ventana", false, input_active_title())
+        end
+
+        # --- Explicar la selección, a la conversación ---
+        rexx("ABRIR \"" + MAIN + "\"")
+        rexx("ELEGIR 7 1 9 4")
+        ver("menú Explicar la selección", menu(I_EXPLICAR), "")
+        r = respuesta_con("Explica qué hace", 300)
+        ver("Inferencia lo explica, con el código", str_contains(r, "Explica qué hace este código") and str_contains(r, "return \"Hola, \" + nombre"), r)
+        ver("con el proyecto", str_contains(r, "Proyecto: DH0:Prueba/copiloto"), r)
+        time_delay(20)
+        screen_save_png("DH0:Prueba/copiloto-explicar.png")
+
+        # --- Preguntar sobre esto (Ctrl Alt I): el fichero va con la pregunta ---
+        rexx("CURSOR 1 1")
+        tecla(0x17, CTRL + ALT)
+        time_delay(20)
+        rexx_send(INF, "PREGUNTA Que hace este fichero?")
+        r = respuesta_con("Que hace este fichero", 300)
+        ver("Ctrl Alt I: la pregunta lleva el fichero", str_contains(r, "func saludo(nombre: String)") and str_contains(r, "Que hace este fichero"), r)
+
+        # --- Escribir la prueba: un fichero nuevo ---
+        rexx("ABRIR \"" + MAIN + "\"")
+        rexx("CURSOR 8 5")
+        ver("menú Escribir la prueba", menu(I_PRUEBA), "")
+        ver("la prueba llega", esperar("cambio", 300), estado())
+        v = rexx("TEXTO")
+        ver("la vista: fichero nuevo", str_contains(v, "Fichero nuevo: " + PRUEBA) and str_contains(v, "\n+     if saludo(\"Ana\") == \"Hola, Ana\""), v)
+        ver("menú Aceptar el cambio", menu(I_ACEPTAR), "")
+        ver("se escribe y se abre", esperar("libre", 100) and file_exists(PRUEBA) and rexx("ABIERTO \"" + PRUEBA + "\"") == "1", rexx("ABIERTOS"))
+        t = file_read_text(PRUEBA)
+        ver("con lo que dio el modelo", t != nil and str_starts(t, "# Prueba de saludo\n"), "")
+
+        # --- Los errores de compilar (con dashc) ---
+        if env_get("Forja/dashc") != ""
+            rexx("ABRIR \"" + MAIN + "\"")
+            rexx("CAMBIAR \"" + MAIN + "\" 12 12 \"    Print dobel(21)\"")
+            ver("menú Explicar el error (compila antes)", menu(I_EXPLICAR_ERROR), "")
+            r = respuesta_con("Explica este error", 900)
+            ver("Inferencia explica el error, con su línea", str_contains(r, "Explica este error de compilación") and str_contains(r, "dobel"), r)
+            ver("la zona: 1 error", str_contains(rexx("ZONA"), "1 error"), rexx("ZONA"))
+            ver("menú Arreglar el error", menu(I_ARREGLAR), "")
+            ver("el arreglo llega", esperar("cambio", 300), estado())
+            v = rexx("TEXTO")
+            ver("la vista: dobel por doble", str_contains(v, "\n-     Print dobel(21)") and str_contains(v, "\n+     Print doble(21)"), v)
+            tecla(0x15, CTRL + ALT)     # Ctrl Alt Y: aceptar
+            ver("Ctrl Alt Y acepta", esperar("libre", 100) and rexx("LINEA 12 \"" + MAIN + "\"") == "    Print doble(21)", rexx("LINEAS 11 14 \"" + MAIN + "\""))
+            screen_save_png("DH0:Prueba/copiloto-arreglado.png")
+        else
+            anotar("(sin dashc: no se prueban los errores de compilar)")
+        end
+    end
+
+    # --- Sugerencias al escribir ---
+    ver("menú Sugerencias al escribir", menu(I_SUGERENCIAS), "")
+    ver("se encienden", salida_dice("sugerencias al escribir encendidas", 60), rexx("SALIDA"))
+    rexx("ABRIR \"" + MAIN + "\"")
+    rexx("CURSOR 13 26")
+    tecla(0x44, 0)       # Return: una línea nueva, con su sangría
+    if al_editor()
+        input_text("Print sal")
+        time_delay(5)
+        # (Esc cierra la lista para completar, que se quedaría el Tab)
+        input_key(0x45, 0)
+    end
+    n = 0
+    s = rexx("SUGERENCIA")
+    while n < 300 and s == ""
+        time_delay(5)
+        s = rexx("SUGERENCIA")
+        n = n + 1
+    end
+    ver("la sugerencia, en gris tras el cursor", s == "14 14 udo(\"Copiloto\")", s + " / " + rexx("ACTIVO") + " / " + rexx("CURSOR") + " / " + env_get("FORJA_COPILOTO"))
+    time_delay(10)
+    screen_save_png("DH0:Prueba/copiloto-sugerencia.png")
+    tecla(0x42, 0)       # Tab
+    ver("Tab la mete", rexx("LINEA 14 \"" + MAIN + "\"") == "    Print saludo(\"Copiloto\")", rexx("LINEA 14 \"" + MAIN + "\""))
+    ver("y se va", rexx("SUGERENCIA") == "", rexx("SUGERENCIA"))
+    menu(I_SUGERENCIAS)
+
+    rexx_send(INF, "QUIT")
+    for f in str_split(rexx("CAMBIADOS"), "\n")
+        if f != ""
+            rexx("GUARDAR \"" + f + "\"")
+        end
+    end
+    rexx("QUIT")
+    n = 0
+    while n < 200 and (puerto(FORJA) or puerto(EXT))
+        time_delay(5)
+        n = n + 1
+    end
+    ver("Forja y el copiloto se cierran", not puerto(FORJA) and not puerto(EXT), "")
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+end

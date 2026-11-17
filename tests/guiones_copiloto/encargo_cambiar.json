@@ -1,0 +1,3 @@
+[
+  {"texto": "Ahora multiplica por 3.\n```dash\nfunc doble(x: Int) -> Int\n    return x * 3\nend\n```"}
+]

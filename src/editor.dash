@@ -76,6 +76,15 @@ struct Documento
 end
 
 var documentos: [Documento] = []
+
+# La sugerencia de una extensión (SUGERENCIA, docs/EXTENSIONES.md: el copiloto): un texto en gris tras el cursor, al
+# final de la línea, que Tab mete. Vale mientras el texto y el cursor sigan donde estaban.
+var ed_sug_texto: String = ""
+var ed_sug_ext: String = ""
+var ed_sug_doc: Documento = nil
+var ed_sug_version: Int = -1
+var ed_sug_l: Int = -1          # el cursor, desde 0
+var ed_sug_c: Int = -1
 var activo: Int = -1
 # La geometría del último dibujo (desde la esquina de la zona)
 var ed_visibles: Int = 1
@@ -1210,6 +1219,14 @@ func ed_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
     return true
 end
 
+# ¿Se ve la sugerencia en d? (el texto y el cursor siguen como estaban, sin nada elegido, al final de la línea)
+func ed_sugerencia_vale(d: Documento) -> Bool
+    if ed_sug_texto == "" or d == nil or d != ed_sug_doc or d.vista != 0
+        return false
+    end
+    return d.version == ed_sug_version and d.cl == ed_sug_l and d.cc == ed_sug_c and not ed_hay_seleccion(d) and d.cl < d.lineas.length and d.cc == d.lineas[d.cl].length
+end
+
 # --- Ratón ---
 
 # La línea y la columna de un punto de la zona (en _fin_l, _fin_c)
@@ -1407,6 +1424,18 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
                 gfx_text_at(tx + (a - d.izquierda) * ancho_letra, base, linea[a:b])
             end
             k = k + 1
+        end
+    end
+    if n == d.cl and ed_sugerencia_vale(d)
+        # la sugerencia, en gris tras el final de la línea (lo que cabe)
+        cabe = hasta_col - linea.length
+        if cabe > 0 and linea.length >= d.izquierda
+            t = ed_sug_texto
+            if t.length > cabe
+                t = t[0:cabe]
+            end
+            gfx_pen(tema.tenue)
+            gfx_text_at(tx + (linea.length - d.izquierda) * ancho_letra, base, t)
         end
     end
     if n == d.cl

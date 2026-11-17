@@ -181,3 +181,13 @@ dice y la vuelve a arrancar) y se cuelga (Forja sigue contestando); el gestor la
 `capturas/`, guarda `marcas.png`, `gestor.png` y `gestor-apagada.png`. `input_menu` no llega a los menús de MUI: las
 opciones se eligen con la sonda (`ENV:FORJA_EVENTO` con su evento). Con MUI 3.8:
 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/extensiones.sh ...`.
+
+El copiloto (`extensiones/Inferencia`): `tests/copiloto.sh <worktree de Dash> <repositorio de Inferencia> [<cajón con
+dashc.amiga>] [capturas/]` arranca Forja con el copiloto y la Inferencia de verdad, contra el servidor falso de
+Inferencia (`tests/servidor_falso.py` de su repositorio) con los guiones de `tests/guiones_copiloto`, y la ayuda de
+Dash (`AYUDA=.../Dash.ayuda`; si no, la de `build/ayuda` de Dash, de `tools/gen_ayuda.py`). `tests/copiloto.dash`, sobre
+`tests/prueba/copiloto/main.dash`: documentar la función (con la ayuda, la vista, `a`, Amiga-Z), cambiar el código
+(su ventana, `r`), explicar la selección y preguntar (a la conversación), escribir la prueba (fichero nuevo), con dashc
+explicar y arreglar un error (compila antes), y las sugerencias al escribir (SUGERENCIA y Tab). Guarda
+`copiloto-*.png` en `capturas/`. Con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`; `SOLO=sugerencias`, solo lo
+último. El servidor usa el puerto 40900 del PC: `flock /run/user/1000/dash-emu-red.lock tests/copiloto.sh ...`.

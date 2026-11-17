@@ -328,6 +328,24 @@ func forja_vista(nombre: String, lineas: [String], colores: String) -> Bool
     return forja_rc == 0
 end
 
+# Cierra su pestaña de solo lectura de ese nombre (false si no la había)
+func forja_cerrar_vista(nombre: String) -> Bool
+    forja_orden("VISTA " + forja_ext + " \"" + nombre + "\"")
+    return forja_rc == 0
+end
+
+# Una sugerencia en gris tras el cursor del fichero activo (el copiloto): solo si el cursor está en esa línea y columna
+# (desde 1), al final de la línea, y el texto sigue en esa versión (forja_version_texto); si no, false. Tab la mete; se
+# va al escribir o al mover el cursor. Texto "": quita la suya.
+func forja_sugerencia(linea: Int, columna: Int, version: Int, texto: String) -> Bool
+    if texto == ""
+        forja_orden("SUGERENCIA " + forja_ext)
+    else
+        forja_orden("SUGERENCIA " + forja_ext + " #{linea} #{columna} #{version}\n" + texto)
+    end
+    return forja_rc == 0
+end
+
 # Sus rayas en el margen de un fichero, pegadas al texto: líneas (desde 1) y sus símbolos (+ añadida, ~ cambiada,
 # - quitadas encima, _ quitadas debajo; "~-" las dos). Sustituyen las suyas de ese fichero; sin líneas, las quita.
 # version: la del texto del que salen (forja_version_texto; -1 sin mirarla): si el texto ya cambió, Forja no las pone

@@ -1,0 +1,4 @@
+[
+  {"llamadas": [["ayuda", {"nombre": "Int"}]]},
+  {"texto": "Pongo qué hace, qué recibe y qué devuelve.\n```dash\n# El doble de un número.\n# x: el número. Devuelve x por 2.\nfunc doble(x: Int) -> Int\n    return x * 2\nend\n```"}
+]
