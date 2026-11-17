@@ -172,3 +172,51 @@ VS Code.
     Extensiones siguen fijas (podrían hacerse en marcha con `mui_menu_extend`); al salir, la extensión espera a que
     acabe su servidor (si se colgara sin atender Ctrl-C, ella se quedaría; Forja no).
   - **Falta en Dash**: `cx_wait` no despierta con el puerto ARexx (el servidor lo mira cada 200 ms).
+- 2026-11-17, rama `ayuda`: **3.4 y 3.5 hechos** (ayuda de Dash en Forja y errores marcados al guardar).
+  - **Ayuda** (`src/ayuda.dash`): lee `Dash.ayuda` (o `Dash_en.ayuda` si el catálogo de Forja no es el castellano; la
+    otra de reserva) a trozos con `lib/ayuda.dash` de Dash, sin cargarla: un registro o una ficha cada vez. Se busca en
+    `ENV:Forja/ayuda`, `DASH:Ayuda`, `PROGDIR:/Ayuda` (el paquete de Dash: `Dash/Forja/Forja` y `Dash/Ayuda`),
+    `PROGDIR:Ayuda` y el cajón `Ayuda` junto al compilador. Se abre al hacer falta y se cierra con la ventana (y antes de
+    poner Dash al día: abierta, no dejaría cambiar `DASH:Ayuda`).
+  - Una ventana propia (`VentanaAyuda`, no un panel: en 640x256 no cabe otro): Atrás, Adelante, Índice, Probar y
+    "Buscar:"; la lista a la izquierda (lo encontrado o el índice: portada, sintaxis, índice alfabético, los 41 grupos
+    y los 27 capítulos; los apartados salen en su capítulo) y la ficha a la derecha en un lienzo con los colores del
+    tema: título, subtítulos, el código con su sintaxis, enlaces subrayados. Un clic en un enlace, o en un nombre del
+    código (o con `_` en el texto) que tenga ficha, la abre. Rueda, flechas y Mayúsculas+flechas mueven; Retroceso y
+    Alt+flechas, atrás y adelante. El texto viene cortado a 76 columnas: si no cabe, se vuelve a cortar.
+  - Help/F1 sobre un nombre de Dash abre su ficha; sin nombre, la ayuda; un nombre sin ficha, lo busca. Sobre un
+    nombre del proyecto (o sin la ayuda), la ayuda de argumentos de antes. Menú Código: "Ayuda de Dash" y "Buscar en la
+    ayuda...".
+  - **Probar**: el ejemplo entero de la ficha (un trozo de código con `Main`); en una función, su ejemplo es un trozo
+    del de su grupo, así que se abre el del grupo. 226 de las 1277 fichas lo tienen. Se abre en una pestaña sin nombre
+    (`ejemplo_<clave>.dash`), se compila desde `T:` y se ejecuta; sus errores llevan a la pestaña.
+  - Buscar: las palabras plegadas (sin acentos), todas a la vez, y las que no están por cómo empiezan; la ficha que se
+    llama así, primero; 80 como mucho.
+  - **Errores** (`src/errores.dash`): al guardar un `.dash`, `dash --check` del programa (el de su proyecto si es un
+    módulo) en segundo plano, a prioridad -1 (con `task_priority` alrededor de `run_start`), en el cajón del fichero.
+    Tras 1,5 s sin escribir, lo mismo con el texto sin guardar copiado a `T:` (solo un fichero con `Main`: un módulo
+    sin guardar no se puede, dash lee del disco lo que importa el programa). Preferencia "Buscar errores al escribir"
+    (`ENV:Forja/comprobar`). La línea del error lleva el número en rojo y el nombre subrayado en zigzag; la barra de la
+    salida dice el error de la línea del cursor (o cuántos hay); la salida los apunta (con clic) y "Sin errores." al
+    quitarse. Siguen a su texto al escribir. F8 y Mayúsculas+F8 (y el menú Código) van al siguiente y al anterior,
+    también en otro fichero. Los de compilar se marcan igual. Si la orden dash no sabe `--check`, se dice una vez.
+  - Tiempos (A1200 emulado con `REAL=1`, MUI 5): F1 hasta ver la ficha la primera vez 2,3 s (abrir la ventana con
+    MUI, 1,2 s; el índice en la lista, 0,5 s; leer la ficha, 0,14 s); con la ventana abierta, una ficha 30-140 ms;
+    buscar "sonido" 0,56 s en Forja (la búsqueda 70 ms; el resto, los títulos y llenar la lista de MUI); volver al
+    índice tras buscar 0,8 s (llenar la lista); `dash --check` 0,3-0,75 s; de guardar a ver el error marcado 1,1 s; de
+    la última tecla a verlo, 3,1 s (con la pausa de 1,5 s). Con MUI 3.8 (68040 JIT), todo por debajo de 0,1 s salvo
+    `--check` (0,15 s).
+  - Pruebas: `tests/ayuda_base.sh` (sin ventana) y `tests/ayuda.sh` (MUI 5 en A1200 y `REAL=1`; MUI 3.8 con
+    `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`; RTG con MUI 5): TODO BIEN. Siguen bien ficheros, teclas, compilar,
+    errores, completar, extensiones (MUI 5 y 3.8), extensiones_base y git_panel.
+  - Con MUI 3.8, "Buscar en la ayuda..." no deja el cursor en el campo de buscar (`mui_set_active` no se queda, ni al
+    volver a darlo cuando la ventana se activa): hay que hacer clic en él; la prueba lo hace. Con MUI 5 va solo.
+  - **Falta en Forja**: la descripción corta del autocompletado sigue en `src/builtins.dash` (sale de
+    `docs/BUILTINS.md` de Dash, la misma fuente que la ayuda: no son dos fuentes distintas); el catálogo inglés de los
+    textos 600 a 634 (de antes).
+  - **Falta en Dash**: `dash --check` da solo el primer error (para en el primero); comprobar un módulo sin `Main`
+    ("falta el bloque Main") o el texto sin guardar de un módulo dentro de su programa (algo como
+    `--check main.dash --texto red.dash=T:x`); el ejemplo entero de las funciones cuyo `tests/test_doc_*.dash` no es el
+    de su grupo (45, como los `sprite_*`: hoy sin Probar); añadir muchas líneas a una lista de MUI de una vez (llenarla
+    de una en una cuesta unos 10 ms por línea en un A1200); y el directo acepta una función con el nombre de una
+    variable global (`--gcc` da el error).

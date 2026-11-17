@@ -1910,6 +1910,16 @@ func ay_palabra(lineas: [String], cl: Int, cc: Int, version: Int) -> Bool
     return _ay_poner(firma, -1, cl)
 end
 
+# ¿Es nombre algo del proyecto (función, struct, constante, global) o una variable local de donde está el cursor?
+# Help: lo del proyecto no se busca en la ayuda de Dash
+func cx_es_del_proyecto(lineas: [String], cl: Int, version: Int, nombre: String) -> Bool
+    if cx_global(nombre) != nil
+        return true
+    end
+    cx_locales(lineas, cl, version)
+    return _loc_indice(nombre) >= 0
+end
+
 # La ayuda con esta firma; comas, el argumento que se marca (-1, ninguno)
 func _ay_poner(firma: String, comas: Int, cl: Int) -> Bool
     a = str_find(firma, "(")

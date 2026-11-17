@@ -1,0 +1,264 @@
+# Los errores marcados en el código (paso 3.5 de docs/FORJA_LOOP.md): los de compilar y los de "dash --check", que
+# Forja lanza en segundo plano al guardar y tras una pausa al escribir. La línea del error lleva su número en rojo y
+# el texto subrayado; F8 va al siguiente y Mayúsculas+F8 al anterior.
+#
+#   err_de_salida(texto, cajon, temporal, ruta)   # los errores de lo que escribió dash (cajon: el de las rutas
+#                                                 # relativas; temporal: el fichero de T: que es en verdad ruta)
+#   err_col_en(str_lower(ruta), 5)                # la columna del error de la línea 5 (desde 1); -1 si no tiene
+#   err_mover(str_lower(ruta), 10, 1, 2)          # se escribió: los de después se mueven con su texto
+#
+#   cmp_empezar(orden, cajon, temporal, ruta)     # la comprobación en segundo plano (prioridad -1)
+#   cmp_mirar()                                   # true cuando acabó (sus errores, ya puestos)
+
+struct ErrorMarca
+    ruta: String          # en minúsculas
+    linea: Int            # desde 1
+    col: Int              # desde 1 (0: sin columna)
+    texto: String
+    entera: String        # la línea de dash tal cual (para la salida)
+end
+
+var err_lista: [ErrorMarca] = []
+var err_sin_sitio: String = ""     # un error sin línea ("falta el bloque Main")
+var err_version: Int = 0           # sube cada vez que cambian (para redibujar y para la sonda)
+
+func err_vaciar()
+    if err_lista.length > 0 or err_sin_sitio != ""
+        err_version = err_version + 1
+    end
+    err_lista = []
+    err_sin_sitio = ""
+end
+
+# El error de la línea n (desde 1) del fichero r (en minúsculas): su sitio en errores, -1 si no hay
+func err_en(r: String, n: Int) -> Int
+    if err_lista.length == 0 or r == ""
+        return -1
+    end
+    i = 0
+    while i < err_lista.length
+        e = err_lista[i]
+        if e.linea == n and e.ruta == r
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+func err_col_en(r: String, n: Int) -> Int
+    i = err_en(r, n)
+    if i < 0
+        return -1
+    end
+    return err_lista[i].col
+end
+
+func err_hay(r: String) -> Bool
+    for e in err_lista
+        if e.ruta == r
+            return true
+        end
+    end
+    return false
+end
+
+# Una ruta de dash como la del documento: la de T: es la del fichero que se comprueba; una relativa, del cajón
+func _err_ruta(ruta: String, cajon: String, temporal: String, real: String) -> String
+    if temporal != "" and str_lower(ruta) == str_lower(temporal)
+        return real
+    end
+    if str_find(ruta, ":") < 0 and cajon != ""
+        if str_ends(cajon, ":") or str_ends(cajon, "/")
+            return cajon + ruta
+        end
+        return cajon + "/" + ruta
+    end
+    return ruta
+end
+
+# Lo que escribió dash (al compilar o comprobar): sus errores, "fichero:línea:columna: Error: texto", sustituyen a
+# los de antes. true si cambiaron.
+func err_de_salida(texto: String, cajon: String, temporal: String, real: String) -> Bool
+    antes = err_resumen()
+    err_lista = []
+    err_sin_sitio = ""
+    for l in str_split(str_trim(texto), "\n")
+        p = str_find(l, ": Error: ")
+        if p < 0
+            continue
+        end
+        sitio = str_split(l[0:p], ":")
+        if sitio.length < 3
+            # "dash: Error: falta el bloque Main"
+            err_sin_sitio = l[p + 9:]
+            continue
+        end
+        col = Int(sitio[sitio.length - 1])
+        num = Int(sitio[sitio.length - 2])
+        ruta = l[0:p - sitio[sitio.length - 1].length - sitio[sitio.length - 2].length - 2]
+        ruta = _err_ruta(ruta, cajon, temporal, real)
+        entera = ruta + ":#{num}:#{col}: Error: " + l[p + 9:]
+        err_lista.push(ErrorMarca(str_lower(ruta), num, col, l[p + 9:], entera))
+    end
+    if err_resumen() == antes
+        return false
+    end
+    err_version = err_version + 1
+    return true
+end
+
+# Todos en un texto (para ver si cambiaron y para la sonda): "ruta:línea:col texto|..."
+func err_resumen() -> String
+    t = err_sin_sitio
+    for e in err_lista
+        t = t + "|" + e.ruta + ":#{e.linea}:#{e.col} " + e.texto
+    end
+    return t
+end
+
+# Se escribió en el fichero r (en minúsculas): sus quitadas líneas desde la desde (desde 1) son ahora puestas. Los
+# errores de después se mueven con su texto; el de una línea que ya no está, se va. true si alguno cambió.
+func err_mover(r: String, desde: Int, quitadas: Int, puestas: Int) -> Bool
+    if r == "" or quitadas == puestas or err_lista.length == 0
+        return false
+    end
+    fin = desde + quitadas
+    nuevo_fin = desde + puestas
+    delta = puestas - quitadas
+    movido = false
+    i = 0
+    while i < err_lista.length
+        e = err_lista[i]
+        if e.ruta == r
+            if e.linea >= fin
+                e.linea = e.linea + delta
+                movido = true
+            elif e.linea >= nuevo_fin
+                err_lista.remove(i)
+                movido = true
+                continue
+            end
+        end
+        i = i + 1
+    end
+    if movido
+        err_version = err_version + 1
+    end
+    return movido
+end
+
+# El error que va después (adelante) o antes de la línea n del fichero r: su sitio en errores, -1 si no hay. Los de
+# este fichero primero; si no hay más, da la vuelta (también a los de otros ficheros).
+func err_siguiente(r: String, n: Int, adelante: Bool) -> Int
+    if err_lista.length == 0
+        return -1
+    end
+    mejor = -1
+    i = 0
+    while i < err_lista.length
+        e = err_lista[i]
+        if e.ruta == r and ((adelante and e.linea > n) or (not adelante and e.linea < n))
+            if mejor < 0 or (adelante and e.linea < err_lista[mejor].linea) or (not adelante and e.linea > err_lista[mejor].linea)
+                mejor = i
+            end
+        end
+        i = i + 1
+    end
+    if mejor >= 0
+        return mejor
+    end
+    # la vuelta: el primero (o el último) de otro fichero, o de este
+    i = 0
+    while i < err_lista.length
+        if err_lista[i].ruta != r
+            return i
+        end
+        i = i + 1
+    end
+    mejor = 0
+    i = 1
+    while i < err_lista.length
+        if (adelante and err_lista[i].linea < err_lista[mejor].linea) or (not adelante and err_lista[i].linea > err_lista[mejor].linea)
+            mejor = i
+        end
+        i = i + 1
+    end
+    return mejor
+end
+
+# --- La comprobación en segundo plano ---
+
+var cmp_run: Int = 0              # el run_start de dash --check (0: no hay ninguna en marcha)
+var cmp_cajon: String = ""
+var cmp_temporal: String = ""
+var cmp_real: String = ""
+var cmp_inicio: Int = 0
+var cmp_ms: Int = 0               # lo que tardó la última (para la sonda y la bitácora)
+var cmp_veces: Int = 0            # cuántas han acabado
+var cmp_salida: String = ""       # lo que escribió la última
+var cmp_sin_check: Bool = false   # la orden dash no sabe --check (un Dash antiguo): no se vuelve a intentar
+
+# Empieza a comprobar: orden es "dash --check fichero"; se lanza en el cajón cajon (así encuentra lo que importa un
+# fichero copiado a T:) y a prioridad -1 (el editor no se frena). false si no pudo empezar.
+func cmp_empezar(orden: String, cajon: String, temporal: String, real: String) -> Bool
+    if cmp_run != 0
+        return false
+    end
+    antes = ""
+    if cajon != ""
+        antes = dir_current()
+        if not dir_change(cajon)
+            antes = ""
+        end
+    end
+    # (run_start da al proceso nuevo la prioridad del programa)
+    pri = task_priority(-1)
+    cmp_run = run_start(orden, 60000)
+    task_priority(pri)
+    if antes != ""
+        dir_change(antes)
+    end
+    if cmp_run == 0
+        return false
+    end
+    cmp_cajon = cajon
+    cmp_temporal = temporal
+    cmp_real = real
+    cmp_inicio = time_ms()
+    return true
+end
+
+func cmp_en_marcha() -> Bool
+    return cmp_run != 0
+end
+
+# true si la comprobación en marcha acabó (y sus errores están puestos: err_version cambia si son otros)
+func cmp_mirar() -> Bool
+    if cmp_run == 0 or not run_ready(cmp_run)
+        return false
+    end
+    cmp_salida = run_finish(cmp_run)
+    cmp_run = 0
+    cmp_ms = time_ms() - cmp_inicio
+    cmp_veces = cmp_veces + 1
+    if run_rc() == -2
+        # se le acabó el tiempo: no se sabe
+        return true
+    end
+    if str_starts(str_trim(cmp_salida), "uso: ") or str_contains(cmp_salida, "unknown option") or str_contains(cmp_salida, "opción desconocida")
+        cmp_sin_check = true
+        return true
+    end
+    err_de_salida(cmp_salida, cmp_cajon, cmp_temporal, cmp_real)
+    return true
+end
+
+# Al salir de Forja: que no siga
+func cmp_parar()
+    if cmp_run != 0
+        run_break(cmp_run)
+        run_finish(cmp_run)
+        cmp_run = 0
+    end
+end

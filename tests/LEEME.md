@@ -181,3 +181,19 @@ dice y la vuelve a arrancar) y se cuelga (Forja sigue contestando); el gestor la
 `capturas/`, guarda `marcas.png`, `gestor.png` y `gestor-apagada.png`. `input_menu` no llega a los menús de MUI: las
 opciones se eligen con la sonda (`ENV:FORJA_EVENTO` con su evento). Con MUI 3.8:
 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/extensiones.sh ...`.
+
+Ayuda de Dash y errores marcados (pasos 3.4 y 3.5 de `docs/FORJA_LOOP.md`). Las dos hacen la ayuda con
+`tools/gen_ayuda.py` de Dash y necesitan una orden `dash` del Amiga con `--check` (`make amiga` en `dashc/` de Dash):
+
+- `tests/ayuda_base.sh <worktree de Dash> [<cajón con dashc.amiga>]`: `tests/ayuda_base.dash` prueba `src/ayuda.dash` y
+  `src/errores.dash` sin ventana: encontrar la ayuda (junto al compilador), una ficha con sus enlaces y su ejemplo para
+  Probar, partirla a otro ancho, un clic en un enlace y en un nombre del código, atrás y adelante, buscar, el índice;
+  leer los errores de dash, moverlos al escribir y el siguiente (F8); y `dash --check` del Amiga, también en segundo
+  plano. Mide lo que tarda cada cosa.
+- `tests/ayuda.sh <worktree de Dash> <cajón con dashc.amiga> [capturas/]`: `tests/ayuda.dash`, con Forja como en el
+  paquete de Dash (`DH0:Dash/Forja/Forja`, `DH0:Dash/Ayuda`, `DH0:Dash/dash`): F1 sobre `file_seek` abre su ficha; un
+  clic en un enlace, Atrás y Adelante; Probar ejecuta el ejemplo en una pestaña sin nombre; buscar "sonido"; Índice y
+  enlaces de la portada; F1 sobre un nombre del proyecto sigue dando sus argumentos; un error al guardar se marca, F8 va
+  a él, sigue a su línea al escribir encima y se quita al arreglarlo; uno escrito sin guardar se marca tras la pausa y
+  deshacer lo quita. Con `capturas/`, `ayuda-ficha.png`, `ayuda-probar.png`, `ayuda-buscar.png`, `ayuda-grupo.png` y
+  `errores.png`. Con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/ayuda.sh ...`.
