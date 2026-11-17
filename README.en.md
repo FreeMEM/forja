@@ -114,6 +114,48 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   examples. It checks everything before changing anything; if something arrives damaged, Dash stays as it was. At
   startup it looks once a day and only tells you in the output (it can be turned off in the preferences). It needs
   the network and AmiSSL. Also through ARexx: `ACTUALIZAR`.
+### Projects
+
+A project is a drawer with a `.forja` file (JSON, like a `.dashui`): its name, type, main file, executable, build
+options, arguments, version, program icon, breakpoints and watched expressions. Without a `.forja`, Forja works as
+before.
+
+- **Proyecto > New project...**: name, template and drawer (remembered). Makes the drawer with the template's files,
+  the `.forja` and its icon, and opens it. Each template is a program that builds and runs: Shell command (arguments,
+  return codes 5 and 10), commodity (in Exchange, with a hotkey that opens a small window with the time), MUI
+  application (its window in `ventana.dashui`, made with the window editor, with a menu), game (its own screen, a
+  hardware sprite moved with the joystick or the cursor keys and a level with coins), demo (the loop of each frame and
+  an `asm ... end` block that paints colour bars line by line) and 3D with MiniGL (a spinning cube; needs an FPU,
+  builds with `--fpu`, and `minigl.library`).
+- **Opening a project**: Proyecto > Open project..., Open... with a `.forja`, a click on it in the panel or a double
+  click on its Workbench icon (its default tool is Forja). Entering a drawer with a `.forja` in the panel makes it the
+  project.
+- **Proyecto > Project properties...**: three pages. General: name, type, main file, executable, version (changing it
+  updates the program's `@version` line) and program icon (copied next to the executable when building). Build: CPU
+  (`--cpu`), FPU (`--fpu`), stack (`--stack`), `--memcheck`, `--profile`, `--gcc` (the Amiga's `dash` does not build
+  through C) and more options. Run: arguments when running and when debugging.
+- With a project, Build and Run always use its main file, executable and options, whatever file is in front.
+
+### More debugging
+
+- **Condition and hit count** (Depurar menu) of the breakpoint on the cursor line: a Dash expression (`i > 3 and
+  nombre == "x"`) and a count (`3`: from the third hit; `= 3`, `> 3`, `% 2`: every other). Such a breakpoint is drawn
+  hollow.
+- **Watch an expression**: at the top of the panel, with its value at each stop. The same one again removes it.
+- **Value under the mouse**: stopped, with the pointer over a name in the code, its value shows (with what comes
+  before it: `naves[i].x`).
+- **Run to here** (Ctrl F10): goes on to the cursor line; when not debugging, starts debugging and stops there.
+- **Show the registers** and **Show memory...** (at an address or expression: `a0`, `$C01000`, `buffer + 16`).
+- With a project, breakpoints (with condition and count) and watches are saved in the `.forja`.
+
+### Profile and memcheck
+
+- **Programa > Run with profile**: builds with `--profile`, runs and opens the Profile tab: each function with its own
+  time, its total time and its calls. A click on a title sorts by that column; a click (or Return) on a function goes
+  to it.
+- **Programa > Run with memcheck**: builds with `--memcheck` and runs. The warnings (a field of a `nil`, something freed
+  twice...) go to the output with their place, and a click goes to the line. At the end, what is still alive.
+
 ### Sprites and maps
 
 The sprite and map editors are two extensions (`Extensiones/Sprites` and `Extensiones/Mapas`): if you only write code,
@@ -185,7 +227,10 @@ where it is (`ENVARC:Forja/inferencia`).
 Port `FORJA.1`: `ABRIR file [line]` (open), `ABIERTO file` (is it open), `TEXTO file` (text), `SELECCION`
 (selection), `CAMBIAR file from to text` (change lines), `GUARDAR [file]` (save), `COMPILAR [file]` (build),
 `EJECUTAR [file]` (run), `ESTADO` (state), `ERRORES` (errors), `BUSCAR text` (find), `CAMBIARTODO find replace`, `IRA line` (go to),
-and `SALIDA` (the output text). Extensions have more (cursor, selection, insert, marks, bars, the bar, own tabs,
+`SALIDA` (the output text), `NUEVOPROYECTO type drawer name` (new project from a template: `orden`, `commodity`, `mui`,
+`juego`, `demo` or `3d`; gives the path of the `.forja`) and `PROPIEDAD key [value]` (a field of the project's
+`.forja`: gives it and, with a value, changes and saves it; also `ruta`, `puntos` and `vigilar`). `ABRIR` with a
+`.forja` opens the project. Extensions have more (cursor, selection, insert, marks, bars, the bar, own tabs,
 batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md) (in Spanish). The Git extension has its own port, `FORJAEXT.GIT`:
 `GIT dashgit command` (without waiting: its `ESTADO` says `git` while it runs), `CAMBIOS` and `GITESTADO`.
 

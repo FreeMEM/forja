@@ -23,6 +23,13 @@
 # (con deshacer; hasta = desde - 1 mete líneas); GUARDAR [fichero]; COMPILAR y EJECUTAR (sin esperar);
 # ESTADO (libre, compilando, ejecutando, depurando); ERRORES (los de la última compilación); BUSCAR texto (lo elige
 # y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea; ACTUALIZAR (como el menú).
+# NUEVOPROYECTO tipo cajón nombre (con su plantilla; da el .forja) y PROPIEDAD clave [valor] (del .forja).
+#
+# Proyectos (proyecto.dash): un cajón con un .forja (su fichero principal, ejecutable, opciones de dash, argumentos,
+# puntos de parada con condición y contador, lo vigilado). Nuevo proyecto... con las plantillas de plantillas/
+# (plantillas_datos.dash, de tools/plantillas.py). En el menú Depurar: condición, contador, vigilar (expresion.dash),
+# hasta aquí, registros y memoria; parado, el valor bajo el ratón. Ejecutar con perfil (la pestaña Perfil) y con
+# memcheck (los avisos con su sitio).
 #
 # Versiones nuevas de Dash (actualizar.dash): Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay,
 # pregunta si se baja e instala encima del cajón de Dash (DASH:). Sola, 20 s después de empezar y una vez al día,
@@ -66,6 +73,9 @@ import "extensiones.dash"
 import "teclas.dash"
 import "buscar.dash"
 import "rapido.dash"
+import "proyecto.dash"
+import "expresion.dash"
+import "plantillas_datos.dash"
 import "ventana.dashui"
 
 const VERSION = "0.6.5"
@@ -166,6 +176,27 @@ const EV_PREF_USAR = 58
 const EV_PREF_CANCELAR = 59
 const EV_SALIR = 99
 const EV_NADA = 9999           # un evento ya atendido
+const EV_NUEVO_PROYECTO = 250   # Proyecto > Nuevo proyecto... (paso 3.2) y su ventana
+const EV_ABRIR_PROYECTO = 251
+const EV_PROPIEDADES = 252      # Proyecto > Propiedades del proyecto... (paso 3.1) y su ventana
+const EV_NP_CREAR = 253
+const EV_NP_CANCELAR = 254
+const EV_NP_ELEGIR = 255
+const EV_NP_TIPO = 256
+const EV_PP_GUARDAR = 257
+const EV_PP_CANCELAR = 258
+const EV_PP_PRINCIPAL = 259
+const EV_PP_ICONO = 260
+const EV_PERFIL = 261           # Programa > Ejecutar con perfil, con memcheck (paso 4.2)
+const EV_MEMCHECK = 262
+const EV_HASTA_AQUI = 263       # el menú Depurar (paso 4.1)
+const EV_CONDICION = 264
+const EV_CONTADOR = 265
+const EV_VIGILAR = 266
+const EV_REGISTROS = 267
+const EV_MEMORIA = 268
+const EV_QUITAR_PUNTOS = 269
+const EV_EDITOR_MOVER = 270     # el puntero se mueve sobre el editor (el valor bajo el ratón al depurar)
 
 const PANTALLA = "FORJA"       # el nombre de su pantalla pública, con la preferencia
 
@@ -177,6 +208,8 @@ var vi: IrA = nil
 var vp: PrefForja = nil
 var vx: GestorExt = nil
 var va: VentanaAyuda = nil
+var vn: NuevoProyecto = nil
+var vq: PropProyecto = nil
 var app: Int = 0
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
 var sonda: Bool = false
@@ -283,6 +316,10 @@ end
 # imagen IFF, un mapa) se lo pasa a ella (EDITAR).
 func abrir(ruta: String) -> Bool
     abrir_delegado = false
+    if str_ends(str_lower(ruta), ".forja")
+        # un proyecto: el panel y su fichero principal
+        return proyecto_abrir(ruta, true)
+    end
     i = ed_buscar_ruta(ruta)
     if i >= 0
         activo = i
@@ -326,6 +363,8 @@ func abrir_nuevo(ruta: String) -> Bool
         return false
     end
     ed_abrir_texto(nombre_de(ruta), ruta, texto)
+    # sus puntos de parada (los del proyecto, con su condición)
+    ed_actual().puntos = pr_lineas_de(ruta)
     return true
 end
 
@@ -337,6 +376,13 @@ func guardar_en(d: Documento, ruta: String) -> Bool
     d.ruta = ruta
     d.nombre = nombre_de(ruta)
     d.cambiado = false
+    # los puntos de parada que se movieron al escribir, al .forja (con el fichero ya como dicen)
+    puntos_seguir()
+    pr_puntos_guardados(ruta)
+    if puntos_por_guardar and proyecto_de(ruta) != nil
+        puntos_por_guardar = false
+        proyecto_guardar()
+    end
     avisar(tr(3, "Guardado: ") + ruta, 2)
     ext_suceso("GUARDADO", ruta)
     # sus errores, con dash --check en segundo plano (paso 3.5)
@@ -402,7 +448,7 @@ func proyecto(ev: Int) -> Bool
     elif ev == EV_NUEVO_EXT
         nuevo_de_extension()
     elif ev == EV_ABRIR
-        if file_open_dialog(tr(303, "Abrir..."), "#?.(" + ext_patron_tipos("dash|dashui") + ")")
+        if file_open_dialog(tr(303, "Abrir..."), "#?.(" + ext_patron_tipos("dash|dashui|forja") + ")")
             ruta = file_fullpath()
             if abrir(ruta) and cajon_de(ruta) != proyecto_cajon
                 proyecto_leer(cajon_de(ruta))
@@ -421,6 +467,9 @@ func proyecto(ev: Int) -> Bool
             if r == 0 or (r == 1 and not guardar(d))
                 return false
             end
+            if r == 2
+                puntos_descartar(d)
+            end
         end
         cerrada = d.ruta
         if cerrada == ""
@@ -438,6 +487,13 @@ func proyecto(ev: Int) -> Bool
             r = mui_request(v.window, tr(63, "Cambios sin guardar"), texto, tr(6, "_Guardar|_Descartar|_Cancelar"))
             if r == 0
                 return false
+            end
+            if r == 2
+                for o in documentos
+                    if o.cambiado
+                        puntos_descartar(o)
+                    end
+                end
             end
             if r == 1
                 for o in documentos
@@ -648,8 +704,23 @@ func compilar(y_ejecutar: Bool)
     if desde == ""
         ruta = programa_de(d)
     end
+    # con un .forja (paso 3.1): su fichero principal, su ejecutable y sus opciones
+    tarea_proy = nil
+    if desde != ""
+        tarea_proy = proyecto_de(desde)
+    elif d.ruta != ""
+        tarea_proy = proyecto_de(d.ruta)
+    end
+    if tarea_proy != nil and file_exists(pr_principal(tarea_proy))
+        ruta = pr_principal(tarea_proy)
+    else
+        tarea_proy = nil
+    end
     nombre = nombre_de(ruta)
     tarea_exe = ejecutable_de(ruta)
+    if tarea_proy != nil
+        tarea_exe = pr_ejecutable(tarea_proy, cajon_ejecutables())
+    end
     if desde == "" and d.ruta == ""
         # un ejemplo de la ayuda (Probar), sin nombre: desde T:, y su ejecutable ahí
         if not file_write_text(d.temporal, ed_texto_disco(d))
@@ -665,9 +736,13 @@ func compilar(y_ejecutar: Bool)
         avisar(tr(377, "No se puede crear el cajón de los ejecutables: ") + cajon_ejecutables(), 1)
         return
     end
-    opciones = ""
+    opciones = pr_opciones(tarea_proy, perfil_pedido, memcheck_pedido)
+    tarea_perfil = str_contains(opciones, "--profile")
+    tarea_memcheck = str_contains(opciones, "--memcheck")
+    perfil_pedido = false
+    memcheck_pedido = false
     if depurar_despues
-        opciones = " --debug"
+        opciones = opciones + " --debug"
     end
     orden = dashc() + opciones + " \"" + ruta + "\" -o \"" + tarea_exe + "\""
     avisar(tr(9, "Compilando ") + nombre + "...", 0)
@@ -834,7 +909,12 @@ func tic()
         # y marcados en el código (errores.dash), como los de comprobar
         err_de_salida(texto, cajon_de(tarea_dash), "", "")
         errores_cambiados(false)
+        if rc != 0 and errores == 0 and str_contains(texto, "uso: dash") and tarea_proy != nil and tarea_proy.gcc
+            avisar(tr(1003, "Esta orden dash no compila por C (--gcc): quítalo en Propiedades del proyecto."), 1)
+        end
         if rc != 0
+            tarea_perfil = false
+            tarea_memcheck = false
             if errores == 1
                 avisar(tr(13, "No compila: un error (clic en él para ir a su línea)."), 1)
             else
@@ -845,6 +925,7 @@ func tic()
             return
         end
         avisar(tr(14, "Compilado en ") + segundos(ms) + ": " + tarea_exe, 2)
+        icono_del_programa()
         if depurar_despues
             depurar_despues = false
             empezar_depuracion()
@@ -856,7 +937,16 @@ func tic()
         end
         avisar(tr(15, "Ejecutando ") + nombre_de(tarea_exe) + "...", 0)
         antes = al_cajon_del_programa()
-        tarea_run = run_start("\"" + tarea_exe + "\"", 0)
+        argumentos = ""
+        if tarea_proy != nil and tarea_proy.argumentos != ""
+            argumentos = " " + tarea_proy.argumentos
+        end
+        perfil_filas.clear()
+        perfil_muestras = 0
+        perfil_programa = tarea_dash
+        memcheck_avisos = 0
+        memcheck_primero = -1
+        tarea_run = run_start("\"" + tarea_exe + "\"" + argumentos, 0)
         volver_al_cajon(antes)
         if tarea_run == 0
             avisar(tr(16, "No se puede ejecutar ") + tarea_exe, 1)
@@ -873,7 +963,7 @@ func tic()
     # acabó el programa (un error de ejecución, con su sitio: un clic lleva a la línea)
     error = -1
     if str_trim(texto) != ""
-        error = salida_anadir_programa(str_trim(texto), cajon_de(tarea_dash), tarea_exe)
+        error = salida_al_acabar(str_trim(texto), cajon_de(tarea_dash), tarea_exe)
     end
     tipo = 2
     if rc != 0
@@ -885,6 +975,22 @@ func tic()
         mui_canvas_redraw(v.salida)
     end
     poner_tarea(NADA)
+    tras_perfil_y_memcheck()
+end
+
+# El icono del programa del proyecto (icono = en el .forja), junto al ejecutable
+func icono_del_programa()
+    p = tarea_proy
+    if p == nil or p.icono == ""
+        return
+    end
+    origen = pr_ruta(p, p.icono)
+    destino = tarea_exe + ".info"
+    dos_requesters(false)
+    if str_lower(origen) != str_lower(destino) and file_exists(origen) and not file_copy(origen, destino)
+        avisar(tr(2, "No se puede escribir ") + destino, 1)
+    end
+    dos_requesters(true)
 end
 
 # --- Depurar ---
@@ -902,18 +1008,40 @@ end
 
 func empezar_depuracion()
     antes = al_cajon_del_programa()
-    empezado = dbg_start(tarea_exe, "")
+    argumentos = ""
+    if tarea_proy != nil
+        argumentos = tarea_proy.argumentos_depurar
+        if argumentos == ""
+            argumentos = tarea_proy.argumentos
+        end
+    end
+    empezado = dbg_start(tarea_exe, argumentos)
     volver_al_cajon(antes)
     if not empezado
         avisar(tr(17, "No se puede depurar: ") + dbg_error(), 1)
         poner_tarea(NADA)
         return
     end
+    # los puntos: los de los ficheros sin guardar, y los del proyecto (también de los que no están abiertos)
     for d in documentos
-        for p in d.puntos
-            dbg_break(d.nombre, p)
+        if d.ruta == ""
+            for p in d.puntos
+                dbg_break(d.nombre, p)
+            end
         end
     end
+    for q in pr_puntos
+        dbg_break(nombre_de(q.fichero), q.linea)
+    end
+    pr_puntos_empezar()
+    if hasta_ruta != ""
+        hasta_puesto = pr_punto(hasta_ruta, hasta_linea) == nil
+        if hasta_puesto and not dbg_break(nombre_de(hasta_ruta), hasta_linea)
+            avisar(hueco(tr(70, "La línea %1 no tiene código: el punto no para ahí."), "#{hasta_linea}"), 1)
+            hasta_ruta = ""
+        end
+    end
+    orden_seguir = true
     salida_vista = 0
     dep_olvidar()
     avisar(tr(18, "Depurando ") + nombre_de(tarea_exe) + tr(19, " (F5 seguir, F10 paso, F6 entrar, F7 salir, F9 punto de parada)."), 0)
@@ -957,6 +1085,12 @@ end
 
 func al_parar()
     salida_programa()
+    # un punto con condición o contador que no se cumple: sigue, sin enseñar nada
+    if punto_sigue(dbg_file(), dbg_line())
+        parada_atendida = false
+        return
+    end
+    hasta_quitar()
     # la ventana del programa se queda el teclado al abrirse: Forja delante otra vez, para que F5, F10... lleguen
     if abierta and mui_window_active(v.window) == 0
         mui_window_activate(v.window)
@@ -1001,6 +1135,8 @@ func al_acabar()
     avisar(hueco2(tr(68, "%1 acabó con código %2"), nombre_de(tarea_exe), "#{dbg_rc()}") + ".", 2)
     ed_dbg_ruta = ""
     ed_dbg_linea = 0
+    hasta_ruta = ""
+    valor_quitar()
     depuracion.clear()
     barra_variables_ver(false)
     poner_tarea(NADA)
@@ -1030,6 +1166,8 @@ func orden_depurador(ev: Int)
         redibujar_linea(vieja - 1)
     end
     parada_atendida = false
+    orden_seguir = ev == EV_SEGUIR
+    valor_quitar()
     if ev == EV_SEGUIR
         dbg_continue()
     elif ev == EV_PASO
@@ -1728,6 +1866,7 @@ func renombrar_preguntar(d: Documento)
         return
     end
     renombrar_viejo = cx_def_nombre
+    pregunta = PG_RENOMBRAR
     lr_abrir(LR_PREGUNTA, hueco(tr(858, "Renombrar %1 a"), renombrar_viejo))
     lr_filtro = renombrar_viejo
     lr_ayuda = hueco(tr(859, "%1 sitios; antes de cambiar nada, la lista de cambios."), "#{cx_ref_lineas.length}")
@@ -1881,7 +2020,12 @@ func ir_lista_rapida()
         nuevo = str_trim(lr_filtro)
         lr_cerrar()
         redibujar()
-        renombrar(nuevo)
+        if pregunta == PG_RENOMBRAR
+            renombrar(nuevo)
+        else
+            responder(nuevo)
+        end
+        pregunta = PG_RENOMBRAR
         return
     end
     k = lr_la_elegida()
@@ -2587,7 +2731,19 @@ end
 
 # Pone o quita un punto de parada; si se está depurando, también en el programa
 func alternar_punto(d: Documento, n: Int)
+    puntos_seguir()
     puesto = ed_alternar_punto(d, n)
+    # con el proyecto: se guarda en el .forja (también su condición, si la tiene)
+    if d.ruta != ""
+        pr_punto_poner(d.ruta, n, puesto)
+        if not d.cambiado
+            pr_puntos_guardados(d.ruta)
+        end
+        puntos_raros_al_dia()
+        if proyecto_de(d.ruta) != nil
+            proyecto_guardar()
+        end
+    end
     if tarea == DEPURANDO
         if puesto
             if not dbg_break(d.nombre, n)
@@ -2700,6 +2856,10 @@ func en_editor() -> Int
         ir_definicion()
     elif mui_canvas_button(lienzo_teclas) == 1
         ed_clic(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), (teclas & Q_MAYUS) != 0)
+        if d.vista != 0 and d.vista_ext == "*perfil"
+            perfil_elegir(d)
+            return 0
+        end
         # un clic en el " ... end" de un bloque plegado lo despliega
         if ed_plegada(d, d.cl) and d.cc == d.lineas[d.cl].length and mui_canvas_mouse_x(lienzo_teclas) > ed_margen + (d.cc - d.izquierda) * ancho_letra + ancho_letra
             ed_desplegar(d, d.cl)
@@ -2727,6 +2887,13 @@ func en_editor() -> Int
         end
         if codigo == T_F9
             alternar_punto(d, d.cl + 1)
+            return 0
+        end
+        if codigo == T_F10 and (teclas & Q_CTRL) != 0
+            return EV_HASTA_AQUI
+        end
+        if d.vista != 0 and d.vista_ext == "*perfil" and (codigo == T_RETURN or codigo == T_ENTER)
+            perfil_elegir(d)
             return 0
         end
         if codigo == T_F8
@@ -3320,6 +3487,7 @@ func seguir_antes()
 end
 
 func seguir_despues()
+    puntos_seguir()
     d = _sm_doc
     _sm_doc = nil
     if d != nil and d.version != _sm_version
@@ -4221,6 +4389,35 @@ func orden_una(linea: String) -> String
         return errores_ultimos
     elif orden == "SALIDA"
         return salida_texto(false)
+    elif orden == "NUEVOPROYECTO" and p.length >= 4
+        # NUEVOPROYECTO tipo cajón nombre: lo crea con su plantilla y lo abre; da la ruta del .forja
+        r = crear_proyecto(p[1], p[2], p[3])
+        if r == ""
+            avisar(tr(970, "No se puede crear el proyecto: ") + pr_error, 1)
+            _rexx_falla(10)
+            return ""
+        end
+        proyecto_abrir(r, true)
+        return r
+    elif orden == "PROPIEDAD" and p.length >= 2
+        # PROPIEDAD clave [valor]: una del .forja (la da; con valor, la cambia y lo guarda)
+        con_valor = p.length >= 3
+        p = _partes(linea, 2)
+        if proy == nil
+            _rexx_falla(10)
+            return ""
+        end
+        if con_valor
+            if not propiedad_poner(str_lower(p[1]), _resto)
+                _rexx_falla(10)
+                return ""
+            end
+            proyecto_guardar()
+            if str_lower(p[1]) == "version" or str_lower(p[1]) == "nombre"
+                poner_version(proy)
+            end
+        end
+        return propiedad(str_lower(p[1]))
     elif orden == "ACTUALIZAR"
         # lo mismo que el menú: busca una versión nueva de Dash y, si la hay, pregunta si se instala
         act_pedir()
@@ -4230,10 +4427,1299 @@ func orden_una(linea: String) -> String
     return orden_extension(orden, p, linea)
 end
 
+# --- El proyecto: el fichero .forja (paso 3.1), Nuevo proyecto con plantillas (3.2) ---
+
+var proy: Proyecto = nil
+var vigilar_sueltas: [String] = []     # lo vigilado sin proyecto
+
+const PG_RENOMBRAR = 0                 # lo que pregunta la lista rápida (LR_PREGUNTA)
+const PG_CONDICION = 1
+const PG_CONTADOR = 2
+const PG_VIGILAR = 3
+const PG_MEMORIA = 4
+var pregunta: Int = PG_RENOMBRAR
+var pregunta_ruta: String = ""
+var pregunta_linea: Int = 0
+
+# Abre un .forja: es el proyecto (sus puntos de parada, lo vigilado), el panel enseña su cajón y, si se pide, se abre
+# su fichero principal
+func proyecto_abrir(ruta: String, con_principal: Bool) -> Bool
+    p = pr_leer(ruta)
+    if p == nil
+        avisar(hueco2(tr(953, "No se puede abrir el proyecto %1: %2"), ruta, pr_error), 1)
+        return false
+    end
+    proy = p
+    dep_vigilar = p.vigilar
+    proyecto_puntos_al_dia()
+    if str_lower(proyecto_cajon) != str_lower(p.cajon)
+        proyecto_leer(p.cajon)
+    end
+    if abierta
+        mui_canvas_redraw(v.proyecto)
+    end
+    avisar(hueco2(tr(954, "Proyecto %1 (%2)."), p.nombre, tipo_texto(p.tipo)), 2)
+    if con_principal
+        principal = pr_principal(p)
+        dos_requesters(false)
+        hay = file_exists(principal)
+        dos_requesters(true)
+        if hay
+            abrir(principal)
+        end
+    end
+    if abierta
+        redibujar()
+    end
+    return true
+end
+
+# El panel enseña un cajón con un .forja de otro proyecto (o no había): ese pasa a ser el proyecto
+func proyecto_al_dia()
+    if proyecto_forja != "" and (proy == nil or str_lower(proy.cajon) != str_lower(proyecto_cajon))
+        proyecto_abrir(proyecto_forja, false)
+    end
+end
+
+func tipo_texto(t: String) -> String
+    tipos = str_split(PR_TIPOS, "|")
+    nombres = str_split(tr(933, "Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL|Otro"), "|")
+    i = 0
+    while i < tipos.length and i < nombres.length
+        if tipos[i] == t
+            return nombres[i]
+        end
+        i = i + 1
+    end
+    return t
+end
+
+func _indice_en(lista: String, t: String) -> Int
+    i = 0
+    for e in str_split(lista, "|")
+        if e == t
+            return i
+        end
+        i = i + 1
+    end
+    return 0
+end
+
+# Los puntos de parada siguen a su texto al escribir: el editor mueve los del documento (ed_puntos_movidos) y aquí
+# se mueven los del proyecto, con su condición y su contador. Al .forja van al guardar el fichero (puntos_por_guardar).
+# Depurando, el depurador sigue con los de antes: el programa en marcha es el texto de antes.
+var puntos_por_guardar: Bool = false
+func puntos_seguir()
+    movidos = false
+    for d in documentos
+        if d.puntos_antes != nil and ed_puntos_movidos(d)
+            if d.ruta != "" and _puntos_mover(d.ruta)
+                movidos = true
+            end
+        end
+    end
+    if movidos
+        puntos_por_guardar = true
+        puntos_raros_al_dia()
+    end
+end
+
+# Cerrar sin guardar: sus puntos vuelven a donde estaban en el fichero del disco (y así al .forja)
+func puntos_descartar(d: Documento)
+    puntos_seguir()
+    if d.ruta == ""
+        return
+    end
+    pr_puntos_descartar(d.ruta)
+    d.puntos = pr_lineas_de(d.ruta)
+    d.puntos_antes = nil
+    puntos_raros_al_dia()
+    if proyecto_de(d.ruta) != nil
+        proyecto_guardar()
+    end
+end
+
+func _puntos_mover(ruta: String) -> Bool
+    cambio = false
+    i = 0
+    while i < pr_puntos.length
+        q = pr_puntos[i]
+        if str_lower(q.fichero) == str_lower(ruta)
+            k = 0
+            while k < ed_movidos_antes.length and ed_movidos_antes[k] != q.linea
+                k = k + 1
+            end
+            if k == ed_movidos_antes.length
+                # su línea se borró y ya había otro punto donde iba a parar
+                pr_puntos.remove(i)
+                cambio = true
+                continue
+            end
+            if q.linea != ed_movidos_ahora[k]
+                q.linea = ed_movidos_ahora[k]
+                cambio = true
+            end
+        end
+        i = i + 1
+    end
+    return cambio
+end
+
+# Los puntos de parada de los ficheros abiertos, los del proyecto (al abrirlo)
+func proyecto_puntos_al_dia()
+    puntos_seguir()
+    for d in documentos
+        if d.ruta != "" and proy != nil and pr_dentro(proy, d.ruta)
+            d.puntos = pr_lineas_de(d.ruta)
+        end
+    end
+    puntos_raros_al_dia()
+end
+
+func puntos_raros_al_dia()
+    var r: [String] = []
+    for q in pr_puntos
+        if q.condicion != "" or q.contador != ""
+            r.push(str_lower(q.fichero) + ":#{q.linea}")
+        end
+    end
+    ed_puntos_raros = r
+end
+
+# Lo de los puntos y lo vigilado, al .forja (si el proyecto lo tiene)
+func proyecto_guardar()
+    if proy != nil and not pr_escribir(proy)
+        avisar(tr(2, "No se puede escribir ") + proy.ruta, 1)
+    end
+end
+
+# El proyecto de lo que se compila: el de Forja si el fichero es suyo
+func proyecto_de(ruta: String) -> Proyecto
+    if proy != nil and ruta != "" and pr_dentro(proy, ruta)
+        return proy
+    end
+    return nil
+end
+
+# --- Nuevo proyecto (las plantillas) ---
+
+func nuevo_proyecto_abrir()
+    cajon = env_get("Forja/proyectos")
+    if cajon == ""
+        if proy != nil
+            cajon = cajon_de(proy.cajon)
+        elif proyecto_cajon != ""
+            cajon = proyecto_cajon
+        else
+            cajon = "RAM:"
+        end
+    end
+    mui_set_text(vn.nombre, "")
+    mui_set_text(vn.cajon, cajon)
+    nuevo_proyecto_descripcion()
+    if not mui_window_open(vn.window)
+        avisar(hueco(tr(1005, "No se puede abrir la ventana %1."), tr(920, "Nuevo proyecto (Forja)")), 1)
+    end
+    mui_set_active(vn.window, vn.nombre)
+end
+
+func nuevo_proyecto_descripcion()
+    var textos: [String] = [tr(960, "Lee sus argumentos y acaba con un código."), tr(961, "En Exchange, con una tecla rápida."), tr(962, "Una ventana del editor de ventanas, con menú."), tr(963, "Su pantalla, un sprite y un nivel."), tr(964, "Su pantalla, cada imagen y un bloque asm."), tr(965, "Un cubo con MiniGL: pide FPU y MiniGL.")]
+    k = mui_get_value(vn.tipo)
+    if k >= 0 and k < textos.length
+        mui_set_text(vn.descripcion, textos[k])
+    end
+end
+
+func _nombre_valido(n: String) -> Bool
+    return n.length <= 24 and regex_match("[A-Za-z][A-Za-z0-9_-]*", n, false)
+end
+
+# Crea el proyecto: el cajón, los ficheros de la plantilla (con su nombre), el .forja y su icono. La ruta del .forja,
+# o "" (y por qué en pr_error)
+func crear_proyecto(tipo: String, cajon: String, nombre: String) -> String
+    pr_error = ""
+    if pl_ficheros(tipo) == ""
+        pr_error = tr(966, "no hay esa plantilla")
+        return ""
+    end
+    if not _nombre_valido(nombre)
+        pr_error = tr(967, "el nombre lleva letras, cifras, - y _, empieza por una letra y tiene 24 como mucho")
+        return ""
+    end
+    dir = ruta_unir(cajon, nombre)
+    dos_requesters(false)
+    existe = file_exists(dir)
+    creado = not existe and dir_create(dir)
+    dos_requesters(true)
+    if existe
+        pr_error = hueco(tr(968, "ya existe %1"), dir)
+        return ""
+    end
+    if not creado
+        pr_error = hueco(tr(969, "no se puede crear el cajón %1"), dir)
+        return ""
+    end
+    for f in str_split(pl_ficheros(tipo), "|")
+        if not file_write_text(ruta_unir(dir, f), str_replace(pl_texto(tipo, f), "%NOMBRE%", nombre))
+            pr_error = tr(2, "No se puede escribir ") + f
+            return ""
+        end
+    end
+    p = pr_nuevo(ruta_unir(dir, nombre + ".forja"))
+    p.tipo = tipo
+    p.version = "0.1"
+    if tipo == "mui"
+        p.cpu = "68020"
+    elif tipo == "3d"
+        p.cpu = "68020"
+        p.fpu = true
+    end
+    # (sus puntos de parada, ninguno: no los de otro proyecto de ese cajón)
+    if not pr_escribir(p)
+        pr_error = tr(2, "No se puede escribir ") + p.ruta
+        return ""
+    end
+    escribir_icono_proyecto(p.ruta)
+    return p.ruta
+end
+
+# El icono del .forja: uno de proyecto con Forja como herramienta (un doble clic lo abre en Forja)
+func escribir_icono_proyecto(forja: String) -> Bool
+    hex = pl_icono_hex()
+    herramienta = file_real_path("PROGDIR:Forja")
+    if herramienta == ""
+        herramienta = "Forja"
+    end
+    fh = file_open(forja + ".info", 1006)
+    if fh == 0
+        return false
+    end
+    n = hex.length / 2
+    i = 0
+    while i < n
+        b = str_to_int(hex[i * 2:i * 2 + 2], 16)
+        if i == 53
+            b = 1       # do_DefaultTool (offset 50, un long): hay herramienta
+        end
+        file_write_byte(fh, b)
+        i = i + 1
+    end
+    largo = herramienta.length + 1
+    for b in [(largo >> 24) & 255, (largo >> 16) & 255, (largo >> 8) & 255, largo & 255]
+        file_write_byte(fh, b)
+    end
+    k = 0
+    while k < herramienta.length
+        file_write_byte(fh, str_code(herramienta, k))
+        k = k + 1
+    end
+    file_write_byte(fh, 0)
+    file_close(fh)
+    return true
+end
+
+func nuevo_proyecto_crear()
+    tipos = str_split(PR_TIPOS, "|")
+    k = mui_get_value(vn.tipo)
+    tipo = tipos[k]
+    nombre = str_trim(mui_get_text(vn.nombre))
+    cajon = str_trim(mui_get_text(vn.cajon))
+    ruta = crear_proyecto(tipo, cajon, nombre)
+    if ruta == ""
+        mui_request(vn.window, tr(920, "Nuevo proyecto (Forja)"), tr(970, "No se puede crear el proyecto: ") + pr_error, tr(971, "_Vale"))
+        return
+    end
+    mui_window_close(vn.window)
+    env_set("Forja/proyectos", cajon, true)
+    proyecto_abrir(ruta, true)
+    if tipo == "3d"
+        avisar(tr(972, "Este proyecto pide una FPU y minigl.library (MiniGL): compila con --fpu."), 1)
+    elif tipo == "mui"
+        avisar(tr(973, "La ventana está en ventana.dashui: ábrelo para cambiarla con el editor de ventanas."), 0)
+    end
+end
+
+# --- Propiedades del proyecto ---
+
+func propiedades_abrir()
+    if proy == nil
+        # sin .forja: se hace uno para el cajón del programa de ahora (con lo que Forja ya sabe)
+        d = ed_actual()
+        cajon = proyecto_cajon
+        principal = ""
+        if d != nil and d.ruta != ""
+            principal = programa_de(d)
+            cajon = cajon_de(principal)
+        end
+        if cajon == "" or str_ends(cajon, ":")
+            avisar(tr(974, "Para hacer un proyecto, abre antes un fichero de su cajón (o Nuevo proyecto...)."), 1)
+            return
+        end
+        r = mui_request(v.window, tr(930, "Propiedades del proyecto (Forja)"), hueco(tr(975, "Este cajón no tiene proyecto. ¿Hago %1?"), nombre_de(cajon) + ".forja"), tr(976, "_Hacerlo|_Cancelar"))
+        if r != 1
+            return
+        end
+        p = pr_nuevo(ruta_unir(cajon, nombre_de(cajon) + ".forja"))
+        if principal != ""
+            p.principal = pr_relativa(p, principal)
+        end
+        if not pr_escribir(p)
+            avisar(tr(2, "No se puede escribir ") + p.ruta, 1)
+            return
+        end
+        escribir_icono_proyecto(p.ruta)
+        proyecto_abrir(p.ruta, false)
+        proyecto_leer(proyecto_cajon)
+        mui_canvas_redraw(v.proyecto)
+    end
+    p = proy
+    mui_set_text(vq.nombre, p.nombre)
+    mui_set_value(vq.tipo, _indice_en(PR_TIPOS, p.tipo))
+    mui_set_text(vq.principal, p.principal)
+    mui_set_text(vq.ejecutable, p.ejecutable)
+    mui_set_text(vq.version, p.version)
+    mui_set_text(vq.icono, p.icono)
+    mui_set_value(vq.cpu, _indice_en(PR_CPUS, p.cpu))
+    mui_set_value(vq.fpu, p.fpu)
+    mui_set_text(vq.pila, "#{p.pila}")
+    mui_set_value(vq.memcheck, p.memcheck)
+    mui_set_value(vq.perfil, p.perfil)
+    mui_set_value(vq.gcc, p.gcc)
+    mui_set_text(vq.opciones, p.opciones)
+    mui_set_text(vq.argumentos, p.argumentos)
+    mui_set_text(vq.argumentos_depurar, p.argumentos_depurar)
+    if not mui_window_open(vq.window)
+        avisar(hueco(tr(1005, "No se puede abrir la ventana %1."), tr(930, "Propiedades del proyecto (Forja)")), 1)
+    end
+end
+
+func propiedades_guardar()
+    p = proy
+    if p == nil
+        mui_window_close(vq.window)
+        return
+    end
+    version_antes = p.version
+    nombre_antes = p.nombre
+    p.nombre = str_trim(mui_get_text(vq.nombre))
+    p.tipo = str_split(PR_TIPOS, "|")[mui_get_value(vq.tipo)]
+    p.principal = str_trim(mui_get_text(vq.principal))
+    p.ejecutable = str_trim(mui_get_text(vq.ejecutable))
+    p.version = str_trim(mui_get_text(vq.version))
+    p.icono = str_trim(mui_get_text(vq.icono))
+    p.cpu = str_split(PR_CPUS, "|")[mui_get_value(vq.cpu)]
+    p.fpu = mui_get_value(vq.fpu) != 0
+    p.pila = Int(str_trim(mui_get_text(vq.pila)))
+    p.memcheck = mui_get_value(vq.memcheck) != 0
+    p.perfil = mui_get_value(vq.perfil) != 0
+    p.gcc = mui_get_value(vq.gcc) != 0
+    p.opciones = str_trim(mui_get_text(vq.opciones))
+    p.argumentos = str_trim(mui_get_text(vq.argumentos))
+    p.argumentos_depurar = str_trim(mui_get_text(vq.argumentos_depurar))
+    mui_window_close(vq.window)
+    if not pr_escribir(p)
+        avisar(tr(2, "No se puede escribir ") + p.ruta, 1)
+        return
+    end
+    avisar(tr(3, "Guardado: ") + p.ruta, 2)
+    if p.version != version_antes or p.nombre != nombre_antes
+        poner_version(p)
+    end
+end
+
+# La línea @version del programa, con el nombre y la versión del proyecto (en el editor si está abierto, con
+# deshacer; si no, en el disco)
+func poner_version(p: Proyecto)
+    nueva = pr_linea_version(p)
+    principal = pr_principal(p)
+    if nueva == "" or not file_exists(principal)
+        return
+    end
+    k = ed_buscar_ruta(principal)
+    if k >= 0
+        d = documentos[k]
+        i = 0
+        while i < d.lineas.length
+            if str_starts(d.lineas[i], "@version ")
+                if d.lineas[i] != nueva
+                    ed_cambiar_lineas(d, i + 1, i + 1, nueva)
+                    redibujar()
+                end
+                return
+            end
+            i = i + 1
+        end
+        return
+    end
+    t = file_read_text(principal)
+    if t == nil
+        return
+    end
+    ls = str_split(t, "\n")
+    i = 0
+    while i < ls.length
+        if str_starts(ls[i], "@version ")
+            ls[i] = nueva
+            file_write_text(principal, str_join(ls, "\n"))
+            return
+        end
+        i = i + 1
+    end
+end
+
+# --- El depurador: condiciones, contador, vigilar, valor bajo el ratón, hasta aquí, registros y memoria (4.1) ---
+
+var hasta_ruta: String = ""        # Ejecutar hasta aquí: un punto de un momento (se quita al parar)
+var hasta_linea: Int = 0
+var hasta_puesto: Bool = false     # se puso con dbg_break (no había uno de verdad ahí)
+var orden_seguir: Bool = false     # la última orden fue seguir (o empezar): una parada en un punto mira su condición
+
+# Pregunta en la lista rápida (como renombrar): la condición, el contador, lo vigilado, la memoria
+func preguntar(que: Int, titulo: String, inicial: String, ayuda: String)
+    pregunta = que
+    lr_abrir(LR_PREGUNTA, titulo)
+    lr_filtro = inicial
+    lr_ayuda = ayuda
+    redibujar()
+end
+
+# El punto de parada de la línea del cursor (lo pone si no hay); nil si el fichero no tiene ruta
+func punto_del_cursor() -> PuntoProy
+    d = ed_actual()
+    if d == nil or not es_codigo(d) or d.ruta == ""
+        avisar(tr(977, "Los puntos con condición van en un fichero guardado."), 1)
+        return nil
+    end
+    n = d.cl + 1
+    q = pr_punto(d.ruta, n)
+    if q == nil
+        alternar_punto(d, n)
+        q = pr_punto(d.ruta, n)
+    end
+    return q
+end
+
+func condicion_preguntar()
+    q = punto_del_cursor()
+    if q == nil
+        return
+    end
+    pregunta_ruta = q.fichero
+    pregunta_linea = q.linea
+    preguntar(PG_CONDICION, hueco(tr(978, "Condición del punto de la línea %1"), "#{q.linea}"), q.condicion, tr(979, "Para solo si se cumple: i > 3 and nombre == \"x\". Vacía: siempre."))
+end
+
+func contador_preguntar()
+    q = punto_del_cursor()
+    if q == nil
+        return
+    end
+    pregunta_ruta = q.fichero
+    pregunta_linea = q.linea
+    preguntar(PG_CONTADOR, hueco(tr(980, "Contador del punto de la línea %1"), "#{q.linea}"), q.contador, tr(981, "Para desde la vez n: 3; o = 3, > 3, % 2 (cada dos). Vacío: siempre."))
+end
+
+func vigilar_preguntar()
+    inicial = ""
+    d = ed_actual()
+    if d != nil and es_codigo(d)
+        if ed_hay_seleccion(d)
+            inicial = str_trim(ed_seleccion(d))
+        else
+            inicial = palabra_del_cursor(d)
+        end
+    end
+    preguntar(PG_VIGILAR, tr(982, "Vigilar"), inicial, tr(983, "Una expresión de Dash (naves.length, p.x + 1). Si ya se vigila, se quita."))
+end
+
+func memoria_preguntar()
+    inicial = dep_memoria
+    if inicial == ""
+        inicial = "a7"
+    end
+    preguntar(PG_MEMORIA, tr(984, "Ver la memoria en"), inicial, tr(985, "Una dirección o una expresión: $C01000, a0, buffer + 16. Vacío: no se ve."))
+end
+
+# Return en la pregunta (la lista rápida)
+func responder(t: String)
+    if pregunta == PG_CONDICION or pregunta == PG_CONTADOR
+        q = pr_punto(pregunta_ruta, pregunta_linea)
+        if q == nil
+            return
+        end
+        if pregunta == PG_CONDICION
+            malo = ex_comprobar(t)
+            if malo != ""
+                avisar(hueco2(tr(986, "La condición no vale (%1): %2"), t, malo), 1)
+                return
+            end
+            q.condicion = t
+        else
+            if not ex_contador_valido(t)
+                avisar(hueco(tr(987, "El contador no vale: %1 (3, = 3, > 3, % 2)"), t), 1)
+                return
+            end
+            q.contador = t
+        end
+        puntos_raros_al_dia()
+        proyecto_guardar()
+        texto = pr_punto_texto(q)
+        if texto == ""
+            avisar(hueco(tr(988, "El punto de la línea %1 para siempre."), "#{q.linea}"), 0)
+        else
+            avisar(hueco2(tr(989, "El punto de la línea %1 para si: %2"), "#{q.linea}", texto), 0)
+        end
+        redibujar()
+    elif pregunta == PG_VIGILAR
+        if t == ""
+            return
+        end
+        malo = ex_comprobar(t)
+        if malo != ""
+            avisar(hueco2(tr(990, "No se puede vigilar %1: %2"), t, malo), 1)
+            return
+        end
+        i = 0
+        quitada = false
+        while i < dep_vigilar.length
+            if dep_vigilar[i] == t
+                dep_vigilar.remove(i)
+                quitada = true
+            else
+                i = i + 1
+            end
+        end
+        if not quitada
+            dep_vigilar.push(t)
+        end
+        proyecto_guardar()
+        panel_depuracion_al_dia()
+    elif pregunta == PG_MEMORIA
+        dep_memoria = t
+        panel_depuracion_al_dia()
+    end
+end
+
+# Lo vigilado, los registros o la memoria cambiaron: el panel otra vez (si está parado)
+func panel_depuracion_al_dia()
+    if tarea == DEPURANDO and dbg_state() == 3
+        dep_construir()
+        mui_canvas_redraw(v.proyecto)
+        publicar_depuracion()
+    elif dep_vigilar.length > 0 or dep_registros or dep_memoria != ""
+        avisar(tr(991, "Se verá al parar el programa en el depurador."), 0)
+    end
+end
+
+func registros_ver()
+    dep_registros = not dep_registros
+    panel_depuracion_al_dia()
+end
+
+func quitar_puntos()
+    for d in documentos
+        if tarea == DEPURANDO
+            for n in d.puntos
+                dbg_unbreak(d.nombre, n)
+            end
+        end
+        d.puntos.clear()
+        d.puntos_antes = nil
+    end
+    if tarea == DEPURANDO
+        for q in pr_puntos
+            dbg_unbreak(nombre_de(q.fichero), q.linea)
+        end
+    end
+    pr_puntos.clear()
+    puntos_raros_al_dia()
+    proyecto_guardar()
+    redibujar()
+end
+
+# Ejecutar hasta aquí (Ctrl F10): depurando, sigue hasta la línea del cursor; si no, empieza a depurar y para ahí
+func hasta_aqui()
+    d = ed_actual()
+    if d == nil or not es_codigo(d)
+        return
+    end
+    n = d.cl + 1
+    if tarea == DEPURANDO and (dbg_state() == 3 or dbg_state() == 1)
+        hasta_ruta = d.ruta
+        hasta_linea = n
+        hasta_puesto = false
+        if not _con_punto(d, n)
+            if not dbg_break(d.nombre, n)
+                avisar(hueco(tr(70, "La línea %1 no tiene código: el punto no para ahí."), "#{n}"), 1)
+                hasta_ruta = ""
+                return
+            end
+            hasta_puesto = true
+        end
+        orden_depurador(EV_SEGUIR)
+    elif tarea == NADA
+        hasta_ruta = d.ruta
+        if d.ruta == ""
+            hasta_ruta = d.nombre
+        end
+        hasta_linea = n
+        hasta_puesto = false
+        depurar()
+        if tarea != COMPILANDO
+            hasta_ruta = ""
+        end
+    end
+end
+
+func _con_punto(d: Documento, n: Int) -> Bool
+    for p in d.puntos
+        if p == n
+            return true
+        end
+    end
+    return false
+end
+
+# Al parar: el punto de hasta aquí se quita
+func hasta_quitar()
+    if hasta_ruta != ""
+        if hasta_puesto
+            dbg_unbreak(nombre_de(hasta_ruta), hasta_linea)
+        end
+        hasta_ruta = ""
+        hasta_puesto = false
+    end
+end
+
+# Paró en un punto (tras seguir): ¿lo deja seguir por su condición o su contador? true si sigue (ya se ha mandado)
+func punto_sigue(ruta: String, n: Int) -> Bool
+    if not orden_seguir
+        return false
+    end
+    if hasta_ruta != "" and hasta_linea == n and str_lower(nombre_de(hasta_ruta)) == str_lower(nombre_de(ruta))
+        return false
+    end
+    q = pr_punto(ruta, n)
+    if q == nil
+        # (dbg_file puede dar la ruta por otro camino: por el nombre)
+        for o in pr_puntos
+            if o.linea == n and str_lower(nombre_de(o.fichero)) == str_lower(nombre_de(ruta))
+                q = o
+            end
+        end
+    end
+    if q == nil or (q.condicion == "" and q.contador == "")
+        return false
+    end
+    if q.condicion != ""
+        ex_marco = 0
+        c = ex_evaluar(q.condicion)
+        if ex_error != ""
+            avisar(hueco2(tr(992, "La condición del punto de la línea %1 no se puede ver: %2"), "#{n}", ex_error), 1)
+            return false
+        end
+        if not ex_cierto(c)
+            dbg_continue()
+            return true
+        end
+    end
+    q.veces = q.veces + 1
+    if not ex_contador(q.contador, q.veces)
+        dbg_continue()
+        return true
+    end
+    return false
+end
+
+# --- El valor bajo el ratón (al depurar, parado) ---
+
+var valor_visto: String = ""
+
+func valor_quitar()
+    if ed_valor_texto != ""
+        ed_valor_texto = ""
+        ed_valor_l = -1
+        valor_visto = ""
+        redibujar()
+    end
+end
+
+func _letra_nombre(c: Int) -> Bool
+    return (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or (c >= 48 and c <= 57) or c == 95
+end
+
+# Lo que vale la expresión bajo el puntero: la palabra y lo que la lleva delante (p.hijos[i].x)
+func valor_bajo_raton()
+    if tarea != DEPURANDO or dbg_state() != 3 or lr_visible
+        valor_quitar()
+        return
+    end
+    d = ed_actual()
+    x = mui_canvas_pointer_x(v.editor)
+    y = mui_canvas_pointer_y(v.editor)
+    if d == nil or not es_codigo(d) or not mui_canvas_pointer_inside(v.editor) or y < ALTO_PESTANAS + 2 or x < ed_margen
+        valor_quitar()
+        return
+    end
+    ed_punto_en(d, x, y)
+    l = ed_punto_l
+    s = d.lineas[l]
+    c = d.izquierda + (x - ed_margen - 2) / ancho_letra
+    if c < 0 or c >= s.length or not _letra_nombre(str_code(s, c))
+        valor_quitar()
+        return
+    end
+    # fuera de un texto y de un comentario
+    comillas = false
+    k = 0
+    while k < c
+        if str_code(s, k) == 34
+            comillas = not comillas
+        elif str_code(s, k) == 35 and not comillas
+            valor_quitar()
+            return
+        end
+        k = k + 1
+    end
+    if comillas
+        valor_quitar()
+        return
+    end
+    a = c
+    while a > 0 and _letra_nombre(str_code(s, a - 1))
+        a = a - 1
+    end
+    b = c
+    while b < s.length and _letra_nombre(str_code(s, b))
+        b = b + 1
+    end
+    palabra = s[a:b]
+    if _ex_numero(palabra) or es_palabra_dash(palabra) or (b < s.length and str_code(s, b) == 40)
+        valor_quitar()
+        return
+    end
+    # lo de delante: .campo y [índice]
+    while a > 1 and str_code(s, a - 1) == 46
+        e = a - 2
+        if str_code(s, e) == 93
+            nivel = 0
+            while e >= 0
+                if str_code(s, e) == 93
+                    nivel = nivel + 1
+                elif str_code(s, e) == 91
+                    nivel = nivel - 1
+                    if nivel == 0
+                        break
+                    end
+                end
+                e = e - 1
+            end
+            e = e - 1
+        end
+        if e < 0 or not _letra_nombre(str_code(s, e))
+            break
+        end
+        while e > 0 and _letra_nombre(str_code(s, e - 1))
+            e = e - 1
+        end
+        a = e
+    end
+    expr = s[a:b]
+    if expr == valor_visto
+        return
+    end
+    ex_marco = 0
+    val = ex_evaluar(expr)
+    if ex_error != ""
+        valor_quitar()
+        return
+    end
+    valor_visto = expr
+    ed_valor_texto = expr + " = " + ex_texto(val)
+    ed_valor_l = l
+    ed_valor_c = a
+    redibujar()
+    if sonda
+        env_set("FORJA_VALOR", ed_valor_texto, false)
+    end
+end
+
+func _ex_numero(t: String) -> Bool
+    return t != "" and str_code(t, 0) >= 48 and str_code(t, 0) <= 57
+end
+
+func es_palabra_dash(t: String) -> Bool
+    return str_contains(" if elif else end while for in func return and or not true false nil var const struct import Main break continue step enum asm ", " " + t + " ")
+end
+
+# --- Ejecutar con perfil y con memcheck (4.2) ---
+
+var perfil_pedido: Bool = false     # lo que se compila ahora lleva --profile (Ejecutar con perfil)
+var memcheck_pedido: Bool = false
+var tarea_perfil: Bool = false      # lo que corre ahora se compiló con --profile (o lo pide su proyecto)
+var tarea_memcheck: Bool = false
+var tarea_proy: Proyecto = nil      # el proyecto de lo que se compila y se ejecuta
+
+struct FilaPerfil
+    propio: Int         # en décimas de tanto por ciento
+    total: Int
+    llamadas: Int
+    nombre: String
+end
+
+var perfil_filas: [FilaPerfil] = []
+var perfil_muestras: Int = 0
+var perfil_orden: Int = 0           # 0 propio, 1 total, 2 llamadas, 3 nombre
+var perfil_programa: String = ""    # el .dash del programa (para ir a sus funciones)
+
+func ejecutar_con(perfil: Bool, memcheck: Bool)
+    if tarea != NADA
+        return
+    end
+    perfil_pedido = perfil
+    memcheck_pedido = memcheck
+    compilar(true)
+    if tarea != COMPILANDO
+        perfil_pedido = false
+        memcheck_pedido = false
+    end
+end
+
+# "12.5%" -> 125
+func _decimas(t: String) -> Int
+    t = str_replace(t, "%", "")
+    p = str_find(t, ".")
+    if p < 0
+        return Int(t) * 10
+    end
+    return Int(t[0:p]) * 10 + Int(t[p + 1:p + 2])
+end
+
+# Una línea "perfil: ..." del programa: true si lo era (y la apunta)
+func perfil_linea(l: String) -> Bool
+    if str_starts(l, "perfil-pc:")
+        return true
+    end
+    if not str_starts(l, "perfil:")
+        return false
+    end
+    var trozos: [String] = []
+    for t in str_split(str_trim(l[7:]), " ")
+        if t != ""
+            trozos.push(t)
+        end
+    end
+    if trozos.length >= 2 and trozos[1] == "muestras"
+        perfil_muestras = Int(trozos[0])
+    elif trozos.length >= 4 and str_ends(trozos[0], "%")
+        perfil_filas.push(FilaPerfil(_decimas(trozos[0]), _decimas(trozos[1]), Int(trozos[2]), trozos[3]))
+    end
+    return true
+end
+
+func _por_ciento(d: Int) -> String
+    t = "#{d / 10}.#{d % 10}%"
+    while t.length < 7
+        t = " " + t
+    end
+    return t
+end
+
+func _a_la_derecha(t: String, n: Int) -> String
+    while t.length < n
+        t = " " + t
+    end
+    return t
+end
+
+func _perfil_antes(a: FilaPerfil, b: FilaPerfil) -> Int
+    if perfil_orden == 1
+        return b.total - a.total
+    elif perfil_orden == 2
+        return b.llamadas - a.llamadas
+    elif perfil_orden == 3
+        return str_compare_locale(a.nombre, b.nombre, true)
+    end
+    if a.propio != b.propio
+        return b.propio - a.propio
+    end
+    return b.total - a.total
+end
+
+# La pestaña Perfil: una fila por función, ordenada por la columna elegida (un clic en su título)
+func perfil_ver()
+    perfil_filas.sort(_perfil_antes)
+    var ls: [String] = []
+    ls.push(hueco2(tr(993, "Perfil de %1: %2 muestras (50 por segundo). Un clic en un título ordena; en una función, va a ella."), nombre_de(perfil_programa), "#{perfil_muestras}"))
+    var titulos: [String] = [tr(994, "Propio"), tr(995, "Total"), tr(996, "Llamadas"), tr(997, "Función")]
+    k = 0
+    while k < 4
+        if k == perfil_orden
+            titulos[k] = titulos[k] + "*"
+        end
+        k = k + 1
+    end
+    ls.push(_a_la_derecha(titulos[0], 8) + _a_la_derecha(titulos[1], 9) + _a_la_derecha(titulos[2], 11) + "  " + titulos[3])
+    colores = "#@"
+    for f in perfil_filas
+        ls.push(" " + _por_ciento(f.propio) + "  " + _por_ciento(f.total) + _a_la_derecha("#{f.llamadas}", 11) + "  " + f.nombre)
+        colores = colores + " "
+    end
+    if perfil_filas.length == 0
+        ls.push(tr(998, "(Sin funciones: el programa acabó antes de la primera muestra, o no se compiló con --profile.)"))
+        colores = colores + "#"
+    end
+    ed_abrir_vista("*perfil", tr(999, "Perfil"), ls, colores)
+    d = ed_actual()
+    if d != nil and perfil_filas.length > 0
+        d.cl = 2
+    end
+    redibujar()
+    if sonda
+        t = ""
+        for f in perfil_filas
+            t = t + f.nombre + ":#{f.llamadas} "
+        end
+        env_set("FORJA_PERFIL", "#{perfil_orden} " + t, false)
+    end
+end
+
+# Un clic o Return en la pestaña Perfil: en la línea de los títulos, ordena por esa columna; en una fila, a su función
+func perfil_elegir(d: Documento)
+    if d.cl == 1
+        c = d.cc
+        nuevo = 3
+        if c < 9
+            nuevo = 0
+        elif c < 18
+            nuevo = 1
+        elif c < 30
+            nuevo = 2
+        end
+        perfil_orden = nuevo
+        perfil_ver()
+        return
+    end
+    i = d.cl - 2
+    if i < 0 or i >= perfil_filas.length
+        return
+    end
+    ir_a_funcion(perfil_filas[i].nombre)
+end
+
+# A donde se define una función del programa ("Main", "mover", "Nave.mover"): en los ficheros de su cajón
+func ir_a_funcion(nombre: String)
+    cajon = cajon_de(perfil_programa)
+    if cajon == ""
+        cajon = cajon_proyecto()
+    end
+    dueno = ""
+    n = nombre
+    p = str_find(nombre, ".")
+    if p > 0
+        dueno = nombre[0:p]
+        n = nombre[p + 1:]
+    end
+    dos_requesters(false)
+    rutas = bp_ficheros_de(cajon)
+    dos_requesters(true)
+    if nombre == "Main" and perfil_programa != ""
+        ruta = perfil_programa
+        k = ed_buscar_ruta(ruta)
+        var ls: [String] = []
+        if k >= 0
+            ls = documentos[k].lineas
+        else
+            t = file_read_text(ruta)
+            if t != nil
+                ls = str_split(t, "\n")
+            end
+        end
+        i = 0
+        while i < ls.length
+            if str_starts(ls[i], "Main")
+                ir_a_sitio(ruta, i + 1, 1)
+                return
+            end
+            i = i + 1
+        end
+    end
+    dos_requesters(false)
+    for r in rutas
+        k = ed_buscar_ruta(r)
+        var sims: [Simbolo] = []
+        if k >= 0
+            sims = cx_simbolos_de(r, documentos[k].lineas, documentos[k].version)
+        else
+            sims = cx_simbolos_de(r, nil, 0)
+        end
+        for s in sims
+            if s.nombre == n and (s.clase == CX_FUNC or s.clase == CX_METODO) and (dueno == "" or s.dueno == dueno)
+                dos_requesters(true)
+                ir_a_sitio(r, s.linea, s.col)
+                return
+            end
+        end
+    end
+    dos_requesters(true)
+    avisar(hueco(tr(1000, "No encuentro la función %1 en el proyecto."), nombre), 1)
+end
+
+# Una línea "memcheck: ..." del programa: a la salida, con su sitio si lo dice ("(en main.dash:12)"); true si lo era
+func memcheck_linea(l: String, cajon: String) -> Bool
+    if not str_starts(l, "memcheck:")
+        return false
+    end
+    tipo = 0
+    if str_contains(l, "ERROR")
+        tipo = 1
+    elif str_contains(l, "vivos 0 objetos y 0 strings") and str_contains(l, "errores 0")
+        tipo = 2
+    elif str_contains(l, "vivos")
+        tipo = 1
+    end
+    p = str_find(l, "(en ")
+    if p > 0 and str_ends(l, ")")
+        sitio = l[p + 4:l.length - 1]
+        q = sitio.length - 1
+        while q > 0 and str_code(sitio, q) != 58
+            q = q - 1
+        end
+        if q > 0 and regex_match("[0-9]+", sitio[q + 1:], false)
+            ruta = sitio[0:q]
+            if not str_contains(ruta, ":")
+                ruta = ruta_unir(cajon, ruta)
+            end
+            if memcheck_primero < 0
+                memcheck_primero = salida_lineas.length
+            end
+            salida_anadir_sitio(l, ruta, Int(sitio[q + 1:]), 1)
+            memcheck_avisos = memcheck_avisos + 1
+            return true
+        end
+    end
+    salida_anadir(l, tipo)
+    # (el resumen cuenta si queda algo vivo; los errores ya se contaron)
+    if tipo == 1 and not (str_contains(l, "vivos") and str_contains(l, "vivos 0 objetos y 0 strings"))
+        memcheck_avisos = memcheck_avisos + 1
+    end
+    return true
+end
+
+var memcheck_avisos: Int = 0
+var memcheck_primero: Int = -1     # la línea de la salida del primer aviso con sitio (se pone a la vista al acabar)
+
+# Lo que escribió el programa al acabar: las líneas del perfil y de memcheck aparte; lo demás, como siempre. Da la
+# primera línea de un error de ejecución en la salida (-1 si no hay), como salida_anadir_programa
+func salida_al_acabar(texto: String, cajon: String, exe: String) -> Int
+    if not tarea_perfil and not tarea_memcheck
+        return salida_anadir_programa(texto, cajon, exe)
+    end
+    error = -1
+    resto = ""
+    for l in str_split(texto, "\n")
+        especial = (tarea_perfil and perfil_linea(l))
+        if not especial and tarea_memcheck and str_starts(l, "memcheck:")
+            if resto != ""
+                e = salida_anadir_programa(str_trim(resto), cajon, exe)
+                if error < 0
+                    error = e
+                end
+                resto = ""
+            end
+            memcheck_linea(l, cajon)
+            especial = true
+        end
+        if not especial
+            resto = resto + l + "\n"
+        end
+    end
+    if str_trim(resto) != ""
+        e = salida_anadir_programa(str_trim(resto), cajon, exe)
+        if error < 0
+            error = e
+        end
+    end
+    return error
+end
+
+# Tras acabar el programa: la tabla del perfil y lo que dijo memcheck
+func tras_perfil_y_memcheck()
+    if tarea_perfil
+        perfil_ver()
+    end
+    if tarea_memcheck
+        if memcheck_avisos == 0
+            avisar(tr(1001, "memcheck: nada que decir."), 2)
+        elif memcheck_avisos == 1
+            avisar(tr(1004, "memcheck: un aviso (un clic en él lleva a su línea)."), 1)
+        else
+            avisar(hueco(tr(1002, "memcheck: %1 avisos (clic en uno para ir a su línea)."), "#{memcheck_avisos}"), 1)
+        end
+        # el primer aviso con sitio, a la vista (como un error), para hacer clic en él
+        if memcheck_primero >= 0
+            salida_mostrar(memcheck_primero)
+            mui_canvas_redraw(v.salida)
+        end
+    end
+    tarea_perfil = false
+    tarea_memcheck = false
+end
+
+# PROPIEDAD por ARexx: una propiedad del .forja como texto
+func propiedad(k: String) -> String
+    p = proy
+    if k == "nombre"
+        return p.nombre
+    elif k == "tipo"
+        return p.tipo
+    elif k == "principal"
+        return p.principal
+    elif k == "ejecutable"
+        return p.ejecutable
+    elif k == "cpu"
+        return p.cpu
+    elif k == "fpu"
+        return si_no(p.fpu)
+    elif k == "pila"
+        return "#{p.pila}"
+    elif k == "memcheck"
+        return si_no(p.memcheck)
+    elif k == "perfil"
+        return si_no(p.perfil)
+    elif k == "gcc"
+        return si_no(p.gcc)
+    elif k == "opciones"
+        return p.opciones
+    elif k == "argumentos"
+        return p.argumentos
+    elif k == "argumentos_depurar"
+        return p.argumentos_depurar
+    elif k == "version"
+        return p.version
+    elif k == "icono"
+        return p.icono
+    elif k == "ruta"
+        return p.ruta
+    elif k == "vigilar"
+        return str_join(p.vigilar, "|")
+    elif k == "puntos"
+        t = ""
+        for q in pr_puntos
+            if pr_dentro(p, q.fichero)
+                t = t + pr_relativa(p, q.fichero) + ":#{q.linea}"
+                if q.condicion != "" or q.contador != ""
+                    t = t + " [" + pr_punto_texto(q) + "]"
+                end
+                t = t + "|"
+            end
+        end
+        return t
+    end
+    return ""
+end
+
+func propiedad_poner(k: String, valor: String) -> Bool
+    p = proy
+    si = valor == "si" or valor == "1" or valor == "true"
+    if k == "nombre"
+        p.nombre = valor
+    elif k == "tipo"
+        p.tipo = valor
+    elif k == "principal"
+        p.principal = valor
+    elif k == "ejecutable"
+        p.ejecutable = valor
+    elif k == "cpu"
+        p.cpu = valor
+    elif k == "fpu"
+        p.fpu = si
+    elif k == "pila"
+        p.pila = Int(valor)
+    elif k == "memcheck"
+        p.memcheck = si
+    elif k == "perfil"
+        p.perfil = si
+    elif k == "gcc"
+        p.gcc = si
+    elif k == "opciones"
+        p.opciones = valor
+    elif k == "argumentos"
+        p.argumentos = valor
+    elif k == "argumentos_depurar"
+        p.argumentos_depurar = valor
+    elif k == "version"
+        p.version = valor
+    elif k == "icono"
+        p.icono = valor
+    else
+        return false
+    end
+    return true
+end
+
+# Los eventos del proyecto, el perfil y el depurador (pasos 3.1, 3.2, 4.1 y 4.2)
+func atender_proyecto(ev: Int)
+    if ev == EV_EDITOR_MOVER
+        valor_bajo_raton()
+    elif ev == EV_NUEVO_PROYECTO
+        nuevo_proyecto_abrir()
+    elif ev == EV_NP_TIPO
+        nuevo_proyecto_descripcion()
+    elif ev == EV_NP_CREAR
+        nuevo_proyecto_crear()
+    elif ev == EV_NP_CANCELAR
+        mui_window_close(vn.window)
+    elif ev == EV_NP_ELEGIR
+        if file_open_dialog(tr(924, "En el cajón:"), "#?")
+            mui_set_text(vn.cajon, file_get_path())
+        end
+    elif ev == EV_ABRIR_PROYECTO
+        if file_open_dialog(tr(901, "Abrir proyecto..."), "#?.forja")
+            proyecto_abrir(file_fullpath(), true)
+        end
+    elif ev == EV_PROPIEDADES
+        propiedades_abrir()
+    elif ev == EV_PP_GUARDAR
+        propiedades_guardar()
+    elif ev == EV_PP_CANCELAR
+        mui_window_close(vq.window)
+    elif ev == EV_PP_PRINCIPAL and proy != nil
+        if file_open_dialog(tr(934, "Fichero principal:"), "#?.dash")
+            mui_set_text(vq.principal, pr_relativa(proy, file_fullpath()))
+        end
+    elif ev == EV_PP_ICONO and proy != nil
+        if file_open_dialog(tr(937, "Icono del programa:"), "#?.info")
+            mui_set_text(vq.icono, pr_relativa(proy, file_fullpath()))
+        end
+    elif ev == EV_PERFIL
+        ejecutar_con(true, false)
+    elif ev == EV_MEMCHECK
+        ejecutar_con(false, true)
+    elif ev == EV_HASTA_AQUI
+        hasta_aqui()
+    elif ev == EV_CONDICION
+        condicion_preguntar()
+    elif ev == EV_CONTADOR
+        contador_preguntar()
+    elif ev == EV_VIGILAR
+        vigilar_preguntar()
+    elif ev == EV_REGISTROS
+        registros_ver()
+    elif ev == EV_MEMORIA
+        memoria_preguntar()
+    elif ev == EV_QUITAR_PUNTOS
+        quitar_puntos()
+    end
+end
+
 # Lo que pide un evento de la ventana (lo que no es salir ni del menú Proyecto). Va aparte de Main para que Main
 # no pase de 32 KB: dashc 2.4 estropea un salto corto que tiene que crecer (ver el informe de la rama autocompletar).
 func atender(ev: Int)
-    if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
+    if ev >= EV_NUEVO_PROYECTO and ev <= EV_EDITOR_MOVER
+        atender_proyecto(ev)
+    elif ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
         ext_menu(ev - EV_EXT_MENU)
     elif ev > EV_ED and ev < EV_ED + TC_TOTAL
         orden_editor(ev - EV_ED)
@@ -4389,13 +5875,16 @@ Main
         vp = PrefForja_create()
         vx = GestorExt_create()
         va = VentanaAyuda_create()
+        vn = NuevoProyecto_create()
+        vq = PropProyecto_create()
+        dep_vigilar = vigilar_sueltas
         ayf_ventana(va.window, va.lista, va.texto, va.barra, va.buscar, va.atras, va.adelante, va.probar)
         ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11]
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
             screen_make_default()
-            for w in [v.window, vb.window, vi.window, vp.window, vx.window, va.window]
+            for w in [v.window, vb.window, vi.window, vp.window, vx.window, va.window, vn.window, vq.window]
                 mui_window_screen(w, PANTALLA)
             end
         end
@@ -4410,6 +5899,8 @@ Main
         mui_canvas_buffered(v.editor, true)
         mui_canvas_on_input(v.editor, EV_EDITOR)
         mui_canvas_on_drag(v.editor, EV_ARRASTRE)
+        # el valor bajo el ratón, al depurar
+        mui_canvas_on_move(v.editor, EV_EDITOR_MOVER)
         mui_canvas_on_input(v.proyecto, EV_PROYECTO)
         # VUELTA a las extensiones: la ventana de Forja vuelve a ser la activa
         mui_on_activate(v.window, EV_ACTIVADA)
@@ -4450,6 +5941,7 @@ Main
         elif not sesion_abrir()
             proyecto_leer(cajon_de(ruta))     # sin fichero: la bienvenida, con el logo de Dash
         end
+        proyecto_al_dia()
         salida_anadir(tr(29, "Forja ") + VERSION + ".", 0)
         salida_anadir(tr(31, "Listo."), 2)
 
@@ -4493,6 +5985,10 @@ Main
             end
             if ev == 0
                 mirar_depuracion()
+            end
+            # el puntero sobre el editor solo importa parado en el depurador (el valor bajo el ratón): sin nada más
+            if ev == EV_EDITOR_MOVER and ed_valor_texto == "" and (tarea != DEPURANDO or dbg_state() != 3)
+                continue
             end
             seguir_antes()
             if ev == EV_EDITOR
@@ -4550,6 +6046,7 @@ Main
                 end
             end
             atender(ev)
+            proyecto_al_dia()
             seguir_despues()
             ext_tras_evento()
             ajustar_barra()

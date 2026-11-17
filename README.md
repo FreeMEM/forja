@@ -129,6 +129,58 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   la baja e instala en el cajón de Dash (`DASH:`): la orden dash, Forja, Inferencia, `lib/` y los ejemplos. Antes de
   cambiar nada lo comprueba todo; si algo llega mal, Dash se queda como estaba. Al empezar mira una vez al día y solo
   avisa en la salida (se apaga en las preferencias). Hace falta la red y AmiSSL. También por ARexx: `ACTUALIZAR`.
+### Proyectos
+
+Un proyecto es un cajón con un fichero `.forja` (JSON, como un `.dashui`): su nombre, su tipo, el fichero principal,
+el ejecutable, las opciones de compilar, los argumentos, la versión, el icono del programa, los puntos de parada y lo
+vigilado en el depurador. Sin `.forja`, Forja funciona como antes.
+
+- **Proyecto > Nuevo proyecto...**: el nombre, la plantilla y el cajón donde se hace (se recuerda). Hace el cajón con
+  los ficheros de la plantilla, el `.forja` y su icono, y lo abre. Las plantillas, cada una un programa que ya
+  compila y arranca:
+
+  | Plantilla | Qué trae |
+  |---|---|
+  | Orden del Shell | Argumentos, `LINEAS=si` como tipo de herramienta, códigos de salida 5 y 10 |
+  | Commodity | En Exchange (Mostrar, Ocultar, Quitar...) y una tecla rápida que abre una ventanita con la hora |
+  | Aplicación MUI | La ventana en `ventana.dashui` (se cambia con el editor de ventanas), con su menú |
+  | Juego | Su pantalla, un sprite de hardware que se mueve con el joystick o los cursores y un nivel con monedas |
+  | Demo | Su pantalla, el bucle de cada imagen y un bloque `asm ... end` que pinta barras de color línea a línea |
+  | 3D con MiniGL | Un cubo que gira con `gl_*`; pide una FPU (compila con `--fpu`) y `minigl.library` |
+
+- **Abrir un proyecto**: Proyecto > Abrir proyecto..., Abrir... con un `.forja`, un clic en él en el panel o un doble
+  clic en su icono del Workbench (su herramienta es Forja). Al entrar en el panel en un cajón con `.forja`, ese pasa a
+  ser el proyecto.
+- **Proyecto > Propiedades del proyecto...**: tres páginas. General: nombre, tipo, fichero principal, ejecutable,
+  versión (cambiarla pone al día la línea `@version` del programa) e icono del programa (se copia junto al ejecutable
+  al compilar). Compilar: CPU (`--cpu`), FPU (`--fpu`), pila (`--stack`), `--memcheck`, `--profile`, `--gcc` (la orden
+  `dash` del Amiga no compila por C: solo sirve con un dash que lo haga) y más opciones. Ejecutar: los argumentos al
+  ejecutar y al depurar. Sin `.forja`, pregunta si hace uno para el cajón del programa.
+- Con proyecto, Compilar y Ejecutar van siempre con su fichero principal, su ejecutable y sus opciones, esté delante
+  el fichero que esté.
+
+### Depurar más
+
+- **Condición y contador** (menú Depurar): la condición del punto de parada de la línea del cursor (`i > 3 and
+  nombre == "x"`, una expresión de Dash) y su contador (`3`: desde la tercera vez; `= 3`, `> 3`, `% 2`: cada dos). Un
+  punto con algo de eso se dibuja hueco. Se escriben en la pregunta que sale encima del editor (Return acepta, Esc no).
+- **Vigilar una expresión**: arriba del panel, en VIGILAR, con su valor en cada parada (una variable con `.campo` y
+  `[n]` se despliega como las demás). Otra vez la misma, se quita.
+- **El valor bajo el ratón**: parado, con el puntero sobre un nombre del código sale su valor (con lo de delante:
+  `naves[i].x`).
+- **Ejecutar hasta aquí** (Ctrl F10): sigue hasta la línea del cursor; sin depurar, empieza a depurar y para ahí.
+- **Ver los registros** y **Ver la memoria...** (de una dirección o una expresión: `a0`, `$C01000`, `buffer + 16`): en
+  el panel, d0-d7, a0-a7 y el PC, y 64 bytes con sus letras.
+- Con proyecto, los puntos (con su condición y su contador) y lo vigilado se guardan en el `.forja`.
+
+### Perfil y memcheck
+
+- **Programa > Ejecutar con perfil**: compila con `--profile`, ejecuta y abre la pestaña Perfil: cada función con su
+  tiempo propio, el total (con lo que llama) y las llamadas. Un clic en un título ordena por esa columna; un clic (o
+  Return) en una función lleva a ella.
+- **Programa > Ejecutar con memcheck**: compila con `--memcheck` y ejecuta. Los avisos (un campo de un `nil`, algo
+  liberado dos veces...) salen en la salida con su sitio, y un clic lleva a la línea. Al acabar, lo que quedó vivo.
+
 ### Sprites y mapas
 
 Los editores de sprites y de mapas son dos extensiones (`Extensiones/Sprites` y `Extensiones/Mapas`): quien solo
@@ -225,9 +277,12 @@ para no inventarse funciones.
 
 ### ARexx
 
-Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, `SELECCION`,
+Puerto `FORJA.1`: `ABRIR fichero [línea]` (un `.forja` abre el proyecto), `ABIERTO fichero`, `TEXTO fichero`, `SELECCION`,
 `CAMBIAR fichero desde hasta texto`, `GUARDAR [fichero]`, `COMPILAR [fichero]`, `EJECUTAR [fichero]`, `ESTADO`, `ERRORES`,
-`BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea` y `SALIDA` (el texto de la salida). Para las extensiones
+`BUSCAR texto`, `CAMBIARTODO buscar cambiar`, `IRA línea`, `SALIDA` (el texto de la salida), `NUEVOPROYECTO tipo cajón
+nombre` (con su plantilla: `orden`, `commodity`, `mui`, `juego`, `demo` o `3d`; da la ruta del `.forja`) y
+`PROPIEDAD clave [valor]` (una del `.forja` del proyecto: la da y, con valor, la cambia y la guarda; también `ruta`,
+`puntos` y `vigilar`). Para las extensiones
 hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas propias, por lotes):
 [docs/EXTENSIONES.md](docs/EXTENSIONES.md). La extensión Git tiene su puerto, `FORJAEXT.GIT`: `GIT orden de dashgit`
 (sin esperar: su `ESTADO` da `git` mientras sigue), `CAMBIOS` y `GITESTADO`.

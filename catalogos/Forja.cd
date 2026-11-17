@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/ext-editores/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/proyecto/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -630,3 +630,183 @@ MSG_870 (870//)
 no es de ancho fijo
 MSG_871 (871//)
 No entiendo estas líneas del tema (ENVARC:Forja/tema):
+MSG_900 (900//)
+Nuevo proyecto...
+MSG_901 (901//)
+Abrir proyecto...
+MSG_902 (902//)
+Propiedades del proyecto...
+MSG_903 (903//)
+Ejecutar con perfil
+MSG_904 (904//)
+Ejecutar con memcheck
+MSG_905 (905//)
+Depurar
+MSG_906 (906//)
+Ejecutar hasta aquí (Ctrl F10)
+MSG_907 (907//)
+Condición del punto de parada...
+MSG_908 (908//)
+Contador del punto de parada...
+MSG_909 (909//)
+Quitar todos los puntos
+MSG_910 (910//)
+Vigilar una expresión...
+MSG_911 (911//)
+Ver los registros
+MSG_912 (912//)
+Ver la memoria...
+MSG_920 (920//)
+Nuevo proyecto (Forja)
+MSG_921 (921//)
+Nombre:
+MSG_922 (922//)
+Plantilla:
+MSG_923 (923//)
+Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL
+MSG_924 (924//)
+En el cajón:
+MSG_925 (925//)
+Elegir...
+MSG_926 (926//)
+C_rear
+MSG_927 (927//)
+_Cancelar
+MSG_930 (930//)
+Propiedades del proyecto (Forja)
+MSG_931 (931//)
+General|Compilar|Ejecutar
+MSG_932 (932//)
+Tipo:
+MSG_933 (933//)
+Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL|Otro
+MSG_934 (934//)
+Fichero principal:
+MSG_935 (935//)
+Ejecutable:
+MSG_936 (936//)
+Versión:
+MSG_937 (937//)
+Icono del programa:
+MSG_938 (938//)
+CPU:
+MSG_939 (939//)
+FPU (--fpu):
+MSG_940 (940//)
+Pila en bytes (0: la de siempre):
+MSG_941 (941//)
+Comprobar la memoria (--memcheck):
+MSG_942 (942//)
+Perfil (--profile):
+MSG_943 (943//)
+Por C con gcc (--gcc):
+MSG_944 (944//)
+Más opciones:
+MSG_945 (945//)
+Argumentos al ejecutar:
+MSG_946 (946//)
+Argumentos al depurar:
+MSG_947 (947//)
+_Guardar
+MSG_950 (950//)
+VIGILAR
+MSG_951 (951//)
+REGISTROS
+MSG_952 (952//)
+MEMORIA
+MSG_953 (953//)
+No se puede abrir el proyecto %1: %2
+MSG_954 (954//)
+Proyecto %1 (%2).
+MSG_960 (960//)
+Lee sus argumentos y acaba con un código.
+MSG_961 (961//)
+En Exchange, con una tecla rápida.
+MSG_962 (962//)
+Una ventana del editor de ventanas, con menú.
+MSG_963 (963//)
+Su pantalla, un sprite y un nivel.
+MSG_964 (964//)
+Su pantalla, cada imagen y un bloque asm.
+MSG_965 (965//)
+Un cubo con MiniGL: pide FPU y MiniGL.
+MSG_966 (966//)
+no hay esa plantilla
+MSG_967 (967//)
+el nombre lleva letras, cifras, - y _, empieza por una letra y tiene 24 como mucho
+MSG_968 (968//)
+ya existe %1
+MSG_969 (969//)
+no se puede crear el cajón %1
+MSG_970 (970//)
+No se puede crear el proyecto: 
+MSG_971 (971//)
+_Vale
+MSG_972 (972//)
+Este proyecto pide una FPU y minigl.library (MiniGL): compila con --fpu.
+MSG_973 (973//)
+La ventana está en ventana.dashui: ábrelo para cambiarla con el editor de ventanas.
+MSG_974 (974//)
+Para hacer un proyecto, abre antes un fichero de su cajón (o Nuevo proyecto...).
+MSG_975 (975//)
+Este cajón no tiene proyecto. ¿Hago %1?
+MSG_976 (976//)
+_Hacerlo|_Cancelar
+MSG_977 (977//)
+Los puntos con condición van en un fichero guardado.
+MSG_978 (978//)
+Condición del punto de la línea %1
+MSG_979 (979//)
+Para solo si se cumple: i > 3 and nombre == \"x\". Vacía: siempre.
+MSG_980 (980//)
+Contador del punto de la línea %1
+MSG_981 (981//)
+Para desde la vez n: 3; o = 3, > 3, % 2 (cada dos). Vacío: siempre.
+MSG_982 (982//)
+Vigilar
+MSG_983 (983//)
+Una expresión de Dash (naves.length, p.x + 1). Si ya se vigila, se quita.
+MSG_984 (984//)
+Ver la memoria en
+MSG_985 (985//)
+Una dirección o una expresión: $C01000, a0, buffer + 16. Vacío: no se ve.
+MSG_986 (986//)
+La condición no vale (%1): %2
+MSG_987 (987//)
+El contador no vale: %1 (3, = 3, > 3, % 2)
+MSG_988 (988//)
+El punto de la línea %1 para siempre.
+MSG_989 (989//)
+El punto de la línea %1 para si: %2
+MSG_990 (990//)
+No se puede vigilar %1: %2
+MSG_991 (991//)
+Se verá al parar el programa en el depurador.
+MSG_992 (992//)
+La condición del punto de la línea %1 no se puede ver: %2
+MSG_993 (993//)
+Perfil de %1: %2 muestras (50 por segundo). Un clic en un título ordena; en una función, va a ella.
+MSG_994 (994//)
+Propio
+MSG_995 (995//)
+Total
+MSG_996 (996//)
+Llamadas
+MSG_997 (997//)
+Función
+MSG_998 (998//)
+(Sin funciones: el programa acabó antes de la primera muestra, o no se compiló con --profile.)
+MSG_999 (999//)
+Perfil
+MSG_1000 (1000//)
+No encuentro la función %1 en el proyecto.
+MSG_1001 (1001//)
+memcheck: nada que decir.
+MSG_1002 (1002//)
+memcheck: %1 avisos (clic en uno para ir a su línea).
+MSG_1003 (1003//)
+Esta orden dash no compila por C (--gcc): quítalo en Propiedades del proyecto.
+MSG_1004 (1004//)
+memcheck: un aviso (un clic en él lleva a su línea).
+MSG_1005 (1005//)
+No se puede abrir la ventana %1.

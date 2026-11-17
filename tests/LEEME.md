@@ -240,3 +240,36 @@ El editor cómodo (fase 2 de `docs/FORJA_LOOP.md`):
 arranca Forja dos veces con `tests/prueba/juego` y apunta la memoria chip y fast que usa quieta, compilando (con
 dashc), con un sprite y un mapa abiertos (`todas`) y lo que queda tras salir (MUI y las fuentes siguen cargadas). Con
 `RTG=1 SISTEMA=~/.cache/dash-emu/sys32rtg38`, con MUI 3.8; `FORJA=otro/cajón`, otras fuentes (para comparar).
+
+Proyectos, plantillas, depurar más y perfil (pasos 3.1, 3.2, 4.1 y 4.2 de `docs/FORJA_LOOP.md`). Las que llevan
+`<cajón con dashc.amiga>` copian la orden dash del Amiga a `DH0:Dash/dash` con sus runtimes como los busca
+(`dash_mc.drt`, `dash_fpu.drt`...):
+
+- `tests/proyecto_base.sh <worktree de Dash>`: `tests/proyecto_base.dash` prueba sin ventana `src/proyecto.dash` (leer y
+  escribir un `.forja` en UTF-8, rutas desde su cajón, opciones de dash, los puntos de parada con condición),
+  `src/expresion.dash` (las expresiones del depurador con valores de prueba: precedencia, and/or sin mirar lo que no
+  hace falta, textos, `.length`, índices con cuentas, errores, contadores) y las plantillas de
+  `src/plantillas_datos.dash` (que `tools/plantillas.py --comprobar` dice al día).
+- `tests/forja_proyecto.sh <worktree de Dash> <cajón con dashc.amiga> [capturas/]`: `tests/forja_proyecto.dash` arranca
+  Forja, hace un proyecto de cada plantilla por ARexx (`NUEVOPROYECTO`) y lo compila con la orden dash del Amiga;
+  ejecuta la orden del Shell con los argumentos del proyecto; `PROPIEDAD` (y la línea `@version`); las ventanas
+  Propiedades (Guardar no cambia nada) y Nuevo proyecto (el nombre y Return); y, con Workbench 3.5 o más
+  (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`), sale de Forja y abre un proyecto desde su icono con `wb_open`.
+  Capturas `propiedades.png`, `nuevo.png` e `icono.png`.
+- `tests/plantillas.sh <worktree de Dash> [capturas/]`: cada plantilla compilada con el dash del PC y ejecutada unos
+  segundos: la orden del Shell con argumentos (`tests/plantillas_orden.dash`), la commodity, la aplicación MUI, el
+  juego y la demo en un A1200 con MUI 5; la 3D en la máquina de CoffinOS con `minigl.library` (`DASH_EMU_MINIGL`,
+  `DASH_EMU_DISK_COFFIN`, `DASH_KICKSTART_32`). Capturas `plantilla-*.png`.
+- `tests/depurar_mas.sh <worktree de Dash> <cajón con dashc.amiga> [capturas/]`: `tests/depurar_mas.dash` sobre
+  `tests/prueba/depurar2` (con su `.forja`): un punto con condición `i == 3` (en la pregunta de Depurar > Condición),
+  vigilar `total * 2` y `naves`, los registros y la memoria en `a7`; para con i = 3; el valor de `total` bajo el ratón
+  (`ENV:FORJA_VALOR` con la sonda); un punto con contador `% 2`; Ctrl F10 hasta la línea 19; lo guardado en el
+  `.forja`; y una línea nueva arriba: el punto baja con su condición y así queda en el `.forja` al guardar. Capturas
+  `depurar-vigilar.png` y `depurar-valor.png`.
+- `tests/perfil.sh <worktree de Dash> <cajón con dashc.amiga> [capturas/]`: `tests/perfil.dash` ejecuta
+  `tests/prueba/perfil` con perfil (`ENV:FORJA_PERFIL`: "orden función:llamadas..."), ordena por llamadas con un clic
+  en su título y va a `lenta` con un clic en su fila; y `tests/prueba/memoria` con memcheck: el aviso del campo de nil
+  con su sitio, y un clic lleva a la línea 7. Capturas `perfil-tabla.png` y `memcheck.png`. Con Dash 2.14 la parte del
+  perfil falla: dash copia en línea `lenta` y `rapida` también con `--profile` y la tabla solo tiene Main.
+
+Las tres con ventana van también con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`.

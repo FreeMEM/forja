@@ -102,15 +102,15 @@ VS Code.
 - 2.8 Teclas, colores y fuente a elegir.
 
 ### Fase 3. Proyecto y documentación
-- 3.1 [F] Fichero de proyecto `.forja` con opciones y argumentos.
-- 3.2 [F] Plantillas de proyecto: orden, MUI, juego y demo.
+- 3.1 [F] Fichero de proyecto `.forja` con opciones y argumentos. Hecho (rama `proyecto`).
+- 3.2 [F] Plantillas de proyecto: orden, MUI, juego y demo. Hecho, también commodity y 3D (rama `proyecto`).
 - 3.3 [D] Ayuda generada desde Dash: un fichero con índice, más AmigaGuide, metida en el paquete del Amiga.
 - 3.4 [F] Panel de ayuda: la ficha entera, búsqueda, enlaces y un botón "Probar".
 - 3.5 [D] Opción "solo comprobar", y [F] errores marcados en el código al guardar.
 
 ### Fase 4. Depurar y medir
-- 4.1 Puntos de parada con condición, vigilar variables y ver el valor bajo el ratón.
-- 4.2 Perfil y memcheck con vista propia.
+- 4.1 Puntos de parada con condición, vigilar variables y ver el valor bajo el ratón. Hecho (rama `proyecto`).
+- 4.2 Perfil y memcheck con vista propia. Hecho (rama `proyecto`).
 - 4.3 Medir y acelerar lo que tarda en compilar en el Amiga.
 
 ### Fase 5. Demos, juegos y 3D
@@ -416,3 +416,35 @@ VS Code.
     de su ventana, no de la de Forja; Amiga-Q en la ventana de una extensión no cierra Forja (va a Forja con Ventana >
     Forja); la prueba de memoria no pone aún un tope.
   - **Falta en Dash**: nada nuevo.
+- 2026-11-17, rama `proyecto`: **pasos 3.1, 3.2, 4.1 y 4.2** (lo empezó otro agente: el `.forja` en
+  `src/proyecto.dash`, seis plantillas en `plantillas/` con `tools/plantillas.py`, el menú Depurar con
+  `src/expresion.dash` y Programa > Ejecutar con perfil y con memcheck). Cerrado con sus pruebas:
+  - **Los puntos de parada siguen a su línea al escribir**, como los marcadores: el editor los mueve al meter, quitar,
+    subir o bajar líneas (`ed_puntos_movidos` dice de dónde a dónde) y Forja mueve con ellos los del proyecto, con su
+    condición y su contador. Al `.forja` van al guardar el fichero; al cerrar sin guardar (Descartar) vuelven a la línea
+    del disco y se quitan los puestos después (`guardada` en cada punto). Depurando, el depurador sigue con los de antes,
+    que son los del programa en marcha.
+  - Memcheck pone a la vista su primer aviso al acabar (en 640x256 la salida enseña dos líneas y quedaba arriba).
+  - Si Propiedades o Nuevo proyecto no se abren, Forja lo dice (texto 1005).
+  - **Las pruebas fallaban por ellas mismas, no por Forja**: el ejecutable de `perfil.sh` se llamaba `Perfil`, como el
+    cajón `perfil` (en el Amiga es el mismo nombre) y no arrancaba; activar la ventana ya es un evento y Forja miraba
+    `FORJA_EVENTO` con él, y el Esc de después cerraba lo que se acababa de abrir (en MUI 3.8, Propiedades; con el
+    depurador, la pregunta de la condición); con el emulador cargado las flechas llegan tarde. Ahora `menu()` pulsa Esc
+    solo si hace falta, `a_la_linea` espera al cursor (`CURSOR`) y `responder` espera a ver la pregunta
+    (`ENV:FORJA_RAPIDA`). `forja_proyecto.sh` arranca el Workbench con `RTG=1` (`--workbench`), que `wb_open` necesita.
+    `plantillas.sh` saca las capturas cuando el programa aún está abierto (la 3D a los 25 s).
+  - TODO BIEN: `proyecto_base`, `editor_base` (con los puntos que siguen), `depurar_mas` (también en MUI 3.8, y una
+    línea nueva arriba baja el punto con su condición hasta el `.forja`), `plantillas` (las seis; la 3D en la máquina
+    de CoffinOS con MiniGL) y `forja_proyecto` (en MUI 5 y en MUI 3.8, con el icono: Forja arranca desde
+    `Barras.forja` con `wb_open`). La ventana Nuevo proyecto cabe en 640 de ancho.
+  - **`perfil` falla en la parte del perfil por Dash**: dash (el directo, también el del Amiga) copia en línea las
+    funciones pequeñas o de un solo sitio también con `--profile`, y la tabla solo tiene Main. La parte de memcheck va
+    bien.
+  - Las de antes, en esta rama (MUI 5, A1200 con 3.1), TODO BIEN: teclas, ficheros, completar, buscar, errores,
+    compilar, depurar, ayuda, editor, editor_base, extensiones, extensiones_base, git_panel, proyecto, botones, sprites,
+    mapas_base, mapas_forja y copiloto (con su servidor falso, bajo `flock`). `git_panel` y `copiloto` elegían su menú por su sitio en la barra (`input_menu`), y el
+    menú Depurar los corre uno. `editor` falló una vez con el emulador muy cargado (Ctrl T) y pasó al repetirla.
+  - Memoria (`tests/memoria.sh`): Forja quieta 2,7 MB de fast (antes 2,5) y compilando 4,6 (antes 4,4). Los 0,2 MB
+    son el proyecto, las plantillas y el depurador nuevo.
+  - **Falta en Dash**: con `--profile`, no copiar funciones en línea (como con `--debug`: `can_inline` de
+    `dashc/src/gen68k.c`, y las de una línea puestas como expresión).

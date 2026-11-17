@@ -1,0 +1,558 @@
+# Las plantillas de Nuevo proyecto... (plantillas/). Lo escribe tools/plantillas.py: no se toca a mano.
+
+# Los ficheros de una plantilla, separados por |
+func pl_ficheros(tipo: String) -> String
+    if tipo == "orden"
+        return "main.dash"
+    elif tipo == "commodity"
+        return "main.dash"
+    elif tipo == "mui"
+        return "main.dash|ventana.dashui"
+    elif tipo == "juego"
+        return "main.dash"
+    elif tipo == "demo"
+        return "main.dash"
+    elif tipo == "3d"
+        return "main.dash"
+    end
+    return ""
+end
+
+# El texto de un fichero de una plantilla (con %NOMBRE% sin cambiar)
+func pl_texto(tipo: String, fichero: String) -> String
+    if tipo == "orden" and fichero == "main.dash"
+        return "# %NOMBRE%: una orden del Shell.\n" +
+        "#\n" +
+        "#   %NOMBRE% fichero... [LINEAS]\n" +
+        "#\n" +
+        "# Cuenta las líneas, las palabras y las letras de cada fichero, como wc de Unix. Con LINEAS=si, solo las líneas.\n" +
+        "# Acaba con código 5 (aviso) sin ficheros y con 10 (error) si uno no se puede leer: los guiones del Shell lo miran\n" +
+        "# con \"If WARN\" o \"If ERROR\".\n" +
+        "\n" +
+        "@version \"%NOMBRE% 0.1\"\n" +
+        "\n" +
+        "struct Cuenta\n" +
+        "    lineas: Int = 0\n" +
+        "    palabras: Int = 0\n" +
+        "    letras: Int = 0\n" +
+        "end\n" +
+        "\n" +
+        "func contar(texto: String) -> Cuenta\n" +
+        "    c = Cuenta()\n" +
+        "    c.letras = texto.length\n" +
+        "    dentro = false\n" +
+        "    i = 0\n" +
+        "    while i < texto.length\n" +
+        "        k = str_code(texto, i)\n" +
+        "        if k == 10\n" +
+        "            c.lineas = c.lineas + 1\n" +
+        "        end\n" +
+        "        if k == 32 or k == 9 or k == 10\n" +
+        "            dentro = false\n" +
+        "        elif not dentro\n" +
+        "            dentro = true\n" +
+        "            c.palabras = c.palabras + 1\n" +
+        "        end\n" +
+        "        i = i + 1\n" +
+        "    end\n" +
+        "    return c\n" +
+        "end\n" +
+        "\n" +
+        "Main\n" +
+        "    solo_lineas = str_lower(tooltype(\"LINEAS\", \"no\")) == \"si\"\n" +
+        "    var ficheros: [String] = []\n" +
+        "    i = 0\n" +
+        "    while i < arg_count()\n" +
+        "        a = arg(i)\n" +
+        "        if not str_contains(a, \"=\")\n" +
+        "            ficheros.push(a)\n" +
+        "        end\n" +
+        "        i = i + 1\n" +
+        "    end\n" +
+        "    if ficheros.length == 0\n" +
+        "        Print \"Uso: %NOMBRE% fichero... [LINEAS=si]\"\n" +
+        "        program_exit(5)\n" +
+        "    end\n" +
+        "    total = Cuenta()\n" +
+        "    for f in ficheros\n" +
+        "        texto = file_read_text(f)\n" +
+        "        if texto == nil\n" +
+        "            Print \"%NOMBRE%: no se puede leer \" + f\n" +
+        "            program_exit(10)\n" +
+        "        end\n" +
+        "        c = contar(texto)\n" +
+        "        total.lineas = total.lineas + c.lineas\n" +
+        "        total.palabras = total.palabras + c.palabras\n" +
+        "        total.letras = total.letras + c.letras\n" +
+        "        if solo_lineas\n" +
+        "            Print \"#" + "{c.lineas} \" + f\n" +
+        "        else\n" +
+        "            Print \"#" + "{c.lineas} #" + "{c.palabras} #" + "{c.letras} \" + f\n" +
+        "        end\n" +
+        "    end\n" +
+        "    if ficheros.length > 1\n" +
+        "        Print \"#" + "{total.lineas} #" + "{total.palabras} #" + "{total.letras} en total\"\n" +
+        "    end\n" +
+        "end\n"
+    elif tipo == "commodity" and fichero == "main.dash"
+        return "# %NOMBRE%: una commodity. Sale en Exchange (Mostrar, Ocultar, Activar, Desactivar, Quitar) y tiene una tecla\n" +
+        "# rápida: al pulsarla abre una ventanita con la hora y la memoria libre; otra vez, la cierra.\n" +
+        "#\n" +
+        "# Desde el Shell: %NOMBRE% CX_POPKEY=\"ctrl alt h\" CX_PRIORITY=0. En el icono, los mismos tipos de herramienta.\n" +
+        "# Para que arranque con el Workbench, su icono en SYS:WBStartup.\n" +
+        "\n" +
+        "@version \"%NOMBRE% 0.1\"\n" +
+        "\n" +
+        "var ventana: Int = 0\n" +
+        "\n" +
+        "func abrir()\n" +
+        "    if ventana != 0\n" +
+        "        return\n" +
+        "    end\n" +
+        "    ventana = window_create(\"%NOMBRE%\", 40, 30, 260, 70, 0)\n" +
+        "    pintar()\n" +
+        "end\n" +
+        "\n" +
+        "func cerrar()\n" +
+        "    if ventana != 0\n" +
+        "        window_close(ventana)\n" +
+        "        ventana = 0\n" +
+        "    end\n" +
+        "end\n" +
+        "\n" +
+        "func pintar()\n" +
+        "    if ventana == 0\n" +
+        "        return\n" +
+        "    end\n" +
+        "    window_use(ventana)\n" +
+        "    gfx_pen(0)\n" +
+        "    gfx_rect(window_border_left(), window_border_top(), 255, 65)\n" +
+        "    gfx_pen(1)\n" +
+        "    gfx_text_at(12, window_border_top() + 16, date_text(\"%H:%M:%S\"))\n" +
+        "    gfx_text_at(12, window_border_top() + 32, \"Libre: #" + "{mem_total() / 1024} KB\")\n" +
+        "end\n" +
+        "\n" +
+        "Main\n" +
+        "    tecla = tooltype(\"CX_POPKEY\", \"ctrl alt h\")\n" +
+        "    prioridad = Int(tooltype(\"CX_PRIORITY\", \"0\"))\n" +
+        "    if not cx_broker(\"%NOMBRE%\", \"%NOMBRE% 0.1\", \"Enseña la hora con \" + tecla, prioridad)\n" +
+        "        Print \"%NOMBRE% ya está en marcha (o falta commodities.library).\"\n" +
+        "        program_exit(5)\n" +
+        "    end\n" +
+        "    if not cx_hotkey(tecla)\n" +
+        "        Print \"%NOMBRE%: la tecla no vale: \" + tecla\n" +
+        "    end\n" +
+        "    activa = true\n" +
+        "    while true\n" +
+        "        # (cada segundo, para la hora y el botón de cerrar de la ventana)\n" +
+        "        orden = cx_wait(1000)\n" +
+        "        if orden == -1 or orden == 5\n" +
+        "            break                       # Ctrl-C o Quitar en Exchange\n" +
+        "        elif orden == 6 and activa\n" +
+        "            if ventana == 0\n" +
+        "                abrir()\n" +
+        "            else\n" +
+        "                cerrar()\n" +
+        "            end\n" +
+        "        elif orden == 2\n" +
+        "            abrir()\n" +
+        "        elif orden == 1\n" +
+        "            cerrar()\n" +
+        "        elif orden == 3\n" +
+        "            activa = false\n" +
+        "        elif orden == 4\n" +
+        "            activa = true\n" +
+        "        end\n" +
+        "        if ventana != 0\n" +
+        "            window_use(ventana)\n" +
+        "            if window_check_close()\n" +
+        "                cerrar()\n" +
+        "            else\n" +
+        "                pintar()\n" +
+        "            end\n" +
+        "        end\n" +
+        "    end\n" +
+        "    cerrar()\n" +
+        "end\n"
+    elif tipo == "mui" and fichero == "main.dash"
+        return "# %NOMBRE%: una aplicación MUI (MUI 3.8 o 5).\n" +
+        "#\n" +
+        "# La ventana está en ventana.dashui: ábrelo en Forja para cambiarla con el editor de ventanas (Amiga-D pasa a\n" +
+        "# texto; Amiga-P, la vista previa). Cada objeto con \"name\" es un campo de Principal (v.nombre, v.saludo...), y cada\n" +
+        "# \"event\" llega como un número a mui_wait_event.\n" +
+        "\n" +
+        "@version \"%NOMBRE% 0.1\"\n" +
+        "\n" +
+        "import \"ventana.dashui\"\n" +
+        "\n" +
+        "const EV_SALUDAR = 1\n" +
+        "const EV_LIMPIAR = 2\n" +
+        "const EV_ACERCA = 10\n" +
+        "const EV_SALIR = 99\n" +
+        "\n" +
+        "Main\n" +
+        "    if mui_app_begin(\"%NOMBRE%\", \"%NOMBRE%\") == 0\n" +
+        "        Print \"%NOMBRE% necesita MUI.\"\n" +
+        "        program_exit(20)\n" +
+        "    end\n" +
+        "    v = Principal_create()\n" +
+        "    mui_window_open(v.window)\n" +
+        "    mui_set_active(v.window, v.nombre)\n" +
+        "    veces = 0\n" +
+        "    while true\n" +
+        "        ev = mui_wait_event()\n" +
+        "        if ev == -1 or ev == EV_SALIR\n" +
+        "            break\n" +
+        "        elif ev == EV_SALUDAR\n" +
+        "            nombre = str_trim(mui_get_text(v.nombre))\n" +
+        "            if nombre == \"\"\n" +
+        "                nombre = \"Amiga\"\n" +
+        "            end\n" +
+        "            veces = veces + 1\n" +
+        "            mui_set_text(v.saludo, \"\\33cHola, \" + nombre + \" (#" + "{veces})\")\n" +
+        "        elif ev == EV_LIMPIAR\n" +
+        "            veces = 0\n" +
+        "            mui_set_text(v.nombre, \"\")\n" +
+        "            mui_set_text(v.saludo, \"\\33cEscribe tu nombre y pulsa Saludar.\")\n" +
+        "        elif ev == EV_ACERCA\n" +
+        "            mui_request(v.window, \"%NOMBRE%\", \"%NOMBRE% 0.1\\nHecho con Dash y Forja.\", \"_Vale\")\n" +
+        "        end\n" +
+        "    end\n" +
+        "    mui_app_end()\n" +
+        "end\n"
+    elif tipo == "mui" and fichero == "ventana.dashui"
+        return "{\n" +
+        "  \"dashui\": 1,\n" +
+        "  \"windows\": [\n" +
+        "    {\n" +
+        "      \"name\": \"Principal\",\n" +
+        "      \"title\": \"%NOMBRE%\",\n" +
+        "      \"id\": 1,\n" +
+        "      \"close\": 99,\n" +
+        "      \"menus\": [\n" +
+        "        {\n" +
+        "          \"title\": \"Proyecto\",\n" +
+        "          \"items\": [\n" +
+        "            { \"label\": \"Acerca de...\", \"key\": \"A\", \"event\": 10 },\n" +
+        "            { \"separator\": true },\n" +
+        "            { \"label\": \"Salir\", \"key\": \"Q\", \"event\": 99 }\n" +
+        "          ]\n" +
+        "        }\n" +
+        "      ],\n" +
+        "      \"root\": {\n" +
+        "        \"type\": \"vgroup\",\n" +
+        "        \"children\": [\n" +
+        "          { \"type\": \"text\", \"name\": \"saludo\", \"text\": \"\\u001bcEscribe tu nombre y pulsa Saludar.\" },\n" +
+        "          {\n" +
+        "            \"type\": \"hgroup\",\n" +
+        "            \"children\": [\n" +
+        "              { \"type\": \"label\", \"text\": \"Nombre:\" },\n" +
+        "              { \"type\": \"string\", \"name\": \"nombre\", \"text\": \"\", \"max\": 40, \"ack\": 1 }\n" +
+        "            ]\n" +
+        "          },\n" +
+        "          {\n" +
+        "            \"type\": \"hgroup\",\n" +
+        "            \"children\": [\n" +
+        "              { \"type\": \"button\", \"name\": \"saludar\", \"label\": \"_Saludar\", \"event\": 1 },\n" +
+        "              { \"type\": \"button\", \"name\": \"limpiar\", \"label\": \"_Limpiar\", \"event\": 2 }\n" +
+        "            ]\n" +
+        "          }\n" +
+        "        ]\n" +
+        "      }\n" +
+        "    }\n" +
+        "  ]\n" +
+        "}\n"
+    elif tipo == "juego" and fichero == "main.dash"
+        return "# %NOMBRE%: un juego que se mueve. El jugador es un sprite de hardware; el nivel, un mapa de texto (# pared,\n" +
+        "# o moneda) que se pinta con cuadros de 16x16. Joystick (puerto 2) o cursores para moverse; Esc para salir.\n" +
+        "#\n" +
+        "# Para seguir: haz el jugador en el editor de sprites (Amiga-B: un sprite de hardware) y cárgalo con\n" +
+        "# sprite_load(0, \"jugador.iff\"); haz el nivel en el editor de mapas (un .fmap) y píntalo con tilemap_load y\n" +
+        "# tilemap_draw. Las dos cosas son extensiones de Forja.\n" +
+        "\n" +
+        "@version \"%NOMBRE% 0.1\"\n" +
+        "\n" +
+        "const LADO = 16\n" +
+        "const ANCHO = 320\n" +
+        "const ALTO = 256\n" +
+        "const ESC = 0x45\n" +
+        "const ARRIBA = 0x4C\n" +
+        "const ABAJO = 0x4D\n" +
+        "const DERECHA = 0x4E\n" +
+        "const IZQUIERDA = 0x4F\n" +
+        "\n" +
+        "var nivel: [String] = [\n" +
+        "    \"####################\",\n" +
+        "    \"#o.......#........o#\",\n" +
+        "    \"#.####.#.#.#.####..#\",\n" +
+        "    \"#.#..o.#...#.o..#..#\",\n" +
+        "    \"#.#.####.#.####.#..#\",\n" +
+        "    \"#........#.........#\",\n" +
+        "    \"####.#########.#####\",\n" +
+        "    \"#o...#.......#....o#\",\n" +
+        "    \"#.##...#.o.#...##..#\",\n" +
+        "    \"#....#########.....#\",\n" +
+        "    \"#.o..............o.#\",\n" +
+        "    \"####################\"\n" +
+        "]\n" +
+        "\n" +
+        "# La celda de la pantalla (x, y en píxeles) en el nivel: el carácter que hay\n" +
+        "func celda(x: Int, y: Int) -> String\n" +
+        "    cx = x / LADO\n" +
+        "    cy = (y - 32) / LADO\n" +
+        "    if cy < 0 or cy >= nivel.length or cx < 0 or cx >= 20\n" +
+        "        return \"#\"\n" +
+        "    end\n" +
+        "    return nivel[cy][cx:cx + 1]\n" +
+        "end\n" +
+        "\n" +
+        "func libre(x: Int, y: Int) -> Bool\n" +
+        "    # las cuatro esquinas del jugador (12x12 dentro de sus 16x16)\n" +
+        "    return celda(x + 2, y + 2) != \"#\" and celda(x + 13, y + 2) != \"#\" and celda(x + 2, y + 13) != \"#\" and celda(x + 13, y + 13) != \"#\"\n" +
+        "end\n" +
+        "\n" +
+        "func pintar_celda(cx: Int, cy: Int)\n" +
+        "    x = cx * LADO\n" +
+        "    y = 32 + cy * LADO\n" +
+        "    c = nivel[cy][cx:cx + 1]\n" +
+        "    gfx_pen(0)\n" +
+        "    gfx_rect(x, y, x + LADO - 1, y + LADO - 1)\n" +
+        "    if c == \"#\"\n" +
+        "        gfx_pen(2)\n" +
+        "        gfx_rect(x, y, x + LADO - 2, y + LADO - 2)\n" +
+        "    elif c == \"o\"\n" +
+        "        gfx_pen(3)\n" +
+        "        gfx_circle_fill(x + 8, y + 8, 3)\n" +
+        "    end\n" +
+        "end\n" +
+        "\n" +
+        "func pintar_marcador(monedas: Int, total: Int)\n" +
+        "    gfx_pen(0)\n" +
+        "    gfx_rect(0, 0, ANCHO - 1, 28)\n" +
+        "    gfx_pen(1)\n" +
+        "    gfx_text_at(8, 18, \"%NOMBRE%   Monedas: #" + "{monedas} de #" + "{total}\")\n" +
+        "end\n" +
+        "\n" +
+        "func hacer_jugador()\n" +
+        "    sprite_create(0, 16, 16)\n" +
+        "    var filas: [Int] = [0x07E0, 0x1FF8, 0x3FFC, 0x7FFE, 0x7E7E, 0xFC3F, 0xFC3F, 0xFFFF, 0xFFFF, 0xFFFF, 0xDFFB, 0xEFF7, 0x77EE, 0x3818, 0x1FF8, 0x07E0]\n" +
+        "    f = 0\n" +
+        "    while f < 16\n" +
+        "        sprite_set_row(0, f, filas[f], filas[f] & 0x0FF0)\n" +
+        "        f = f + 1\n" +
+        "    end\n" +
+        "    sprite_color(0, 0, 15, 12, 0)\n" +
+        "    sprite_color(0, 1, 15, 15, 15)\n" +
+        "    sprite_color(0, 2, 15, 6, 0)\n" +
+        "    sprite_show(0)\n" +
+        "end\n" +
+        "\n" +
+        "Main\n" +
+        "    if not screen_open_custom(ANCHO, ALTO, 3, \"%NOMBRE%\")\n" +
+        "        Print \"No se puede abrir la pantalla.\"\n" +
+        "        program_exit(20)\n" +
+        "    end\n" +
+        "    gfx_rgb(0, 0, 0, 2)\n" +
+        "    gfx_rgb(1, 15, 15, 15)\n" +
+        "    gfx_rgb(2, 3, 6, 12)\n" +
+        "    gfx_rgb(3, 15, 13, 0)\n" +
+        "    gfx_clear()\n" +
+        "    total = 0\n" +
+        "    cy = 0\n" +
+        "    while cy < nivel.length\n" +
+        "        cx = 0\n" +
+        "        while cx < 20\n" +
+        "            pintar_celda(cx, cy)\n" +
+        "            if nivel[cy][cx:cx + 1] == \"o\"\n" +
+        "                total = total + 1\n" +
+        "            end\n" +
+        "            cx = cx + 1\n" +
+        "        end\n" +
+        "        cy = cy + 1\n" +
+        "    end\n" +
+        "    monedas = 0\n" +
+        "    pintar_marcador(monedas, total)\n" +
+        "    hacer_jugador()\n" +
+        "    x = LADO * 2\n" +
+        "    y = 32 + LADO\n" +
+        "    while not key_down(ESC) and monedas < total\n" +
+        "        wait_vblank()\n" +
+        "        dx = joy_x(1)\n" +
+        "        dy = joy_y(1)\n" +
+        "        if key_down(IZQUIERDA)\n" +
+        "            dx = -1\n" +
+        "        elif key_down(DERECHA)\n" +
+        "            dx = 1\n" +
+        "        end\n" +
+        "        if key_down(ARRIBA)\n" +
+        "            dy = -1\n" +
+        "        elif key_down(ABAJO)\n" +
+        "            dy = 1\n" +
+        "        end\n" +
+        "        if dx != 0 and libre(x + dx * 2, y)\n" +
+        "            x = x + dx * 2\n" +
+        "        end\n" +
+        "        if dy != 0 and libre(x, y + dy * 2)\n" +
+        "            y = y + dy * 2\n" +
+        "        end\n" +
+        "        sprite_pos(0, x, y)\n" +
+        "        # una moneda en el centro del jugador: se coge\n" +
+        "        if celda(x + 8, y + 8) == \"o\"\n" +
+        "            fila = (y + 8 - 32) / LADO\n" +
+        "            col = (x + 8) / LADO\n" +
+        "            s = nivel[fila]\n" +
+        "            nivel[fila] = s[0:col] + \".\" + s[col + 1:]\n" +
+        "            pintar_celda(col, fila)\n" +
+        "            monedas = monedas + 1\n" +
+        "            pintar_marcador(monedas, total)\n" +
+        "        end\n" +
+        "    end\n" +
+        "    sprite_hide(0)\n" +
+        "    sprite_free(0)\n" +
+        "    screen_close()\n" +
+        "    if monedas == total\n" +
+        "        Print \"¡Todas las monedas!\"\n" +
+        "    end\n" +
+        "    Print \"Monedas: #" + "{monedas} de #" + "{total}\"\n" +
+        "end\n"
+    elif tipo == "demo" and fichero == "main.dash"
+        return "# %NOMBRE%: una demo. Una pantalla propia, el bucle de cada imagen (wait_vblank, 50 por segundo en PAL) y la\n" +
+        "# parte que corre en ensamblador en línea (asm ... end, docs/ASM_DISEÑO.md de Dash): unas barras de color que suben\n" +
+        "# y bajan, cambiando el color de fondo en cada línea de la pantalla. Con el botón izquierdo del ratón, se acaba.\n" +
+        "#\n" +
+        "# Para seguir: música con music_load y music_play (un MOD); el texto que pasa, con gfx_text_at y gfx_scroll; la\n" +
+        "# lista de copper (copper_*) para degradados que no gastan CPU.\n" +
+        "\n" +
+        "@version \"%NOMBRE% 0.1\"\n" +
+        "\n" +
+        "const ARRIBA = 0x40     # la primera línea con barras\n" +
+        "const ABAJO = 0xF0      # y la de después de la última\n" +
+        "\n" +
+        "Main\n" +
+        "    if not screen_open_custom(320, 256, 1, \"%NOMBRE%\")\n" +
+        "        Print \"No se puede abrir la pantalla.\"\n" +
+        "        program_exit(20)\n" +
+        "    end\n" +
+        "    gfx_rgb(0, 0, 0, 0)\n" +
+        "    gfx_rgb(1, 15, 15, 15)\n" +
+        "    gfx_clear()\n" +
+        "    gfx_pen(1)\n" +
+        "    gfx_text_at(120, 30, \"%NOMBRE%\")\n" +
+        "    # la tabla de seno: 256 bytes de 4 a 124 (la prepara Dash; el asm solo la lee)\n" +
+        "    tabla = amiga_alloc(256)\n" +
+        "    for i in (0..255)\n" +
+        "        poke_byte(tabla + i, Int(fx_sin(Fixed(i * 360 / 256)) * 60) + 64)\n" +
+        "    end\n" +
+        "    fase = 0\n" +
+        "    imagenes = 0\n" +
+        "    while true\n" +
+        "        wait_vblank()\n" +
+        "        asm in a1 = tabla, d4 = fase out salir = d0 uses d1-d3/d5/a0\n" +
+        "            lea     $dff000,a0\n" +
+        "            move.w  d4,d0               ; el centro de la barra, de la tabla\n" +
+        "            and.w   #255,d0\n" +
+        "            moveq   #0,d5\n" +
+        "            move.b  (a1,d0.w),d5\n" +
+        "            add.w   #ARRIBA+8,d5\n" +
+        "            move.w  #ARRIBA,d1          ; la línea que toca\n" +
+        "        .linea:\n" +
+        "            move.b  6(a0),d0            ; VHPOSR: la línea de ahora, en el byte alto\n" +
+        "            cmp.b   d1,d0\n" +
+        "            bne.s   .linea\n" +
+        "            move.w  d1,d3               ; la distancia al centro, en positivo\n" +
+        "            sub.w   d5,d3\n" +
+        "            bpl.s   .positivo\n" +
+        "            neg.w   d3\n" +
+        "        .positivo:\n" +
+        "            moveq   #0,d2\n" +
+        "            cmp.w   #16,d3\n" +
+        "            bge.s   .pon\n" +
+        "            neg.w   d3                  ; 15 en el centro y menos hacia fuera\n" +
+        "            add.w   #15,d3\n" +
+        "            move.w  d3,d2\n" +
+        "            lsl.w   #4,d2               ; azul y verde\n" +
+        "            or.w    d3,d2\n" +
+        "        .pon:\n" +
+        "            move.w  d2,$180(a0)         ; COLOR00\n" +
+        "            addq.w  #1,d1\n" +
+        "            cmp.w   #ABAJO,d1\n" +
+        "            bne.s   .linea\n" +
+        "            clr.w   $180(a0)\n" +
+        "            moveq   #0,d0               ; el botón izquierdo (CIA-A, bit 6 a 0) acaba\n" +
+        "            btst    #6,$bfe001\n" +
+        "            bne.s   .sigue\n" +
+        "            moveq   #1,d0\n" +
+        "        .sigue:\n" +
+        "        end\n" +
+        "        if salir == 1\n" +
+        "            break\n" +
+        "        end\n" +
+        "        fase = fase + 2\n" +
+        "        imagenes = imagenes + 1\n" +
+        "    end\n" +
+        "    amiga_free(tabla, 256)\n" +
+        "    screen_close()\n" +
+        "    Print \"#" + "{imagenes} imágenes\"\n" +
+        "end\n"
+    elif tipo == "3d" and fichero == "main.dash"
+        return "# %NOMBRE%: 3D con MiniGL. Un cubo que gira, con caras de colores, una luz y el Z-buffer.\n" +
+        "#\n" +
+        "# Pide una FPU (el proyecto compila con --fpu) y minigl.library 29 o más (MiniGL con Warp3D o Wazp3D, o el de\n" +
+        "# PiStorm3D). Se cierra con la ventana, con Esc o con q.\n" +
+        "\n" +
+        "@version \"%NOMBRE% 0.1\"\n" +
+        "\n" +
+        "import \"lib/amiga/gl.dash\"\n" +
+        "\n" +
+        "# Una cara: su normal, su color y sus cuatro esquinas (x, y, z de cada una)\n" +
+        "func cara(nx: Float, ny: Float, nz: Float, r: Float, g: Float, b: Float, p: [Float])\n" +
+        "    gl_normal(nx, ny, nz)\n" +
+        "    gl_color(r, g, b)\n" +
+        "    for i in (0..3)\n" +
+        "        gl_vertex(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])\n" +
+        "    end\n" +
+        "end\n" +
+        "\n" +
+        "Main\n" +
+        "    if not gl_open(320, 240)\n" +
+        "        Print \"%NOMBRE% necesita minigl.library y una FPU.\"\n" +
+        "        program_exit(20)\n" +
+        "    end\n" +
+        "    gl_enable(GL_DEPTH_TEST)\n" +
+        "    gl_enable(GL_CULL_FACE)\n" +
+        "    gl_light(0, 0.5, 1.0, 1.0)\n" +
+        "    gl_ambient(0.3, 0.3, 0.3)\n" +
+        "    angulo = 0.0\n" +
+        "    seguir = true\n" +
+        "    while seguir\n" +
+        "        gl_clear_color(0.05, 0.05, 0.2)\n" +
+        "        gl_clear()\n" +
+        "        gl_load_identity()\n" +
+        "        gl_translate(0, 0, -5)\n" +
+        "        gl_rotate(angulo, 1, 0, 0)\n" +
+        "        gl_rotate(angulo * 1.3, 0, 1, 0)\n" +
+        "        gl_begin(GL_QUADS)\n" +
+        "        cara(0, 0, 1, 1, 0.2, 0.2, [-1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0])\n" +
+        "        cara(0, 0, -1, 0.2, 1, 0.2, [-1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0])\n" +
+        "        cara(0, 1, 0, 0.2, 0.2, 1, [-1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0])\n" +
+        "        cara(0, -1, 0, 1, 1, 0.2, [-1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0])\n" +
+        "        cara(1, 0, 0, 1, 0.2, 1, [1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0])\n" +
+        "        cara(-1, 0, 0, 0.2, 1, 1, [-1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0])\n" +
+        "        gl_end()\n" +
+        "        gl_swap()\n" +
+        "        angulo = angulo + 2.0\n" +
+        "        k = gl_key()\n" +
+        "        if gl_closed() or k == 27 or k == 113\n" +
+        "            seguir = false\n" +
+        "        end\n" +
+        "    end\n" +
+        "    gl_close()\n" +
+        "end\n"
+    end
+    return ""
+end
+
+# El icono de un .forja (un .info de proyecto sin herramienta), en hexadecimal
+func pl_icono_hex() -> String
+    return "e31000010000000000000000001e0017000400030001000000010000000000000000000000000000000000000000000104000000000000000000800000008000000000000000000000000000000000000000001e0016000200000001030000000000000000000ffff80008000c0008000a00080009000808888008020fc00800004008000040080000400bfffc4008fffc40080fc040080fc040080fc040083ff040083ff0400800004008000040080000400fffffc000000000000000000000000007fff00007fff00007fff00007fff00007fff00007ffff8007ffff8007ffff8007ffff8007ffff8007ffff8007ffff8007ffff8007ffff8007ffff8007ffff8007ffff8007ffff800000000000000000"
+end

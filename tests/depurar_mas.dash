@@ -1,0 +1,259 @@
+# Hace de usuario del depurador de Forja con lo del paso 4.1, sobre tests/prueba/depurar2 (con su .forja): un punto
+# en la línea 16 con la condición i == 3 (en la pregunta de Depurar > Condición...), vigilar total * 2, ver los
+# registros y la memoria en a7; depura (Amiga-G) y para con i = 3; el valor de total bajo el ratón; un punto en la 17
+# con contador % 2 (para en la segunda vez); Ctrl F10 hasta la 19; los puntos y lo vigilado, en el .forja; y una
+# línea nueva arriba: el punto baja con su texto (y así va al .forja al guardar).
+# Lo arranca tests/depurar_mas.sh; anota en DH0:Prueba/depurar_mas.txt. Sale con Amiga-Q.
+
+const AMIGA = 8
+const CTRL = 2
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const RETURN = 0x44
+const RETROCESO = 0x41
+const F5 = 0x54
+const F9 = 0x58
+const F10 = 0x59
+const FORJA = "FORJA.1"
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/depurar_mas.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func variables() -> String
+    t = env_get("FORJA_VARIABLES")
+    n = 0
+    while t == "" and n < 10
+        time_delay(5)
+        t = env_get("FORJA_VARIABLES")
+        n = n + 1
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func al_editor()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+end
+
+# El cursor a la línea n (con las flechas; si alguna se pierde con el emulador cargado, con CURSOR por ARexx)
+func a_la_linea(n: Int)
+    al_editor()
+    input_key(ARRIBA, CTRL)
+    k = 1
+    while k < n
+        input_key(ABAJO, 0)
+        k = k + 1
+    end
+    # (Forja atiende las flechas de una en una, con su dibujo: con el emulador cargado tardan en llegar todas)
+    k = 0
+    while k < 60 and not str_starts(rexx_send(FORJA, "CURSOR"), "#{n} ")
+        time_delay(5)
+        k = k + 1
+    end
+    if not str_starts(rexx_send(FORJA, "CURSOR"), "#{n} ")
+        anotar("  (las flechas no llegaron a la línea #{n}: " + rexx_send(FORJA, "CURSOR") + ")")
+        rexx_send(FORJA, "CURSOR #{n} 1")
+        time_delay(5)
+    end
+end
+
+# Espera a que el .forja diga algo (Forja lo escribe al poner un punto)
+func forja_con(t: String) -> String
+    n = 0
+    f = file_read_text("DH0:Prueba/depurar2/depurar2.forja")
+    while n < 40 and not str_contains(f, t)
+        time_delay(5)
+        f = file_read_text("DH0:Prueba/depurar2/depurar2.forja")
+        n = n + 1
+    end
+    return f
+end
+
+func esperar_parada(que: String) -> String
+    n = 0
+    while n < 900
+        e = env_get("FORJA_DEPURAR")
+        if str_starts(e, que)
+            return e
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return env_get("FORJA_DEPURAR")
+end
+
+# Una opción del menú por su evento (input_menu no llega a los menús de MUI): ENV:FORJA_EVENTO y Esc en el editor,
+# para que Forja lo mire
+func menu(ev: Int)
+    env_set("FORJA_EVENTO", "#{ev}", false)
+    activar()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    # (activar la ventana ya es un evento: si Forja lo miró con él, no hace falta Esc, que cerraría lo que abrió)
+    k = 0
+    while k < 10 and env_get("FORJA_EVENTO") != ""
+        time_delay(5)
+        k = k + 1
+    end
+    if env_get("FORJA_EVENTO") != ""
+        input_key(0x45, 0)
+        k = 0
+        while k < 40 and env_get("FORJA_EVENTO") != ""
+            time_delay(5)
+            k = k + 1
+        end
+    end
+    time_delay(15)
+end
+
+# ¿Se ve la lista rápida (una pregunta)? ENV:FORJA_RAPIDA, con la sonda: "0" si no
+func rapida_vista() -> Bool
+    r = env_get("FORJA_RAPIDA")
+    return r != "" and r != "0"
+end
+
+# Responde a la pregunta de la lista rápida: espera a que salga, borra lo que trae, escribe y pulsa Return (y espera a
+# que se vaya)
+func responder(t: String)
+    k = 0
+    while k < 100 and not rapida_vista()
+        time_delay(5)
+        k = k + 1
+    end
+    if not rapida_vista()
+        anotar("  (no sale la pregunta para " + t + ")")
+    end
+    k = 0
+    while k < 24
+        input_key(RETROCESO, 0)
+        k = k + 1
+    end
+    input_text(t)
+    time_delay(20)
+    input_key(RETURN, 0)
+    k = 0
+    while k < 100 and rapida_vista()
+        time_delay(5)
+        k = k + 1
+    end
+    time_delay(10)
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    ver("la ventana de Forja", n < 600, "")
+    ver("el proyecto de su cajón", rexx_send(FORJA, "PROPIEDAD nombre") == "depurar2", rexx_send(FORJA, "PROPIEDAD ruta"))
+    a_la_linea(16)
+    input_key(F9, 0)
+    time_delay(10)
+    f = forja_con("\"linea\": 16")
+    ver("F9 lo guarda en el .forja", str_contains(f, "\"linea\": 16"), f)
+    menu(264)
+    responder("i == 3")
+    ver("la condición", str_contains(rexx_send(FORJA, "PROPIEDAD puntos"), "main.dash:16 [i == 3]"), rexx_send(FORJA, "PROPIEDAD puntos"))
+    menu(266)
+    responder("total * 2")
+    menu(266)
+    responder("naves")
+    ver("vigilar, en el .forja", rexx_send(FORJA, "PROPIEDAD vigilar") == "total * 2|naves", rexx_send(FORJA, "PROPIEDAD vigilar"))
+    menu(267)
+    menu(268)
+    responder("a7")
+    activar()
+    al_editor()
+    input_key(0x24, AMIGA)
+    e = esperar_parada("3 16 ")
+    vs = variables()
+    ver("para en la 16 con i = 3", str_starts(e, "3 16 Main") and str_contains(vs, "i = 3|") and str_contains(vs, "total = 6|"), e + " " + vs)
+    ver("lo vigilado", str_contains(vs, "VIGILAR|total * 2 = 12|+ naves = "), vs)
+    ver("los registros", str_contains(vs, "REGISTROS|d0 ") and str_contains(vs, "pc "), vs)
+    ver("la memoria en a7", str_contains(vs, "MEMORIA a7|"), vs)
+    screen_save_png("DH0:Prueba/depurar-vigilar.png")
+    # el valor bajo el ratón: total, en la columna 9 de la línea 16
+    primera = campo("FORJA_VISTA", 0)
+    alto = campo("FORJA_VISTA", 1)
+    margen = campo("FORJA_VISTA", 2)
+    x = campo("FORJA_EDITOR", 0) + margen + 2 + 10 * 8 + 3
+    y = campo("FORJA_EDITOR", 1) + 18 + 2 + (16 - 1 - primera) * alto + alto / 2
+    input_move(x, y)
+    n = 0
+    while n < 40 and env_get("FORJA_VALOR") == ""
+        time_delay(5)
+        n = n + 1
+    end
+    ver("el valor bajo el ratón", env_get("FORJA_VALOR") == "total = 6", env_get("FORJA_VALOR") + " en #{x},#{y} vista " + env_get("FORJA_VISTA"))
+    screen_save_png("DH0:Prueba/depurar-valor.png")
+    # contador: un punto en la 17 que para la segunda vez que pasa (% 2): con i = 4
+    a_la_linea(17)
+    input_key(F9, 0)
+    menu(265)
+    responder("% 2")
+    activar()
+    al_editor()
+    input_key(F5, 0)
+    e = esperar_parada("3 17 ")
+    vs = variables()
+    ver("el contador: para en la 17 con i = 4", str_starts(e, "3 17 Main") and str_contains(vs, "i = 4|"), e + " " + vs)
+    # fuera el de la 17; hasta aquí, en la 19
+    a_la_linea(17)
+    input_key(F9, 0)
+    a_la_linea(19)
+    input_key(F10, CTRL)
+    e = esperar_parada("3 19 ")
+    vs = variables()
+    ver("Ctrl F10: hasta la 19", str_starts(e, "3 19 Main") and str_contains(vs, "total = 90|"), e + " " + vs)
+    input_key(F5, 0)
+    e = esperar_parada("4 ")
+    ver("acaba", str_starts(e, "4 "), e)
+    f = file_read_text("DH0:Prueba/depurar2/depurar2.forja")
+    ver("en el .forja: el punto con su condición y lo vigilado", str_contains(f, "\"condicion\": \"i == 3\"") and str_contains(f, "\"total * 2\"") and not str_contains(f, "\"linea\": 17"), f)
+    # el punto sigue a su línea al escribir: una línea nueva arriba lo baja a la 17 (con su condición); al .forja, al
+    # guardar el fichero
+    a_la_linea(1)
+    input_key(RETURN, 0)
+    time_delay(10)
+    ver("al escribir, el punto baja con su línea", str_contains(rexx_send(FORJA, "PROPIEDAD puntos"), "main.dash:17 [i == 3]"), rexx_send(FORJA, "PROPIEDAD puntos"))
+    input_key(0x21, AMIGA)
+    time_delay(20)
+    f = forja_con("\"linea\": 17")
+    ver("al guardar, en el .forja", str_contains(f, "\"linea\": 17") and not str_contains(f, "\"linea\": 16") and str_contains(f, "\"condicion\": \"i == 3\""), f)
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("#{fallos} FALLOS")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+end

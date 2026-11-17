@@ -1,0 +1,22 @@
+# Para tests/depurar_mas.dash: condiciones, contador, vigilar, el valor bajo el ratón y hasta aquí.
+struct Nave
+    x: Int
+    nombre: String
+end
+
+func doble(n: Int) -> Int
+    r = n * 2
+    return r
+end
+
+Main
+    naves = [Nave(1, "a"), Nave(2, "b")]
+    total = 0
+    for i in (0..9)
+        total = total + doble(i)
+        naves[0].x = i
+    end
+    Print "total #{total}"
+    texto = "hola"
+    Print texto
+end

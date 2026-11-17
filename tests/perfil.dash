@@ -1,0 +1,173 @@
+# Hace de usuario de Ejecutar con perfil y con memcheck (paso 4.2): ejecuta tests/prueba/perfil con perfil (la pestaña
+# Perfil: lenta delante, ordenar por llamadas con un clic en su título, ir a lenta con un clic en su fila) y
+# tests/prueba/memoria con memcheck (el aviso del campo de nil sale con su sitio y un clic lleva a la línea 7).
+# Lo arranca tests/perfil.sh; anota en DH0:Prueba/perfil.txt. Sale con Amiga-Q.
+
+const AMIGA = 8
+const FORJA = "FORJA.1"
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/perfil.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String) -> Bool
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+    return cierto
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func sonda() -> [String]
+    n = 0
+    while n < 30
+        c = str_split(str_split(leer("RAM:forja-sonda.txt"), "\n")[0], " ")
+        if c.length >= 3 and c[0] != "" and c[2] != ""
+            return c
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return ["?", "?", "?"]
+end
+
+# Una opción del menú por su evento (input_menu no llega a los menús de MUI): ENV:FORJA_EVENTO y Esc en el editor,
+# para que Forja lo mire
+func menu(ev: Int)
+    env_set("FORJA_EVENTO", "#{ev}", false)
+    activar()
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    # (activar la ventana ya es un evento: si Forja lo miró con él, no hace falta Esc, que cerraría lo que abrió)
+    k = 0
+    while k < 10 and env_get("FORJA_EVENTO") != ""
+        time_delay(5)
+        k = k + 1
+    end
+    if env_get("FORJA_EVENTO") != ""
+        input_key(0x45, 0)
+        k = 0
+        while k < 40 and env_get("FORJA_EVENTO") != ""
+            time_delay(5)
+            k = k + 1
+        end
+    end
+    time_delay(15)
+end
+
+# Un clic en la línea n (desde 0) del editor, en la columna c
+func clic_editor(n: Int, c: Int)
+    primera = campo("FORJA_VISTA", 0)
+    alto = campo("FORJA_VISTA", 1)
+    margen = campo("FORJA_VISTA", 2)
+    x = campo("FORJA_EDITOR", 0) + margen + 2 + c * 8 + 3
+    y = campo("FORJA_EDITOR", 1) + 18 + 2 + (n - primera) * alto + alto / 2
+    input_click(x, y, 0)
+    time_delay(30)
+end
+
+func esperar_libre()
+    n = 0
+    time_delay(10)
+    while n < 1800 and rexx_send(FORJA, "ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and env_get("FORJA_SALIDA") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    ver("la ventana de Forja", n < 600, "")
+    t0 = time_ms()
+    menu(261)
+    n = 0
+    while n < 1200 and not str_contains(env_get("FORJA_PERFIL"), "lenta")
+        time_delay(10)
+        n = n + 1
+    end
+    p = env_get("FORJA_PERFIL")
+    anotar("  (perfil en #{(time_ms() - t0) / 100} décimas: " + p + ")")
+    ver("el perfil: lenta delante, con 60 llamadas", str_starts(p, "0 lenta:60 ") and str_contains(p, "rapida:3000 ") and str_contains(p, "Main:1 "), p + " | " + leer("RAM:forja-salida.txt"))
+    ver("en la pestaña Perfil", sonda()[2] == "Perfil", sonda()[2])
+    ver("la salida dice el resultado del programa", str_contains(leer("RAM:forja-salida.txt"), "t ") and not str_contains(leer("RAM:forja-salida.txt"), "perfil:"), leer("RAM:forja-salida.txt"))
+    activar()
+    screen_save_png("DH0:Prueba/perfil-tabla.png")
+    # un clic en el título Llamadas: ordena por llamadas
+    clic_editor(1, 22)
+    p = env_get("FORJA_PERFIL")
+    ver("clic en Llamadas: rapida delante", str_starts(p, "2 rapida:3000 lenta:60 "), p)
+    # un clic en la fila de lenta (la segunda): a su función, en main.dash línea 2
+    clic_editor(3, 30)
+    c = sonda()
+    ver("clic en lenta: a func lenta", c[2] == "main.dash" and c[0] == "1", c[0] + " " + c[2])
+    # memcheck
+    rexx_send(FORJA, "ABRIR DH0:Prueba/memoria/main.dash")
+    menu(262)
+    n = 0
+    while n < 1200 and not str_contains(leer("RAM:forja-salida.txt"), "memcheck: vivos")
+        time_delay(10)
+        n = n + 1
+    end
+    esperar_libre()
+    s = leer("RAM:forja-salida.txt")
+    lineas = str_split(s, "\n")
+    i = 0
+    error = -1
+    while i < lineas.length
+        if str_starts(lineas[i], "memcheck: ERROR")
+            error = i
+        end
+        i = i + 1
+    end
+    if ver("memcheck: el aviso del campo de nil", error >= 0 and str_contains(lineas[error], "main.dash:7)") and str_contains(s, "v 0"), s)
+        activar()
+        screen_save_png("DH0:Prueba/memcheck.png")
+        time_delay(20)
+        fila = campo("FORJA_SALIDA", 2)
+        y = campo("FORJA_SALIDA", 1) + (error - campo("FORJA_SALIDA", 3)) * fila + fila / 2
+        input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
+        time_delay(40)
+        c = sonda()
+        ver("un clic en el aviso lleva a la línea 7", c[2] == "main.dash" and c[0] == "6", c[0] + " " + c[2] + " | salida " + env_get("FORJA_SALIDA") + " error #{error} y #{y} | " + s)
+    end
+    ver("memcheck lo cuenta", str_contains(s, "memcheck: un aviso"), s)
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("#{fallos} FALLOS")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+end

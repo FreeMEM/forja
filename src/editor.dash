@@ -73,6 +73,8 @@ struct Documento
     temporal: String = ""     # un ejemplo de la ayuda sin nombre (Probar): el fichero de T: desde el que se compila
     marcadores: [Int] = nil   # las líneas (desde 0) con marcador, en orden; siguen a su texto al escribir
     plegados: [Int] = nil     # las líneas (desde 0) de los bloques plegados, en orden
+    puntos_antes: [Int] = nil # al escribir, los puntos siguen a su texto: la línea que tenía antes cada uno de puntos
+                              # (en el mismo orden), hasta que se pasa a los del proyecto (ed_puntos_movidos)
 end
 
 var documentos: [Documento] = []
@@ -112,6 +114,16 @@ var ed_ayuda_y: Int = 0
 var ed_ayuda_ancho: Int = 0
 var ed_ayuda_alto: Int = 0
 var _ayuda_lineas: [String] = []    # la descripción, partida en líneas
+# el valor bajo el ratón al depurar (paso 4.1): su texto y dónde empieza lo que vale eso (línea y columna, desde 0)
+var ed_valor_texto: String = ""
+var ed_valor_l: Int = -1
+var ed_valor_c: Int = 0
+var ed_valor_x: Int = 0
+var ed_valor_y: Int = 0
+var ed_valor_ancho: Int = 0
+var ed_valor_alto: Int = 0
+# los puntos de parada con condición o contador ("ruta en minúsculas:línea"): se dibujan distintos
+var ed_puntos_raros: [String] = []
 # Las pestañas que se ven: de dónde a dónde, desde la esquina de la zona
 var _pestana_x1: [Int] = []
 var _pestana_x2: [Int] = []
@@ -335,9 +347,13 @@ func ed_cambiar_lineas(d: Documento, desde: Int, hasta: Int, texto: String) -> B
         # las mismas líneas que había (comentar, cambiar en el proyecto...): los marcadores y los plegados se quedan
         var marcas: [Int] = nil
         var plegados: [Int] = nil
+        var puntos: [Int] = nil
+        var puntos_antes: [Int] = nil
         if str_split(texto, "\n").length == hasta - desde + 1
             marcas = _copia(d.marcadores)
             plegados = _copia(d.plegados)
+            puntos = _copia(d.puntos)
+            puntos_antes = d.puntos_antes
         end
         d.al = desde - 1
         d.ac = 0
@@ -349,6 +365,10 @@ func ed_cambiar_lineas(d: Documento, desde: Int, hasta: Int, texto: String) -> B
         end
         if plegados != nil
             d.plegados = plegados
+        end
+        if puntos != nil
+            d.puntos = puntos
+            d.puntos_antes = puntos_antes
         end
     end
     ed_seguir_cursor(d)
@@ -767,6 +787,9 @@ end
 # Los marcadores y los plegados siguen a su texto: n líneas nuevas tras la línea l (metidas en su columna c: en la
 # columna 0, el texto de la línea l también baja)
 func _lineas_metidas(d: Documento, l: Int, c: Int, n: Int, resto: Bool)
+    if d.puntos.length > 0
+        _puntos_correr(d, l, c == 0 and resto, n)
+    end
     if d.marcadores != nil
         _correr(d.marcadores, l, c == 0 and resto, n)
     end
@@ -788,6 +811,9 @@ end
 
 # Se quitaron las líneas l1 + 1 a l2 (lo que quedaba de l2 pasó a l1)
 func _lineas_quitadas(d: Documento, l1: Int, l2: Int)
+    if d.puntos.length > 0
+        _puntos_encoger(d, l1, l2)
+    end
     if d.marcadores != nil
         _encoger(d.marcadores, l1, l2, true)
     end
@@ -816,6 +842,65 @@ func _encoger(ls: [Int], l1: Int, l2: Int, juntar: Bool)
         end
     end
     _ordenar(ls)
+end
+
+# Los puntos de parada siguen a su texto como los marcadores (sus líneas van desde 1). Se mueven en su sitio, sin
+# ordenar, y puntos_antes guarda la línea de antes de cada uno: main lo pasa a los puntos del proyecto (con su
+# condición) con ed_puntos_movidos
+func _puntos_guardar(d: Documento)
+    if d.puntos_antes == nil or d.puntos_antes.length != d.puntos.length
+        d.puntos_antes = _copia(d.puntos)
+    end
+end
+
+func _puntos_correr(d: Documento, l: Int, baja: Bool, n: Int)
+    _puntos_guardar(d)
+    i = 0
+    while i < d.puntos.length
+        p = d.puntos[i] - 1
+        if p > l or (p == l and baja)
+            d.puntos[i] = d.puntos[i] + n
+        end
+        i = i + 1
+    end
+end
+
+func _puntos_encoger(d: Documento, l1: Int, l2: Int)
+    _puntos_guardar(d)
+    n = l2 - l1
+    i = 0
+    while i < d.puntos.length
+        p = d.puntos[i] - 1
+        if p > l2
+            d.puntos[i] = d.puntos[i] - n
+            i = i + 1
+        elif p > l1
+            # su línea ya no está: pasa a l1, si no tiene ya uno; si lo tiene, se va
+            if not _tiene(d.puntos, l1 + 1)
+                d.puntos[i] = l1 + 1
+                i = i + 1
+            else
+                d.puntos.remove(i)
+                d.puntos_antes.remove(i)
+            end
+        else
+            i = i + 1
+        end
+    end
+end
+
+# Si sus puntos se movieron al escribir: true, y deja en ed_movidos_antes y ed_movidos_ahora la línea de antes y la
+# de ahora de cada uno (un punto que había en antes y no está ya se quitó). Después, ya no cuentan como movidos.
+var ed_movidos_antes: [Int] = []
+var ed_movidos_ahora: [Int] = []
+func ed_puntos_movidos(d: Documento) -> Bool
+    if d.puntos_antes == nil
+        return false
+    end
+    ed_movidos_antes = d.puntos_antes
+    ed_movidos_ahora = _copia(d.puntos)
+    d.puntos_antes = nil
+    return true
 end
 
 func _tiene(ls: [Int], n: Int) -> Bool
@@ -1449,7 +1534,22 @@ func ed_mover_lineas(d: Documento, arriba: Bool) -> Bool
     else
         ed_cambiar_lineas(d, a + 1, b + 2, d.lineas[b + 1] + "\n" + _lineas_texto(d, a, b))
     end
-    # los marcadores van con sus líneas
+    # los marcadores y los puntos de parada van con sus líneas
+    if d.puntos.length > 0
+        _puntos_guardar(d)
+        i = 0
+        while i < d.puntos.length
+            m = d.puntos[i] - 1
+            if m >= a and m <= b
+                d.puntos[i] = d.puntos[i] + paso
+            elif arriba and m == a - 1
+                d.puntos[i] = b + 1
+            elif not arriba and m == b + 1
+                d.puntos[i] = a + 1
+            end
+            i = i + 1
+        end
+    end
     if d.marcadores != nil
         i = 0
         while i < d.marcadores.length
@@ -2495,6 +2595,15 @@ func _posicion(d: Documento, x: Int, y: Int)
     _fin_c = c
 end
 
+# La línea y la columna (desde 0) de un punto del lienzo: en ed_punto_l y ed_punto_c
+var ed_punto_l: Int = 0
+var ed_punto_c: Int = 0
+func ed_punto_en(d: Documento, x: Int, y: Int)
+    _posicion(d, x, y)
+    ed_punto_l = _fin_l
+    ed_punto_c = _fin_c
+end
+
 func ed_clic(x: Int, y: Int, extender: Bool)
     d = ed_actual()
     if d == nil or y < ALTO_PESTANAS
@@ -2627,7 +2736,13 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
     end
     if _tiene_punto(d, n + 1)
         gfx_pen(tema.error)
-        gfx_rect(x + 2, fy + 2, x + 7, fy + ed_alto_fila - 3)
+        if ed_puntos_raros.length > 0 and ed_puntos_raros.has(str_lower(d.ruta) + ":#{n + 1}")
+            # con condición o contador: hueco, con un punto en medio (con 4 colores se ve por la forma)
+            gfx_box(x + 2, fy + 2, x + 7, fy + ed_alto_fila - 3)
+            gfx_rect(x + 4, fy + ed_alto_fila / 2 - 1, x + 5, fy + ed_alto_fila / 2)
+        else
+            gfx_rect(x + 2, fy + 2, x + 7, fy + ed_alto_fila - 3)
+        end
     end
     if d.marcadores != nil and _tiene(d.marcadores, n)
         # el marcador: una cinta con muesca abajo (sobre el punto de parada, solo su borde)
@@ -3123,8 +3238,34 @@ end
 func ed_capas_geometria(d: Documento)
     ed_lista_alto = 0
     ed_ayuda_alto = 0
+    ed_valor_alto = 0
     if d == nil or d.diseno
         return
+    end
+    if ed_valor_texto != "" and ed_valor_l >= 0
+        fv = ed_fila_y(d, ed_valor_l)
+        if fv >= 0
+            cols = ed_valor_texto.length
+            if cols > ed_columnas - 4
+                cols = ed_columnas - 4
+            end
+            if cols < 4
+                cols = 4
+            end
+            ed_valor_ancho = cols * ancho_letra + 8
+            ed_valor_alto = ed_alto_fila + 4
+            ed_valor_x = ed_margen + 2 + (ed_valor_c - d.izquierda) * ancho_letra - 4
+            ed_valor_y = fv - ed_valor_alto - 1
+            if ed_valor_y < ALTO_PESTANAS + 2
+                ed_valor_y = fv + ed_alto_fila + 1
+            end
+            if ed_valor_x + ed_valor_ancho > ed_zona_ancho - 2
+                ed_valor_x = ed_zona_ancho - 2 - ed_valor_ancho
+            end
+            if ed_valor_x < ed_margen
+                ed_valor_x = ed_margen
+            end
+        end
     end
     fila = ed_fila_y(d, d.cl)
     if fila < 0
@@ -3248,9 +3389,17 @@ var ed_capas_y2: Int = -1
 func ed_capas_rango()
     ed_capas_y1 = -1
     ed_capas_y2 = -1
+    if ed_valor_alto > 0
+        ed_capas_y1 = ed_valor_y
+        ed_capas_y2 = ed_valor_y + ed_valor_alto
+    end
     if ed_lista_alto > 0
-        ed_capas_y1 = ed_lista_y
-        ed_capas_y2 = ed_lista_y + ed_lista_alto
+        if ed_capas_y1 < 0 or ed_lista_y < ed_capas_y1
+            ed_capas_y1 = ed_lista_y
+        end
+        if ed_lista_y + ed_lista_alto > ed_capas_y2
+            ed_capas_y2 = ed_lista_y + ed_lista_alto
+        end
     end
     if ed_ayuda_alto > 0
         if ed_capas_y1 < 0 or ed_ayuda_y < ed_capas_y1
@@ -3293,6 +3442,21 @@ func _dibujar_capas(d: Documento, x: Int, y: Int)
     ed_capas_rango()
     ed_pintado_y1 = ed_capas_y1
     ed_pintado_y2 = ed_capas_y2
+    if ed_valor_alto > 0
+        vx = x + ed_valor_x
+        vy = y + ed_valor_y
+        gfx_pen(tema.fondo_panel)
+        gfx_rect(vx, vy, vx + ed_valor_ancho - 1, vy + ed_valor_alto - 1)
+        gfx_pen(tema.acento)
+        gfx_box(vx, vy, vx + ed_valor_ancho - 1, vy + ed_valor_alto - 1)
+        gfx_pen(tema.texto)
+        t = ed_valor_texto
+        cabe = (ed_valor_ancho - 8) / ancho_letra
+        if t.length > cabe
+            t = t[0:cabe - 3] + "..."
+        end
+        gfx_text_at(vx + 4, vy + 2 + base_letra, t)
+    end
     if ed_ayuda_alto > 0
         ax = x + ed_ayuda_x
         ay = y + ed_ayuda_y

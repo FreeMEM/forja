@@ -1,0 +1,673 @@
+# Expresiones de Dash con el programa parado en el depurador (paso 4.1 de docs/FORJA_LOOP.md): las condiciones de
+# los puntos de parada, lo vigilado y el valor bajo el ratón. Como dashDebug.js de la extensión de VS Code de Dash:
+# los operadores del lenguaje con su precedencia (or, and, not, == != < > <= >=, | ^ &, << >>, + -, * / %, - ~),
+# números (también 0x y $), textos, true, false, nil y variables con .campo y [índice] detrás, que da dbg_value.
+# .length de una lista o un texto. Los registros (d0-d7, a0-a7, pc) si no hay una variable con ese nombre.
+#
+#   v = ex_evaluar("naves[i].x > 3 and not fin")    # ex_error != "" si no se pudo (y por qué)
+#   ex_texto(v)                                     # "true", "3", "\"hola\"", "Nave(x: 1)"...
+#
+# Los Float y lo demás (structs, listas, diccionarios) se comparan por su texto, como los da dbg_value.
+# Para las pruebas sin depurador: ex_prueba[camino] = texto del valor (y ex_prueba_tipos[camino] = tipo).
+
+const EX_INT = 1
+const EX_TEXTO = 2
+const EX_BOOL = 3
+const EX_NIL = 4
+const EX_OTRO = 5
+
+# lo que se lee de la expresión: un número, un texto, un nombre o un signo
+const _EXT_FIN = 0
+const _EXT_NUM = 1
+const _EXT_TEXTO = 2
+const _EXT_NOMBRE = 3
+const _EXT_SIGNO = 4
+
+struct Valor
+    t: Int = EX_NIL
+    n: Int = 0
+    s: String = ""
+    tipo: String = ""
+end
+
+var ex_error: String = ""
+var ex_marco: Int = 0                    # la llamada de la pila (0: donde paró)
+var ex_prueba: {String: String} = {}
+var ex_prueba_tipos: {String: String} = {}
+
+var _ex_s: String = ""
+var _ex_i: Int = 0
+var _ex_tok: Int = _EXT_FIN
+var _ex_txt: String = ""
+var _ex_saltar: Int = 0                  # > 0: dentro de lo que and/or no necesitan (no se pide nada al depurador)
+
+func ex_evaluar(texto: String) -> Valor
+    ex_error = ""
+    _ex_s = texto
+    _ex_i = 0
+    _ex_saltar = 0
+    _ex_leer()
+    v = _ex_o()
+    if ex_error == "" and _ex_tok != _EXT_FIN
+        ex_error = "sobra: " + str_trim(_ex_txt + _ex_s[_ex_i:])
+    end
+    return v
+end
+
+# ¿Se cumple? (true, un número que no es 0, un texto, algo que no es nil)
+func ex_cierto(v: Valor) -> Bool
+    if v.t == EX_BOOL or v.t == EX_INT
+        return v.n != 0
+    end
+    return v.t != EX_NIL
+end
+
+func ex_texto(v: Valor) -> String
+    if v.t == EX_INT
+        return "#{v.n}"
+    elif v.t == EX_BOOL
+        if v.n != 0
+            return "true"
+        end
+        return "false"
+    elif v.t == EX_NIL
+        return "nil"
+    elif v.t == EX_TEXTO
+        return "\"" + str_replace(str_replace(v.s, "\\", "\\\\"), "\"", "\\\"") + "\""
+    end
+    return v.s
+end
+
+# Un camino de variable sin más ("p.hijos[0].x"): se puede desplegar en el panel como una variable
+func ex_es_camino(t: String) -> Bool
+    return regex_match("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[ *[0-9]+ *\\])*", t, false) and t != "true" and t != "false" and t != "nil" and t != "not" and not str_ends(t, ".length")
+end
+
+# El valor que da dbg_value (o la prueba) como Valor: "3", "\"hola\"", "true", "nil", "Punto(x: 1)"
+func ex_de_texto(texto: String, tipo: String) -> Valor
+    v = Valor()
+    v.tipo = tipo
+    if texto == "nil"
+        return v
+    end
+    if tipo == "Bool" or texto == "true" or texto == "false"
+        v.t = EX_BOOL
+        if texto == "true"
+            v.n = 1
+        end
+        return v
+    end
+    if (tipo == "Int" or tipo == "") and regex_match("-?[0-9]+", texto, false)
+        v.t = EX_INT
+        v.n = Int(texto)
+        return v
+    end
+    if str_starts(texto, "\"") and str_ends(texto, "\"") and texto.length >= 2
+        v.t = EX_TEXTO
+        v.s = _ex_sin_comillas(texto[1:texto.length - 1])
+        return v
+    end
+    v.t = EX_OTRO
+    v.s = texto
+    return v
+end
+
+func _ex_sin_comillas(t: String) -> String
+    r = ""
+    i = 0
+    while i < t.length
+        c = str_code(t, i)
+        if c == 92 and i + 1 < t.length
+            i = i + 1
+            c = str_code(t, i)
+            if c == 110
+                r = r + "\n"
+            elif c == 116
+                r = r + "\t"
+            else
+                r = r + str_char(c)
+            end
+        else
+            r = r + str_char(c)
+        end
+        i = i + 1
+    end
+    return r
+end
+
+func _ex_fallo(por: String) -> Valor
+    if ex_error == ""
+        ex_error = por
+    end
+    return Valor()
+end
+
+func _ex_letra(c: Int) -> Bool
+    return (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95
+end
+
+func _ex_cifra(c: Int) -> Bool
+    return c >= 48 and c <= 57
+end
+
+# La siguiente pieza de la expresión: _ex_tok y _ex_txt
+func _ex_leer()
+    n = _ex_s.length
+    while _ex_i < n and (str_code(_ex_s, _ex_i) == 32 or str_code(_ex_s, _ex_i) == 9)
+        _ex_i = _ex_i + 1
+    end
+    if _ex_i >= n
+        _ex_tok = _EXT_FIN
+        _ex_txt = ""
+        return
+    end
+    c = str_code(_ex_s, _ex_i)
+    i0 = _ex_i
+    if _ex_cifra(c) or (c == 36 and _ex_i + 1 < n)
+        _ex_i = _ex_i + 1
+        while _ex_i < n and (_ex_letra(str_code(_ex_s, _ex_i)) or _ex_cifra(str_code(_ex_s, _ex_i)))
+            _ex_i = _ex_i + 1
+        end
+        _ex_tok = _EXT_NUM
+        _ex_txt = _ex_s[i0:_ex_i]
+        return
+    end
+    if _ex_letra(c)
+        while _ex_i < n and (_ex_letra(str_code(_ex_s, _ex_i)) or _ex_cifra(str_code(_ex_s, _ex_i)))
+            _ex_i = _ex_i + 1
+        end
+        _ex_tok = _EXT_NOMBRE
+        _ex_txt = _ex_s[i0:_ex_i]
+        return
+    end
+    if c == 34
+        _ex_i = _ex_i + 1
+        while _ex_i < n and str_code(_ex_s, _ex_i) != 34
+            if str_code(_ex_s, _ex_i) == 92
+                _ex_i = _ex_i + 1
+            end
+            _ex_i = _ex_i + 1
+        end
+        if _ex_i >= n
+            ex_error = "falta la comilla del final"
+            _ex_tok = _EXT_FIN
+            _ex_txt = ""
+            return
+        end
+        _ex_i = _ex_i + 1
+        _ex_tok = _EXT_TEXTO
+        _ex_txt = _ex_sin_comillas(_ex_s[i0 + 1:_ex_i - 1])
+        return
+    end
+    dos = ""
+    if _ex_i + 1 < n
+        dos = _ex_s[_ex_i:_ex_i + 2]
+    end
+    _ex_tok = _EXT_SIGNO
+    if dos == "==" or dos == "!=" or dos == "<=" or dos == ">=" or dos == "<<" or dos == ">>"
+        _ex_txt = dos
+        _ex_i = _ex_i + 2
+        return
+    end
+    _ex_txt = _ex_s[_ex_i:_ex_i + 1]
+    _ex_i = _ex_i + 1
+    if not str_contains("+-*/%<>()[].&|^~", _ex_txt)
+        ex_error = "no entiendo " + _ex_txt
+        _ex_tok = _EXT_FIN
+    end
+end
+
+func _ex_es(signo: String) -> Bool
+    return _ex_tok == _EXT_SIGNO and _ex_txt == signo
+end
+
+func _ex_es_palabra(p: String) -> Bool
+    return _ex_tok == _EXT_NOMBRE and _ex_txt == p
+end
+
+func _ex_bool(b: Bool) -> Valor
+    v = Valor()
+    v.t = EX_BOOL
+    if b
+        v.n = 1
+    end
+    return v
+end
+
+func _ex_int(n: Int) -> Valor
+    v = Valor()
+    v.t = EX_INT
+    v.n = n
+    return v
+end
+
+func _ex_o() -> Valor
+    a = _ex_y()
+    while ex_error == "" and _ex_es_palabra("or")
+        _ex_leer()
+        if ex_cierto(a)
+            _ex_saltar = _ex_saltar + 1
+            _ex_y()
+            _ex_saltar = _ex_saltar - 1
+            a = _ex_bool(true)
+        else
+            a = _ex_bool(ex_cierto(_ex_y()))
+        end
+    end
+    return a
+end
+
+func _ex_y() -> Valor
+    a = _ex_no()
+    while ex_error == "" and _ex_es_palabra("and")
+        _ex_leer()
+        if not ex_cierto(a)
+            _ex_saltar = _ex_saltar + 1
+            _ex_no()
+            _ex_saltar = _ex_saltar - 1
+            a = _ex_bool(false)
+        else
+            a = _ex_bool(ex_cierto(_ex_no()))
+        end
+    end
+    return a
+end
+
+func _ex_no() -> Valor
+    if _ex_es_palabra("not")
+        _ex_leer()
+        return _ex_bool(not ex_cierto(_ex_no()))
+    end
+    return _ex_comparar()
+end
+
+func _ex_comparar() -> Valor
+    a = _ex_bits(0)
+    while ex_error == "" and (_ex_es("==") or _ex_es("!=") or _ex_es("<") or _ex_es(">") or _ex_es("<=") or _ex_es(">="))
+        op = _ex_txt
+        _ex_leer()
+        b = _ex_bits(0)
+        a = _ex_operar(op, a, b)
+    end
+    return a
+end
+
+# | (nivel 0), ^ (1), & (2), << >> (3), + - (4), * / % (5)
+func _ex_bits(nivel: Int) -> Valor
+    if nivel > 5
+        return _ex_unario()
+    end
+    a = _ex_bits(nivel + 1)
+    while ex_error == "" and _ex_tok == _EXT_SIGNO and _ex_del_nivel(_ex_txt, nivel)
+        op = _ex_txt
+        _ex_leer()
+        b = _ex_bits(nivel + 1)
+        a = _ex_operar(op, a, b)
+    end
+    return a
+end
+
+func _ex_del_nivel(op: String, nivel: Int) -> Bool
+    if nivel == 0
+        return op == "|"
+    elif nivel == 1
+        return op == "^"
+    elif nivel == 2
+        return op == "&"
+    elif nivel == 3
+        return op == "<<" or op == ">>"
+    elif nivel == 4
+        return op == "+" or op == "-"
+    end
+    return op == "*" or op == "/" or op == "%"
+end
+
+func _ex_unario() -> Valor
+    if _ex_es("-")
+        _ex_leer()
+        a = _ex_unario()
+        if ex_error == "" and _ex_saltar == 0 and a.t != EX_INT
+            return _ex_fallo("- con algo que no es un Int")
+        end
+        return _ex_int(0 - a.n)
+    end
+    if _ex_es("~")
+        _ex_leer()
+        a = _ex_unario()
+        if ex_error == "" and _ex_saltar == 0 and a.t != EX_INT
+            return _ex_fallo("~ con algo que no es un Int")
+        end
+        return _ex_int(-1 - a.n)
+    end
+    return _ex_primario()
+end
+
+func _ex_primario() -> Valor
+    if ex_error != ""
+        return Valor()
+    end
+    if _ex_tok == _EXT_FIN
+        return _ex_fallo("falta algo al final")
+    end
+    if _ex_tok == _EXT_NUM
+        t = _ex_txt
+        _ex_leer()
+        n = 0
+        if str_starts(t, "$")
+            n = str_to_int(t[1:], 16)
+        elif str_starts(str_lower(t), "0x")
+            n = str_to_int(t[2:], 16)
+        elif regex_match("[0-9]+", t, false)
+            n = Int(t)
+        else
+            return _ex_fallo("no es un número: " + t)
+        end
+        return _ex_int(n)
+    end
+    if _ex_tok == _EXT_TEXTO
+        v = Valor()
+        v.t = EX_TEXTO
+        v.s = _ex_txt
+        _ex_leer()
+        return v
+    end
+    if _ex_es("(")
+        _ex_leer()
+        v = _ex_o()
+        if not _ex_es(")")
+            return _ex_fallo("falta )")
+        end
+        _ex_leer()
+        return v
+    end
+    if _ex_tok != _EXT_NOMBRE
+        return _ex_fallo("no entiendo " + _ex_txt)
+    end
+    nombre = _ex_txt
+    _ex_leer()
+    if nombre == "true" or nombre == "false"
+        return _ex_bool(nombre == "true")
+    end
+    if nombre == "nil"
+        return Valor()
+    end
+    camino = nombre
+    largo = false
+    while ex_error == ""
+        if _ex_es(".")
+            _ex_leer()
+            if _ex_tok != _EXT_NOMBRE
+                return _ex_fallo("falta el campo tras el punto")
+            end
+            campo = _ex_txt
+            _ex_leer()
+            if campo == "length" and not _ex_es(".") and not _ex_es("[")
+                largo = true
+                break
+            end
+            camino = camino + "." + campo
+        elif _ex_es("[")
+            _ex_leer()
+            k = _ex_o()
+            if not _ex_es("]")
+                return _ex_fallo("falta ]")
+            end
+            _ex_leer()
+            if _ex_saltar == 0 and k.t != EX_INT
+                return _ex_fallo("el índice no es un Int")
+            end
+            camino = camino + "[#{k.n}]"
+        else
+            break
+        end
+    end
+    if ex_error != "" or _ex_saltar > 0
+        return Valor()
+    end
+    v = ex_variable(camino)
+    if ex_error != "" or not largo
+        return v
+    end
+    if v.t == EX_TEXTO
+        return _ex_int(v.s.length)
+    end
+    if str_starts(v.tipo, "[") or str_starts(v.s, "[")
+        return _ex_int(ex_largo(camino))
+    end
+    return ex_variable(camino + ".length")
+end
+
+# El valor de una variable (con .campo y [n]) donde paró el programa; si no hay variable y es un registro, el registro
+func ex_variable(camino: String) -> Valor
+    if ex_prueba.length > 0
+        if not ex_prueba.has(camino)
+            return _ex_fallo("no hay " + camino)
+        end
+        return ex_de_texto(ex_prueba[camino], ex_prueba_tipos.get(camino, ""))
+    end
+    t = dbg_value(ex_marco, camino)
+    if str_starts(t, "?")
+        r = ex_registro(camino)
+        if r >= 0
+            return _ex_int(dbg_reg(r))
+        end
+        return _ex_fallo(str_trim(t[1:]))
+    end
+    return ex_de_texto(t, dbg_value_type(ex_marco, camino))
+end
+
+# El número de un registro para dbg_reg (d0-d7 0-7, a0-a7 8-15, pc 16); -1 si no es uno
+func ex_registro(n: String) -> Int
+    l = str_lower(n)
+    if l == "pc"
+        return 16
+    end
+    if l == "sp"
+        return 15
+    end
+    if l.length == 2 and (l[0:1] == "d" or l[0:1] == "a") and str_code(l, 1) >= 48 and str_code(l, 1) <= 55
+        k = str_code(l, 1) - 48
+        if l[0:1] == "a"
+            k = k + 8
+        end
+        return k
+    end
+    return -1
+end
+
+# Cuántos elementos tiene la lista camino (dbg_value enseña 20 como mucho): probando [n], doblando y por mitades
+func ex_largo(camino: String) -> Int
+    if ex_prueba.length > 0
+        n = 0
+        while ex_prueba.has(camino + "[#{n}]")
+            n = n + 1
+        end
+        return n
+    end
+    if dbg_value_type(ex_marco, camino + "[0]") == ""
+        return 0
+    end
+    bajo = 1
+    alto = 1
+    while dbg_value_type(ex_marco, camino + "[#{alto}]") != ""
+        bajo = alto + 1
+        alto = alto * 2
+    end
+    while bajo < alto
+        m = (bajo + alto) / 2
+        if dbg_value_type(ex_marco, camino + "[#{m}]") != ""
+            bajo = m + 1
+        else
+            alto = m
+        end
+    end
+    return bajo
+end
+
+func _ex_operar(op: String, a: Valor, b: Valor) -> Valor
+    if ex_error != "" or _ex_saltar > 0
+        return Valor()
+    end
+    if op == "==" or op == "!="
+        igual = false
+        if a.t == EX_NIL or b.t == EX_NIL
+            igual = a.t == b.t
+        elif a.t == EX_INT and b.t == EX_INT
+            igual = a.n == b.n
+        elif a.t == EX_BOOL and b.t == EX_BOOL
+            igual = a.n == b.n
+        elif a.t == EX_TEXTO and b.t == EX_TEXTO
+            igual = a.s == b.s
+        else
+            igual = a.t == b.t and ex_texto(a) == ex_texto(b)
+        end
+        if op == "!="
+            igual = not igual
+        end
+        return _ex_bool(igual)
+    end
+    if op == "<" or op == ">" or op == "<=" or op == ">="
+        c = 0
+        if a.t == EX_INT and b.t == EX_INT
+            if a.n < b.n
+                c = -1
+            elif a.n > b.n
+                c = 1
+            end
+        elif a.t == EX_TEXTO and b.t == EX_TEXTO
+            c = _ex_orden(a.s, b.s)
+        else
+            return _ex_fallo(op + " entre " + _ex_tipo(a) + " y " + _ex_tipo(b))
+        end
+        if op == "<"
+            return _ex_bool(c < 0)
+        elif op == ">"
+            return _ex_bool(c > 0)
+        elif op == "<="
+            return _ex_bool(c <= 0)
+        end
+        return _ex_bool(c >= 0)
+    end
+    if op == "+" and a.t == EX_TEXTO and b.t == EX_TEXTO
+        v = Valor()
+        v.t = EX_TEXTO
+        v.s = a.s + b.s
+        return v
+    end
+    if a.t != EX_INT or b.t != EX_INT
+        return _ex_fallo(op + " entre " + _ex_tipo(a) + " y " + _ex_tipo(b))
+    end
+    if (op == "/" or op == "%") and b.n == 0
+        return _ex_fallo("división por cero")
+    end
+    if op == "+"
+        return _ex_int(a.n + b.n)
+    elif op == "-"
+        return _ex_int(a.n - b.n)
+    elif op == "*"
+        return _ex_int(a.n * b.n)
+    elif op == "/"
+        return _ex_int(a.n / b.n)
+    elif op == "%"
+        return _ex_int(a.n % b.n)
+    elif op == "&"
+        return _ex_int(a.n & b.n)
+    elif op == "|"
+        return _ex_int(a.n | b.n)
+    elif op == "^"
+        return _ex_int(a.n ^ b.n)
+    elif op == "<<"
+        return _ex_int(a.n << b.n)
+    end
+    return _ex_int(a.n >> b.n)
+end
+
+# -1, 0 o 1: a antes, igual o después que b (por sus códigos)
+func _ex_orden(a: String, b: String) -> Int
+    i = 0
+    while i < a.length and i < b.length
+        x = str_code(a, i)
+        y = str_code(b, i)
+        if x != y
+            if x < y
+                return -1
+            end
+            return 1
+        end
+        i = i + 1
+    end
+    if a.length < b.length
+        return -1
+    elif a.length > b.length
+        return 1
+    end
+    return 0
+end
+
+func _ex_tipo(v: Valor) -> String
+    if v.t == EX_INT
+        return "Int"
+    elif v.t == EX_TEXTO
+        return "String"
+    elif v.t == EX_BOOL
+        return "Bool"
+    elif v.t == EX_NIL
+        return "nil"
+    end
+    if v.tipo != ""
+        return v.tipo
+    end
+    return "?"
+end
+
+# ¿Se cumple el contador de un punto de parada en su vez n? "3" (desde la tercera), "= 3", "> 3", "% 2"...
+# true si está vacío o no se entiende
+func ex_contador(c: String, n: Int) -> Bool
+    t = str_trim(c)
+    if t == ""
+        return true
+    end
+    op = ""
+    for o in ["==", ">=", "<=", "=", ">", "<", "%"]
+        if op == "" and str_starts(t, o)
+            op = o
+        end
+    end
+    num = str_trim(t[op.length:])
+    if not regex_match("[0-9]+", num, false)
+        return true
+    end
+    k = Int(num)
+    if op == "==" or op == "="
+        return n == k
+    elif op == ">"
+        return n > k
+    elif op == "<="
+        return n <= k
+    elif op == "<"
+        return n < k
+    elif op == "%"
+        return k > 0 and n % k == 0
+    end
+    return n >= k
+end
+
+# ¿Un contador que se entiende? (para decirlo al escribirlo)
+func ex_contador_valido(c: String) -> Bool
+    return regex_match(" *(==|>=|<=|=|>|<|%)? *[0-9]+ *", c, false) or str_trim(c) == ""
+end
+
+# ¿Se entiende la expresión? (sin pedir nada al depurador): "" si sí; si no, por qué
+func ex_comprobar(texto: String) -> String
+    ex_error = ""
+    _ex_s = texto
+    _ex_i = 0
+    _ex_saltar = 1
+    _ex_leer()
+    _ex_o()
+    if ex_error == "" and _ex_tok != _EXT_FIN
+        ex_error = "sobra: " + str_trim(_ex_txt + _ex_s[_ex_i:])
+    end
+    _ex_saltar = 0
+    return ex_error
+end

@@ -1,0 +1,422 @@
+# El proyecto de Forja: el fichero .forja (paso 3.1 de docs/FORJA_LOOP.md; decidido en docs/HERRAMIENTAS_DISENO.md).
+# Es JSON, como un .dashui, en UTF-8:
+#
+#   { "forja": 1, "nombre": "Cueva", "tipo": "juego", "principal": "main.dash", "ejecutable": "Cueva",
+#     "cpu": "68020", "fpu": false, "pila": 0, "memcheck": false, "perfil": false, "gcc": false, "opciones": "",
+#     "argumentos": "", "argumentos_depurar": "", "version": "0.1", "icono": "Cueva.info",
+#     "puntos": [ { "fichero": "main.dash", "linea": 20, "condicion": "i > 3", "contador": "" } ],
+#     "vigilar": [ "naves.length" ] }
+#
+# Las rutas (principal, ejecutable, icono, los ficheros de los puntos) son desde el cajón del .forja. Sin .forja,
+# Forja funciona como antes. Los puntos de parada (con su condición y su contador) y lo vigilado se guardan aquí.
+
+import "lib/json.dash"
+
+const PR_TIPOS = "orden|commodity|aplicacion|juego|demo|3d|otro"
+const PR_CPUS = "68000|68020|68030|68040|68060"
+
+# Un punto de parada con lo que lleva: la ruta entera mientras Forja está abierto (en el .forja, desde su cajón)
+struct PuntoProy
+    fichero: String
+    linea: Int
+    condicion: String = ""
+    contador: String = ""
+    veces: Int = 0          # cuántas veces se ha cumplido su condición en esta depuración
+    guardada: Int = -1      # su línea en el fichero tal como está en el disco (-1: puesto en cambios sin guardar);
+                            # al escribir, linea sigue a su texto, y al descartar los cambios vuelve aquí
+end
+
+struct Proyecto
+    ruta: String            # el .forja
+    cajon: String
+    nombre: String = ""
+    tipo: String = "otro"
+    principal: String = "main.dash"
+    ejecutable: String = ""
+    cpu: String = "68000"
+    fpu: Bool = false
+    pila: Int = 0
+    memcheck: Bool = false
+    perfil: Bool = false
+    gcc: Bool = false
+    opciones: String = ""
+    argumentos: String = ""
+    argumentos_depurar: String = ""
+    version: String = ""
+    icono: String = ""
+    vigilar: [String] = nil
+end
+
+var pr_error: String = ""
+# los puntos de parada del proyecto (también de los ficheros que no están abiertos) y los de fuera de él, con su
+# condición y su contador: la ruta entera
+var pr_puntos: [PuntoProy] = []
+
+func pr_nuevo(ruta: String) -> Proyecto
+    p = Proyecto(ruta, _pr_cajon(ruta))
+    var v: [String] = []
+    p.vigilar = v
+    n = _pr_nombre_de(ruta)
+    if str_ends(str_lower(n), ".forja")
+        n = n[0:n.length - 6]
+    end
+    p.nombre = n
+    p.ejecutable = n
+    return p
+end
+
+func _pr_unir(cajon: String, nombre: String) -> String
+    if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
+        return cajon + nombre
+    end
+    return cajon + "/" + nombre
+end
+
+func _pr_cajon(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/"
+            return ruta[0:i]
+        end
+        if c == ":"
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
+
+func _pr_nombre_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/" or c == ":"
+            return ruta[i + 1:]
+        end
+        i = i - 1
+    end
+    return ruta
+end
+
+func _pr_texto(o: Json, nombre: String, otro: String) -> String
+    j = json_get(o, nombre)
+    if j == nil or j.kind != JSON_STRING
+        return otro
+    end
+    return utf8_to_latin1(j.text)
+end
+
+func _pr_bool(o: Json, nombre: String) -> Bool
+    j = json_get(o, nombre)
+    return j != nil and j.kind == JSON_BOOL and j.flag
+end
+
+func _pr_int(o: Json, nombre: String) -> Int
+    j = json_get(o, nombre)
+    if j == nil or j.kind != JSON_NUMBER
+        return 0
+    end
+    return j.num
+end
+
+# Lee un .forja; nil si no se puede (pr_error dice por qué). Sus puntos de parada pasan a pr_puntos (en lugar de los
+# que hubiera de su cajón)
+func pr_leer(ruta: String) -> Proyecto
+    pr_error = ""
+    t = file_read_text(ruta)
+    if t == nil
+        pr_error = "no se puede leer"
+        return nil
+    end
+    o = json_parse(t)
+    if o == nil or o.kind != JSON_OBJECT
+        pr_error = "no es JSON: " + json_error()
+        return nil
+    end
+    if not json_has(o, "forja")
+        pr_error = "falta \"forja\": 1"
+        return nil
+    end
+    p = pr_nuevo(ruta)
+    p.nombre = _pr_texto(o, "nombre", p.nombre)
+    p.tipo = _pr_texto(o, "tipo", p.tipo)
+    p.principal = _pr_texto(o, "principal", p.principal)
+    p.ejecutable = _pr_texto(o, "ejecutable", p.ejecutable)
+    p.cpu = _pr_texto(o, "cpu", p.cpu)
+    p.fpu = _pr_bool(o, "fpu")
+    p.pila = _pr_int(o, "pila")
+    p.memcheck = _pr_bool(o, "memcheck")
+    p.perfil = _pr_bool(o, "perfil")
+    p.gcc = _pr_bool(o, "gcc")
+    p.opciones = _pr_texto(o, "opciones", "")
+    p.argumentos = _pr_texto(o, "argumentos", "")
+    p.argumentos_depurar = _pr_texto(o, "argumentos_depurar", "")
+    p.version = _pr_texto(o, "version", "")
+    p.icono = _pr_texto(o, "icono", "")
+    vs = json_get(o, "vigilar")
+    if vs != nil and vs.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(vs)
+            e = json_at(vs, i)
+            if e.kind == JSON_STRING and e.text != ""
+                p.vigilar.push(utf8_to_latin1(e.text))
+            end
+            i = i + 1
+        end
+    end
+    # sus puntos de parada, en lugar de los que hubiera de dentro de su cajón
+    var otros: [PuntoProy] = []
+    for q in pr_puntos
+        if not pr_dentro(p, q.fichero)
+            otros.push(q)
+        end
+    end
+    ps = json_get(o, "puntos")
+    if ps != nil and ps.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(ps)
+            e = json_at(ps, i)
+            f = _pr_texto(e, "fichero", "")
+            l = _pr_int(e, "linea")
+            if f != "" and l > 0
+                otros.push(PuntoProy(pr_ruta(p, f), l, _pr_texto(e, "condicion", ""), _pr_texto(e, "contador", ""), 0, l))
+            end
+            i = i + 1
+        end
+    end
+    pr_puntos = otros
+    return p
+end
+
+func _pr_jtexto(t: String) -> Json
+    return json_string(latin1_to_utf8(t))
+end
+
+# Escribe el .forja (con los puntos de parada de su cajón); false si no se puede
+func pr_escribir(p: Proyecto) -> Bool
+    o = json_object()
+    json_set(o, "forja", json_int(1))
+    json_set(o, "nombre", _pr_jtexto(p.nombre))
+    json_set(o, "tipo", _pr_jtexto(p.tipo))
+    json_set(o, "principal", _pr_jtexto(p.principal))
+    json_set(o, "ejecutable", _pr_jtexto(p.ejecutable))
+    json_set(o, "cpu", _pr_jtexto(p.cpu))
+    json_set(o, "fpu", json_bool(p.fpu))
+    json_set(o, "pila", json_int(p.pila))
+    json_set(o, "memcheck", json_bool(p.memcheck))
+    json_set(o, "perfil", json_bool(p.perfil))
+    json_set(o, "gcc", json_bool(p.gcc))
+    json_set(o, "opciones", _pr_jtexto(p.opciones))
+    json_set(o, "argumentos", _pr_jtexto(p.argumentos))
+    json_set(o, "argumentos_depurar", _pr_jtexto(p.argumentos_depurar))
+    json_set(o, "version", _pr_jtexto(p.version))
+    json_set(o, "icono", _pr_jtexto(p.icono))
+    ps = json_array()
+    for q in pr_puntos
+        if pr_dentro(p, q.fichero)
+            e = json_object()
+            json_set(e, "fichero", _pr_jtexto(pr_relativa(p, q.fichero)))
+            json_set(e, "linea", json_int(q.linea))
+            if q.condicion != ""
+                json_set(e, "condicion", _pr_jtexto(q.condicion))
+            end
+            if q.contador != ""
+                json_set(e, "contador", _pr_jtexto(q.contador))
+            end
+            json_push(ps, e)
+        end
+    end
+    json_set(o, "puntos", ps)
+    vs = json_array()
+    for w in p.vigilar
+        json_push(vs, _pr_jtexto(w))
+    end
+    json_set(o, "vigilar", vs)
+    return file_write_text(p.ruta, json_pretty(o) + "\n")
+end
+
+# Una ruta del .forja (desde su cajón, o entera si lleva ":") como ruta entera
+func pr_ruta(p: Proyecto, r: String) -> String
+    if r == "" or str_contains(r, ":")
+        return r
+    end
+    return _pr_unir(p.cajon, r)
+end
+
+# ¿Está la ruta dentro del cajón del proyecto (o de los de dentro)?
+func pr_dentro(p: Proyecto, ruta: String) -> Bool
+    if p == nil or ruta == ""
+        return false
+    end
+    c = str_lower(p.cajon)
+    r = str_lower(ruta)
+    if not str_starts(r, c) or r.length == c.length
+        return false
+    end
+    return str_ends(c, ":") or str_ends(c, "/") or str_code(r, c.length) == 47
+end
+
+# La ruta desde el cajón del proyecto (entera si está fuera)
+func pr_relativa(p: Proyecto, ruta: String) -> String
+    if not pr_dentro(p, ruta)
+        return ruta
+    end
+    r = ruta[p.cajon.length:]
+    if str_starts(r, "/")
+        r = r[1:]
+    end
+    return r
+end
+
+func pr_principal(p: Proyecto) -> String
+    return pr_ruta(p, p.principal)
+end
+
+# El ejecutable: el del proyecto (desde su cajón) o, si las preferencias dicen otro cajón (Ejecutables en:), ahí
+func pr_ejecutable(p: Proyecto, cajon_exes: String) -> String
+    e = p.ejecutable
+    if e == ""
+        e = p.nombre
+    end
+    if cajon_exes != ""
+        return _pr_unir(cajon_exes, _pr_nombre_de(e))
+    end
+    return pr_ruta(p, e)
+end
+
+# Las opciones de dash del proyecto: --cpu, --fpu, --stack, --memcheck, --profile, --gcc y las de más; con perfil o
+# memcheck, también aunque el proyecto no las tenga (Ejecutar con perfil, con memcheck)
+func pr_opciones(p: Proyecto, perfil: Bool, memcheck: Bool) -> String
+    o = ""
+    if p != nil
+        if p.cpu != "" and p.cpu != "68000"
+            o = o + " --cpu " + p.cpu
+        end
+        if p.fpu
+            o = o + " --fpu"
+        end
+        if p.pila > 0
+            o = o + " --stack #{p.pila}"
+        end
+        if p.gcc
+            o = o + " --gcc"
+        end
+        memcheck = memcheck or p.memcheck
+        perfil = perfil or p.perfil
+    end
+    if memcheck
+        o = o + " --memcheck"
+    end
+    if perfil
+        o = o + " --profile"
+    end
+    if p != nil and str_trim(p.opciones) != ""
+        o = o + " " + str_trim(p.opciones)
+    end
+    return o
+end
+
+# --- Los puntos de parada con lo que llevan ---
+
+func _pr_misma(a: String, b: String) -> Bool
+    return str_lower(a) == str_lower(b)
+end
+
+# El punto de esa línea de ese fichero; nil si no tiene (o no lleva nada)
+func pr_punto(ruta: String, linea: Int) -> PuntoProy
+    for q in pr_puntos
+        if q.linea == linea and _pr_misma(q.fichero, ruta)
+            return q
+        end
+    end
+    return nil
+end
+
+# Lo apunta (o lo quita) al poner o quitar un punto con F9 o un clic en el margen
+func pr_punto_poner(ruta: String, linea: Int, puesto: Bool)
+    if ruta == ""
+        return
+    end
+    i = 0
+    while i < pr_puntos.length
+        q = pr_puntos[i]
+        if q.linea == linea and _pr_misma(q.fichero, ruta)
+            if puesto
+                return
+            end
+            pr_puntos.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    if puesto
+        pr_puntos.push(PuntoProy(ruta, linea))
+    end
+end
+
+# El fichero se guardó (o se puso un punto sin cambios sin guardar): sus puntos están donde dice el disco
+func pr_puntos_guardados(ruta: String)
+    for q in pr_puntos
+        if _pr_misma(q.fichero, ruta)
+            q.guardada = q.linea
+        end
+    end
+end
+
+# Se descartaron los cambios del fichero: sus puntos vuelven a la línea del disco; los puestos después, se van
+func pr_puntos_descartar(ruta: String)
+    i = 0
+    while i < pr_puntos.length
+        q = pr_puntos[i]
+        if _pr_misma(q.fichero, ruta)
+            if q.guardada < 0
+                pr_puntos.remove(i)
+                continue
+            end
+            q.linea = q.guardada
+        end
+        i = i + 1
+    end
+end
+
+# Las líneas con punto de un fichero (al abrirlo)
+func pr_lineas_de(ruta: String) -> [Int]
+    var r: [Int] = []
+    for q in pr_puntos
+        if _pr_misma(q.fichero, ruta)
+            r.push(q.linea)
+        end
+    end
+    return r
+end
+
+# Al empezar a depurar: las veces, a cero
+func pr_puntos_empezar()
+    for q in pr_puntos
+        q.veces = 0
+    end
+end
+
+# "condición; contador" de un punto para enseñarlo ("" si no lleva nada)
+func pr_punto_texto(q: PuntoProy) -> String
+    if q == nil
+        return ""
+    end
+    t = q.condicion
+    if q.contador != ""
+        if t != ""
+            t = t + "; "
+        end
+        t = t + "veces " + q.contador
+    end
+    return t
+end
+
+# La línea @version del programa con el nombre y la versión del proyecto ("" si no hay versión)
+func pr_linea_version(p: Proyecto) -> String
+    if p.version == ""
+        return ""
+    end
+    return "@version \"" + p.nombre + " " + p.version + "\""
+end
