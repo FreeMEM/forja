@@ -1,0 +1,117 @@
+# La memoria que usa Forja al arrancar (paso 0.3 de docs/FORJA_LOOP.md). Arranca Forja dos veces con el proyecto de
+# tests/prueba/juego abierto (main.dash) y mira la memoria chip y fast libre antes, con Forja en marcha y quieta, y
+# después de salir. La primera vez cuenta también lo que el sistema carga para ella (MUI, sus clases, las fuentes);
+# la segunda, ya cargado, solo Forja (y sus extensiones). Con MEMORIA = "todas", abre además un sprite y un mapa
+# (arrancan las extensiones Sprites y Mapas). Con ENV:Forja/dashc, también lo más alto mientras compila main.dash.
+# Lo arranca tests/memoria.sh; anota en DH0:Prueba/memoria.txt.
+
+const FORJA = "FORJA.1"
+
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/memoria.txt", registro)
+end
+
+func puerto(nombre: String) -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func esperar_puerto(nombre: String, si: Bool, decimas: Int) -> Bool
+    n = 0
+    while n < decimas and puerto(nombre) != si
+        time_delay(5)
+        n = n + 1
+    end
+    return puerto(nombre) == si
+end
+
+var chip0: Int = 0
+var fast0: Int = 0
+
+func kb(n: Int) -> String
+    return "#{(n + 512) / 1024} KB"
+end
+
+# Lo que falta desde el principio, en chip y en fast
+func medir(que: String)
+    mem_trim()
+    c = chip0 - mem_chip_free()
+    f = fast0 - mem_fast_free()
+    anotar(que + ": chip " + kb(c) + ", fast " + kb(f) + ", en total " + kb(c + f))
+end
+
+func una_vez(vez: Int, todas: Bool)
+    run_command("Run >NIL: DH0:Prueba/Forja")
+    if not esperar_puerto(FORJA, true, 1200)
+        anotar("FALLO: Forja no arranca")
+        return
+    end
+    # quieta: abierto main.dash (FORJA_PRUEBA), las extensiones de inicio arrancadas y git leído
+    time_delay(1500)
+    medir("vez #{vez}, Forja quieta con main.dash")
+    # compilar (con DASH_DIR/dashc para el Amiga): lo más bajo que queda libre mientras compila
+    if env_get("Forja/dashc") != ""
+        mem_trim()
+        cmin = mem_chip_free()
+        fmin = mem_fast_free()
+        rexx_send(FORJA, "COMPILAR")
+        n = 0
+        while n < 1200 and (n < 10 or rexx_send(FORJA, "ESTADO") != "libre")
+            if mem_chip_free() < cmin
+                cmin = mem_chip_free()
+            end
+            if mem_fast_free() < fmin
+                fmin = mem_fast_free()
+            end
+            time_delay(2)
+            n = n + 1
+        end
+        c = chip0 - cmin
+        f = fast0 - fmin
+        anotar("vez #{vez}, compilando main.dash (lo más alto): chip " + kb(c) + ", fast " + kb(f) + ", en total " + kb(c + f) + " (" + rexx_send(FORJA, "ESTADO") + ")")
+        time_delay(250)
+    end
+    if todas
+        rexx_send(FORJA, "ABRIR DH0:Prueba/juego/nave.iff")
+        esperar_puerto("FORJAEXT.SPRITES", true, 400)
+        time_delay(250)
+        medir("vez #{vez}, y un sprite abierto (extensión Sprites)")
+        rexx_send(FORJA, "ABRIR DH0:Prueba/juego/nivel.fmap")
+        esperar_puerto("FORJAEXT.MAPAS", true, 400)
+        time_delay(250)
+        medir("vez #{vez}, y un mapa abierto (extensión Mapas)")
+    end
+    rexx_send(FORJA, "QUIT")
+    if not esperar_puerto(FORJA, false, 600)
+        anotar("FALLO: Forja no se cierra")
+        return
+    end
+    esperar_puerto("FORJAEXT.GIT", false, 200)
+    esperar_puerto("FORJAEXT.INFERENCIA", false, 200)
+    esperar_puerto("FORJAEXT.SPRITES", false, 200)
+    esperar_puerto("FORJAEXT.MAPAS", false, 200)
+    time_delay(250)
+    medir("vez #{vez}, tras salir")
+end
+
+Main
+    que = env_get("MEMORIA")
+    anotar("Extensiones: " + que + ". Memoria: chip " + kb(mem_chip_total()) + ", fast " + kb(mem_fast_total()) + "; libre al empezar: chip " + kb(mem_chip_free()) + ", fast " + kb(mem_fast_free()))
+    time_delay(100)
+    mem_trim()
+    chip0 = mem_chip_free()
+    fast0 = mem_fast_free()
+    una_vez(1, que == "todas")
+    una_vez(2, que == "todas")
+    anotar("hecho")
+end

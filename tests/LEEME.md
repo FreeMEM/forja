@@ -236,3 +236,7 @@ El editor cómodo (fase 2 de `docs/FORJA_LOOP.md`):
   `editor-esquema.png`, `editor-renombrar.png` y `editor-plegado.png`. `RTG=1` (256 colores), `REAL=1` (la CPU de un
   A1200) y con MUI 3.8 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`.
 
+`tests/memoria.sh <worktree de Dash> [<cajón con dashc.amiga>]` (`MEMORIA=nada`, `git` o `todas`): `tests/memoria.dash`
+arranca Forja dos veces con `tests/prueba/juego` y apunta la memoria chip y fast que usa quieta, compilando (con
+dashc), con un sprite y un mapa abiertos (`todas`) y lo que queda tras salir (MUI y las fuentes siguen cargadas). Con
+`RTG=1 SISTEMA=~/.cache/dash-emu/sys32rtg38`, con MUI 3.8; `FORJA=otro/cajón`, otras fuentes (para comparar).
