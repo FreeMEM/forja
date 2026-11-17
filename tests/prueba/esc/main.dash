@@ -1,0 +1,152 @@
+# Esc: un juego que se mueve. El jugador es un sprite de hardware; el nivel, un mapa de texto (# pared,
+# o moneda) que se pinta con cuadros de 16x16. Joystick (puerto 2) o cursores para moverse; Esc para salir.
+#
+# Para seguir: haz el jugador en el editor de sprites (Amiga-B: un sprite de hardware) y cárgalo con
+# sprite_load(0, "jugador.iff"); haz el nivel en el editor de mapas (un .fmap) y píntalo con tilemap_load y
+# tilemap_draw. Las dos cosas son extensiones de Forja.
+
+@version "Esc 0.1"
+
+const LADO = 16
+const ANCHO = 320
+const ALTO = 256
+const ESC = 0x45
+const ARRIBA = 0x4C
+const ABAJO = 0x4D
+const DERECHA = 0x4E
+const IZQUIERDA = 0x4F
+
+var nivel: [String] = [
+    "####################",
+    "#o.......#........o#",
+    "#.####.#.#.#.####..#",
+    "#.#..o.#...#.o..#..#",
+    "#.#.####.#.####.#..#",
+    "#........#.........#",
+    "####.#########.#####",
+    "#o...#.......#....o#",
+    "#.##...#.o.#...##..#",
+    "#....#########.....#",
+    "#.o..............o.#",
+    "####################"
+]
+
+# La celda de la pantalla (x, y en píxeles) en el nivel: el carácter que hay
+func celda(x: Int, y: Int) -> String
+    cx = x / LADO
+    cy = (y - 32) / LADO
+    if cy < 0 or cy >= nivel.length or cx < 0 or cx >= 20
+        return "#"
+    end
+    return nivel[cy][cx:cx + 1]
+end
+
+func libre(x: Int, y: Int) -> Bool
+    # las cuatro esquinas del jugador (12x12 dentro de sus 16x16)
+    return celda(x + 2, y + 2) != "#" and celda(x + 13, y + 2) != "#" and celda(x + 2, y + 13) != "#" and celda(x + 13, y + 13) != "#"
+end
+
+func pintar_celda(cx: Int, cy: Int)
+    x = cx * LADO
+    y = 32 + cy * LADO
+    c = nivel[cy][cx:cx + 1]
+    gfx_pen(0)
+    gfx_rect(x, y, x + LADO - 1, y + LADO - 1)
+    if c == "#"
+        gfx_pen(2)
+        gfx_rect(x, y, x + LADO - 2, y + LADO - 2)
+    elif c == "o"
+        gfx_pen(3)
+        gfx_circle_fill(x + 8, y + 8, 3)
+    end
+end
+
+func pintar_marcador(monedas: Int, total: Int)
+    gfx_pen(0)
+    gfx_rect(0, 0, ANCHO - 1, 28)
+    gfx_pen(1)
+    gfx_text_at(8, 18, "Esc   Monedas: #{monedas} de #{total}")
+end
+
+func hacer_jugador()
+    sprite_create(0, 16, 16)
+    var filas: [Int] = [0x07E0, 0x1FF8, 0x3FFC, 0x7FFE, 0x7E7E, 0xFC3F, 0xFC3F, 0xFFFF, 0xFFFF, 0xFFFF, 0xDFFB, 0xEFF7, 0x77EE, 0x3818, 0x1FF8, 0x07E0]
+    f = 0
+    while f < 16
+        sprite_set_row(0, f, filas[f], filas[f] & 0x0FF0)
+        f = f + 1
+    end
+    sprite_color(0, 0, 15, 12, 0)
+    sprite_color(0, 1, 15, 15, 15)
+    sprite_color(0, 2, 15, 6, 0)
+    sprite_show(0)
+end
+
+Main
+    if not screen_open_custom(ANCHO, ALTO, 3, "Esc")
+        Print "No se puede abrir la pantalla."
+        program_exit(20)
+    end
+    gfx_rgb(0, 0, 0, 2)
+    gfx_rgb(1, 15, 15, 15)
+    gfx_rgb(2, 3, 6, 12)
+    gfx_rgb(3, 15, 13, 0)
+    gfx_clear()
+    total = 0
+    cy = 0
+    while cy < nivel.length
+        cx = 0
+        while cx < 20
+            pintar_celda(cx, cy)
+            if nivel[cy][cx:cx + 1] == "o"
+                total = total + 1
+            end
+            cx = cx + 1
+        end
+        cy = cy + 1
+    end
+    monedas = 0
+    pintar_marcador(monedas, total)
+    hacer_jugador()
+    x = LADO * 2
+    y = 32 + LADO
+    while not key_down(ESC) and monedas < total
+        wait_vblank()
+        dx = joy_x(1)
+        dy = joy_y(1)
+        if key_down(IZQUIERDA)
+            dx = -1
+        elif key_down(DERECHA)
+            dx = 1
+        end
+        if key_down(ARRIBA)
+            dy = -1
+        elif key_down(ABAJO)
+            dy = 1
+        end
+        if dx != 0 and libre(x + dx * 2, y)
+            x = x + dx * 2
+        end
+        if dy != 0 and libre(x, y + dy * 2)
+            y = y + dy * 2
+        end
+        sprite_pos(0, x, y)
+        # una moneda en el centro del jugador: se coge
+        if celda(x + 8, y + 8) == "o"
+            fila = (y + 8 - 32) / LADO
+            col = (x + 8) / LADO
+            s = nivel[fila]
+            nivel[fila] = s[0:col] + "." + s[col + 1:]
+            pintar_celda(col, fila)
+            monedas = monedas + 1
+            pintar_marcador(monedas, total)
+        end
+    end
+    sprite_hide(0)
+    sprite_free(0)
+    screen_close()
+    if monedas == total
+        Print "¡Todas las monedas!"
+    end
+    Print "Monedas: #{monedas} de #{total}"
+end

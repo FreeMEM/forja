@@ -1,0 +1,41 @@
+{
+  "dashui": 1,
+  "windows": [
+    {
+      "name": "Principal",
+      "title": "%NOMBRE%",
+      "id": 1,
+      "close": 99,
+      "menus": [
+        {
+          "title": "Project",
+          "items": [
+            { "label": "About...", "key": "A", "event": 10 },
+            { "separator": true },
+            { "label": "Quit", "key": "Q", "event": 99 }
+          ]
+        }
+      ],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          { "type": "text", "name": "saludo", "text": "\u001bcType your name and press Greet." },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "label", "text": "Name:" },
+              { "type": "string", "name": "nombre", "text": "", "max": 40, "ack": 1 }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "saludar", "label": "_Greet", "event": 1 },
+              { "type": "button", "name": "limpiar", "label": "_Clear", "event": 2 }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

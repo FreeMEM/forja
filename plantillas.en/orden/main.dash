@@ -1,0 +1,73 @@
+# %NOMBRE%: a Shell command.
+#
+#   %NOMBRE% file... [LINES]
+#
+# Counts the lines, words and characters of each file, like Unix wc. With LINES=yes, only the lines.
+# Ends with code 5 (warning) when there are no files and with 10 (error) if one can't be read: Shell scripts check it
+# with "If WARN" or "If ERROR".
+
+@version "%NOMBRE% 0.1"
+
+struct Count
+    lines: Int = 0
+    words: Int = 0
+    chars: Int = 0
+end
+
+func count_text(text: String) -> Count
+    c = Count()
+    c.chars = text.length
+    inside = false
+    i = 0
+    while i < text.length
+        k = str_code(text, i)
+        if k == 10
+            c.lines = c.lines + 1
+        end
+        if k == 32 or k == 9 or k == 10
+            inside = false
+        elif not inside
+            inside = true
+            c.words = c.words + 1
+        end
+        i = i + 1
+    end
+    return c
+end
+
+Main
+    only_lines = str_lower(tooltype("LINES", "no")) == "yes"
+    var files: [String] = []
+    i = 0
+    while i < arg_count()
+        a = arg(i)
+        if not str_contains(a, "=")
+            files.push(a)
+        end
+        i = i + 1
+    end
+    if files.length == 0
+        Print "Usage: %NOMBRE% file... [LINES=yes]"
+        program_exit(5)
+    end
+    total = Count()
+    for f in files
+        text = file_read_text(f)
+        if text == nil
+            Print "%NOMBRE%: can't read " + f
+            program_exit(10)
+        end
+        c = count_text(text)
+        total.lines = total.lines + c.lines
+        total.words = total.words + c.words
+        total.chars = total.chars + c.chars
+        if only_lines
+            Print "#{c.lines} " + f
+        else
+            Print "#{c.lines} #{c.words} #{c.chars} " + f
+        end
+    end
+    if files.length > 1
+        Print "#{total.lines} #{total.words} #{total.chars} total"
+    end
+end

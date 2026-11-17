@@ -1,0 +1,53 @@
+# %NOMBRE%: 3D with MiniGL. A spinning cube with coloured faces, a light and the Z-buffer.
+#
+# Needs an FPU (the project compiles with --fpu) and minigl.library 29 or later (MiniGL with Warp3D or Wazp3D, or the
+# PiStorm3D one). Closes with the window, with Esc or with q.
+
+@version "%NOMBRE% 0.1"
+
+import "lib/amiga/gl.dash"
+
+# A face: its normal, its colour and its four corners (x, y, z of each)
+func face(nx: Float, ny: Float, nz: Float, r: Float, g: Float, b: Float, p: [Float])
+    gl_normal(nx, ny, nz)
+    gl_color(r, g, b)
+    for i in (0..3)
+        gl_vertex(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])
+    end
+end
+
+Main
+    if not gl_open(320, 240)
+        Print "%NOMBRE% needs minigl.library and an FPU."
+        program_exit(20)
+    end
+    gl_enable(GL_DEPTH_TEST)
+    gl_enable(GL_CULL_FACE)
+    gl_light(0, 0.5, 1.0, 1.0)
+    gl_ambient(0.3, 0.3, 0.3)
+    angle = 0.0
+    running = true
+    while running
+        gl_clear_color(0.05, 0.05, 0.2)
+        gl_clear()
+        gl_load_identity()
+        gl_translate(0, 0, -5)
+        gl_rotate(angle, 1, 0, 0)
+        gl_rotate(angle * 1.3, 0, 1, 0)
+        gl_begin(GL_QUADS)
+        face(0, 0, 1, 1, 0.2, 0.2, [-1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0])
+        face(0, 0, -1, 0.2, 1, 0.2, [-1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0])
+        face(0, 1, 0, 0.2, 0.2, 1, [-1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0])
+        face(0, -1, 0, 1, 1, 0.2, [-1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0])
+        face(1, 0, 0, 1, 0.2, 1, [1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0])
+        face(-1, 0, 0, 0.2, 1, 1, [-1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0])
+        gl_end()
+        gl_swap()
+        angle = angle + 2.0
+        k = gl_key()
+        if gl_closed() or k == 27 or k == 113
+            running = false
+        end
+    end
+    gl_close()
+end

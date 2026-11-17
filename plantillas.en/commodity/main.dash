@@ -1,0 +1,79 @@
+# %NOMBRE%: a commodity. It shows up in Exchange (Show, Hide, Enable, Disable, Remove) and has a hotkey:
+# pressing it opens a small window with the time and the free memory; pressing it again closes it.
+#
+# From the Shell: %NOMBRE% CX_POPKEY="ctrl alt h" CX_PRIORITY=0. In the icon, the same tool types.
+# To start it with the Workbench, put its icon in SYS:WBStartup.
+
+@version "%NOMBRE% 0.1"
+
+var window: Int = 0
+
+func open_window()
+    if window != 0
+        return
+    end
+    window = window_create("%NOMBRE%", 40, 30, 260, 70, 0)
+    draw()
+end
+
+func close_window()
+    if window != 0
+        window_close(window)
+        window = 0
+    end
+end
+
+func draw()
+    if window == 0
+        return
+    end
+    window_use(window)
+    gfx_pen(0)
+    gfx_rect(window_border_left(), window_border_top(), 255, 65)
+    gfx_pen(1)
+    gfx_text_at(12, window_border_top() + 16, date_text("%H:%M:%S"))
+    gfx_text_at(12, window_border_top() + 32, "Free: #{mem_total() / 1024} KB")
+end
+
+Main
+    hotkey = tooltype("CX_POPKEY", "ctrl alt h")
+    priority = Int(tooltype("CX_PRIORITY", "0"))
+    if not cx_broker("%NOMBRE%", "%NOMBRE% 0.1", "Shows the time with " + hotkey, priority)
+        Print "%NOMBRE% is already running (or commodities.library is missing)."
+        program_exit(5)
+    end
+    if not cx_hotkey(hotkey)
+        Print "%NOMBRE%: invalid hotkey: " + hotkey
+    end
+    enabled = true
+    while true
+        # (every second, for the time and the window's close button)
+        command = cx_wait(1000)
+        if command == -1 or command == 5
+            break                       # Ctrl-C or Remove in Exchange
+        elif command == 6 and enabled
+            if window == 0
+                open_window()
+            else
+                close_window()
+            end
+        elif command == 2
+            open_window()
+        elif command == 1
+            close_window()
+        elif command == 3
+            enabled = false
+        elif command == 4
+            enabled = true
+        end
+        if window != 0
+            window_use(window)
+            if window_check_close()
+                close_window()
+            else
+                draw()
+            end
+        end
+    end
+    close_window()
+end
