@@ -229,10 +229,17 @@ Main
             if ver("el error dice fisica.dash", error >= 0 and str_contains(lineas[error], "fisica.dash"), salida_desde(m))
                 fila = campo("FORJA_SALIDA", 2)
                 y = campo("FORJA_SALIDA", 1) + (error - campo("FORJA_SALIDA", 3)) * fila + fila / 2
+                antes_salida = env_get("FORJA_SALIDA")
                 input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
                 time_delay(30)
                 cur = sonda()
-                ver("un clic en el error lleva a fisica.dash, a su línea", cur[2] == "fisica.dash" and (cur[0] == "8" or cur[0] == "9"), lineas[error] + " / " + cur[0] + " " + cur[2])
+                n = 0
+                while n < 20 and cur[2] != "fisica.dash"
+                    time_delay(10)
+                    cur = sonda()
+                    n = n + 1
+                end
+                ver("un clic en el error lleva a fisica.dash, a su línea", cur[2] == "fisica.dash" and (cur[0] == "8" or cur[0] == "9"), lineas[error] + " / " + cur[0] + " " + cur[2] + " / esperas #{n} / error #{error} y #{y} / salida antes " + antes_salida + " ahora " + env_get("FORJA_SALIDA") + " / " + str_replace(leer("RAM:forja-salida.txt"), "\n", " | "))
             end
         end
         # se quita el error (deshacer) y se guarda

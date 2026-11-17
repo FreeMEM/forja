@@ -637,6 +637,12 @@ func compilar(y_ejecutar: Bool)
             guardar_en(o, o.ruta)
         end
     end
+    # una comprobación en marcha (dash --check, paso 3.5) es de los ficheros de antes: si acabara tras compilar, su
+    # resultado quitaría los errores de compilar (o pondría otros ya viejos), y "Sin errores." movería la salida. Se
+    # para; lo que se acaba de guardar se comprueba después de compilar.
+    if cmp_en_marcha()
+        cmp_parar()
+    end
     redibujar()
     # un módulo (sin Main) no es un programa: se compila el de su proyecto
     if desde == ""

@@ -254,7 +254,7 @@ func cmp_mirar() -> Bool
     return true
 end
 
-# Al salir de Forja: que no siga
+# Al salir de Forja, o al compilar (lo que comprueba ya es viejo): que no siga
 func cmp_parar()
     if cmp_run != 0
         run_break(cmp_run)
