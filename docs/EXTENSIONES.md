@@ -388,8 +388,7 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
 
 - Con MUI 3.8, añadir o quitar un menú propio con la ventana abierta la cierra y la abre (los del arranque se hacen
   antes de abrirla). Las opciones sueltas de Extensiones se ponen y se quitan con `mui_menu_extend` y
-  `mui_menu_remove` (12 como mucho, solo las que hay); la raya de encima se queda (`mui_menu_separator` de Dash no da
-  un objeto que se pueda quitar).
+  `mui_menu_remove` (12 como mucho, solo las que hay), con su raya encima (`mui_menu_separator`), que se va con ellas.
 - Los paneles son de texto (líneas, botones y una entrada): una extensión que necesite dibujar (un lienzo) sigue
   abriendo su ventana.
 - Instalar desde un `.lha` está probado con un LhA del Amiga puesto en el emulador para la prueba (`LHA_AMIGA`); el

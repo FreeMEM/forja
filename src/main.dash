@@ -175,7 +175,6 @@ const EV_PREF_GUARDAR = 57
 const EV_PREF_USAR = 58
 const EV_PREF_CANCELAR = 59
 const EV_SALIR = 99
-const EV_SALIR_EXT = 98     # SALIR de una extensión (llega por el reloj: el de los tics se pierde, y se vuelve a armar)
 const EV_NADA = 9999           # un evento ya atendido
 const EV_NUEVO_PROYECTO = 250   # Proyecto > Nuevo proyecto... (paso 3.2) y su ventana
 const EV_ABRIR_PROYECTO = 251
@@ -3878,8 +3877,9 @@ func ext_menus_al_dia()
         end
         ext_items.clear()
         if firma != ""
-            # (tras la raya de ventana.dashui: mui_menu_separator no da un objeto que se pueda quitar luego)
+            # (la raya de encima va con ellas: se quita cuando no queda ninguna)
             mui_menu_extend(v.menu_extensiones)
+            ext_items.push(mui_menu_separator())
             r = 0
             while r < EXT_RANURAS and r < ext_ranura_ext.length
                 if ext_ranura_ext[r] >= 0
@@ -4368,10 +4368,10 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         return ""
     elif orden == "SALIR"
         # una extensión pide que Forja se cierre (Amiga-Q en su ventana): como Amiga-Q aquí, en cuanto acabe esta
-        # orden (el bucle de eventos lo recibe por el reloj)
+        # orden (mui_post_event: el bucle de eventos lo recibe tras los que ya esperaban)
         if abierta
             mui_window_activate(v.window)
-            mui_timer(1, EV_SALIR_EXT)
+            mui_post_event(EV_SALIR)
         end
         return ""
     elif orden == "DELANTE"
@@ -6756,11 +6756,6 @@ Main
                 end
             end
             if ev == -1
-                ev = EV_SALIR
-            end
-            if ev == EV_SALIR_EXT
-                tic_armado = false
-                armar_tic(REPOSO_MS, EV_TIC)
                 ev = EV_SALIR
             end
             if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR) or ev == EV_NUEVO_EXT
