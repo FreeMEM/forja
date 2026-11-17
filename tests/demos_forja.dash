@@ -94,6 +94,15 @@ func esperar(texto: String, s: Int) -> Bool
     return false
 end
 
+# El alto de la letra de la ventana de Demos (la del tema: topaz 8, o la de la pantalla)
+func alto_letra() -> Int
+    a = Int(env_get("FORJA_DEMOS_LETRA"))
+    if a <= 0
+        return 8
+    end
+    return a
+end
+
 func campo_sonda(l: String, palabra: String) -> Int
     c = str_split(l, " ")
     i = 0
@@ -209,6 +218,17 @@ func sincronia()
     ver("Amiga-Z tres veces: como estaban (el cursor sigue en subida)", esperar("pistas 2 cursor 0 1 ", 5) and str_starts(linea("pista"), "pista subida"), linea("sync") + " / " + linea("pista"))
     tecla(0x4F, 0)
     ver("y velocidad, con su nombre y su clave", esperar("pista velocidad claves 3 aqui 2.5", 5), linea("sync") + " / " + linea("pista"))
+    # otro .sync a la vez: Forja lo abre en la extensión, delante; Tab va de uno a otro (cada uno con lo suyo)
+    file_write_text("DH0:Prueba/demo/otra.sync", "pista luz\n0 1 lineal\n64 3 lineal\n")
+    rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/otra.sync")
+    ver("otro .sync, abierto a la vez", esperar("sync otra.sync pistas 1 ", 10) and str_contains(linea("sync"), "abiertos 2 1"), linea("sync"))
+    activar()
+    tecla(0x42, 0)
+    ver("Tab vuelve a demo.sync, con sus cambios sin guardar", esperar("sync demo.sync pistas 2 ", 5) and str_contains(linea("sync"), "cambiado true") and str_contains(linea("sync"), "abiertos 2 0"), linea("sync"))
+    tecla(0x42, 0)
+    ver("y otra vez Tab, otra.sync", esperar("sync otra.sync pistas 1 ", 5), linea("sync"))
+    tecla(0x42, MAYUS)
+    esperar("sync demo.sync", 5)
 end
 
 func con_demo()
@@ -244,6 +264,16 @@ func con_demo()
     esperar("pista brillo claves 1", 5)
     ver("la demo recibe la clave al momento", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) == "9", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) + " fila #{fila}")
     ver("y lo que Forja no había guardado (RECARGAR al conectar)", rexx_send_wait("DEMOSYNC", "VALOR velocidad", 2000) != "", "")
+    # en otra.sync (no es la de la demo) una clave nueva no se le manda
+    tecla(0x42, 0)
+    esperar("sync otra.sync", 5)
+    tecla(0x4C, MAYUS)
+    escribir("5")
+    tecla(0x44, 0)
+    ver("una clave en otra.sync", esperar("pista luz claves", 5), linea("pista"))
+    ver("no llega a la demo, que no la usa", rexx_send_wait("DEMOSYNC", "VALOR luz", 2000) == "", rexx_send_wait("DEMOSYNC", "VALOR luz", 2000))
+    tecla(0x42, 0)
+    esperar("sync demo.sync", 5)
     file_write_text("DH0:Prueba/valor_velocidad.txt", rexx_send_wait("DEMOSYNC", "VALOR velocidad", 2000))
     tecla(0x40, 0)
     ver("Espacio la deja seguir", esperar("pausa false", 5), linea("demo"))
@@ -306,6 +336,28 @@ func copper()
     tecla(0x13, 0)
     tecla(0x28, 0)
     ver("l lo vuelve a leer del código", esperar("copper 4 0 0 degradado copper 40:00F", 5), linea("copper"))
+    # arrastrar en la vista: la parada de la línea 40 (la más cercana al clic) baja con el ratón
+    activar()
+    zx = campo("FORJA_DEMOS_LIENZO", 0)
+    cy = campo("FORJA_DEMOS_LIENZO", 1) + 22
+    alto = campo("FORJA_DEMOS_LIENZO", 3) - 2 * (alto_letra() + 2) - 2 - 22
+    input_drag(zx + 80, cy + 40 * alto / 256, zx + 80, cy + 120 * alto / 256)
+    time_delay(20)
+    c = str_split(linea("copper"), " ")
+    l = -1
+    if c.length > 6 and str_find(c[6], ":") > 0
+        l = Int(c[6][0:str_find(c[6], ":")])
+    end
+    ver("arrastrar una parada en la vista la mueve (a la línea #{l})", l >= 100 and l <= 140 and str_ends(c[6], ":00F"), linea("copper"))
+    # un clic en la lista elige esa parada
+    lx = zx + 4 + 160 + 16 + 4
+    ly = cy + 2 * (alto_letra() + 2) + 6 + (alto_letra() + 2) * 2 + 2
+    input_click(lx, ly, 0)
+    time_delay(10)
+    ver("un clic en la lista elige su parada (la tercera)", esperar("copper 4 2 ", 5), linea("copper"))
+    # Tab: el bloque siguiente del fichero (hay uno: el mismo, leído otra vez)
+    tecla(0x42, 0)
+    ver("Tab lee el bloque siguiente del código", esperar("copper 4 0 0 degradado copper 40:00F", 5) and str_contains(linea("mensaje"), "1/1"), linea("copper") + " / " + linea("mensaje"))
     rexx_send("FORJA.1", "GUARDAR DH0:Prueba/demo/main.dash")
 end
 

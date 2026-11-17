@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/pulido/extensiones/Demos/demos.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/remate/extensiones/Demos/demos.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 Proyecto
@@ -53,11 +53,11 @@ Probar en una pantalla
 MSG_26 (26//)
 Ventana
 MSG_27 (27//)
-flechas parada  May/Alt+flechas línea  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  p probar
+flechas o clic parada (arrastrar, o May/Alt+flechas: línea)  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  Tab otro bloque  p probar
 MSG_28 (28//)
 Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía
 MSG_29 (29//)
-flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás
+flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás  Tab otro .sync
 MSG_30 (30//)
 Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)
 MSG_31 (31//)
@@ -186,5 +186,13 @@ MSG_92 (92//)
 El MOD está cortado: 
 MSG_94 (94//)
 Salir de Forja
+MSG_95 (95//)
+Solo hay un fichero de pistas abierto (Amiga-O abre otro).
+MSG_96 (96//)
+Pistas de %1 (%2).
+MSG_97 (97//)
+Cerrar estas pistas
+MSG_98 (98//)
+Otro fichero de pistas (Tab)
 MSG_870 (870//)
 no es de ancho fijo

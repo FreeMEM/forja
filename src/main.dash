@@ -55,7 +55,7 @@
 # hace de usuario (tests/teclas.dash, tests/ficheros.dash): ENV:FORJA_EDITOR dice dónde está el editor ("x y
 # ancho alto" desde la esquina de la ventana), ENV:FORJA_PROYECTO dónde empiezan las filas del proyecto ("x y
 # alto de fila"), ENV:FORJA_SALIDA lo de la salida ("x y alto_de_fila primera_vista total"; el texto en
-# RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_DIBUJOS (cuántos dibujos enteros del texto), ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...") y RAM:forja-sonda.txt lleva,
+# RAM:forja-salida.txt), ENV:FORJA_ESTADO si compila o ejecuta, ENV:FORJA_DIBUJOS (cuántos dibujos enteros del texto), ENV:FORJA_PESTANAS los centros de las pestañas ("x,y x,y...", "-1,-1" las que no se ven, y "botones:x,y" si no caben), ENV:FORJA_PESTANAS_NOMBRES sus nombres ("a|b|" y cuántas no se ven) y RAM:forja-sonda.txt lleva,
 # tras cada cambio, "línea columna nombre" y el texto; ENV:FORJA_DISENO, lo del editor de ventanas ("fila propiedad
 # editando mensaje"); ENV:FORJA_COMPLETAR, la lista ("elegida nombre nombre...", "" si no se ve); ENV:FORJA_AYUDA, la
 # ayuda de los argumentos ("argumento firma"); ENV:FORJA_VISTA, "primera_línea alto_de_fila margen"; RAM:forja-vistas.txt, la primera línea de cada dibujo entero; ENV:FORJA_FICHEROS, "cajón|fila|fila..." del panel del proyecto.
@@ -3182,9 +3182,15 @@ func publicar_sonda()
     end
     d = ed_actual()
     t = ed_pestanas_ventana()
-    if t != sonda_pestanas
-        sonda_pestanas = t
+    nombres = ""
+    for o in documentos
+        nombres = nombres + o.nombre + "|"
+    end
+    if t + nombres != sonda_pestanas
+        sonda_pestanas = t + nombres
         env_set("FORJA_PESTANAS", t, false)
+        # (y los nombres de todas, en su orden, y cuántas no se ven)
+        env_set("FORJA_PESTANAS_NOMBRES", nombres + "#{ed_pestanas_ocultas}", false)
     end
     # los errores marcados: "veces ms_última en_marcha|ruta:línea:col texto|..." (errores.dash)
     en_marcha = 0

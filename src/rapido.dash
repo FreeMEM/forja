@@ -252,6 +252,8 @@ func lr_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     lr_ancho = cols * ancho_letra + 12
     if lr_ancho > ancho - 4
         lr_ancho = ancho - 4
+        # (las letras que caben de verdad: si no, el nombre y el detalle se pisaban en un editor estrecho)
+        cols = (lr_ancho - 12) / ancho_letra
     end
     lr_x = (ancho - lr_ancho) / 2
     lr_y = ALTO_PESTANAS + 2
@@ -267,6 +269,19 @@ func lr_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         filas = 1
     end
     lr_filas = filas
+    # la elegida, a la vista con las filas que caben de verdad (en un editor bajo, menos de LR_FILAS)
+    if lr_elegido >= lr_primera + filas
+        lr_primera = lr_elegido - filas + 1
+    end
+    if lr_elegido < lr_primera
+        lr_primera = lr_elegido
+    end
+    if lr_primera > lr_vistos.length - filas
+        lr_primera = lr_vistos.length - filas
+    end
+    if lr_primera < 0
+        lr_primera = 0
+    end
     lr_alto = (filas + 2) * fila + 10
     lx = x + lr_x
     ly = y + lr_y
@@ -314,6 +329,15 @@ func lr_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         gfx_pen(tema.texto)
         t = lr_textos[k]
         det = lr_detalles[k]
+        # el nombre entero si cabe; el detalle, lo que quede (su final, que es lo que distingue)
+        resto = cols - 3 - t.length - 2
+        if det.length > resto
+            if resto < 6
+                det = ""
+            else
+                det = ".." + det[det.length - resto + 2:]
+            end
+        end
         hueco = cols - 3 - det.length - 2
         if t.length > hueco
             t = t[0:hueco]

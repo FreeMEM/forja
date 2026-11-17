@@ -2341,6 +2341,7 @@ func publicar_sonda()
         if g != sonda_geo
             sonda_geo = g
             env_set("FORJA_DEMOS_LIENZO", g, false)
+            env_set("FORJA_DEMOS_LETRA", "#{alto_letra}", false)
         end
     end
 end
