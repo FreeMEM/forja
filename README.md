@@ -154,8 +154,9 @@ el ejecutable, las opciones de compilar, los argumentos, la versión, el icono d
 vigilado en el depurador. Sin `.forja`, Forja funciona como antes.
 
 - **Proyecto > Nuevo proyecto...**: el nombre, la plantilla y el cajón donde se hace (se recuerda). Hace el cajón con
-  los ficheros de la plantilla, el `.forja` y su icono, y lo abre. Las plantillas, cada una un programa que ya
-  compila y arranca:
+  los ficheros de la plantilla, el `.forja` y su icono, y lo abre. Con Forja en inglés (su catálogo inglés), el código
+  de las plantillas también va en inglés, menos el de la demo. Las plantillas, cada una un programa que ya compila y
+  arranca:
 
   | Plantilla | Qué trae |
   |---|---|
@@ -356,8 +357,8 @@ Inferencia, en la barra de menús:
 - **Escribir la prueba**: un programa de prueba para la función del cursor, en un fichero nuevo `prueba_x.dash`. Al
   aceptarla, Forja la ejecuta y el resultado sale en el panel Prueba, abajo: cuántas comprobaciones dieron "bien:" y
   cuántas "FALLO", cada una en su color, con Otra vez (la vuelve a ejecutar) y Abrir la prueba.
-- **Explicar el error** (Ctrl Alt E) y **Arreglar el error** (Ctrl Alt F): el primer error de la última compilación;
-  si no la hay, compila antes.
+- **Explicar el error** (Ctrl Alt E) y **Arreglar el error** (Ctrl Alt G; era Ctrl Alt F, que en CoffinOS se queda
+  una commodity): el primer error de la última compilación; si no la hay, compila antes.
 - **Sugerencias al escribir**: apagadas al empezar. Encendidas, al parar de escribir Inferencia propone lo que va en
   el cursor, en gris: al final de una línea, en medio (lo de detrás se ve tras la sugerencia) o, en una línea vacía
   tras un `func`, `if`, `while`..., el cuerpo entero. Puede ser de varias líneas (8 como mucho): se ven encima de las

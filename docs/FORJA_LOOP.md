@@ -253,7 +253,7 @@ VS Code.
     Inferencia no está, la arranca (`ENV:Forja/inferencia`), con su ventana detrás (argumento `DETRAS`).
   - **Acciones**, en su menú Inferencia: preguntar sobre esto (Ctrl Alt I), explicar la selección, cambiar el código
     (Ctrl Alt C, una ventanita MUI para decir qué), documentar la función, escribir la prueba (un `prueba_x.dash`
-    nuevo), explicar el error (Ctrl Alt E) y arreglarlo (Ctrl Alt F; si no hay errores de antes, compila primero),
+    nuevo), explicar el error (Ctrl Alt E) y arreglarlo (Ctrl Alt G, antes F; si no hay errores de antes, compila primero),
     aceptar (Ctrl Alt Y), rechazar (Ctrl Alt N) y sugerencias al escribir. Las que cambian código son un `ENCARGO` de
     Inferencia (aparte de la conversación, solo puede leer: ficheros y la ayuda de Dash) y salen en una VISTA con las
     diferencias (subsecuencia común más larga, en Dash); `a` acepta con `CAMBIAR` (deshacer de Forja), `r` rechaza.

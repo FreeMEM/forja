@@ -1,0 +1,152 @@
+# %NOMBRE%: a game that moves. The player is a hardware sprite; the level, a text map (# wall,
+# o coin) drawn with 16x16 tiles. Joystick (port 2) or cursor keys to move; Esc to quit.
+#
+# Next steps: make the player in the sprite editor (Amiga-B: a hardware sprite) and load it with
+# sprite_load(0, "player.iff"); make the level in the map editor (a .fmap) and draw it with tilemap_load and
+# tilemap_draw. Both are Forja extensions.
+
+@version "%NOMBRE% 0.1"
+
+const TILE = 16
+const WIDTH = 320
+const HEIGHT = 256
+const ESC = 0x45
+const UP = 0x4C
+const DOWN = 0x4D
+const RIGHT = 0x4E
+const LEFT = 0x4F
+
+var level: [String] = [
+    "####################",
+    "#o.......#........o#",
+    "#.####.#.#.#.####..#",
+    "#.#..o.#...#.o..#..#",
+    "#.#.####.#.####.#..#",
+    "#........#.........#",
+    "####.#########.#####",
+    "#o...#.......#....o#",
+    "#.##...#.o.#...##..#",
+    "#....#########.....#",
+    "#.o..............o.#",
+    "####################"
+]
+
+# The level cell at a screen point (x, y in pixels): the character there
+func cell(x: Int, y: Int) -> String
+    cx = x / TILE
+    cy = (y - 32) / TILE
+    if cy < 0 or cy >= level.length or cx < 0 or cx >= 20
+        return "#"
+    end
+    return level[cy][cx:cx + 1]
+end
+
+func is_free(x: Int, y: Int) -> Bool
+    # the player's four corners (12x12 inside its 16x16)
+    return cell(x + 2, y + 2) != "#" and cell(x + 13, y + 2) != "#" and cell(x + 2, y + 13) != "#" and cell(x + 13, y + 13) != "#"
+end
+
+func draw_cell(cx: Int, cy: Int)
+    x = cx * TILE
+    y = 32 + cy * TILE
+    c = level[cy][cx:cx + 1]
+    gfx_pen(0)
+    gfx_rect(x, y, x + TILE - 1, y + TILE - 1)
+    if c == "#"
+        gfx_pen(2)
+        gfx_rect(x, y, x + TILE - 2, y + TILE - 2)
+    elif c == "o"
+        gfx_pen(3)
+        gfx_circle_fill(x + 8, y + 8, 3)
+    end
+end
+
+func draw_score(coins: Int, total: Int)
+    gfx_pen(0)
+    gfx_rect(0, 0, WIDTH - 1, 28)
+    gfx_pen(1)
+    gfx_text_at(8, 18, "%NOMBRE%   Coins: #{coins} of #{total}")
+end
+
+func make_player()
+    sprite_create(0, 16, 16)
+    var rows: [Int] = [0x07E0, 0x1FF8, 0x3FFC, 0x7FFE, 0x7E7E, 0xFC3F, 0xFC3F, 0xFFFF, 0xFFFF, 0xFFFF, 0xDFFB, 0xEFF7, 0x77EE, 0x3818, 0x1FF8, 0x07E0]
+    r = 0
+    while r < 16
+        sprite_set_row(0, r, rows[r], rows[r] & 0x0FF0)
+        r = r + 1
+    end
+    sprite_color(0, 0, 15, 12, 0)
+    sprite_color(0, 1, 15, 15, 15)
+    sprite_color(0, 2, 15, 6, 0)
+    sprite_show(0)
+end
+
+Main
+    if not screen_open_custom(WIDTH, HEIGHT, 3, "%NOMBRE%")
+        Print "Can't open the screen."
+        program_exit(20)
+    end
+    gfx_rgb(0, 0, 0, 2)
+    gfx_rgb(1, 15, 15, 15)
+    gfx_rgb(2, 3, 6, 12)
+    gfx_rgb(3, 15, 13, 0)
+    gfx_clear()
+    total = 0
+    cy = 0
+    while cy < level.length
+        cx = 0
+        while cx < 20
+            draw_cell(cx, cy)
+            if level[cy][cx:cx + 1] == "o"
+                total = total + 1
+            end
+            cx = cx + 1
+        end
+        cy = cy + 1
+    end
+    coins = 0
+    draw_score(coins, total)
+    make_player()
+    x = TILE * 2
+    y = 32 + TILE
+    while not key_down(ESC) and coins < total
+        wait_vblank()
+        dx = joy_x(1)
+        dy = joy_y(1)
+        if key_down(LEFT)
+            dx = -1
+        elif key_down(RIGHT)
+            dx = 1
+        end
+        if key_down(UP)
+            dy = -1
+        elif key_down(DOWN)
+            dy = 1
+        end
+        if dx != 0 and is_free(x + dx * 2, y)
+            x = x + dx * 2
+        end
+        if dy != 0 and is_free(x, y + dy * 2)
+            y = y + dy * 2
+        end
+        sprite_pos(0, x, y)
+        # a coin under the player's centre: pick it up
+        if cell(x + 8, y + 8) == "o"
+            row = (y + 8 - 32) / TILE
+            col = (x + 8) / TILE
+            s = level[row]
+            level[row] = s[0:col] + "." + s[col + 1:]
+            draw_cell(col, row)
+            coins = coins + 1
+            draw_score(coins, total)
+        end
+    end
+    sprite_hide(0)
+    sprite_free(0)
+    screen_close()
+    if coins == total
+        Print "All the coins!"
+    end
+    Print "Coins: #{coins} of #{total}"
+end

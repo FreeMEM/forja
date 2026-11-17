@@ -46,6 +46,13 @@ en el panel de las variables, no se abre el fichero de la lista que hay debajo; 
 abrir ficheros. Con `FORJA=otro/cajón` prueba las fuentes de ese cajón (para ver que la prueba falla sin el arreglo).
 `RAM:forja-vistas.txt` (con la sonda) apunta la primera línea de cada dibujo entero del editor.
 
+`tests/esc.sh <worktree de Dash> <cajón con dashc.amiga y los dashc_*.drt>`: `tests/esc.dash` pulsa Esc sin nada en
+marcha y con el juego de la plantilla ejecutándose (abre su pantalla sin ventana: el teclado sigue en Forja), y lo para
+con Amiga-E: Forja no debe cerrarse (lo vio el vídeo de Forja). Con `COFFIN=1`, en la máquina CoffinOS
+(`DASH_KICKSTART_32`, `DASH_EMU_DISK_COFFIN`), donde una commodity cierra la ventana activa con Esc (hace falta un Dash
+que no tome ese cierre tras un Esc del editor); allí prueba también Ctrl / con el mapa castellano (Mayúsculas+6).
+Con `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`, con MUI 3.8.
+
 Las de uso a fondo (`docs/PRUEBAS_LOOP.md`). Todas reciben `<worktree de Dash> <cajón con dashc.amiga y los
 dashc_*.drt>`:
 

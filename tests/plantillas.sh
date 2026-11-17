@@ -3,7 +3,8 @@
 # FS-UAE: la orden del Shell con argumentos (tests/plantillas_orden.dash la llama), la commodity, la aplicación MUI, el
 # juego y la demo en un A1200 con MUI 5; la 3D en la máquina de CoffinOS (68040 con FPU) con MiniGL. Cada una corre
 # unos segundos (--autoclose) y debe acabar con código 0; con capturas/, una captura de cada una.
-# (Que compilan con la orden dash del Amiga, dentro de Forja, lo prueba tests/forja_proyecto.sh.)
+# (Que compilan con la orden dash del Amiga, dentro de Forja, lo prueba tests/forja_proyecto.sh.) Las de
+# plantillas.en/ (en inglés) solo se compilan.
 #
 #   tests/plantillas.sh DASH_DIR [capturas/]
 #
@@ -18,6 +19,19 @@ for t in orden commodity mui juego demo 3d; do
   for f in "$aqui/plantillas/$t"/*; do sed 's/%NOMBRE%/Prueba/g' "$f" > "$tmp/$t/$(basename "$f")"; done
 done
 mal=0
+# las de plantillas.en/ (el código en inglés, para el catálogo inglés de Forja): que compilen
+for d in "$aqui/plantillas.en"/*/; do
+  t=$(basename "$d")
+  mkdir -p "$tmp/en/$t"
+  cp "$tmp/$t"/* "$tmp/en/$t/"
+  for f in "$d"*; do sed 's/%NOMBRE%/Prueba/g' "$f" > "$tmp/en/$t/$(basename "$f")"; done
+  op=""; [ "$t" = 3d ] && op="--fpu"
+  if "$dash/dash" $op "$tmp/en/$t/main.dash" -o "$tmp/en/$t/Prueba" > "$tmp/en/$t.log" 2>&1; then
+    echo "en/$t: compila"
+  else
+    cat "$tmp/en/$t.log"; echo "FALLO: en/$t no compila"; mal=$((mal + 1))
+  fi
+done
 uno() {
   # uno nombre segundos_de_la_captura opciones... programas...
   nombre=$1; cuando=$2; shift 2

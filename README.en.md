@@ -151,7 +151,8 @@ options, arguments, version, program icon, breakpoints and watched expressions. 
 before.
 
 - **Proyecto > New project...**: name, template and drawer (remembered). Makes the drawer with the template's files,
-  the `.forja` and its icon, and opens it. Each template is a program that builds and runs: Shell command (arguments,
+  the `.forja` and its icon, and opens it. With Forja in English (its English catalog) the templates' code is in
+  English too, except the demo's. Each template is a program that builds and runs: Shell command (arguments,
   return codes 5 and 10), commodity (in Exchange, with a hotkey that opens a small window with the time), MUI
   application (its window in `ventana.dashui`, made with the window editor, with a menu), game (its own screen, a
   hardware sprite moved with the joystick or the cursor keys and a level with coins), demo (the loop of each frame and

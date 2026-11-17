@@ -1,0 +1,45 @@
+# %NOMBRE%: a MUI application (MUI 3.8 or 5).
+#
+# The window is in ventana.dashui: open it in Forja to change it with the window editor (Amiga-D switches to
+# text; Amiga-P, the preview). Each object with a "name" is a field of Principal (v.nombre, v.saludo...), and each
+# "event" arrives as a number at mui_wait_event.
+
+@version "%NOMBRE% 0.1"
+
+import "ventana.dashui"
+
+const EV_GREET = 1
+const EV_CLEAR = 2
+const EV_ABOUT = 10
+const EV_QUIT = 99
+
+Main
+    if mui_app_begin("%NOMBRE%", "%NOMBRE%") == 0
+        Print "%NOMBRE% needs MUI."
+        program_exit(20)
+    end
+    v = Principal_create()
+    mui_window_open(v.window)
+    mui_set_active(v.window, v.nombre)
+    times = 0
+    while true
+        ev = mui_wait_event()
+        if ev == -1 or ev == EV_QUIT
+            break
+        elif ev == EV_GREET
+            name = str_trim(mui_get_text(v.nombre))
+            if name == ""
+                name = "Amiga"
+            end
+            times = times + 1
+            mui_set_text(v.saludo, "\33cHello, " + name + " (#{times})")
+        elif ev == EV_CLEAR
+            times = 0
+            mui_set_text(v.nombre, "")
+            mui_set_text(v.saludo, "\33cType your name and press Greet.")
+        elif ev == EV_ABOUT
+            mui_request(v.window, "%NOMBRE%", "%NOMBRE% 0.1\nMade with Dash and Forja.", "_OK")
+        end
+    end
+    mui_app_end()
+end

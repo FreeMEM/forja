@@ -5,7 +5,8 @@
     python3 tools/plantillas.py --comprobar  # sale con 1 si no está al día
 
 Cada cajón de plantillas/ es una plantilla (orden, commodity, mui, juego, demo, 3d) con sus ficheros tal cual: se
-compilan y se prueban como cualquier programa (tests/plantillas.sh). %NOMBRE% es el nombre del proyecto. Van dentro
+compilan y se prueban como cualquier programa (tests/plantillas.sh). plantillas.en/ tiene los mismos ficheros con el
+código en inglés (todos menos los de la demo, cuyo código lee la extensión Demos): Forja los usa con su catálogo inglés. %NOMBRE% es el nombre del proyecto. Van dentro
 del ejecutable (unos 20 KB) para que "Nuevo proyecto..." no dependa de ficheros sueltos.
 """
 import sys
@@ -72,6 +73,23 @@ def generar() -> str:
             out.append("        return " + literal_partido(texto))
             primero = False
     out += ["    end", '    return ""', "end", ""]
+    # las de plantillas.en/: el mismo fichero con el código en inglés (Forja las usa con su catálogo inglés)
+    out += ["# El mismo fichero en inglés (plantillas.en/), o \"\" si no lo hay: con el catálogo inglés de Forja",
+            "func pl_texto_en(tipo: String, fichero: String) -> String"]
+    primero = True
+    for t in tipos:
+        d = raiz / "plantillas.en" / t
+        if not d.is_dir():
+            continue
+        for p in sorted(d.iterdir()):
+            if not p.is_file() or not (raiz / "plantillas" / t / p.name).is_file():
+                continue
+            out.append(f'    {"if" if primero else "elif"} tipo == "{t}" and fichero == "{p.name}"')
+            out.append("        return " + literal_partido(p.read_text(encoding="utf-8")))
+            primero = False
+    if not primero:
+        out.append("    end")
+    out += ['    return ""', "end", ""]
     return "\n".join(out)
 
 

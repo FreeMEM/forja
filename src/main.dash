@@ -5327,8 +5327,14 @@ func crear_proyecto(tipo: String, cajon: String, nombre: String) -> String
         pr_error = hueco(tr(969, "no se puede crear el cajón %1"), dir)
         return ""
     end
+    # con el catálogo inglés, el código en inglés si la plantilla lo tiene (plantillas.en/; lo vio el vídeo de Forja)
+    ingles = str_lower(catalog_language()) == "english"
     for f in str_split(pl_ficheros(tipo), "|")
-        if not file_write_text(ruta_unir(dir, f), str_replace(pl_texto(tipo, f), "%NOMBRE%", nombre))
+        texto = pl_texto(tipo, f)
+        if ingles and pl_texto_en(tipo, f) != ""
+            texto = pl_texto_en(tipo, f)
+        end
+        if not file_write_text(ruta_unir(dir, f), str_replace(texto, "%NOMBRE%", nombre))
             pr_error = tr(2, "No se puede escribir ") + f
             return ""
         end
