@@ -552,3 +552,40 @@ VS Code.
   - Memoria (`tests/memoria.sh`, A1200 con MUI 5, fast): sin extensiones 2,8 MB quieta y 4,8 compilando; con todas
     (Git, el copiloto, Sprites y Mapas) 3,2-3,8 MB quieta, 5,2-5,8 compilando y 4,4 con un sprite y un mapa. Tras
     salir quedan 1 MB (MUI y las fuentes), igual la segunda vez.
+  - **Lo que encontraron las pruebas de siempre** al pasarlas todas (y que fallaba igual en `main`):
+    - el panel de las variables ya no se movía con las flechas (desde que el teclado va al editor con el puntero en
+      el panel, rama `editor`): depurando, las flechas sobre el panel vuelven a ser suyas (`tests/arbol.sh`);
+    - Amiga-Z de más (sin nada que deshacer) repintaba todo: en un fichero de 1500 líneas cada una tardaba medio
+      segundo y se quedaban en cola, y el Amiga-R de después llegaba tarde (`tests/grande.sh`); ahora no dibujan nada;
+    - Git por su puerto ARexx usaba el proyecto de antes si el suceso PROYECTO aún no le había llegado (un guion que
+      abre un proyecto y manda `GIT init` enseguida): ahora pregunta antes a Forja (`tests/coffin.sh`);
+    - las pruebas: `salida.sh` y `nuevo.sh` escribían los `end` que ya pone Forja (fase 2) y van sin el end solo;
+      `nuevo.sh` y `diseno.sh` miraban el texto antes de que Forja acabara con las teclas y ahora esperan (hasta 5 s).
+  - **Pruebas** (todas en FS-UAE): en MUI 5 (A1200, 3.1) TODO BIEN teclas, ficheros, completar, codigo_base, compilar,
+    salida, botones, clic, proyecto, grande, errores, parar, salir, sesion, rexx, diseno, depurar, arbol,
+    depurar_ventana, buscar, pantalla, git, actualizar, extensiones_base, extensiones, ayuda_base, ayuda, editor_base,
+    editor, memoria (nada, git y todas), proyecto_base, forja_proyecto, plantillas, depurar_mas, perfil (con el Dash de
+    hoy ya pasa entero), demos_base, demos_forja (también `REAL=1`), git_panel, git_panel_coffin, sprites_todas (las
+    13), mapas_base, mapas_forja y nuevo; en MUI 3.8 (`sys32rtg38`, RTG) extensiones, editor, ayuda (sin el clic en el
+    campo), sprites, mapas_forja, demos_forja, forja_proyecto, depurar_mas y perfil; y `coffin.sh` en la máquina
+    CoffinOS. `ventana.sh` sigue sin ir (necesita `--gcc`, ver abajo).
+  - **Falta en Forja**: las pestañas que no caben se salen por la derecha (no hay desplazamiento; con el cajón delante
+    de los nombres repetidos se llenan antes); los puntos de parada no vuelven a su línea al deshacer un cambio de
+    varias líneas (los marcadores sí); la lista de cambios de "cambiar en el proyecto" y renombrar es una pestaña que
+    se cierra al contestar; teclas de las extensiones fuera del editor; paneles dentro de la ventana; probar instalar
+    un `.lha` (el emulador no tiene `C:LhA`). En Demos: una sola `.sync` abierta; el copper solo se elige con clic y
+    cambia un registro por bloque, y no llega en vivo a la demo; el medidor no separa partes; tamaño con tope de
+    4K/64K y Shrinkler; línea de tiempo de partes. En el copiloto: la sugerencia es de una línea; "Escribir la prueba"
+    no la compila; probarlo contra un modelo de verdad y en un Amiga de verdad (aquí, el servidor falso).
+  - **Falta en Dash** (apuntado, sin rodeos con `@native`):
+    - `mui_menu_separator` no devuelve un objeto: la raya de encima de las opciones sueltas de Extensiones no se
+      puede quitar cuando no queda ninguna (`mui_menu_remove`).
+    - Un solo `mui_timer` por programa y ninguna forma de mandarse un evento a sí mismo: `SALIR` de una extensión
+      llega por el reloj y se pierde el tic que hubiera (Forja lo vuelve a armar). Algo como `mui_post_event(id)`.
+    - `env_get` lee una sola línea (la sesión separa los ficheros con el carácter 30).
+    - El Dash de Python (`--gcc`) no puede con Forja: "maximum recursion depth exceeded" al transpilar (con
+      `sys.setrecursionlimit(20000)` transpila), y su gramática no acepta `f().campo = x` (el directo sí; Forja ya no
+      lo usa). Por eso `tests/ventana.sh` no va.
+    - Los de antes (no se ha mirado si ya están): `music_seek`, `music_tick`/`music_speed`, `music_playing`, `beam_line` y `vblank_count`,
+      PAL/NTSC, listas de copper cambiables ya instaladas, capturas con el copper, esperar un clic sin ventana; `.has`
+      de las listas en el directo; `cx_wait` con el puerto ARexx; `rexx_send` con tiempo de espera.

@@ -1323,6 +1323,10 @@ func en_proyecto()
     mui_canvas_redraw(v.proyecto)
 end
 
+func es_flecha(k: Int) -> Bool
+    return k == T_ARRIBA or k == T_ABAJO or k == T_IZQUIERDA or k == T_DERECHA
+end
+
 # Al depurar, el panel enseña la pila y las variables: un clic despliega o pliega una lista o un struct (idea de
 # David Martínez); la rueda y las flechas lo mueven (con Mayúsculas, la rueda va a lo ancho y las flechas de página
 # en página). Un clic ahí no es en la lista de ficheros que tapan (abría el de esa fila, lo contó David Martínez).
@@ -6248,6 +6252,10 @@ Main
                 ev = tecla_depurador(mui_canvas_key(v.proyecto))
             elif ev == EV_SALIDA and mui_canvas_key(v.salida) >= 0 and tecla_depurador(mui_canvas_key(v.salida)) != 0
                 ev = tecla_depurador(mui_canvas_key(v.salida))
+            elif ev == EV_PROYECTO and depuracion.length > 0 and es_flecha(mui_canvas_key(v.proyecto))
+                # depurando, las flechas sobre el panel mueven la pila y las variables (como antes de que el teclado
+                # fuera al editor con el puntero en el panel; idea de David Martínez): se queda en EV_PROYECTO
+                ev = EV_PROYECTO
             elif (ev == EV_PROYECTO or ev == EV_SALIDA) and ed_actual() != nil
                 # una tecla con el puntero sobre el proyecto o la salida: es del editor (el teclado va al editor
                 # aunque el puntero no esté encima)

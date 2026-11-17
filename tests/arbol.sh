@@ -16,7 +16,7 @@ if [ $# -gt 0 ]; then png=$1; shift; fi
 aqui=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-"$dash/dash" "$aqui/src/main.dash" -o "$tmp/Forja"
+"$dash/dash" "${FORJA:-$aqui}/src/main.dash" -o "$tmp/Forja"   # FORJA=otro/cajón: sus fuentes
 # RTG=1: en AmigaOS 3.2 con tarjeta gráfica (sys32rtg8), con una ventana más grande y los colores de verdad
 maquina=""
 if [ -n "$RTG" ]; then

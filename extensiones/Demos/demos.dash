@@ -1994,14 +1994,12 @@ func mediana(ls: [Int]) -> Int
     return c[c.length / 2]
 end
 
+# Cuántas imágenes medidas hay en el anillo (para la sonda): las de la demo, hasta 64
 func muestras() -> Int
-    n = 0
-    for v in demo_anillo
-        if v > 0
-            n = n + 1
-        end
+    if demo_fotos > SYNC_ANILLO
+        return SYNC_ANILLO
     end
-    return n
+    return demo_fotos
 end
 
 func publicar_sonda()

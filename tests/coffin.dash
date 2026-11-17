@@ -262,9 +262,8 @@ func con_git()
     if not ver("git: la extensión está", esperar_puerto(GIT, true, 300), "")
         return
     end
-    # (el suceso PROYECTO le llega a la extensión por su cola, aparte de su puerto: sin esperar, el init iba al cajón del
-    # proyecto de antes; con el menú no pasa, que va por la misma cola)
-    time_delay(100)
+    # (sin esperar al suceso PROYECTO, que llega a la extensión por su cola: GIT por su puerto mira antes el proyecto de
+    # Forja; antes, el init iba al cajón del proyecto de antes)
     t0 = time_ms()
     s = git("init")
     ver("git init (" + ms(t0) + ")", str_contains(str_lower(s), "init") and file_exists(BASE + "/Cueva/.git"), s)
@@ -430,4 +429,6 @@ Main
     else
         anotar("FALLOS: #{fallos}")
     end
+    # (que llegue al PC antes de que se apague el emulador)
+    time_delay(100)
 end

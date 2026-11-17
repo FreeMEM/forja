@@ -107,8 +107,15 @@ Main
             input_key(RETURN, 0)
             time_delay(5)
         end
-        t = texto()
         quiero = "Main\n    Print \"hola\"\n    if 1 < 2\n        Print \"dentro\"\n    else\n        Print \"no\"\n    end\nend\n"
+        # (Forja puede ir detrás de las teclas: se espera a que llegue todo, 5 s como mucho)
+        t = texto()
+        k = 0
+        while k < 10 and t != quiero and t != quiero + "\n"
+            time_delay(25)
+            t = texto()
+            k = k + 1
+        end
         ver("la sangría sigue los bloques", t == quiero or t == quiero + "\n", t)
         input_key(0x12, AMIGA)
         pedido = false

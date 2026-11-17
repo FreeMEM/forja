@@ -111,7 +111,13 @@ Main
         teclas(RETROCESO, 7)
         input_text("_Mandar")
         input_key(RETURN, 0)
+        # (Forja puede ir detrás de las teclas: hasta 5 s)
         t = texto()
+        k = 0
+        while k < 10 and not str_contains(t, "\"label\": \"_Mandar\"")
+            t = texto()
+            k = k + 1
+        end
         ver("cambiar label", str_contains(t, "\"label\": \"_Mandar\"") and str_contains(t, "\"dashui\": 1"), t)
         # un número mal escrito no se acepta
         input_key(ABAJO, 0)
