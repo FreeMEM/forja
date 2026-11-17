@@ -45,6 +45,7 @@ struct Proyecto
     version: String = ""
     icono: String = ""
     vigilar: [String] = nil
+    tope: Int = 0           # el tamaño máximo del ejecutable en bytes (una intro de 4 KB o de 64 KB); 0 sin tope
 end
 
 var pr_error: String = ""
@@ -154,6 +155,7 @@ func pr_leer(ruta: String) -> Proyecto
     p.argumentos_depurar = _pr_texto(o, "argumentos_depurar", "")
     p.version = _pr_texto(o, "version", "")
     p.icono = _pr_texto(o, "icono", "")
+    p.tope = _pr_int(o, "tope")
     vs = json_get(o, "vigilar")
     if vs != nil and vs.kind == JSON_ARRAY
         i = 0
@@ -212,6 +214,9 @@ func pr_escribir(p: Proyecto) -> Bool
     json_set(o, "argumentos_depurar", _pr_jtexto(p.argumentos_depurar))
     json_set(o, "version", _pr_jtexto(p.version))
     json_set(o, "icono", _pr_jtexto(p.icono))
+    if p.tope > 0
+        json_set(o, "tope", json_int(p.tope))
+    end
     ps = json_array()
     for q in pr_puntos
         if pr_dentro(p, q.fichero)

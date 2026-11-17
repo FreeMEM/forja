@@ -403,7 +403,9 @@
                   { "type": "label", "tr": 943, "text": "Por C con gcc (--gcc):", "color": [220, 220, 210] },
                   { "type": "checkbox", "name": "gcc", "checked": false },
                   { "type": "label", "tr": 944, "text": "Más opciones:", "color": [220, 220, 210] },
-                  { "type": "string", "name": "opciones", "text": "", "max": 200 }
+                  { "type": "string", "name": "opciones", "text": "", "max": 200 },
+                  { "type": "label", "tr": 1016, "text": "Tamaño máximo en bytes (0: sin tope):", "color": [220, 220, 210] },
+                  { "type": "string", "name": "tope", "text": "", "max": 10 }
                 ]
               },
               {

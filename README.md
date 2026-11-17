@@ -172,7 +172,8 @@ vigilado en el depurador. Sin `.forja`, Forja funciona como antes.
 - **Proyecto > Propiedades del proyecto...**: tres páginas. General: nombre, tipo, fichero principal, ejecutable,
   versión (cambiarla pone al día la línea `@version` del programa) e icono del programa (se copia junto al ejecutable
   al compilar). Compilar: CPU (`--cpu`), FPU (`--fpu`), pila (`--stack`), `--memcheck`, `--profile`, `--gcc` (la orden
-  `dash` del Amiga no compila por C: solo sirve con un dash que lo haga) y más opciones. Ejecutar: los argumentos al
+  `dash` del Amiga no compila por C: solo sirve con un dash que lo haga), más opciones y el tamaño máximo del ejecutable (para una intro de 4 o 64 KB:
+  al compilar, Forja dice lo que pesa y avisa si pasa del tope). Ejecutar: los argumentos al
   ejecutar y al depurar. Sin `.forja`, pregunta si hace uno para el cajón del programa.
 - Con proyecto, Compilar y Ejecutar van con su fichero principal, su ejecutable y sus opciones, esté delante el
   fichero que esté. Solo un fichero con su propio `Main` se compila él mismo (con las opciones del proyecto).

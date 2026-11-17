@@ -1238,3 +1238,12 @@ The files have changed since the list: nothing changed. Search or rename again.
 MSG_1015
 Open files change in the editor (not saved; they can be undone); the others, on disk.
 ; Los abiertos cambian en el editor (sin guardar; se pueden deshacer); los demás, en el disco.
+MSG_1016
+Maximum size in bytes (0: no limit):
+; Tamaño máximo en bytes (0: sin tope):
+MSG_1017
+%1 bytes
+; %1 bytes
+MSG_1018
+%1 is %2 bytes: %3 over the project limit.
+; %1 pesa %2 bytes: %3 más que el tope del proyecto.

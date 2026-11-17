@@ -953,7 +953,12 @@ func tic()
             depurar_despues = false
             return
         end
-        avisar(tr(14, "Compilado en ") + segundos(ms) + ": " + tarea_exe, 2)
+        # con lo que pesa: en una intro de 4 o 64 KB cuenta cada byte (el tope, en las propiedades del proyecto)
+        bytes = file_size(tarea_exe)
+        avisar(tr(14, "Compilado en ") + segundos(ms) + ": " + tarea_exe + " (" + hueco(tr(1017, "%1 bytes"), "#{bytes}") + ")", 2)
+        if tarea_proy != nil and tarea_proy.tope > 0 and bytes > tarea_proy.tope
+            avisar(str_replace(hueco2(tr(1018, "%1 pesa %2 bytes: %3 más que el tope del proyecto."), nombre_de(tarea_exe), "#{bytes}"), "%3", "#{bytes - tarea_proy.tope}"), 1)
+        end
         icono_del_programa()
         if depurar_despues
             depurar_despues = false
@@ -5169,6 +5174,7 @@ func propiedades_abrir()
     mui_set_value(vq.cpu, _indice_en(PR_CPUS, p.cpu))
     mui_set_value(vq.fpu, p.fpu)
     mui_set_text(vq.pila, "#{p.pila}")
+    mui_set_text(vq.tope, "#{p.tope}")
     mui_set_value(vq.memcheck, p.memcheck)
     mui_set_value(vq.perfil, p.perfil)
     mui_set_value(vq.gcc, p.gcc)
@@ -5197,6 +5203,7 @@ func propiedades_guardar()
     p.cpu = str_split(PR_CPUS, "|")[mui_get_value(vq.cpu)]
     p.fpu = mui_get_value(vq.fpu) != 0
     p.pila = Int(str_trim(mui_get_text(vq.pila)))
+    p.tope = Int(str_trim(mui_get_text(vq.tope)))
     p.memcheck = mui_get_value(vq.memcheck) != 0
     p.perfil = mui_get_value(vq.perfil) != 0
     p.gcc = mui_get_value(vq.gcc) != 0
@@ -5970,6 +5977,8 @@ func propiedad(k: String) -> String
         return si_no(p.fpu)
     elif k == "pila"
         return "#{p.pila}"
+    elif k == "tope"
+        return "#{p.tope}"
     elif k == "memcheck"
         return si_no(p.memcheck)
     elif k == "perfil"
@@ -6023,6 +6032,8 @@ func propiedad_poner(k: String, valor: String) -> Bool
         p.fpu = si
     elif k == "pila"
         p.pila = Int(valor)
+    elif k == "tope"
+        p.tope = Int(valor)
     elif k == "memcheck"
         p.memcheck = si
     elif k == "perfil"

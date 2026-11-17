@@ -129,10 +129,14 @@ Main
     ver("PROPIEDAD version pone @version", str_contains(rexx("TEXTO DH0:Proyectos/Contar/main.dash"), "@version \"Contar 0.2\""), "")
     rexx("PROPIEDAD cpu 68020")
     rexx("PROPIEDAD pila 20000")
+    # un tope de tamaño que no cabe (como una intro de 4 KB): compilar lo dice
+    rexx("PROPIEDAD tope 1000")
     rexx("GUARDAR DH0:Proyectos/Contar/main.dash")
     rexx("COMPILAR")
     esperar_libre()
     ver("compila con --cpu 68020 --stack", rexx("ERRORES") == "" and str_contains(rexx("SALIDA"), "Compilado"), rexx("SALIDA"))
+    ver("con lo que pesa, y si pasa del tope", str_contains(rexx("SALIDA"), " bytes)") and str_contains(rexx("SALIDA"), "más que el tope del proyecto"), rexx("SALIDA"))
+    ver("el tope, en el .forja", str_contains(file_read_text("DH0:Proyectos/Contar/Contar.forja"), "\"tope\": 1000"), "")
 
     # la ventana de las propiedades: Guardar deja el .forja como estaba
     antes = file_read_text("DH0:Proyectos/Contar/Contar.forja")

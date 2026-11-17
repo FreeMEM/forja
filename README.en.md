@@ -163,7 +163,8 @@ before.
 - **Proyecto > Project properties...**: three pages. General: name, type, main file, executable, version (changing it
   updates the program's `@version` line) and program icon (copied next to the executable when building). Build: CPU
   (`--cpu`), FPU (`--fpu`), stack (`--stack`), `--memcheck`, `--profile`, `--gcc` (the Amiga's `dash` does not build
-  through C) and more options. Run: arguments when running and when debugging.
+  through C), more options and the maximum size of the executable (for a 4 or 64 KB intro: on building, Forja says
+  what it weighs and warns if it goes over). Run: arguments when running and when debugging.
 - With a project, Build and Run use its main file, executable and options, whatever file is in front. Only a file
   with its own `Main` is built by itself (with the project's options).
 

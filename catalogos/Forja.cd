@@ -824,3 +824,9 @@ MSG_1014 (1014//)
 Los ficheros han cambiado desde la lista: no cambio nada. Vuelve a buscar o a renombrar.
 MSG_1015 (1015//)
 Los abiertos cambian en el editor (sin guardar; se pueden deshacer); los demás, en el disco.
+MSG_1016 (1016//)
+Tamaño máximo en bytes (0: sin tope):
+MSG_1017 (1017//)
+%1 bytes
+MSG_1018 (1018//)
+%1 pesa %2 bytes: %3 más que el tope del proyecto.
