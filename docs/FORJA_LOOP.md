@@ -495,4 +495,12 @@ VS Code.
       en las capturas; para probarlo haría falta una captura de la imagen de FS-UAE.
     - Esperar un clic en una pantalla sin ventana: `probar` mira el botón en el CIA (`$BFE001`), que no ve los clics
       de `input_click`.
+  - Pruebas (rama `demos`), TODO BIEN: `demos_base` y `demos_forja` en MUI 5 (A1200 con chipset, 3.1) y `demos_forja`
+    en MUI 3.8 (`sys32rtg38`, RTG); la plantilla de demo arranca y acaba (RC 0). Las de antes, en MUI 5: teclas,
+    ficheros, compilar, extensiones, extensiones_base, editor_base, proyecto_base, sprites y mapas_base; en MUI 3.8:
+    extensiones, sprites y mapas_forja.
+  - **Lento**: un dibujo entero de la ventana de Demos tarda unos 0,8 s en los dos emuladores (lo apunta la sonda,
+    `dibujo`). Con la demo en marcha se repinta como mucho 2,5 veces por segundo, con búfer. Una raya por línea en la
+    vista del copper tardaba 10 s con MUI 3.8 y tarjeta: ahora va por franjas y con 4 niveles por color. Falta medirlo
+    con `REAL=1` y pintar solo lo que cambia (la fila que suena, la columna de la pista).
 
