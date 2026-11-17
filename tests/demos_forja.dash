@@ -1,0 +1,325 @@
+# Hace de usuario de la extensión Demos con Forja y una demo de verdad (la de la plantilla, con musica.mod): Forja abre
+# demo.sync en la extensión; en Sincronía se pone y se quita una clave; con la demo en marcha, la extensión se conecta,
+# sigue su fila, la para, hace una pista nueva y le pone una clave que la demo recibe al momento; el medidor tiene las
+# líneas de cada imagen; el visor de MOD abre musica.mod y sigue a la demo; el copper va al código de main.dash y se
+# cambia allí sin duplicarse; Amiga-S guarda las pistas y Amiga-X las exporta. Lo arranca tests/demos_forja.sh;
+# anota en DH0:Prueba/demos_forja.txt y deja capturas en DH0:Prueba/*.png.
+
+const AMIGA = 8
+const MAYUS = 1
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/demos_forja.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar_titulo(t: String) -> Bool
+    if not str_starts(input_active_title(), t)
+        w = window_find(t)
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return str_starts(input_active_title(), t)
+end
+
+func campo(nombre: String, i: Int) -> Int
+    return Int(str_split(env_get(nombre), " ")[i])
+end
+
+func activar() -> Bool
+    r = activar_titulo("Demos")
+    n = 0
+    while n < 10 and not r
+        time_delay(10)
+        r = activar_titulo("Demos")
+        n = n + 1
+    end
+    if env_get("FORJA_DEMOS_LIENZO") != ""
+        input_move(campo("FORJA_DEMOS_LIENZO", 0) + campo("FORJA_DEMOS_LIENZO", 2) / 2, campo("FORJA_DEMOS_LIENZO", 1) + campo("FORJA_DEMOS_LIENZO", 3) / 2)
+        time_delay(5)
+    end
+    return r
+end
+
+func sonda() -> String
+    time_delay(15)
+    t = file_read_text("RAM:forja-demos-sonda.txt")
+    n = 0
+    while (t == nil or t == "") and n < 10
+        time_delay(2)
+        t = file_read_text("RAM:forja-demos-sonda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+# La línea de la sonda que empieza así
+func linea(empieza: String) -> String
+    for l in str_split(sonda(), "\n")
+        if str_starts(l, empieza)
+            return l
+        end
+    end
+    return ""
+end
+
+# Espera (como mucho s segundos) a que la sonda tenga ese texto
+func esperar(texto: String, s: Int) -> Bool
+    n = 0
+    while n < s * 4
+        if str_contains(sonda(), texto)
+            return true
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return false
+end
+
+func campo_sonda(l: String, palabra: String) -> Int
+    c = str_split(l, " ")
+    i = 0
+    while i + 1 < c.length
+        if c[i] == palabra
+            return Int(c[i + 1])
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# (antes de cada tecla, la ventana de Demos: en MUI 3.8, Forja se pone delante un rato después de ABRIR)
+func tecla(k: Int, q: Int)
+    if not str_starts(input_active_title(), "Demos")
+        activar()
+    end
+    input_key(k, q)
+    time_delay(8)
+end
+
+func escribir(t: String)
+    if not str_starts(input_active_title(), "Demos")
+        activar()
+    end
+    input_text(t)
+end
+
+func puerto(nombre: String) -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func esperar_ventana(titulo: String) -> Bool
+    n = 0
+    while n < 100
+        if str_starts(input_active_title(), titulo)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+func veces(t: String, s: String) -> Int
+    n = 0
+    p = str_find(t, s)
+    while p >= 0
+        n = n + 1
+        p = str_find_from(t, s, p + 1)
+    end
+    return n
+end
+
+# Una captura de la pantalla de Forja (la de la demo, detrás)
+func captura(nombre: String)
+    rexx_send_wait("DEMOSYNC", "DETRAS", 2000)
+    time_delay(25)
+    screen_save_png("DH0:Prueba/" + nombre + ".png")
+    activar()
+end
+
+func sincronia()
+    ver("abre demo.sync en Sincronía", str_starts(linea("pagina"), "pagina 2") and str_starts(linea("sync"), "sync demo.sync pistas 2 cursor 0 0"), linea("sync"))
+    # una clave en la fila 4 de "velocidad": 1.5, lineal; i la pasa a suave; Supr la quita
+    tecla(0x4D, 0)
+    tecla(0x4D, 0)
+    tecla(0x4D, 0)
+    tecla(0x4D, 0)
+    escribir("1.5")
+    time_delay(10)
+    ver("lo escrito se ve en la celda", str_contains(linea("sync"), "cursor 4 0") and str_contains(linea("sync"), "buffer [1.5]"), linea("sync"))
+    tecla(0x44, 0)
+    ver("Return pone la clave", str_contains(linea("pista"), "claves 4 aqui 1.5 lineal") and str_contains(linea("sync"), "cambiado true"), linea("pista"))
+    tecla(0x17, 0)
+    ver("i cambia el tipo", str_contains(linea("pista"), "aqui 1.5 suave"), linea("pista"))
+    tecla(0x46, 0)
+    ver("Supr la quita", str_contains(linea("pista"), "claves 3 aqui -"), linea("pista"))
+    tecla(0x4C, MAYUS)
+    ver("Mayúsculas+arriba sube 16 (hasta la 0)", str_contains(linea("sync"), "cursor 0 0"), linea("sync"))
+    escribir("2.5")
+    tecla(0x44, 0)
+end
+
+func con_demo()
+    dir_change("DH0:Prueba/demo")
+    run_start("DH0:Prueba/demo/Barras", 0)
+    ver("la extensión se conecta a la demo", esperar("demo true", 15), linea("demo"))
+    time_delay(25)
+    f1 = campo_sonda(linea("demo"), "fila")
+    time_delay(100)
+    f2 = campo_sonda(linea("demo"), "fila")
+    ver("sigue la fila de la demo (con su música)", f2 > f1 and campo_sonda(linea("sync"), "cursor") >= f1, "#{f1} #{f2} / " + linea("sync"))
+    # la demo tenía demo.sync con el 2.5 sin guardar de Forja: se lo pasó (RECARGAR)
+    activar()
+    tecla(0x40, 0)
+    ver("Espacio para la demo", esperar("pausa true", 5), linea("demo"))
+    # (la extensión ve la pausa en su siguiente lectura, 0,2 s)
+    n = 0
+    fila = campo_sonda(linea("demo"), "fila")
+    while n < 10 and campo_sonda(linea("sync"), "cursor") != fila
+        fila = campo_sonda(linea("demo"), "fila")
+        n = n + 1
+    end
+    ver("parada, el cursor se queda en su fila", campo_sonda(linea("sync"), "cursor") == fila, linea("sync") + " / #{fila}")
+    # una pista nueva: n y su nombre
+    tecla(0x36, 0)
+    escribir("brillo")
+    time_delay(10)
+    ver("n pide el nombre de la pista en la tabla", esperar("nombre [brillo]", 5), linea("sync"))
+    tecla(0x44, 0)
+    ver("n hace una pista nueva", esperar("pistas 3 ", 5) and str_starts(linea("pista"), "pista brillo"), linea("sync") + " / " + linea("pista"))
+    escribir("9")
+    tecla(0x44, 0)
+    esperar("pista brillo claves 1", 5)
+    ver("la demo recibe la clave al momento", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) == "9", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) + " fila #{fila}")
+    ver("y lo que Forja no había guardado (RECARGAR al conectar)", rexx_send_wait("DEMOSYNC", "VALOR velocidad", 2000) != "", "")
+    file_write_text("DH0:Prueba/valor_velocidad.txt", rexx_send_wait("DEMOSYNC", "VALOR velocidad", 2000))
+    tecla(0x40, 0)
+    ver("Espacio la deja seguir", esperar("pausa false", 5), linea("demo"))
+    captura("sincronia")
+    # el medidor
+    tecla(0x04, AMIGA)
+    esperar("pagina 3", 5)
+    time_delay(25)
+    l = linea("demo")
+    ver("Medidor: las líneas de las 64 últimas imágenes", str_starts(linea("pagina"), "pagina 3") and campo_sonda(l, "muestras") == 64 and campo_sonda(l, "lineas") > 150, l)
+    captura("medidor")
+    # el visor de MOD: Forja abre musica.mod y se lo pasa
+    rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/musica.mod")
+    ver("Música: abre musica.mod y sigue a la demo", esperar("mod musica.mod suena false", 10) and str_starts(linea("pagina"), "pagina 1") and str_contains(linea("mod"), "largo 6 patrones 4 celda C-1 01 ..."), linea("mod"))
+    activar()
+    time_delay(25)
+    captura("musica")
+end
+
+# El texto de main.dash en Forja cuando tenga eso (como mucho 5 s)
+func texto_main(con: String) -> String
+    n = 0
+    t = ""
+    while n < 40
+        t = rexx_send("FORJA.1", "TEXTO DH0:Prueba/demo/main.dash")
+        if str_contains(t, con)
+            return t
+        end
+        time_delay(12)
+        n = n + 1
+    end
+    return t
+end
+
+func copper()
+    rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/main.dash 20")
+    # (Forja se pone delante al abrir: se espera a que lo esté antes de volver a la ventana de Demos)
+    esperar_ventana("Forja")
+    time_delay(50)
+    activar()
+    tecla(0x01, AMIGA)
+    esperar("pagina 0", 5)
+    tecla(0x36, 0)
+    tecla(0x13, 0)
+    tecla(0x13, 0)
+    ver("Copper: una parada nueva y más rojo", esperar("copper 4 1 0 degradado copper 84:", 5), linea("copper"))
+    anotar("  (" + linea("dibujo") + ")")
+    tecla(0x44, 0)
+    t = texto_main("# copper: degradado")
+    ver("Return lo mete en main.dash (" + input_active_title() + ")", veces(t, "# copper: degradado") == 1 and str_contains(t, "copper_wait(40, 0)") and str_contains(t, "# paradas: 0 degradado 40:00F 84:"), linea("mensaje"))
+    captura("copper")
+    tecla(0x4C, MAYUS)
+    tecla(0x4C, MAYUS)
+    tecla(0x13, MAYUS)
+    esperar("copper 4 1 0 degradado copper 82:", 5)
+    tecla(0x44, 0)
+    t = texto_main("82:")
+    ver("otra vez Return lo cambia allí, sin duplicarlo", veces(t, "# copper: degradado") == 1 and str_contains(t, "# paradas: 0 degradado 40:00F 82:"), linea("mensaje"))
+    tecla(0x4D, 0)
+    tecla(0x13, 0)
+    tecla(0x28, 0)
+    ver("l lo vuelve a leer del código", esperar("copper 4 0 0 degradado copper 40:00F", 5), linea("copper"))
+    rexx_send("FORJA.1", "GUARDAR DH0:Prueba/demo/main.dash")
+end
+
+func guardar_exportar()
+    activar()
+    tecla(0x03, AMIGA)
+    esperar("pagina 2", 5)
+    tecla(0x21, AMIGA)
+    esperar("cambiado false", 5)
+    t = file_read_text("DH0:Prueba/demo/demo.sync")
+    ver("Amiga-S guarda las pistas", t != nil and str_contains(t, "pista brillo") and str_contains(linea("sync"), "cambiado false"), linea("sync"))
+    tecla(0x32, AMIGA)
+    esperar("Exportadas", 5)
+    t = file_read_text("DH0:Prueba/demo/pistas_datos.dash")
+    ver("Amiga-X las exporta a pistas_datos.dash", t != nil and str_contains(t, "sync_pista_datos(\"brillo\", [") and str_contains(t, "Fixed(9)"), linea("mensaje"))
+end
+
+Main
+    n = 0
+    while n < 600 and not (env_get("FORJA_DEMOS_LIENZO") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de la extensión Demos aparece", false, input_active_title())
+    else
+        sincronia()
+        con_demo()
+        copper()
+        guardar_exportar()
+        rexx_send_wait("DEMOSYNC", "ACABAR", 2000)
+        ver("la demo acaba y la extensión lo ve", esperar("demo false", 10), linea("demo"))
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar_titulo("Forja")
+    input_key(0x10, AMIGA)
+    if esperar_ventana("Cambios sin guardar")
+        time_delay(25)
+        input_key(0x22, 0)
+    end
+end

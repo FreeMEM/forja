@@ -1,0 +1,158 @@
+# mod.dash: lee un MOD de ProTracker (4 canales, 31 instrumentos: M.K., M!K!, FLT4, 4CHN) para enseñar sus
+# patrones en la extensión Demos. Solo la cabecera y los patrones; las muestras no hacen falta (las toca music_*).
+
+const MOD_PERIODOS = "856 808 762 720 678 640 604 570 538 508 480 453 428 404 381 360 339 320 302 285 269 254 240 226 214 202 190 180 170 160 151 143 135 127 120 113"
+const MOD_NOTAS = "C-C#D-D#E-F-F#G-G#A-A#B-"
+
+var mod_titulo: String = ""
+var mod_largo: Int = 0          # posiciones de la canción
+var mod_orden: [Int] = []
+var mod_patrones: Int = 0
+var mod_datos: Int = 0          # los patrones (1024 bytes cada uno), en un buffer
+var mod_ruta: String = ""
+var mod_error: String = ""
+var _mod_periodos: [Int] = []
+
+func mod_soltar()
+    if mod_datos != 0
+        buffer_free(mod_datos)
+        mod_datos = 0
+    end
+    mod_ruta = ""
+    mod_largo = 0
+    mod_patrones = 0
+    mod_orden.clear()
+end
+
+func _mod_texto(b: Int, desde: Int, n: Int) -> String
+    t = ""
+    i = 0
+    while i < n
+        c = buffer_get_byte(b, desde + i)
+        if c == 0
+            return t
+        end
+        if c < 32 or c > 126
+            c = 32
+        end
+        t = t + str_char(c)
+        i = i + 1
+    end
+    return t
+end
+
+func mod_leer(ruta: String) -> Bool
+    mod_error = ""
+    f = file_open(ruta, 1005)
+    if f == 0
+        mod_error = "No se puede leer " + ruta
+        return false
+    end
+    cab = buffer_alloc(1084)
+    n = file_read(f, cab, 1084)
+    tipo = ""
+    if n == 1084
+        tipo = _mod_texto(cab, 1080, 4)
+    end
+    if tipo != "M.K." and tipo != "M!K!" and tipo != "FLT4" and tipo != "4CHN"
+        file_close(f)
+        buffer_free(cab)
+        mod_error = "No es un MOD de 4 canales y 31 instrumentos: " + ruta
+        return false
+    end
+    mod_soltar()
+    mod_titulo = str_trim(_mod_texto(cab, 0, 20))
+    mod_largo = buffer_get_byte(cab, 950)
+    if mod_largo < 1 or mod_largo > 128
+        mod_largo = 1
+    end
+    mod_patrones = 0
+    i = 0
+    while i < 128
+        p = buffer_get_byte(cab, 952 + i)
+        if i < mod_largo
+            mod_orden.push(p)
+        end
+        if p + 1 > mod_patrones
+            mod_patrones = p + 1
+        end
+        i = i + 1
+    end
+    buffer_free(cab)
+    mod_datos = buffer_alloc(mod_patrones * 1024)
+    n = file_read(f, mod_datos, mod_patrones * 1024)
+    file_close(f)
+    if n < mod_patrones * 1024
+        mod_soltar()
+        mod_error = "El MOD está cortado: " + ruta
+        return false
+    end
+    mod_ruta = ruta
+    return true
+end
+
+func mod_patron(pos: Int) -> Int
+    if pos < 0 or pos >= mod_orden.length
+        return 0
+    end
+    return mod_orden[pos]
+end
+
+# "C-2" (o "---") de un periodo
+func mod_nota(periodo: Int) -> String
+    if periodo == 0
+        return "---"
+    end
+    if _mod_periodos.length == 0
+        for t in str_split(MOD_PERIODOS, " ")
+            _mod_periodos.push(Int(t))
+        end
+    end
+    mejor = 0
+    dif = 99999
+    i = 0
+    while i < _mod_periodos.length
+        d = _mod_periodos[i] - periodo
+        if d < 0
+            d = 0 - d
+        end
+        if d < dif
+            dif = d
+            mejor = i
+        end
+        i = i + 1
+    end
+    return MOD_NOTAS[(mejor % 12) * 2:(mejor % 12) * 2 + 2] + "#{mejor / 12 + 1}"
+end
+
+func _mod_hex(v: Int, n: Int) -> String
+    h = str_upper(str_from_int(v, 16))
+    while h.length < n
+        h = "0" + h
+    end
+    return h
+end
+
+# Una celda: "C-2 01 C20" (nota, instrumento, efecto y su dato)
+func mod_celda(patron: Int, fila: Int, canal: Int) -> String
+    if mod_datos == 0 or patron >= mod_patrones
+        return ""
+    end
+    o = patron * 1024 + fila * 16 + canal * 4
+    b0 = buffer_get_byte(mod_datos, o)
+    b1 = buffer_get_byte(mod_datos, o + 1)
+    b2 = buffer_get_byte(mod_datos, o + 2)
+    b3 = buffer_get_byte(mod_datos, o + 3)
+    ins = (b0 & 0xF0) | (b2 >> 4)
+    t = mod_nota(((b0 & 15) << 8) | b1) + " "
+    if ins == 0
+        t = t + ".."
+    else
+        t = t + _mod_hex(ins, 2)
+    end
+    ef = b2 & 15
+    if ef == 0 and b3 == 0
+        return t + " ..."
+    end
+    return t + " " + _mod_hex(ef, 1) + _mod_hex(b3, 2)
+end

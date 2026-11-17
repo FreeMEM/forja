@@ -273,3 +273,15 @@ Proyectos, plantillas, depurar más y perfil (pasos 3.1, 3.2, 4.1 y 4.2 de `docs
   perfil falla: dash copia en línea `lenta` y `rapida` también con `--profile` y la tabla solo tiene Main.
 
 Las tres con ventana van también con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`.
+
+Herramientas de demos (la extensión `extensiones/Demos`, paso 5.2): `python3 tests/mod_ejemplo.py x.mod` hace un MOD
+pequeño (tres instrumentos, cuatro patrones, seis posiciones). `tests/demos_base.sh <Dash>` prueba sin ventana las
+pistas de sincronía (`plantillas/demo/sync.dash`), el modelo del copper y su código (que después se compila en el PC),
+el lector de MOD y el enlace con la demo de la plantilla, que corre aparte con su música (DEMOSYNC: HOLA, el bloque de
+memoria, CLAVE, VALOR, PAUSA, IR, SIGUE, RECARGAR, ACABAR). `tests/demos_forja.sh <Dash> [capturas/]`:
+`tests/demos_forja.dash` usa la ventana de la extensión con Forja y la demo en marcha (claves, pista nueva, pausa,
+medidor, visor de MOD que sigue a la demo, copper al código y otra vez sin duplicarse, guardar y exportar); después
+compila en el PC la demo con el copper que quedó en `main.dash` y la versión final (`VIVO = false`) con
+`pistas_datos.dash`. Sondas: `RAM:forja-demos-sonda.txt` y `ENV:FORJA_DEMOS_LIENZO`. Las capturas (sincronia, medidor,
+musica, copper) las hace el propio Amiga con la pantalla de la demo detrás (orden DETRAS); el copper y las barras de
+la demo no salen en ellas (`screen_save_png` lee el bitmap, no lo que pinta el copper).

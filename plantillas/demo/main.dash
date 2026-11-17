@@ -2,10 +2,21 @@
 # parte que corre en ensamblador en línea (asm ... end, docs/ASM_DISEÑO.md de Dash): unas barras de color que suben
 # y bajan, cambiando el color de fondo en cada línea de la pantalla. Con el botón izquierdo del ratón, se acaba.
 #
-# Para seguir: música con music_load y music_play (un MOD); el texto que pasa, con gfx_text_at y gfx_scroll; la
-# lista de copper (copper_*) para degradados que no gastan CPU.
+# Con la extensión Demos de Forja (menú Demos):
+# - Pistas de sincronía: "velocidad" y "subida" están en demo.sync. Ejecuta la demo (Amiga-E) con Demos > Pistas de
+#   sincronía abierto, y cambia sus claves mientras corre: la demo las recibe al momento. Al acabar, Demos > Exportar
+#   las pistas las deja en pistas_datos.dash, y con VIVO = false la demo ya no necesita ni demo.sync ni Forja.
+# - Música: copia un MOD como musica.mod y será el reloj de las pistas (sin él, 6 imágenes por fila). Demos > Visor de
+#   MOD enseña sus patrones y la fila que suena.
+# - Medidor de raster: cuántas líneas de la pantalla gasta cada imagen (sync_fotograma y sync_fin).
+# - Editor de copper: degradados de fondo que no gastan CPU; "Al código" los mete aquí como copper_* o como tabla.
 
 @version "%NOMBRE% 0.1"
+
+import "sync.dash"
+import "pistas_datos.dash"
+
+const VIVO = true       # false en la versión final: sin el puerto para Forja ni el fichero demo.sync
 
 const ARRIBA = 0x40     # la primera línea con barras
 const ABAJO = 0xF0      # y la de después de la última
@@ -25,17 +36,26 @@ Main
     for i in (0..255)
         poke_byte(tabla + i, Int(fx_sin(Fixed(i * 360 / 256)) * 60) + 64)
     end
+    # las pistas: las de demo.sync mientras se hace; las exportadas (pistas_datos.dash) en la versión final
+    if not VIVO or not sync_cargar("demo.sync")
+        pistas_datos()
+    end
+    sync_tocar("musica.mod")        # si está, la música es el reloj de las pistas
+    sync_empezar(VIVO)
     fase = 0
     imagenes = 0
     while true
         wait_vblank()
-        asm in a1 = tabla, d4 = fase out salir = d0 uses d1-d3/d5/a0
+        sync_fotograma()
+        subida = sync_int("subida")
+        asm in a1 = tabla, d4 = fase, d6 = subida out salir = d0 uses d1-d3/d5/a0
             lea     $dff000,a0
             move.w  d4,d0               ; el centro de la barra, de la tabla
             and.w   #255,d0
             moveq   #0,d5
             move.b  (a1,d0.w),d5
             add.w   #ARRIBA+8,d5
+            sub.w   d6,d5               ; la pista "subida" la sube
             move.w  #ARRIBA,d1          ; la línea que toca
         .linea:
             move.b  6(a0),d0            ; VHPOSR: la línea de ahora, en el byte alto
@@ -66,12 +86,14 @@ Main
             moveq   #1,d0
         .sigue:
         end
-        if salir == 1
+        sync_fin()
+        if salir == 1 or sync_acabada
             break
         end
-        fase = fase + 2
+        fase = fase + sync_int("velocidad")
         imagenes = imagenes + 1
     end
+    sync_acabar()
     amiga_free(tabla, 256)
     screen_close()
     Print "#{imagenes} imágenes"

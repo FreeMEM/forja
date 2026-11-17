@@ -12,6 +12,8 @@ fecha en el cursor con Ctrl Alt D. `extensiones/Git` (git con dashgit) usa casi 
 (el copiloto, que habla con Inferencia) usa las vistas para enseñar un cambio antes de aceptarlo y `SUGERENCIA`.
 `extensiones/Sprites` y `extensiones/Mapas` (los editores de sprites y de mapas de tiles) abren sus tipos de fichero en
 una ventana suya y hacen ficheros nuevos (`tipos`, `nuevo`, `GUARDADO`, `SINGUARDAR`, `COMPILAR fichero`).
+`extensiones/Demos` (copper, MOD, pistas de sincronía y medidor) escribe en el código del editor (`TEXTO`, `CAMBIAR`,
+`INSERTAR`) y habla además con otro programa, la demo en marcha.
 
 ## Dónde van
 

@@ -1,0 +1,287 @@
+# copper.dash: el modelo del editor de copper de la extensión Demos. Unas paradas (una línea de la pantalla y un
+# color de 12 bits) hacen un degradado (el color cambia en cada línea de una parada a la siguiente) o cambios secos
+# (el color se queda hasta la siguiente). De ahí sale el código Dash: llamadas a copper_* o una tabla con un color por
+# línea para un bloque asm. El código lleva sus paradas en un comentario, para volver a editarlo.
+
+const CU_LINEAS = 256
+
+struct CuParada
+    linea: Int
+    rgb: Int
+end
+
+var cu_paradas: [CuParada] = []
+var cu_elegida: Int = 0
+var cu_color: Int = 0          # el registro de color: 0 es COLOR00, el fondo
+var cu_degradado: Bool = true
+var cu_tabla: Bool = false     # el código: false copper_*, true una tabla para asm
+var cu_nombre: String = "degradado"
+
+func cu_hex(v: Int) -> String
+    h = str_upper(str_from_int(v & 0xFFF, 16))
+    while h.length < 3
+        h = "0" + h
+    end
+    return h
+end
+
+func cu_nuevo()
+    cu_paradas.clear()
+    cu_paradas.push(CuParada(40, 0x00F))
+    cu_paradas.push(CuParada(128, 0xF80))
+    cu_paradas.push(CuParada(220, 0x000))
+    cu_elegida = 0
+end
+
+# Ordena las paradas por línea (la elegida sigue siendo la misma)
+func cu_ordenar()
+    el = cu_paradas[cu_elegida]
+    i = 1
+    while i < cu_paradas.length
+        j = i
+        while j > 0 and cu_paradas[j - 1].linea > cu_paradas[j].linea
+            t = cu_paradas[j - 1]
+            cu_paradas[j - 1] = cu_paradas[j]
+            cu_paradas[j] = t
+            j = j - 1
+        end
+        i = i + 1
+    end
+    i = 0
+    while i < cu_paradas.length
+        if cu_paradas[i] == el
+            cu_elegida = i
+        end
+        i = i + 1
+    end
+end
+
+# El color de cada línea (CU_LINEAS); -1 antes de la primera parada (el de la pantalla)
+func cu_colores() -> [Int]
+    var r: [Int] = []
+    n = cu_paradas.length
+    y = 0
+    k = 0
+    while y < CU_LINEAS
+        while k + 1 < n and cu_paradas[k + 1].linea <= y
+            k = k + 1
+        end
+        if n == 0 or y < cu_paradas[0].linea
+            r.push(-1)
+        elif not cu_degradado or k + 1 >= n
+            r.push(cu_paradas[k].rgb)
+        else
+            a = cu_paradas[k]
+            b = cu_paradas[k + 1]
+            d = b.linea - a.linea
+            t = y - a.linea
+            rr = ((a.rgb >> 8) & 15) * (d - t) + ((b.rgb >> 8) & 15) * t
+            gg = ((a.rgb >> 4) & 15) * (d - t) + ((b.rgb >> 4) & 15) * t
+            bb = (a.rgb & 15) * (d - t) + (b.rgb & 15) * t
+            r.push((((rr + d / 2) / d) << 8) | (((gg + d / 2) / d) << 4) | ((bb + d / 2) / d))
+        end
+        y = y + 1
+    end
+    return r
+end
+
+# Cuántas instrucciones de copper hacen falta (una espera y un color por cambio)
+func cu_instrucciones() -> Int
+    c = cu_colores()
+    n = 0
+    antes = -1
+    for v in c
+        if v != antes and v >= 0
+            n = n + 2
+        end
+        antes = v
+    end
+    return n
+end
+
+func cu_linea_paradas() -> String
+    t = "# paradas: #{cu_color} "
+    if cu_degradado
+        t = t + "degradado"
+    else
+        t = t + "cambios"
+    end
+    for p in cu_paradas
+        t = t + " #{p.linea}:" + cu_hex(p.rgb)
+    end
+    return t
+end
+
+# Lee "# paradas: ..." (lo que escribe cu_codigo); false si no es eso
+func cu_leer_paradas(linea: String) -> Bool
+    l = str_trim(linea)
+    if not str_starts(l, "# paradas:")
+        return false
+    end
+    c = str_split(str_trim(l[10:]), " ")
+    if c.length < 3
+        return false
+    end
+    var ps: [CuParada] = []
+    i = 2
+    while i < c.length
+        p = str_find(c[i], ":")
+        if p > 0
+            ps.push(CuParada(Int(c[i][0:p]), str_to_int(c[i][p + 1:], 16)))
+        end
+        i = i + 1
+    end
+    if ps.length == 0
+        return false
+    end
+    cu_color = Int(c[0])
+    cu_degradado = c[1] != "cambios"
+    cu_paradas = ps
+    cu_elegida = 0
+    cu_ordenar()
+    return true
+end
+
+func cu_marca() -> String
+    return "# copper: " + cu_nombre
+end
+
+func cu_marca_fin() -> String
+    return "# fin copper: " + cu_nombre
+end
+
+# El código Dash del degradado, entre sus dos marcas
+func cu_codigo() -> String
+    c = cu_colores()
+    t = cu_marca() + " (lo escribe Forja: Demos > Copper; la línea de las paradas sirve para volver a editarlo)\n"
+    t = t + cu_linea_paradas() + "\n"
+    if cu_tabla
+        t = t + "# Un color de 12 bits por línea de la pantalla (0 a 255), de 16 bits cada uno, para un bloque asm: con la\n"
+        t = t + "# línea en d1, add.w d1,d1 y move.w (a1,d1.w),$180(a0). Se libera con amiga_free(t, 512).\n"
+        t = t + "func copper_" + cu_nombre + "() -> Int\n"
+        t = t + "    t = amiga_alloc(512)\n"
+        t = t + "    datos = ["
+        primero = c[0]
+        for v in c
+            if v >= 0 and primero < 0
+                primero = v
+            end
+        end
+        if primero < 0
+            primero = 0
+        end
+        i = 0
+        for v in c
+            if i > 0
+                t = t + ", "
+                if i % 12 == 0
+                    t = t + "\n             "
+                end
+            end
+            w = v
+            if w < 0
+                w = primero
+            end
+            t = t + "0x" + cu_hex(w)
+            i = i + 1
+        end
+        t = t + "]\n"
+        t = t + "    i = 0\n    while i < #{CU_LINEAS}\n        poke_word(t + i * 2, datos[i])\n        i = i + 1\n    end\n"
+        t = t + "    return t\nend\n"
+    else
+        t = t + "# Pone la lista en la pantalla del programa (copper_free la quita).\n"
+        t = t + "func copper_" + cu_nombre + "()\n"
+        t = t + "    copper_create(#{cu_instrucciones() + 2})\n"
+        antes = -1
+        y = 0
+        for v in c
+            if v != antes and v >= 0
+                t = t + "    copper_wait(#{y}, 0)\n    copper_color(#{cu_color}, 0x" + cu_hex(v) + ")\n"
+            end
+            antes = v
+            y = y + 1
+        end
+        t = t + "    copper_end()\n    copper_install()\nend\n"
+    end
+    return t + cu_marca_fin() + "\n"
+end
+
+# Busca el bloque de cu_nombre en un texto: [primera línea, última línea] desde 1, o [0, 0]
+func cu_buscar_bloque(texto: String) -> [Int]
+    l = str_split(texto, "\n")
+    a = 0
+    i = 0
+    while i < l.length
+        s = str_trim(l[i])
+        if a == 0 and (str_starts(s, cu_marca() + " ") or s == cu_marca())
+            a = i + 1
+        elif a > 0 and s == cu_marca_fin()
+            return [a, i + 1]
+        end
+        i = i + 1
+    end
+    return [0, 0]
+end
+
+# El primer bloque de copper de un texto (o el que contiene la línea dada, desde 1): lee su nombre y sus paradas
+func cu_leer_codigo(texto: String, linea: Int) -> Bool
+    l = str_split(texto, "\n")
+    i = 0
+    nombre = ""
+    desde = 0
+    var bloques: [Int] = []
+    while i < l.length
+        s = str_trim(l[i])
+        if str_starts(s, "# copper: ")
+            desde = i + 1
+            r = s[10:]
+            p = str_find(r, " ")
+            if p > 0
+                r = r[0:p]
+            end
+            nombre = r
+        elif desde > 0 and str_starts(s, "# paradas:")
+            if linea <= 0 or (linea >= desde and (linea <= i + 1 or _cu_fin_tras(l, i, linea)))
+                if cu_leer_paradas(s)
+                    cu_nombre = nombre
+                    return true
+                end
+            end
+        end
+        i = i + 1
+    end
+    if linea > 0
+        return cu_leer_codigo(texto, 0)
+    end
+    return false
+end
+
+func _cu_fin_tras(l: [String], i: Int, linea: Int) -> Bool
+    j = i
+    while j < l.length
+        if str_starts(str_trim(l[j]), "# fin copper:")
+            return linea <= j + 1
+        end
+        j = j + 1
+    end
+    return false
+end
+
+func cu_sonda() -> String
+    t = "copper #{cu_paradas.length} #{cu_elegida} #{cu_color} "
+    if cu_degradado
+        t = t + "degradado"
+    else
+        t = t + "cambios"
+    end
+    if cu_tabla
+        t = t + " tabla"
+    else
+        t = t + " copper"
+    end
+    if cu_paradas.length > 0
+        p = cu_paradas[cu_elegida]
+        t = t + " #{p.linea}:" + cu_hex(p.rgb)
+    end
+    return t + " #{cu_instrucciones()}"
+end

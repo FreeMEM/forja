@@ -1,0 +1,10 @@
+# Pistas de sincronía (Forja, extensión Demos)
+pista velocidad
+0 2 lineal
+64 6 suave
+128 2 escalon
+pista subida
+0 0 escalon
+32 0 suave
+48 40 suave
+64 0 escalon
