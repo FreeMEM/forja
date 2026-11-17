@@ -20,3 +20,23 @@ Lo aprendido:
   escribe `ENV:Forja/dashc`. El cajón instalado se abre con el ARexx del Workbench (`WINDOW ... OPEN`).
 - La petición de guardar de ASL: con la ruta entera en File, el primer Return la reparte en Drawer y File; el
   segundo guarda.
+
+## El vídeo de Forja 0.8 (lo nuevo)
+
+Mismas herramientas, con estas diferencias (todo en `*08*` o con un interruptor):
+- `preparar.py es|en`: Amiberry 8.5 necesita `env -u WAYLAND_DISPLAY` y `-G` (si no, el Workbench se queda en AGA; la
+  tarjeta gráfica con `gfxcard_type` sigue valiendo), el modo RTG 1280x1024 es ahora el 0x50071302 (se pone en
+  `ENVARC:Sys/screenmode.prefs`), `sound_output=exact` (sin sonido el reloj de la música no avanza y las pistas de
+  sincronía no se mueven; con `SDL_AUDIODRIVER=dummy` no suena nada) y el paquete es `dash-2.17.0-amiga.lha`. El Coffin
+  ya tenía Dash: el instalador pregunta "¿Lo pongo al día?". MiniGL se copia a `LIBS:` de la copia del disco.
+- `agente.c`: órdenes 4 y 5 (tecla solo pulsada o solo soltada) para mantener Ctrl, Alt o Mayúsculas de verdad
+  (`agente.combo`). Amiga-M no cambia de pantalla desde el agente: el botón de profundidad (1267, 10).
+- `guion08.py` (`DESDE=capítulo HASTA=capítulo`; cada capítulo sigue aunque falle el anterior), `locuciones08_*.json`,
+  `textos08.py` (`VIDEO_TEXTOS=textos08 VIDEO_VOZ=voz08 python3 montar.py ...`), `servidor_inferencia.py` (servidor de
+  pruebas de Inferencia con las respuestas escritas de antemano, puerto 40977; sus guiones en
+  `~/.cache/video-forja/guiones`), `hojas.py` (hojas de contacto de una toma, para revisarla).
+- Los campos de texto de MUI salen con la letra negra sobre negro en este Coffin (se escribe, no se ve): por eso el
+  proyecto nuevo se crea por ARexx (`NUEVOPROYECTO`) y las búsquedas de la ayuda se limpian con Amiga-X.
+- Los programas con pantalla propia (el juego de la plantilla, el cubo) se acaban con `Break` (`parar_programa`):
+  con Esc (que parece llegarle también a Forja) Forja se cerró dos veces; no se ha investigado.
+- Inferencia del paquete 2.17 es anterior al copiloto (no entiende `ENCARGO`): se copia la compilada del repositorio.

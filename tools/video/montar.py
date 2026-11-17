@@ -22,7 +22,8 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from textos import TEXTOS
+import importlib
+TEXTOS = importlib.import_module(os.environ.get("VIDEO_TEXTOS", "textos")).TEXTOS
 
 W, H, FPS = 1920, 1080, 25
 V = os.path.expanduser("~/.cache/video-forja")
@@ -459,7 +460,7 @@ def main():
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", MUSICA, "-t",
                     f"{t_total + 2:.2f}", "-c:a", "pcm_s16le", musica], check=True)
     # las locuciones, en horas del vídeo
-    voces = [(a_video_t(t), os.path.join(VOCES, f"voz_{lengua}", clave + ".wav")) for (t, clave) in toma.get("voces", [])]
+    voces = [(a_video_t(t), os.path.join(VOCES, f"{os.environ.get('VIDEO_VOZ', 'voz')}_{lengua}", clave + ".wav")) for (t, clave) in toma.get("voces", [])]
     for (_, f) in voces:
         if not os.path.exists(f):
             sys.exit("falta la locución " + f)

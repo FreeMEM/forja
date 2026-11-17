@@ -59,9 +59,15 @@ def xvfb():
 
 
 def arrancar():
+    # Amiberry 8.5 pide la tarjeta gráfica con gfxcard0_* (sin ellos el Workbench se queda en AGA)
+    uae = os.path.join(V, "video.uae")
+    t = open(uae).read()
+    if "gfxcard0_type" not in t:
+        open(uae, "a").write("\ngfxcard0_type=ZorroIII\ngfxcard0_size=32\n")
     env = dict(os.environ, DISPLAY=PANTALLA, SDL_VIDEODRIVER="x11", SDL_AUDIODRIVER="dummy",
                XDG_RUNTIME_DIR=os.path.join(V, "run"))
-    pr = subprocess.Popen(["amiberry", "-f", os.path.join(V, "video.uae"), "-s", "use_gui=no"], env=env,
+    env.pop("WAYLAND_DISPLAY", None)           # con Wayland a la vista, Amiberry 8.5 deja el Workbench en AGA
+    pr = subprocess.Popen(["amiberry", "-f", os.path.join(V, "video.uae"), "-G"], env=env,
                           stdout=open(os.path.join(V, "amiberry.log"), "w"), stderr=subprocess.STDOUT,
                           start_new_session=True)
     open(os.path.join(V, "amiberry.pid"), "w").write(str(pr.pid))
@@ -78,6 +84,9 @@ def arrancar():
 
 
 def lanzar_agente():
+    s = amiga.pantalla()
+    if amiga.rd(s + 12, 2) < 1000:           # AGA: sin tarjeta gráfica (los iconos en otro sitio, el cajón más cerca)
+        return lanzar_agente_aga()
     p.mover_a(*TRASPASO); p.clic(2)
     t = time.time()
     while not amiga.ventana("Traspaso") and time.time() - t < 15:
@@ -96,6 +105,20 @@ def lanzar_agente():
     assert hay_agente(), "el agente no arrancó"
 
 
+def lanzar_agente_aga():
+    p.mover_a(121, 73); p.clic(2)
+    t = time.time()
+    while not amiga.ventana("Traspaso") and time.time() - t < 15:
+        time.sleep(0.3)
+    time.sleep(2)
+    p.mover_a(254, 51); p.clic(2)
+    t = time.time()
+    while not hay_agente() and time.time() - t < 8:
+        time.sleep(0.5)
+    p.cerrar("Traspaso")
+    assert hay_agente(), "el agente no arrancó"
+
+
 def hay_agente():
     """Su buzón (no la lista de tareas: el agente suele ser la tarea en marcha, que no está en ninguna lista)."""
     try:
@@ -105,7 +128,7 @@ def hay_agente():
         return False
 
 
-PAQUETE = "dash-2.2.0-amiga.lha"
+PAQUETE = "dash-2.17.0-amiga.lha"
 
 
 def traspaso(lengua):
@@ -120,9 +143,19 @@ def traspaso(lengua):
     shutil.copytree(juego, os.path.join(TRASP, "juego"))
     for f in ("agente", "agente.info"):
         shutil.copy(os.path.join(V, "agente", f), TRASP)
+    shutil.copy(os.path.expanduser("~/.cache/dash-emu/minigl/minigl.library"), TRASP)   # solo a esta copia
+    shutil.copytree(os.path.join(V, "ficheros08"), os.path.join(TRASP, "ficheros"))     # suma.dash, musica.mod, Inferencia
+    open(os.path.join(TRASP, "screenmode.prefs"), "wb").write(SCREENMODE)
     if lengua in ("es", "en"):
         shutil.copy(os.path.join(V, "descargas", f"locale_{'english' if lengua == 'en' else 'espanol'}.prefs"),
                     os.path.join(TRASP, "locale.prefs"))
+
+
+# El Workbench en RTG a 1280x1024x24: el ScreenMode de Coffin pide el modo 0x50981302, que Amiberry 8.5 ya no tiene
+# (el 1280x1024 es el 0x5007)
+SCREENMODE = bytes.fromhex("464F524D00000036505245465052484400000006000000000000"
+                           "5343524D0000001C00000000000000000000000000000000"
+                           "50071302FFFFFFFF00180001")
 
 
 def mirar():
@@ -151,6 +184,8 @@ def main(lengua):
     # Lo que no sale en el vídeo: el idioma de la toma (y se arranca otra vez con él)
     agente.lanzar("C:Copy Traspaso:locale.prefs ENVARC:Sys/locale.prefs")
     agente.lanzar("C:Copy Traspaso:locale.prefs ENV:Sys/locale.prefs")
+    agente.lanzar("C:Delete ENVARC:Sys/screenmode.prefs QUIET")
+    agente.lanzar("C:Copy Traspaso:screenmode.prefs ENVARC:Sys/screenmode.prefs")
     time.sleep(2)
     agente.lanzar("C:List ENVARC:Sys/locale.prefs >Traspaso:hecho.txt")
     time.sleep(10)                               # que el disco lo escriba antes de cerrar Amiberry
@@ -158,9 +193,12 @@ def main(lengua):
     assert "locale.prefs" in hecho, hecho
     os.remove(os.path.join(TRASP, "hecho.txt"))
     os.remove(os.path.join(TRASP, "locale.prefs"))
+    os.remove(os.path.join(TRASP, "screenmode.prefs"))
     cerrar_amiberry()
     arrancar()
     lanzar_agente()
+    agente.lanzar("C:Copy Traspaso:minigl.library LIBS:")        # MiniGL, solo en esta copia del disco
+    time.sleep(2)
     for f in ("agente", "agente.info"):
         os.remove(os.path.join(TRASP, f))
     p.mover_a(640, 600)
