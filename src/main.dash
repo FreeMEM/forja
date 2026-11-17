@@ -2701,6 +2701,7 @@ func escribir_sonda()
         end
         sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
         env_set("FORJA_MARCAS", _lista_texto(d.marcadores) + "|" + _lista_texto(d.plegados), false)
+        env_set("FORJA_PILAS", "#{d.deshacer.length} #{d.rehacer.length}", false)
         env_set("FORJA_DIBUJOS", "#{ed_dibujos}", false)
         if ed_vistas != sonda_vistas
             sonda_vistas = ed_vistas
@@ -2777,10 +2778,18 @@ func edicion(ev: Int)
         if t != ""
             ed_escribir(d, str_replace(t, "\t", "    "))
         end
-    elif ev == EV_DESHACER
-        ed_deshacer(d)
-    elif ev == EV_REHACER
-        ed_rehacer(d)
+    elif ev == EV_DESHACER or ev == EV_REHACER
+        # (sin nada que deshacer, nada que dibujar: Amiga-Z pulsada varias veces de más repintaba todo cada vez, y en
+        # un fichero grande se quedaban en cola)
+        hecho = false
+        if ev == EV_DESHACER
+            hecho = ed_deshacer(d)
+        else
+            hecho = ed_rehacer(d)
+        end
+        if not hecho and not d.diseno
+            return
+        end
     elif ev == EV_TODO
         ed_seleccionar_todo(d)
     elif ev == EV_DISENO

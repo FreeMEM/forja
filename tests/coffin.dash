@@ -262,9 +262,12 @@ func con_git()
     if not ver("git: la extensión está", esperar_puerto(GIT, true, 300), "")
         return
     end
+    # (el suceso PROYECTO le llega a la extensión por su cola, aparte de su puerto: sin esperar, el init iba al cajón del
+    # proyecto de antes; con el menú no pasa, que va por la misma cola)
+    time_delay(100)
     t0 = time_ms()
     s = git("init")
-    ver("git init (" + ms(t0) + ")", str_contains(str_lower(s), "init"), s)
+    ver("git init (" + ms(t0) + ")", str_contains(str_lower(s), "init") and file_exists(BASE + "/Cueva/.git"), s)
     git("config user.name Forja")
     git("config user.email forja@amiga")
     git("add -A")
@@ -279,7 +282,11 @@ func con_git()
         e = rexx_send(GIT, "GITESTADO")
         n = n + 1
     end
-    ver("git: la rama en la barra (" + ms(t0) + ")", str_contains(e, "master") or str_contains(e, "main"), e)
+    if not ver("git: la rama en la barra (" + ms(t0) + ")", str_contains(e, "master") or str_contains(e, "main"), e)
+        anotar("  FORJA_GIT_MS: " + env_get("FORJA_GIT_MS") + "; FORJA_GIT: " + env_get("FORJA_GIT"))
+        anotar("  git status: " + git("status"))
+        anotar("  y después: " + rexx_send(GIT, "GITESTADO"))
+    end
     captura("git")
 end
 
