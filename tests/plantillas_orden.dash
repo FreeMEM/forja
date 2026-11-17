@@ -1,0 +1,20 @@
+# La plantilla de la orden del Shell con argumentos (tests/plantillas.sh la deja junto a esta, como Prueba):
+# cuenta dos ficheros, solo las líneas con LINEAS=si y un fichero que no está da el código 10.
+Main
+    file_write_text("RAM:a.txt", "uno dos\ntres\n")
+    file_write_text("RAM:b.txt", "cuatro\n")
+    t = run_capture("Prueba RAM:a.txt RAM:b.txt", 10000)
+    bien = str_contains(t, "2 3 13 RAM:a.txt") and str_contains(t, "3 4 20 en total") and run_rc() == 0
+    t = run_capture("Prueba RAM:a.txt LINEAS=si", 10000)
+    bien = bien and str_trim(t) == "2 RAM:a.txt"
+    t = run_capture("Prueba", 10000)
+    bien = bien and run_rc() == 5 and str_contains(t, "Uso: Prueba")
+    t = run_capture("Prueba RAM:no.txt", 10000)
+    bien = bien and run_rc() == 10
+    if bien
+        Print "orden: bien"
+    else
+        Print "orden: mal"
+        program_exit(10)
+    end
+end

@@ -1,0 +1,185 @@
+# Proyectos en Forja (pasos 3.1 y 3.2): arranca Forja, hace un proyecto de cada plantilla por ARexx (NUEVOPROYECTO) y
+# lo compila con la orden dash del Amiga; ejecuta la orden del Shell con los argumentos del proyecto; PROPIEDAD (y la
+# línea @version); abre las ventanas Propiedades (Guardar no cambia nada) y Nuevo proyecto (el nombre y Return); y, con
+# Workbench 3.5 o más, sale de Forja y abre un proyecto desde su icono (wb_open): Forja arranca con él.
+# Lo arranca tests/forja_proyecto.sh; anota en DH0:Prueba/proyecto.txt.
+
+const FORJA = "FORJA.1"
+const RETURN = 0x44
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/proyecto.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func esperar_puerto() -> Bool
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    return n < 600
+end
+
+func esperar_libre()
+    n = 0
+    time_delay(10)
+    while n < 1800 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+end
+
+# Una opción del menú por su evento (input_menu no llega a los menús de MUI): ENV:FORJA_EVENTO y Esc en el editor,
+# para que Forja lo mire
+func menu(ev: Int)
+    env_set("FORJA_EVENTO", "#{ev}", false)
+    w = window_find("Forja")
+    if w != 0
+        window_found_activate(w)
+        time_delay(10)
+    end
+    e = str_split(env_get("FORJA_EDITOR"), " ")
+    if e.length >= 4
+        input_move(Int(e[0]) + Int(e[2]) / 2, Int(e[1]) + Int(e[3]) / 2)
+    end
+    input_key(0x45, 0)
+    time_delay(10)
+end
+
+func esperar_ventana(titulo: String) -> Bool
+    n = 0
+    while n < 300 and window_find(titulo) == 0
+        time_delay(5)
+        n = n + 1
+    end
+    w = window_find(titulo)
+    if w == 0
+        return false
+    end
+    window_found_activate(w)
+    time_delay(25)
+    return true
+end
+
+Main
+    run_command("Run >NIL: DH0:Forja/Forja")
+    ver("Forja contesta", esperar_puerto(), "")
+    var tipos: [String] = ["orden", "commodity", "mui", "juego", "demo", "3d"]
+    var nombres: [String] = ["Contar", "Reloj", "Saludo", "Cueva", "Barras", "Cubo"]
+    k = 0
+    while k < tipos.length
+        nombre = nombres[k]
+        dir = "DH0:Proyectos/" + nombre
+        r = rexx("NUEVOPROYECTO " + tipos[k] + " DH0:Proyectos " + nombre)
+        ver(tipos[k] + ": NUEVOPROYECTO da el .forja", r == dir + "/" + nombre + ".forja", r + " rc #{rexx_rc()}")
+        ver(tipos[k] + ": main.dash con su nombre", file_exists(dir + "/main.dash") and str_contains(file_read_text(dir + "/main.dash"), nombre), "")
+        ver(tipos[k] + ": su icono", file_exists(dir + "/" + nombre + ".forja.info"), "")
+        ver(tipos[k] + ": abierto", rexx("ABIERTO " + dir + "/main.dash") == "1", "")
+        t0 = time_ms()
+        rexx("COMPILAR")
+        esperar_libre()
+        e = rexx("ERRORES")
+        ver(tipos[k] + ": compila (" + "#{(time_ms() - t0) / 100}" + " décimas)", e == "" and file_exists(dir + "/" + nombre), e + " | " + rexx("SALIDA"))
+        k = k + 1
+    end
+    ver("la 3D pide --fpu", str_contains(file_read_text("DH0:Proyectos/Cubo/Cubo.forja"), "\"fpu\": true"), "")
+    ver("la de MUI, su ventana", file_exists("DH0:Proyectos/Saludo/ventana.dashui"), "")
+    ver("una que ya existe no se hace", rexx("NUEVOPROYECTO orden DH0:Proyectos Contar") == "" and rexx_rc() == 10, "rc #{rexx_rc()}")
+
+    # la orden del Shell, con los argumentos del proyecto
+    rexx("ABRIR DH0:Proyectos/Contar/Contar.forja")
+    ver("ABRIR un .forja: es el proyecto", rexx("PROPIEDAD nombre") == "Contar", rexx("PROPIEDAD ruta"))
+    rexx("PROPIEDAD argumentos DH0:Proyectos/Contar/main.dash LINEAS=si")
+    ver("PROPIEDAD cambia y guarda", str_contains(file_read_text("DH0:Proyectos/Contar/Contar.forja"), "LINEAS=si"), "")
+    rexx("EJECUTAR")
+    esperar_libre()
+    sal = rexx("SALIDA")
+    ver("ejecuta con sus argumentos", str_contains(sal, " DH0:Proyectos/Contar/main.dash") and str_contains(sal, "acabó con código 0"), sal)
+    rexx("PROPIEDAD version 0.2")
+    ver("PROPIEDAD version pone @version", str_contains(rexx("TEXTO DH0:Proyectos/Contar/main.dash"), "@version \"Contar 0.2\""), "")
+    rexx("PROPIEDAD cpu 68020")
+    rexx("PROPIEDAD pila 20000")
+    rexx("GUARDAR DH0:Proyectos/Contar/main.dash")
+    rexx("COMPILAR")
+    esperar_libre()
+    ver("compila con --cpu 68020 --stack", rexx("ERRORES") == "" and str_contains(rexx("SALIDA"), "Compilado"), rexx("SALIDA"))
+
+    # la ventana de las propiedades: Guardar deja el .forja como estaba
+    antes = file_read_text("DH0:Proyectos/Contar/Contar.forja")
+    menu(252)
+    ver("la ventana Propiedades", esperar_ventana("Propiedades del proyecto"), "")
+    screen_save_png("DH0:Prueba/propiedades.png")
+    input_key(0x24, 0)      # g: Guardar
+    time_delay(50)
+    despues = file_read_text("DH0:Proyectos/Contar/Contar.forja")
+    ver("Guardar en la ventana no cambia nada", antes == despues, despues)
+    ver("y se cierra", window_find("Propiedades del proyecto") == 0, "")
+
+    # Nuevo proyecto: el nombre y Return (la orden del Shell, en DH0:Proyectos de las preferencias)
+    menu(250)
+    ver("la ventana Nuevo proyecto", esperar_ventana("Nuevo proyecto"), "")
+    input_text("Otra")
+    screen_save_png("DH0:Prueba/nuevo.png")
+    input_key(RETURN, 0)
+    n = 0
+    while n < 100 and not file_exists("DH0:Proyectos/Otra/Otra.forja")
+        time_delay(5)
+        n = n + 1
+    end
+    ver("Return crea el proyecto", file_exists("DH0:Proyectos/Otra/main.dash"), "")
+    time_delay(20)
+    ver("y es el de Forja", rexx("PROPIEDAD nombre") == "Otra", rexx("PROPIEDAD nombre"))
+
+    # desde su icono (Workbench 3.5 o más): Forja se cierra y el doble clic la abre con el proyecto
+    rexx("ABRIR DH0:Proyectos/Cueva/main.dash")
+    w = window_find("Forja")
+    if w != 0
+        window_found_activate(w)
+        time_delay(10)
+    end
+    input_key(0x10, 8)      # Amiga-Q
+    n = 0
+    while n < 200 and window_find("Forja") != 0
+        time_delay(5)
+        n = n + 1
+    end
+    ver("Forja se cierra", window_find("Forja") == 0, "")
+    if wb_open("DH0:Proyectos/Barras/Barras.forja")
+        ver("Forja arranca desde el icono", esperar_puerto(), "")
+        time_delay(50)
+        ver("con el proyecto Barras", rexx("PROPIEDAD nombre") == "Barras", rexx("PROPIEDAD ruta"))
+        ver("y su main.dash", rexx("ABIERTO DH0:Proyectos/Barras/main.dash") == "1", "")
+        screen_save_png("DH0:Prueba/icono.png")
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+        input_key(0x10, 8)
+        time_delay(100)
+    else
+        anotar("(sin wb_open: Workbench 3.5 o más; el icono no se prueba)")
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("#{fallos} FALLOS")
+    end
+end

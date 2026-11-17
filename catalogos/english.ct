@@ -947,3 +947,270 @@ not fixed width
 MSG_871
 I do not understand these lines of the theme (ENVARC:Forja/tema):
 ; No entiendo estas líneas del tema (ENVARC:Forja/tema):
+MSG_900
+New project...
+; Nuevo proyecto...
+MSG_901
+Open project...
+; Abrir proyecto...
+MSG_902
+Project properties...
+; Propiedades del proyecto...
+MSG_903
+Run with profile
+; Ejecutar con perfil
+MSG_904
+Run with memcheck
+; Ejecutar con memcheck
+MSG_905
+Debug
+; Depurar
+MSG_906
+Run to here (Ctrl F10)
+; Ejecutar hasta aquí (Ctrl F10)
+MSG_907
+Breakpoint condition...
+; Condición del punto de parada...
+MSG_908
+Breakpoint hit count...
+; Contador del punto de parada...
+MSG_909
+Remove all breakpoints
+; Quitar todos los puntos
+MSG_910
+Watch an expression...
+; Vigilar una expresión...
+MSG_911
+Show the registers
+; Ver los registros
+MSG_912
+Show memory...
+; Ver la memoria...
+MSG_920
+New project (Forja)
+; Nuevo proyecto (Forja)
+MSG_921
+Name:
+; Nombre:
+MSG_922
+Template:
+; Plantilla:
+MSG_923
+Shell command|Commodity|MUI application|Game|Demo|3D with MiniGL
+; Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL
+MSG_924
+In the drawer:
+; En el cajón:
+MSG_925
+Choose...
+; Elegir...
+MSG_926
+C_reate
+; C_rear
+MSG_927
+_Cancel
+; _Cancelar
+MSG_930
+Project properties (Forja)
+; Propiedades del proyecto (Forja)
+MSG_931
+General|Build|Run
+; General|Compilar|Ejecutar
+MSG_932
+Type:
+; Tipo:
+MSG_933
+Shell command|Commodity|MUI application|Game|Demo|3D with MiniGL|Other
+; Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL|Otro
+MSG_934
+Main file:
+; Fichero principal:
+MSG_935
+Executable:
+; Ejecutable:
+MSG_936
+Version:
+; Versión:
+MSG_937
+Program icon:
+; Icono del programa:
+MSG_938
+CPU:
+; CPU:
+MSG_939
+FPU (--fpu):
+; FPU (--fpu):
+MSG_940
+Stack in bytes (0: the usual):
+; Pila en bytes (0: la de siempre):
+MSG_941
+Check memory (--memcheck):
+; Comprobar la memoria (--memcheck):
+MSG_942
+Profile (--profile):
+; Perfil (--profile):
+MSG_943
+Through C with gcc (--gcc):
+; Por C con gcc (--gcc):
+MSG_944
+More options:
+; Más opciones:
+MSG_945
+Arguments when running:
+; Argumentos al ejecutar:
+MSG_946
+Arguments when debugging:
+; Argumentos al depurar:
+MSG_947
+_Save
+; _Guardar
+MSG_950
+WATCH
+; VIGILAR
+MSG_951
+REGISTERS
+; REGISTROS
+MSG_952
+MEMORY
+; MEMORIA
+MSG_953
+Cannot open the project %1: %2
+; No se puede abrir el proyecto %1: %2
+MSG_954
+Project %1 (%2).
+; Proyecto %1 (%2).
+MSG_960
+Reads its arguments and ends with a code.
+; Lee sus argumentos y acaba con un código.
+MSG_961
+In Exchange, with a hotkey.
+; En Exchange, con una tecla rápida.
+MSG_962
+A window from the window editor, with a menu.
+; Una ventana del editor de ventanas, con menú.
+MSG_963
+Its own screen, a sprite and a level.
+; Su pantalla, un sprite y un nivel.
+MSG_964
+Its own screen, each frame and an asm block.
+; Su pantalla, cada imagen y un bloque asm.
+MSG_965
+A cube with MiniGL: needs an FPU and MiniGL.
+; Un cubo con MiniGL: pide FPU y MiniGL.
+MSG_966
+there is no such template
+; no hay esa plantilla
+MSG_967
+the name has letters, digits, - and _, starts with a letter and has 24 at most
+; el nombre lleva letras, cifras, - y _, empieza por una letra y tiene 24 como mucho
+MSG_968
+%1 already exists
+; ya existe %1
+MSG_969
+cannot create the drawer %1
+; no se puede crear el cajón %1
+MSG_970
+Cannot create the project: 
+; No se puede crear el proyecto: 
+MSG_971
+_OK
+; _Vale
+MSG_972
+This project needs an FPU and minigl.library (MiniGL): it builds with --fpu.
+; Este proyecto pide una FPU y minigl.library (MiniGL): compila con --fpu.
+MSG_973
+The window is in ventana.dashui: open it to change it with the window editor.
+; La ventana está en ventana.dashui: ábrelo para cambiarla con el editor de ventanas.
+MSG_974
+To make a project, first open a file of its drawer (or New project...).
+; Para hacer un proyecto, abre antes un fichero de su cajón (o Nuevo proyecto...).
+MSG_975
+This drawer has no project. Shall I make %1?
+; Este cajón no tiene proyecto. ¿Hago %1?
+MSG_976
+_Make it|_Cancel
+; _Hacerlo|_Cancelar
+MSG_977
+Breakpoints with a condition go in a saved file.
+; Los puntos con condición van en un fichero guardado.
+MSG_978
+Condition of the breakpoint on line %1
+; Condición del punto de la línea %1
+MSG_979
+Stops only if it holds: i > 3 and nombre == \"x\". Empty: always.
+; Para solo si se cumple: i > 3 and nombre == \"x\". Vacía: siempre.
+MSG_980
+Hit count of the breakpoint on line %1
+; Contador del punto de la línea %1
+MSG_981
+Stops from hit n on: 3; or = 3, > 3, % 2 (every other). Empty: always.
+; Para desde la vez n: 3; o = 3, > 3, % 2 (cada dos). Vacío: siempre.
+MSG_982
+Watch
+; Vigilar
+MSG_983
+A Dash expression (naves.length, p.x + 1). If it is already watched, it goes away.
+; Una expresión de Dash (naves.length, p.x + 1). Si ya se vigila, se quita.
+MSG_984
+Show memory at
+; Ver la memoria en
+MSG_985
+An address or an expression: $C01000, a0, buffer + 16. Empty: hidden.
+; Una dirección o una expresión: $C01000, a0, buffer + 16. Vacío: no se ve.
+MSG_986
+The condition is not valid (%1): %2
+; La condición no vale (%1): %2
+MSG_987
+The hit count is not valid: %1 (3, = 3, > 3, % 2)
+; El contador no vale: %1 (3, = 3, > 3, % 2)
+MSG_988
+The breakpoint on line %1 always stops.
+; El punto de la línea %1 para siempre.
+MSG_989
+The breakpoint on line %1 stops if: %2
+; El punto de la línea %1 para si: %2
+MSG_990
+Cannot watch %1: %2
+; No se puede vigilar %1: %2
+MSG_991
+It will show when the program stops in the debugger.
+; Se verá al parar el programa en el depurador.
+MSG_992
+The condition of the breakpoint on line %1 cannot be worked out: %2
+; La condición del punto de la línea %1 no se puede ver: %2
+MSG_993
+Profile of %1: %2 samples (50 a second). A click on a title sorts; on a function, goes to it.
+; Perfil de %1: %2 muestras (50 por segundo). Un clic en un título ordena; en una función, va a ella.
+MSG_994
+Self
+; Propio
+MSG_995
+Total
+; Total
+MSG_996
+Calls
+; Llamadas
+MSG_997
+Function
+; Función
+MSG_998
+(No functions: the program ended before the first sample, or it was not built with --profile.)
+; (Sin funciones: el programa acabó antes de la primera muestra, o no se compiló con --profile.)
+MSG_999
+Profile
+; Perfil
+MSG_1000
+I cannot find the function %1 in the project.
+; No encuentro la función %1 en el proyecto.
+MSG_1001
+memcheck: nothing to say.
+; memcheck: nada que decir.
+MSG_1002
+memcheck: %1 warnings (click one to go to its line).
+; memcheck: %1 avisos (clic en uno para ir a su línea).
+MSG_1003
+This dash command does not build through C (--gcc): remove it in Project properties.
+; Esta orden dash no compila por C (--gcc): quítalo en Propiedades del proyecto.
+MSG_1004
+memcheck: one warning (a click on it goes to its line).
+; memcheck: un aviso (un clic en él lleva a su línea).

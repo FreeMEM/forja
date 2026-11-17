@@ -1,0 +1,7 @@
+{
+  "forja": 1,
+  "nombre": "depurar2",
+  "tipo": "orden",
+  "principal": "main.dash",
+  "ejecutable": "depurar2"
+}

@@ -332,7 +332,7 @@
             "type": "columns", "columns": 2,
             "children": [
               { "type": "label", "tr": 921, "text": "Nombre:", "color": [220, 220, 210] },
-              { "type": "string", "name": "nombre", "text": "", "max": 30 },
+              { "type": "string", "name": "nombre", "text": "", "max": 30, "ack": 253 },
               { "type": "label", "tr": 922, "text": "Plantilla:", "color": [220, 220, 210] },
               { "type": "cycle", "name": "tipo", "tr": 923, "options": "Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL", "change": 256 },
               { "type": "label", "tr": 924, "text": "En el cajón:", "color": [220, 220, 210] },
@@ -361,6 +361,7 @@
       "name": "PropProyecto",
       "tr": 930, "title": "Propiedades del proyecto (Forja)",
       "id": 23,
+      "size": [80, 70],
       "close": 258,
       "background": [20, 20, 24],
       "root": {

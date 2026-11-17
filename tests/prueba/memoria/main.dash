@@ -1,0 +1,15 @@
+# Para tests/perfil.dash: con --memcheck, un campo de un struct nil (en la línea 7) da un aviso y el programa sigue.
+struct Punto
+    x: Int
+end
+
+func equis(p: Punto) -> Int
+    return p.x
+end
+
+Main
+    var p: Punto = nil
+    Print "antes"
+    v = equis(p)
+    Print "v #{v}"
+end

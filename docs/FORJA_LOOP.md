@@ -102,15 +102,15 @@ VS Code.
 - 2.8 Teclas, colores y fuente a elegir.
 
 ### Fase 3. Proyecto y documentación
-- 3.1 [F] Fichero de proyecto `.forja` con opciones y argumentos.
-- 3.2 [F] Plantillas de proyecto: orden, MUI, juego y demo.
+- 3.1 [F] Fichero de proyecto `.forja` con opciones y argumentos. Hecho (rama `proyecto`).
+- 3.2 [F] Plantillas de proyecto: orden, MUI, juego y demo. Hecho, también commodity y 3D (rama `proyecto`).
 - 3.3 [D] Ayuda generada desde Dash: un fichero con índice, más AmigaGuide, metida en el paquete del Amiga.
 - 3.4 [F] Panel de ayuda: la ficha entera, búsqueda, enlaces y un botón "Probar".
 - 3.5 [D] Opción "solo comprobar", y [F] errores marcados en el código al guardar.
 
 ### Fase 4. Depurar y medir
-- 4.1 Puntos de parada con condición, vigilar variables y ver el valor bajo el ratón.
-- 4.2 Perfil y memcheck con vista propia.
+- 4.1 Puntos de parada con condición, vigilar variables y ver el valor bajo el ratón. Hecho (rama `proyecto`).
+- 4.2 Perfil y memcheck con vista propia. Hecho (rama `proyecto`).
 - 4.3 Medir y acelerar lo que tarda en compilar en el Amiga.
 
 ### Fase 5. Demos, juegos y 3D

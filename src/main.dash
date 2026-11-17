@@ -23,6 +23,13 @@
 # (con deshacer; hasta = desde - 1 mete líneas); GUARDAR [fichero]; COMPILAR y EJECUTAR (sin esperar);
 # ESTADO (libre, compilando, ejecutando, depurando); ERRORES (los de la última compilación); BUSCAR texto (lo elige
 # y da su línea; RC 5 si no está); CAMBIARTODO buscar cambiar (cuántas); IRA línea; ACTUALIZAR (como el menú).
+# NUEVOPROYECTO tipo cajón nombre (con su plantilla; da el .forja) y PROPIEDAD clave [valor] (del .forja).
+#
+# Proyectos (proyecto.dash): un cajón con un .forja (su fichero principal, ejecutable, opciones de dash, argumentos,
+# puntos de parada con condición y contador, lo vigilado). Nuevo proyecto... con las plantillas de plantillas/
+# (plantillas_datos.dash, de tools/plantillas.py). En el menú Depurar: condición, contador, vigilar (expresion.dash),
+# hasta aquí, registros y memoria; parado, el valor bajo el ratón. Ejecutar con perfil (la pestaña Perfil) y con
+# memcheck (los avisos con su sitio).
 #
 # Versiones nuevas de Dash (actualizar.dash): Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay,
 # pregunta si se baja e instala encima del cajón de Dash (DASH:). Sola, 20 s después de empezar y una vez al día,
@@ -4383,6 +4390,9 @@ func orden_una(linea: String) -> String
                 return ""
             end
             proyecto_guardar()
+            if str_lower(p[1]) == "version" or str_lower(p[1]) == "nombre"
+                poner_version(proy)
+            end
         end
         return propiedad(str_lower(p[1]))
     elif orden == "ACTUALIZAR"
@@ -4528,7 +4538,7 @@ func nuevo_proyecto_abrir()
 end
 
 func nuevo_proyecto_descripcion()
-    var textos: [String] = [tr(960, "Un programa para el Shell, con sus argumentos y su código de salida."), tr(961, "Sale en Exchange y responde a una tecla rápida."), tr(962, "Una ventana MUI hecha con el editor de ventanas (.dashui), con su menú."), tr(963, "Una pantalla propia, un sprite que se mueve con el joystick y un nivel."), tr(964, "Una pantalla, el bucle de cada imagen y un bloque asm que cambia los colores."), tr(965, "Un cubo que gira con MiniGL. Pide una FPU y minigl.library.")]
+    var textos: [String] = [tr(960, "Lee sus argumentos y acaba con un código."), tr(961, "En Exchange, con una tecla rápida."), tr(962, "Una ventana del editor de ventanas, con menú."), tr(963, "Su pantalla, un sprite y un nivel."), tr(964, "Su pantalla, cada imagen y un bloque asm."), tr(965, "Un cubo con MiniGL: pide FPU y MiniGL.")]
     k = mui_get_value(vn.tipo)
     if k >= 0 and k < textos.length
         mui_set_text(vn.descripcion, textos[k])
@@ -5398,7 +5408,8 @@ func memcheck_linea(l: String, cajon: String) -> Bool
         end
     end
     salida_anadir(l, tipo)
-    if tipo == 1
+    # (el resumen cuenta si queda algo vivo; los errores ya se contaron)
+    if tipo == 1 and not (str_contains(l, "vivos") and str_contains(l, "vivos 0 objetos y 0 strings"))
         memcheck_avisos = memcheck_avisos + 1
     end
     return true
@@ -5448,6 +5459,8 @@ func tras_perfil_y_memcheck()
     if tarea_memcheck
         if memcheck_avisos == 0
             avisar(tr(1001, "memcheck: nada que decir."), 2)
+        elif memcheck_avisos == 1
+            avisar(tr(1004, "memcheck: un aviso (un clic en él lleva a su línea)."), 1)
         else
             avisar(hueco(tr(1002, "memcheck: %1 avisos (clic en uno para ir a su línea)."), "#{memcheck_avisos}"), 1)
         end
@@ -5874,6 +5887,10 @@ Main
             end
             if ev == 0
                 mirar_depuracion()
+            end
+            # el puntero sobre el editor solo importa parado en el depurador (el valor bajo el ratón): sin nada más
+            if ev == EV_EDITOR_MOVER and ed_valor_texto == "" and (tarea != DEPURANDO or dbg_state() != 3)
+                continue
             end
             seguir_antes()
             if ev == EV_EDITOR
