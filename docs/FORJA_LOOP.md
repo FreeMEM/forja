@@ -567,8 +567,8 @@ VS Code.
     editor, memoria (nada, git y todas), proyecto_base, forja_proyecto, plantillas, depurar_mas, perfil (con el Dash de
     hoy ya pasa entero), demos_base, demos_forja (también `REAL=1`), git_panel, git_panel_coffin, sprites_todas (las
     13), mapas_base, mapas_forja y nuevo; en MUI 3.8 (`sys32rtg38`, RTG) extensiones, editor, ayuda (sin el clic en el
-    campo), sprites, mapas_forja, demos_forja, forja_proyecto, depurar_mas y perfil; y `coffin.sh` en la máquina
-    CoffinOS. `ventana.sh` sigue sin ir (necesita `--gcc`, ver abajo).
+    campo), sprites, mapas_forja, demos_forja, forja_proyecto, depurar_mas y perfil; el copiloto con el servidor falso
+    de Inferencia (bajo `flock`) en MUI 5 y en MUI 3.8; y `coffin.sh` en la máquina CoffinOS. `ventana.sh` sigue sin ir (necesita `--gcc`, ver abajo).
   - **Falta en Forja**: las pestañas que no caben se salen por la derecha (no hay desplazamiento; con el cajón delante
     de los nombres repetidos se llenan antes); los puntos de parada no vuelven a su línea al deshacer un cambio de
     varias líneas (los marcadores sí); la lista de cambios de "cambiar en el proyecto" y renombrar es una pestaña que
