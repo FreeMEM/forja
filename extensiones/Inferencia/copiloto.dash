@@ -66,6 +66,7 @@ var c_hasta: Int = 0
 var c_viejo: String = ""
 var c_nuevo: String = ""
 var c_crear: Bool = false
+var c_tipo: String = ""
 var c_vista: String = ""
 var c_lineas: [String] = []
 var c_colores: String = ""
@@ -150,6 +151,12 @@ func inf_lista() -> Bool
         inf("ESTADO")
         if inf_rc == 0
             arrancando = false
+            # Forja otra vez delante (la ventana de Inferencia, al abrirse, la tapa)
+            time_delay(10)
+            w = window_find("Forja")
+            if w != 0
+                window_found_activate(w)
+            end
             return true
         end
     end
@@ -502,6 +509,7 @@ func al_llegar(tipo: String, r: String)
     c_viejo = p_viejo
     c_nuevo = codigo
     c_crear = p_crear
+    c_tipo = tipo
     c_vista = nombre_de(p_ruta) + " (Inferencia)"
     c_lineas = ["# " + p_titulo, "# " + AYUDA_VISTA]
     c_colores = "##"
@@ -600,6 +608,10 @@ func aceptar()
         return
     end
     quitar_vista()
+    if c_tipo == "arreglar"
+        # el error de la última compilación ya no vale
+        errores = -1
+    end
     forja_abrir(c_ruta, desde)
     forja_aviso_tipo("Inferencia: cambiado " + nombre_de(c_ruta) + " (Amiga-Z lo deshace).", 2)
     zona_al_dia()
