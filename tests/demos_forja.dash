@@ -338,9 +338,15 @@ func copper()
     ver("l lo vuelve a leer del código", esperar("copper 4 0 0 degradado copper 40:00F", 5), linea("copper"))
     # arrastrar en la vista: la parada de la línea 40 (la más cercana al clic) baja con el ratón
     activar()
-    anotar("  (antes de arrastrar: " + linea("pagina") + ", " + input_active_title() + ", lienzo " + env_get("FORJA_DEMOS_LIENZO") + ", letra #{alto_letra()})")
-    zx = campo("FORJA_DEMOS_LIENZO", 0)
-    cy = campo("FORJA_DEMOS_LIENZO", 1) + 22
+    # dónde está la zona en la ventana: el puntero en un sitio conocido y lo que dice la extensión de él (con el
+    # búfer, la zona del dibujo no es la de la ventana)
+    input_move(200, 120)
+    time_delay(30)
+    pu = str_split(linea("puntero"), " ")
+    zx = 200 - Int(pu[1])
+    zy = 120 - Int(pu[2])
+    anotar("  (la zona en la ventana: #{zx}, #{zy}; " + linea("pagina") + ")")
+    cy = zy + 22
     alto = campo("FORJA_DEMOS_LIENZO", 3) - 2 * (alto_letra() + 2) - 2 - 22
     input_drag(zx + 80, cy + 40 * alto / 256, zx + 80, cy + 120 * alto / 256)
     time_delay(20)

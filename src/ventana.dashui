@@ -51,7 +51,8 @@
             { "separator": true },
             { "tr": 910, "label": "Vigilar una expresión...", "event": 266 },
             { "tr": 911, "label": "Ver los registros", "event": 267 },
-            { "tr": 912, "label": "Ver la memoria...", "event": 268 }
+            { "tr": 912, "label": "Ver la memoria...", "event": 268 },
+            { "tr": 1025, "label": "Cambiar valor...", "event": 271 }
           ]
         },
         {

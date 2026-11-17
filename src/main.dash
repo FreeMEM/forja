@@ -198,6 +198,7 @@ const EV_REGISTROS = 267
 const EV_MEMORIA = 268
 const EV_QUITAR_PUNTOS = 269
 const EV_EDITOR_MOVER = 270     # el puntero se mueve sobre el editor (el valor bajo el ratón al depurar)
+const EV_CAMBIAR_VALOR = 271    # Depurar > Cambiar valor... (dbg_set)
 
 const PANTALLA = "FORJA"       # el nombre de su pantalla pública, con la preferencia
 
@@ -1172,6 +1173,7 @@ func al_acabar()
     hasta_ruta = ""
     valor_quitar()
     depuracion.clear()
+    dep_elegida = ""
     barra_variables_ver(false)
     poner_tarea(NADA)
     mui_canvas_redraw(v.proyecto)
@@ -4798,6 +4800,7 @@ const PG_CONDICION = 1
 const PG_CONTADOR = 2
 const PG_VIGILAR = 3
 const PG_MEMORIA = 4
+const PG_VALOR = 5
 var pregunta: Int = PG_RENOMBRAR
 var pregunta_ruta: String = ""
 var pregunta_linea: Int = 0
@@ -5075,39 +5078,25 @@ func crear_proyecto(tipo: String, cajon: String, nombre: String) -> String
     return p.ruta
 end
 
-# El icono del .forja: uno de proyecto con Forja como herramienta (un doble clic lo abre en Forja)
+# El icono del .forja: uno de proyecto con Forja como herramienta (un doble clic lo abre en Forja). Con icon_save
+# (icon.library): la imagen, la del yunque que trae el paquete (Iconos/proyecto.info, junto a Forja); si no está, la
+# de un proyecto del sistema
 func escribir_icono_proyecto(forja: String) -> Bool
-    hex = pl_icono_hex()
     herramienta = file_real_path("PROGDIR:Forja")
     if herramienta == ""
         herramienta = "Forja"
     end
-    fh = file_open(forja + ".info", 1006)
-    if fh == 0
-        return false
-    end
-    n = hex.length / 2
-    i = 0
-    while i < n
-        b = str_to_int(hex[i * 2:i * 2 + 2], 16)
-        if i == 53
-            b = 1       # do_DefaultTool (offset 50, un long): hay herramienta
+    dos_requesters(false)
+    base = ""
+    if file_exists("PROGDIR:Iconos/proyecto.info")
+        base = file_real_path("PROGDIR:Iconos/proyecto")
+        if base == ""
+            base = "PROGDIR:Iconos/proyecto"
         end
-        file_write_byte(fh, b)
-        i = i + 1
     end
-    largo = herramienta.length + 1
-    for b in [(largo >> 24) & 255, (largo >> 16) & 255, (largo >> 8) & 255, largo & 255]
-        file_write_byte(fh, b)
-    end
-    k = 0
-    while k < herramienta.length
-        file_write_byte(fh, str_code(herramienta, k))
-        k = k + 1
-    end
-    file_write_byte(fh, 0)
-    file_close(fh)
-    return true
+    hecho = icon_save(forja, base, 4, herramienta, "")
+    dos_requesters(true)
+    return hecho
 end
 
 func nuevo_proyecto_crear()
@@ -5334,6 +5323,46 @@ func memoria_preguntar()
     preguntar(PG_MEMORIA, tr(984, "Ver la memoria en"), inicial, tr(985, "Una dirección o una expresión: $C01000, a0, buffer + 16. Vacío: no se ve."))
 end
 
+# Cambiar valor (con el programa parado): "nombre = valor" en la pregunta. El nombre es el del último clic en el panel
+# (una variable o lo vigilado) o el del cursor; empieza con su valor de ahora
+func valor_preguntar()
+    if tarea != DEPURANDO or dbg_state() != 3
+        avisar(tr(1019, "Para cambiar un valor, el programa tiene que estar parado en el depurador."), 1)
+        return
+    end
+    nombre = dep_elegida
+    d = ed_actual()
+    if nombre == "" and d != nil and es_codigo(d)
+        if ed_hay_seleccion(d)
+            nombre = str_trim(ed_seleccion(d))
+        else
+            nombre = palabra_del_cursor(d)
+        end
+    end
+    inicial = ""
+    if nombre != ""
+        inicial = nombre + " = " + dbg_value(0, nombre)
+    end
+    preguntar(PG_VALOR, tr(1020, "Cambiar el valor"), inicial, tr(1021, "nombre = valor: un Int, Char, Bool, Fixed o Float (x = 3, vivo = false, v = 1.5)."))
+end
+
+func valor_cambiar(t: String)
+    p = str_find(t, "=")
+    if p <= 0
+        avisar(tr(1022, "Escribe nombre = valor."), 1)
+        return
+    end
+    nombre = str_trim(t[0:p])
+    valor = str_trim(t[p + 1:])
+    r = dbg_set(0, nombre, valor)
+    if r != ""
+        avisar(hueco2(tr(1023, "No se puede cambiar %1: %2"), nombre, r), 1)
+        return
+    end
+    avisar(hueco2(tr(1024, "%1 vale ahora %2."), nombre, dbg_value(0, nombre)), 2)
+    panel_depuracion_al_dia()
+end
+
 # Return en la pregunta (la lista rápida)
 func responder(t: String)
     if pregunta == PG_CONDICION or pregunta == PG_CONTADOR
@@ -5391,6 +5420,8 @@ func responder(t: String)
     elif pregunta == PG_MEMORIA
         dep_memoria = t
         panel_depuracion_al_dia()
+    elif pregunta == PG_VALOR
+        valor_cambiar(t)
     end
 end
 
@@ -6108,13 +6139,15 @@ func atender_proyecto(ev: Int)
         memoria_preguntar()
     elif ev == EV_QUITAR_PUNTOS
         quitar_puntos()
+    elif ev == EV_CAMBIAR_VALOR
+        valor_preguntar()
     end
 end
 
 # Lo que pide un evento de la ventana (lo que no es salir ni del menú Proyecto). Va aparte de Main para que Main
 # no pase de 32 KB: dashc 2.4 estropea un salto corto que tiene que crecer (ver el informe de la rama autocompletar).
 func atender(ev: Int)
-    if ev >= EV_NUEVO_PROYECTO and ev <= EV_EDITOR_MOVER
+    if ev >= EV_NUEVO_PROYECTO and ev <= EV_CAMBIAR_VALOR
         atender_proyecto(ev)
     elif ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
         ext_menu(ev - EV_EXT_MENU)

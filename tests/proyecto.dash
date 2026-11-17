@@ -141,7 +141,20 @@ func clic_fichero(nombre: String) -> Bool
 end
 
 func pestana(i: Int)
+    # (si no se ve, la flecha de la izquierda de los botones de las pestañas, hasta que se vea)
+    n = 0
     p = str_split(env_get("FORJA_PESTANAS"), " ")
+    while n < 12 and i < p.length and p[i] == "-1,-1"
+        for b in p
+            if str_starts(b, "botones:")
+                xy = str_split(b[8:], ",")
+                input_click(Int(xy[0]), Int(xy[1]), 0)
+                time_delay(20)
+            end
+        end
+        p = str_split(env_get("FORJA_PESTANAS"), " ")
+        n = n + 1
+    end
     if i < p.length
         xy = str_split(p[i], ",")
         input_click(Int(xy[0]), Int(xy[1]), 0)

@@ -825,11 +825,16 @@ end
 
 # Un clic en la fila i: despliega o pliega una lista o un struct, o enseña más elementos de una lista. Verdadero si
 # cambió algo
+var dep_elegida: String = ""       # la variable (o lo vigilado) del último clic en el panel: Cambiar valor la usa
+
 func dep_clic(i: Int) -> Bool
     if i < 0 or i >= depuracion.length or dbg_state() != 3
         return false
     end
     f = depuracion[i]
+    if f.tipo == 3 and f.expr != ""
+        dep_elegida = f.expr
+    end
     if f.tipo == 4
         depuracion_abiertos[f.clave] = depuracion_abiertos.get(f.clave, DEP_ELEMENTOS) + DEP_ELEMENTOS
         # su lista: la variable de antes con esa clave

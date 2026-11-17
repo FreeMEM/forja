@@ -239,6 +239,8 @@ func hacer_ventana()
     mui_canvas_on_input(lienzo, EV_LIENZO)
     mui_canvas_on_drag(lienzo, EV_ARRASTRE)
     mui_canvas_take_keys(lienzo, true)
+    # (Tab es de la zona: pasa de un .sync a otro, o de un bloque de copper a otro)
+    mui_canvas_take_tab(lienzo, true)
     # (se ve de golpe: con la demo, se repinta varias veces por segundo)
     mui_canvas_buffered(lienzo, true)
     mui_on_close(win, EV_VENTANA)
@@ -2327,6 +2329,8 @@ func publicar_sonda()
         t = t + "pista " + p.nombre + " claves #{p.filas.length} aqui " + clave + " valor " + sync_texto(sync_valor_en(p, sy_fila, Fixed(0))) + "\n"
     end
     t = t + "mensaje " + mensaje + "\n"
+    # (el puntero, desde la esquina de la zona: la prueba sabe así dónde está la zona en la ventana)
+    t = t + "puntero #{mui_canvas_pointer_x(lienzo)} #{mui_canvas_pointer_y(lienzo)}\n"
     t = t + "dibujo #{ms_dibujo} pens #{_pens_lista.length} enteros #{dibujos} partes #{parciales} parte #{mediana(_ultimos)}\n"
     if t != sonda_antes
         sonda_antes = t
