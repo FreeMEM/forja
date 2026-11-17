@@ -257,6 +257,16 @@ Main
                 time_delay(5)
                 n = n + 1
             end
+            # el resultado, en el panel Prueba del copiloto (abajo, delante): la cuenta y la línea de "bien:"
+            n = 0
+            while n < 200 and not str_contains(rexx("PANELES"), "Inferencia|Prueba|abajo|1|0|2|")
+                time_delay(5)
+                n = n + 1
+            end
+            ver("el resultado de la prueba, en su panel", str_contains(rexx("PANELES"), "Inferencia|Prueba|abajo|1|0|2|") and env_get("FORJA_COPILOTO_PRUEBA") == "1 0", rexx("PANELES") + " / " + env_get("FORJA_COPILOTO_PRUEBA"))
+            ver("y en la salida, la cuenta", str_contains(rexx("SALIDA"), "prueba_main.dash: 1 bien, 0 mal."), rexx("SALIDA"))
+            time_delay(10)
+            screen_save_png("DH0:Prueba/copiloto-prueba.png")
         end
 
         # --- Los errores de compilar (con dashc) ---
@@ -306,11 +316,11 @@ Main
         n = n + 1
     end
     anotar("(la sugerencia llegó #{time_ms() - t0} ms después de la última tecla; la pausa de CAMBIADO es de 900)")
-    ver("la sugerencia, en gris tras el cursor", s == "14 14 udo(\"Copiloto\")", s + " / " + rexx("ACTIVO") + " / " + rexx("CURSOR") + " / " + env_get("FORJA_COPILOTO"))
+    ver("la sugerencia, en gris tras el cursor, de dos líneas", s == "14 14 udo(\"Copiloto\")\n    Print doble(4)", s + " / " + rexx("ACTIVO") + " / " + rexx("CURSOR") + " / " + env_get("FORJA_COPILOTO"))
     time_delay(10)
     screen_save_png("DH0:Prueba/copiloto-sugerencia.png")
     tecla(0x42, 0)       # Tab
-    ver("Tab la mete", rexx("LINEA 14 \"" + MAIN + "\"") == "    Print saludo(\"Copiloto\")", rexx("LINEA 14 \"" + MAIN + "\""))
+    ver("Tab la mete, las dos líneas", rexx("LINEAS 14 15 \"" + MAIN + "\"") == "    Print saludo(\"Copiloto\")\n    Print doble(4)", rexx("LINEAS 14 16 \"" + MAIN + "\""))
     ver("y se va", rexx("SUGERENCIA") == "", rexx("SUGERENCIA"))
     menu(I_SUGERENCIAS)
 

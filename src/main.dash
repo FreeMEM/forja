@@ -274,6 +274,7 @@ var menu_cerrar: Int = 0           # las opciones con marca del menú Editor
 var menu_end: Int = 0
 var sonda_pareja: String = ""
 var sonda_rapida: String = ""
+var sonda_paneles: String = ""
 var ms_lineas: Int = 0             # lo que tardó el último repintado de unas líneas sueltas, y cuántas
 var n_lineas: Int = 0
 
@@ -1240,6 +1241,9 @@ end
 
 # Un clic en un error de la salida: a su fichero y su línea
 func en_salida()
+    if en_paneles(PE_ABAJO, v.salida)
+        return
+    end
     rueda = mui_canvas_wheel(v.salida)
     if rueda != 0
         salida_atras = salida_atras_valido(salida_atras + rueda * 3)
@@ -1275,7 +1279,7 @@ end
 
 # Arrastrando en la salida se eligen varias líneas
 func arrastrar_salida()
-    if salida_sel_a < 0 or mui_canvas_drag(v.salida) != 1
+    if salida_sel_a < 0 or mui_canvas_drag(v.salida) != 1 or pe_delante[PE_ABAJO] >= 0
         return
     end
     y = mui_canvas_mouse_y(v.salida)
@@ -1309,9 +1313,105 @@ func guardar_salida()
 end
 
 # Un clic en el panel del proyecto: un fichero se abre; un cajón se enseña
+# Un clic o la rueda en el lienzo de un lado con paneles de extensiones (docs/EXTENSIONES.md: PANEL): en la fila de
+# las pestañas cambia la de delante; en un panel de extensión, es suyo (el panel toma el teclado). true si era de ellos.
+func en_paneles(lado: Int, lienzo: Int) -> Bool
+    if pe_pest_x1[lado].length == 0
+        return false
+    end
+    mx = mui_canvas_mouse_x(lienzo) + pe_ox[lado]
+    my = mui_canvas_mouse_y(lienzo) + pe_oy[lado]
+    if mui_canvas_button(lienzo) == 1 and mui_canvas_mouse_y(lienzo) < TITULO_ALTO
+        pe_clic_pestana(lado, mx)
+        mui_canvas_redraw(lienzo)
+        return true
+    end
+    if pe_delante[lado] < 0
+        return false
+    end
+    rueda = mui_canvas_wheel(lienzo)
+    if rueda != 0
+        pe_rueda(lado, rueda)
+    elif mui_canvas_button(lienzo) == 1
+        salida_foco = false
+        pe_clic(lado, mx, my)
+        pe_mandar(pe_foco)
+    else
+        return true
+    end
+    paneles_al_dia()
+    return true
+end
+
+# El teclado, al editor (si lo tenía un panel de una extensión)
+func teclado_al_editor()
+    if pe_foco >= 0
+        pe_dibujar[paneles[pe_foco].lado] = true
+        pe_foco = -1
+        pe_foco_entrada = false
+        paneles_al_dia()
+    end
+end
+
+# Lo que pasó en el panel i (pe_suceso), a su extensión
+func pe_mandar(i: Int)
+    if pe_suceso != "" and i >= 0 and i < paneles.length
+        k = ext_buscar(paneles[i].ext)
+        if k >= 0 and extensiones[k].estado != EXT_PARADA
+            ext_suceso_a(k, pe_suceso)
+        end
+    end
+    pe_suceso = ""
+end
+
+# Repinta los lados con paneles que cambiaron
+func paneles_al_dia()
+    if not abierta
+        return
+    end
+    if pe_dibujar[PE_IZQUIERDA]
+        pe_dibujar[PE_IZQUIERDA] = false
+        mui_canvas_redraw(v.proyecto)
+    end
+    if pe_dibujar[PE_ABAJO]
+        pe_dibujar[PE_ABAJO] = false
+        mui_canvas_redraw(v.salida)
+    end
+end
+
+# Una tecla con un panel de extensión con el teclado: las de Amiga, las de las extensiones y las del depurador van
+# antes; las demás, al panel. -1 si no se queda en el panel (sigue como una tecla del editor).
+func tecla_panel() -> Int
+    codigo = mui_canvas_key(lienzo_teclas)
+    teclas = mui_canvas_qualifiers(lienzo_teclas)
+    letra = mui_canvas_char(lienzo_teclas)
+    r = ext_tecla(codigo, teclas)
+    if r >= 0 and ((teclas & Q_AMIGA) == 0 or atajo(letra) == 0)
+        ext_menu(r)
+        return 0
+    end
+    if (teclas & Q_AMIGA) != 0
+        return atajo(letra)
+    end
+    otro = tecla_depurador(codigo)
+    if otro != 0
+        return otro
+    end
+    i = pe_foco
+    if pe_tecla(codigo, letra)
+        pe_mandar(i)
+        paneles_al_dia()
+        return 0
+    end
+    return -1
+end
+
 func en_proyecto()
     if depuracion.length > 0
         en_depuracion()
+        return
+    end
+    if en_paneles(PE_IZQUIERDA, v.proyecto)
         return
     end
     rueda = mui_canvas_wheel(v.proyecto)
@@ -1403,6 +1503,13 @@ end
 func ajustar_barras_paneles()
     caben = salida_caben
     total = salida_lineas.length
+    primera = salida_desde
+    pa = pe_visible(PE_ABAJO)
+    if pa != nil
+        caben = pe_caben[PE_ABAJO]
+        total = pa.lineas.length
+        primera = pa.desde
+    end
     if total < caben
         total = caben
     end
@@ -1412,13 +1519,19 @@ func ajustar_barras_paneles()
         mui_set_range(v.barra_salida, total, caben)
         barra_salida_valor = -1
     end
-    if salida_desde != barra_salida_valor
-        barra_salida_valor = salida_desde
-        mui_set_value(v.barra_salida, salida_desde)
+    if primera != barra_salida_valor
+        barra_salida_valor = primera
+        mui_set_value(v.barra_salida, primera)
     end
     caben = proyecto_caben
     total = proyecto_ficheros.length
     primera = proyecto_desde
+    pi = pe_visible(PE_IZQUIERDA)
+    if pi != nil and depuracion.length == 0
+        caben = pe_caben[PE_IZQUIERDA]
+        total = pi.lineas.length
+        primera = pi.desde
+    end
     if depuracion.length > 0
         caben = depuracion_caben
         total = depuracion.length
@@ -2973,17 +3086,39 @@ func en_editor() -> Int
     if mui_canvas_button(lienzo_teclas) != 0 or (mui_canvas_key(lienzo_teclas) >= 0 and (mui_canvas_qualifiers(lienzo_teclas) & Q_AMIGA) == 0)
         salida_foco = false
     end
+    # un clic en el editor le devuelve el teclado (lo tenía un panel de una extensión)
+    if mui_canvas_button(lienzo_teclas) != 0 and lienzo_teclas == v.editor
+        teclado_al_editor()
+    end
     if lr_visible
         return en_lista_rapida()
+    end
+    if pe_foco >= 0 and mui_canvas_key(lienzo_teclas) >= 0 and mui_canvas_button(lienzo_teclas) == 0 and mui_canvas_wheel(lienzo_teclas) == 0
+        t = tecla_panel()
+        if t >= 0
+            return t
+        end
     end
     d = ed_actual()
     if d == nil
         codigo = mui_canvas_key(lienzo_teclas)
         if codigo >= 0
+            teclas = mui_canvas_qualifiers(lienzo_teclas)
+            letra = mui_canvas_char(lienzo_teclas)
             # sin ficheros, abrir uno del proyecto por su nombre también vale
-            o = tc_orden(codigo, mui_canvas_qualifiers(lienzo_teclas), mui_canvas_char(lienzo_teclas))
+            o = tc_orden(codigo, teclas, letra)
             if o == TC_ABRIR_FICHERO or o == TC_BUSCAR_PROYECTO
                 return EV_ED + o
+            end
+            # y las teclas de las extensiones
+            r = ext_tecla(codigo, teclas)
+            if r >= 0 and ((teclas & Q_AMIGA) == 0 or atajo(letra) == 0)
+                ext_menu(r)
+                return 0
+            end
+            otro = tecla_depurador(codigo)
+            if otro != 0
+                return otro
             end
         end
         return 0
@@ -3187,6 +3322,11 @@ func publicar_sonda()
     if b != sonda_botones
         sonda_botones = b
         env_set("FORJA_BOTONES", b, false)
+    end
+    pp = pe_sonda()
+    if pp != sonda_paneles
+        sonda_paneles = pp
+        env_set("FORJA_PANELES", pp, false)
     end
     s = "#{salida_zona_x} #{salida_zona_y + salida_y0} #{salida_fila} #{salida_desde} #{salida_lineas.length}"
     if s != sonda_salida
@@ -3714,7 +3854,10 @@ func ext_tras_evento()
         mui_canvas_redraw(v.editor)
         mui_canvas_redraw(v.proyecto)
         mui_canvas_redraw(v.salida)
+        pe_dibujar[PE_IZQUIERDA] = false
+        pe_dibujar[PE_ABAJO] = false
     end
+    paneles_al_dia()
 end
 
 # Los menús propios de las extensiones: los que cambiaron se quitan y se vuelven a hacer (mui_menu_add); y las
@@ -4433,10 +4576,16 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         end
         cab = _partes(ls[0], 99)
         ed_abrir_vista(p[1], cab[2], textos, colores)
+        # la pestaña nueva, delante: el teclado vuelve al editor (lo tuviera o no un panel)
+        teclado_al_editor()
         redibujar()
         return ""
     elif orden == "SUGERENCIA"
         return orden_sugerencia(linea)
+    elif orden == "PANELES"
+        return pe_lista()
+    elif (orden == "PANEL" or orden == "PANELCERRAR" or orden == "PANELVER" or orden == "PANELBOTONES" or orden == "PANELENTRADA" or orden == "PANELCURSOR") and p.length >= 3
+        return orden_panel(linea)
     elif orden == "TEXTODISCO"
         # el texto como se guardaría (en UTF-8 si el fichero lo estaba)
         d = _doc_texto(p, 1)
@@ -4472,6 +4621,100 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
     return ""
 end
 
+# Los paneles de las extensiones (docs/EXTENSIONES.md: PANEL): ORDEN extensión "título" [más], y líneas detrás
+func orden_panel(linea: String) -> String
+    ls = str_split(linea, "\n")
+    cab = _partes(ls[0], 3)
+    resto = str_trim(_resto)
+    orden = str_upper(cab[0])
+    if cab.length < 3 or ext_buscar(cab[1]) < 0
+        _rexx_falla(10)
+        return ""
+    end
+    ext = extensiones[ext_buscar(cab[1])].id
+    titulo = cab[2]
+    if orden == "PANEL"
+        # PANEL extensión "título" [izquierda|abajo], y una línea por fila: el color (un carácter) y el texto
+        lado = PE_IZQUIERDA
+        if str_lower(resto) == "abajo"
+            lado = PE_ABAJO
+        elif resto != "" and str_lower(resto) != "izquierda"
+            _rexx_falla(10)
+            return ""
+        end
+        var textos: [String] = []
+        colores = ""
+        i = 1
+        while i < ls.length
+            l = ls[i]
+            if l == ""
+                colores = colores + " "
+                textos.push("")
+            else
+                colores = colores + l[0:1]
+                textos.push(str_replace(l[1:], "\t", "    "))
+            end
+            i = i + 1
+        end
+        if pe_poner(ext, titulo, lado, textos, colores) < 0
+            _rexx_falla(5)
+        end
+        paneles_al_dia()
+        return ""
+    end
+    i = pe_buscar(ext, titulo)
+    if i < 0
+        _rexx_falla(5)
+        return ""
+    end
+    p = paneles[i]
+    if orden == "PANELCERRAR"
+        pe_quitar(i)
+    elif orden == "PANELVER"
+        # delante en su lado; con "entrada", su entrada toma el teclado
+        pe_ver(i)
+        if str_lower(resto) == "entrada" and p.etiqueta != ""
+            if pe_foco >= 0 and pe_foco != i
+                pe_dibujar[paneles[pe_foco].lado] = true
+            end
+            pe_foco = i
+            pe_foco_entrada = true
+            p.cc = p.entrada.length
+        end
+    elif orden == "PANELBOTONES"
+        # una línea por botón: "texto|orden"
+        var bs: [String] = []
+        k = 1
+        while k < ls.length
+            if ls[k] != ""
+                bs.push(ls[k])
+            end
+            k = k + 1
+        end
+        p.botones = bs
+    elif orden == "PANELENTRADA"
+        # PANELENTRADA extensión "título" etiqueta, y quizá el texto en la línea siguiente (sin etiqueta: sin entrada)
+        p.etiqueta = resto
+        if ls.length > 1
+            p.entrada = ls[1]
+            p.cc = p.entrada.length
+        end
+        if resto == "" and pe_foco == i
+            pe_foco_entrada = false
+        end
+    elif orden == "PANELCURSOR"
+        n = Int(resto) - 1
+        if n >= p.lineas.length
+            n = p.lineas.length - 1
+        end
+        p.cursor = n
+        pe_cursor_a_la_vista(p)
+    end
+    pe_dibujar[p.lado] = true
+    paneles_al_dia()
+    return ""
+end
+
 # SUGERENCIA: la que se ve, "línea columna texto" ("" si ninguna). SUGERENCIA extensión línea columna versión, y el
 # texto en la línea siguiente: un texto en gris tras el cursor del fichero activo, que Tab mete (con deshacer); solo si
 # el cursor está en esa línea y columna, al final de la línea, y el texto en esa versión (si no, RC 5). Se va al
@@ -4493,17 +4736,26 @@ func orden_sugerencia(linea: String) -> String
         end
         return ""
     end
+    # el texto: todas las líneas que siguen (varias, desde la API 6)
     t = ""
-    if ls.length > 1
-        t = str_replace(ls[1], "\t", "    ")
+    i = 1
+    while i < ls.length
+        if i > 1
+            t = t + "\n"
+        end
+        t = t + str_replace(ls[i], "\t", "    ")
+        i = i + 1
     end
-    if d == nil or d.vista != 0 or d.diseno or t == ""
+    while str_ends(t, "\n")
+        t = t[0:t.length - 1]
+    end
+    if d == nil or d.vista != 0 or d.diseno or str_trim(str_replace(t, "\n", "")) == ""
         _rexx_falla(5)
         return ""
     end
     l = Int(cab[2]) - 1
     c = Int(cab[3]) - 1
-    if "#{d.version}" != cab[4] or d.cl != l or d.cc != c or ed_hay_seleccion(d) or d.cc != d.lineas[d.cl].length
+    if "#{d.version}" != cab[4] or d.cl != l or d.cc != c or ed_hay_seleccion(d) or d.cc > d.lineas[d.cl].length
         _rexx_falla(5)
         return ""
     end
@@ -4636,6 +4888,7 @@ func orden_una(linea: String) -> String
         if p.length >= 3
             ed_ir_a(Int(p[2]), 1)
         end
+        teclado_al_editor()
         redibujar()
         return ""
     elif orden == "ABIERTO" and p.length >= 2
@@ -6228,6 +6481,16 @@ func atender(ev: Int)
         copiar_salida(salida_hay_seleccion())
     elif ev == EV_GUARDAR_SALIDA
         guardar_salida()
+    elif ev == EV_BARRA_SALIDA and pe_visible(PE_ABAJO) != nil
+        pa = pe_visible(PE_ABAJO)
+        pa.desde = pe_desde_valido(pa, mui_get_value(v.barra_salida), pe_caben[PE_ABAJO])
+        barra_salida_valor = pa.desde
+        mui_canvas_redraw(v.salida)
+    elif ev == EV_BARRA_PROYECTO and depuracion.length == 0 and pe_visible(PE_IZQUIERDA) != nil
+        pi = pe_visible(PE_IZQUIERDA)
+        pi.desde = pe_desde_valido(pi, mui_get_value(v.barra_proyecto), pe_caben[PE_IZQUIERDA])
+        barra_proyecto_valor = pi.desde
+        mui_canvas_redraw(v.proyecto)
     elif ev == EV_BARRA_SALIDA
         desde = mui_get_value(v.barra_salida)
         if desde != salida_desde
@@ -6437,7 +6700,7 @@ Main
                     ev = bb_clic(mui_canvas_mouse_x(v.botones))
                 elif mui_canvas_key(v.botones) >= 0
                     ev = tecla_depurador(mui_canvas_key(v.botones))
-                    if ev == 0 and ed_actual() != nil and mui_canvas_wheel(v.botones) == 0
+                    if ev == 0 and mui_canvas_wheel(v.botones) == 0
                         # las demás, al editor
                         lienzo_teclas = v.botones
                         ev = en_editor()
@@ -6455,7 +6718,7 @@ Main
                 # depurando, las flechas sobre el panel mueven la pila y las variables (como antes de que el teclado
                 # fuera al editor con el puntero en el panel; idea de David Martínez): se queda en EV_PROYECTO
                 ev = EV_PROYECTO
-            elif (ev == EV_PROYECTO or ev == EV_SALIDA) and ed_actual() != nil
+            elif ev == EV_PROYECTO or ev == EV_SALIDA
                 # una tecla con el puntero sobre el proyecto o la salida: es del editor (el teclado va al editor
                 # aunque el puntero no esté encima)
                 lienzo = v.salida

@@ -52,6 +52,6 @@ fi
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-600} $maquina --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/Prueba" || true
 if [ -n "$capturas" ]; then
   mkdir -p "$capturas"
-  for f in marcas gestor gestor-apagada; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
+  for f in marcas gestor gestor-apagada panel-lista panel-charla sugerencia-varias; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
 fi
 iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/extensiones.txt" 2>/dev/null || echo "FALLO: no hay registro"

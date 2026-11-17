@@ -83,8 +83,9 @@ end
 
 var documentos: [Documento] = []
 
-# La sugerencia de una extensión (SUGERENCIA, docs/EXTENSIONES.md: el copiloto): un texto en gris tras el cursor, al
-# final de la línea, que Tab mete. Vale mientras el texto y el cursor sigan donde estaban.
+# La sugerencia de una extensión (SUGERENCIA, docs/EXTENSIONES.md: el copiloto): un texto en gris en el cursor, que
+# Tab mete. Puede ir en medio de una línea (lo de detrás del cursor se ve tras ella) y tener varias líneas (se ven
+# encima de las de debajo, como una capa). Vale mientras el texto y el cursor sigan donde estaban.
 var ed_sug_texto: String = ""
 var ed_sug_ext: String = ""
 var ed_sug_doc: Documento = nil
@@ -2745,12 +2746,17 @@ func ed_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
     return true
 end
 
-# ¿Se ve la sugerencia en d? (el texto y el cursor siguen como estaban, sin nada elegido, al final de la línea)
+# ¿Se ve la sugerencia en d? (el texto y el cursor siguen como estaban, sin nada elegido)
 func ed_sugerencia_vale(d: Documento) -> Bool
     if ed_sug_texto == "" or d == nil or d != ed_sug_doc or d.vista != 0
         return false
     end
-    return d.version == ed_sug_version and d.cl == ed_sug_l and d.cc == ed_sug_c and not ed_hay_seleccion(d) and d.cl < d.lineas.length and d.cc == d.lineas[d.cl].length
+    return d.version == ed_sug_version and d.cl == ed_sug_l and d.cc == ed_sug_c and not ed_hay_seleccion(d) and d.cl < d.lineas.length and d.cc <= d.lineas[d.cl].length
+end
+
+# ¿Va en una capa? (varias líneas, o en medio de una línea); la de una línea al final va en su fila
+func ed_sugerencia_capa(d: Documento) -> Bool
+    return ed_sugerencia_vale(d) and (str_contains(ed_sug_texto, "\n") or d.cc < d.lineas[d.cl].length)
 end
 
 # --- Ratón ---
@@ -3150,7 +3156,7 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
         gfx_pen(tema.tenue)
         gfx_text_at(px, base, " ... end")
     end
-    if n == d.cl and ed_sugerencia_vale(d)
+    if n == d.cl and ed_sugerencia_vale(d) and not ed_sugerencia_capa(d)
         # la sugerencia, en gris tras el final de la línea (lo que cabe)
         cabe = hasta_col - linea.length
         if cabe > 0 and linea.length >= d.izquierda
@@ -3701,9 +3707,19 @@ var ed_capas_y2: Int = -1
 func ed_capas_rango()
     ed_capas_y1 = -1
     ed_capas_y2 = -1
+    d = ed_actual()
+    if d != nil and ed_sugerencia_capa(d) and ed_fila_y(d, d.cl) >= 0
+        # la sugerencia de varias líneas o en medio de una: de su fila hacia abajo
+        ed_capas_y1 = ed_fila_y(d, d.cl)
+        ed_capas_y2 = ed_capas_y1 + str_split(ed_sug_texto, "\n").length * ed_alto_fila
+    end
     if ed_valor_alto > 0
-        ed_capas_y1 = ed_valor_y
-        ed_capas_y2 = ed_valor_y + ed_valor_alto
+        if ed_capas_y1 < 0 or ed_valor_y < ed_capas_y1
+            ed_capas_y1 = ed_valor_y
+        end
+        if ed_valor_y + ed_valor_alto > ed_capas_y2
+            ed_capas_y2 = ed_valor_y + ed_valor_alto
+        end
     end
     if ed_lista_alto > 0
         if ed_capas_y1 < 0 or ed_lista_y < ed_capas_y1
@@ -3745,6 +3761,64 @@ func ed_letra_clase(c: Int) -> String
     return letras[c]
 end
 
+# La sugerencia de varias líneas o en medio de una (ed_sugerencia_capa): la primera línea desde el cursor, las demás
+# encima de las de debajo, y lo que había tras el cursor detrás de la última (como quedará al meterla con Tab)
+func _dibujar_sugerencia(d: Documento, x: Int, y: Int)
+    ls = str_split(ed_sug_texto, "\n")
+    linea = d.lineas[d.cl]
+    resto = linea[d.cc:]
+    tx = x + ed_margen + 2
+    derecha = x + ed_zona_ancho - 1
+    fy = y + ed_fila_y(d, d.cl)
+    abajo = y + ed_zona_alto
+    usar_codigo()
+    k = 0
+    while k < ls.length and fy + ed_alto_fila <= abajo
+        base = fy + (ed_alto_fila - alto_letra) / 2 + base_letra
+        col = 0
+        if k == 0
+            col = d.cc
+            gfx_pen(tema.fondo_linea)
+        else
+            gfx_pen(tema.fondo)
+        end
+        a = col - d.izquierda
+        if a < 0
+            a = 0
+        end
+        gfx_rect(tx + a * ancho_letra, fy, derecha, fy + ed_alto_fila - 1)
+        t = ls[k]
+        if col < d.izquierda
+            # (lo que queda a la izquierda de la vista no se ve)
+            quita = d.izquierda - col
+            if quita >= t.length
+                t = ""
+            else
+                t = t[quita:]
+            end
+        end
+        gfx_pen(tema.tenue)
+        gfx_text_at(tx + a * ancho_letra, base, t)
+        if k == ls.length - 1 and resto != ""
+            gfx_pen(tema.texto)
+            gfx_text_at(tx + (a + t.length) * ancho_letra, base, resto)
+        end
+        if k > 0
+            # una raya a la izquierda: es una capa, no texto del fichero
+            gfx_pen(tema.tenue)
+            gfx_rect(tx - 3, fy, tx - 3, fy + ed_alto_fila - 1)
+        end
+        fy = fy + ed_alto_fila
+        k = k + 1
+    end
+    if k == 0 or d.cc >= d.izquierda
+        cx = tx + (d.cc - d.izquierda) * ancho_letra
+        fy0 = y + ed_fila_y(d, d.cl)
+        gfx_pen(tema.cursor)
+        gfx_rect(cx - 1, fy0, cx, fy0 + ed_alto_fila - 1)
+    end
+end
+
 # Lo que quedó pintado encima del texto en el último dibujo (las y desde la esquina de la zona; -1 si nada): lo que
 # hay que volver a pintar para quitarlo
 var ed_pintado_y1: Int = -1
@@ -3754,6 +3828,9 @@ func _dibujar_capas(d: Documento, x: Int, y: Int)
     ed_capas_rango()
     ed_pintado_y1 = ed_capas_y1
     ed_pintado_y2 = ed_capas_y2
+    if ed_sugerencia_capa(d) and ed_fila_y(d, d.cl) >= 0
+        _dibujar_sugerencia(d, x, y)
+    end
     if ed_valor_alto > 0
         vx = x + ed_valor_x
         vy = y + ed_valor_y

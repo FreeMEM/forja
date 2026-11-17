@@ -2,11 +2,12 @@
 nombre = Eco
 version = 0.1
 autor = las pruebas de Forja
-descripcion = Apunta los sucesos que le llegan. Puede caerse y colgarse a propósito.
+descripcion = Apunta los sucesos que le llegan. Puede caerse y colgarse a propósito, y pone dos paneles en la ventana de Forja.
 programa = Eco
 arranque = menu
 sucesos = abierto guardado cerrado activo compilado marca proyecto vuelta
 tipos = .eco
-menu = Eco | | eco
+menu = Eco | ctrl alt e | eco
 menu = Caerse | | caerse
 menu = Colgarse | | colgarse
+menu = Paneles | | paneles

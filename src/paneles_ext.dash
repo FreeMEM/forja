@@ -1,0 +1,679 @@
+# Los paneles de las extensiones dentro de la ventana de Forja (docs/EXTENSIONES.md: PANEL). Cada uno es una
+# pestaña más junto al panel del proyecto (lado 0, a la izquierda) o junto a la salida (lado 1, abajo). Forja los
+# pinta con lo que manda la extensión: líneas con un color, una fila elegida, botones abajo y, si la pide, una
+# entrada de texto de una línea. Los clics, las teclas, los botones y el Return de la entrada le llegan a la
+# extensión como sucesos (PANEL, PANELTECLA, PANELBOTON, PANELTEXTO).
+
+import "tema.dash"
+import "editor.dash"
+
+const PE_IZQUIERDA = 0
+const PE_ABAJO = 1
+const PE_TITULO_ALTO = 18     # como TITULO_ALTO de paneles.dash
+const PE_MAX = 8              # paneles entre todas
+
+struct PanelExt
+    ext: String
+    titulo: String
+    lado: Int
+    lineas: [String]
+    colores: String           # un carácter por línea (los de VISTA)
+    cursor: Int               # la línea elegida, desde 0 (-1 ninguna)
+    desde: Int                # la primera que se ve
+    botones: [String]         # "texto|orden"
+    etiqueta: String          # la de la entrada ("" sin entrada)
+    entrada: String
+    cc: Int                   # el cursor en la entrada
+end
+
+var paneles: [PanelExt] = []
+var pe_delante: [Int] = [-1, -1]    # por lado: el panel que se ve (-1: el de Forja, el proyecto o la salida)
+var pe_foco: Int = -1               # el panel que tiene el teclado (-1: el editor)
+var pe_foco_entrada: Bool = false   # y, en él, la entrada
+var pe_dibujar: [Bool] = [false, false]   # hay que repintar ese lado
+# Lo que se apunta al dibujar, para saber dónde cae un clic (desde la esquina de la ventana)
+var pe_pest_x1: [[Int]] = [[], []]  # las pestañas de cada lado (la 0 es la de Forja)
+var pe_pest_x2: [[Int]] = [[], []]
+var pe_pest_y: [Int] = [0, 0]
+var pe_ox: [Int] = [0, 0]           # la esquina del lienzo de cada lado (los clics llegan desde ahí)
+var pe_oy: [Int] = [0, 0]
+var pe_zona_x: [Int] = [0, 0]
+var pe_zona_y: [Int] = [0, 0]       # la primera fila de líneas
+var pe_zona_ancho: [Int] = [0, 0]
+var pe_fila: [Int] = [10, 10]
+var pe_caben: [Int] = [1, 1]
+var pe_entrada_y: [Int] = [-1, -1]  # la y de la entrada (-1 sin ella)
+var pe_entrada_x: [Int] = [0, 0]    # donde empieza el campo
+var pe_boton_x1: [[Int]] = [[], []]
+var pe_boton_x2: [[Int]] = [[], []]
+var pe_boton_y1: [[Int]] = [[], []]
+var pe_boton_y2: [[Int]] = [[], []]
+
+func pe_buscar(ext: String, titulo: String) -> Int
+    e = str_lower(ext)
+    i = 0
+    while i < paneles.length
+        if str_lower(paneles[i].ext) == e and paneles[i].titulo == titulo
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Los paneles de un lado, en su orden (sus índices en paneles)
+func pe_de_lado(lado: Int) -> [Int]
+    var r: [Int] = []
+    i = 0
+    while i < paneles.length
+        if paneles[i].lado == lado
+            r.push(i)
+        end
+        i = i + 1
+    end
+    return r
+end
+
+# El panel de delante de un lado (nil: el de Forja)
+func pe_visible(lado: Int) -> PanelExt
+    i = pe_delante[lado]
+    if i < 0 or i >= paneles.length
+        return nil
+    end
+    return paneles[i]
+end
+
+# Lo pone o lo vuelve a llenar; su índice, o -1 si ya no caben. La fila elegida y lo desplazado se quedan.
+func pe_poner(ext: String, titulo: String, lado: Int, lineas: [String], colores: String) -> Int
+    i = pe_buscar(ext, titulo)
+    if i < 0
+        if paneles.length >= PE_MAX
+            return -1
+        end
+        var bs: [String] = []
+        paneles.push(PanelExt(ext, titulo, lado, lineas, colores, -1, 0, bs, "", "", 0))
+        i = paneles.length - 1
+    else
+        p = paneles[i]
+        if p.lado != lado
+            # cambia de lado: deja de verse en el de antes
+            if pe_delante[p.lado] == i
+                pe_delante[p.lado] = -1
+            end
+            pe_dibujar[p.lado] = true
+            p.lado = lado
+        end
+        p.lineas = lineas
+        p.colores = colores
+        if p.cursor >= lineas.length
+            p.cursor = lineas.length - 1
+        end
+    end
+    pe_dibujar[lado] = true
+    return i
+end
+
+# Quita el panel i (y arregla los índices de los de delante y del foco)
+func pe_quitar(i: Int)
+    lado = paneles[i].lado
+    paneles.remove(i)
+    for l in [0, 1]
+        if pe_delante[l] == i
+            pe_delante[l] = -1
+        elif pe_delante[l] > i
+            pe_delante[l] = pe_delante[l] - 1
+        end
+    end
+    if pe_foco == i
+        pe_foco = -1
+        pe_foco_entrada = false
+    elif pe_foco > i
+        pe_foco = pe_foco - 1
+    end
+    pe_dibujar[lado] = true
+end
+
+# Los de una extensión que se va
+func pe_quitar_ext(ext: String) -> Bool
+    hubo = false
+    i = paneles.length - 1
+    while i >= 0
+        if str_lower(paneles[i].ext) == str_lower(ext)
+            pe_quitar(i)
+            hubo = true
+        end
+        i = i - 1
+    end
+    return hubo
+end
+
+func pe_ver(i: Int)
+    lado = paneles[i].lado
+    if pe_delante[lado] != i
+        pe_delante[lado] = i
+        pe_dibujar[lado] = true
+    end
+end
+
+# --- Dibujar ---
+
+# Las pestañas de un lado en la fila del título: la de Forja (su título) y las de sus paneles. false si no hay
+# paneles en ese lado (entonces el título va como siempre).
+func pe_pestanas(lado: Int, x: Int, y: Int, ancho: Int, titulo: String) -> Bool
+    pe_ox[lado] = x
+    pe_oy[lado] = y
+    ls = pe_de_lado(lado)
+    if ls.length == 0
+        pe_pest_x1[lado] = []
+        pe_pest_x2[lado] = []
+        if pe_delante[lado] >= 0
+            pe_delante[lado] = -1
+        end
+        return false
+    end
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + PE_TITULO_ALTO - 1)
+    usar_panel(2)
+    var titulos: [String] = [titulo]
+    for i in ls
+        titulos.push(str_upper(paneles[i].titulo))
+    end
+    # si no caben, se acorta la de Forja (el nombre del proyecto puede ser largo)
+    total = 0
+    for t in titulos
+        total = total + font_text_width(t) + 16
+    end
+    while total > ancho and titulos[0].length > 4
+        total = total - font_text_width(titulos[0])
+        titulos[0] = titulos[0][0:titulos[0].length - 1]
+        total = total + font_text_width(titulos[0])
+    end
+    var x1s: [Int] = []
+    var x2s: [Int] = []
+    tx = x + 2
+    k = 0
+    base = y + (PE_TITULO_ALTO - font_height()) / 2 + font_baseline()
+    while k < titulos.length
+        w = font_text_width(titulos[k]) + 12
+        delante = (k == 0 and pe_delante[lado] < 0) or (k > 0 and pe_delante[lado] == ls[k - 1])
+        if delante
+            gfx_pen(tema.fondo)
+            if lado == PE_ABAJO
+                gfx_pen(tema.fondo_salida)
+            end
+            gfx_rect(tx, y + 2, tx + w - 1, y + PE_TITULO_ALTO - 1)
+            gfx_pen(tema.acento)
+            gfx_rect(tx, y + 2, tx + w - 1, y + 2)
+            gfx_pen(tema.texto)
+        else
+            gfx_pen(tema.tenue)
+        end
+        gfx_text_at(tx + 6, base, titulos[k])
+        x1s.push(tx)
+        x2s.push(tx + w)
+        tx = tx + w + 2
+        k = k + 1
+    end
+    font_style(0)
+    pe_pest_x1[lado] = x1s
+    pe_pest_x2[lado] = x2s
+    pe_pest_y[lado] = y
+    return true
+end
+
+# Un clic en la fila de las pestañas (mx desde la esquina de la ventana): true si cayó en una (y cambia la de delante)
+func pe_clic_pestana(lado: Int, mx: Int) -> Bool
+    x1s = pe_pest_x1[lado]
+    x2s = pe_pest_x2[lado]
+    if x1s.length == 0
+        return false
+    end
+    ls = pe_de_lado(lado)
+    k = 0
+    while k < x1s.length
+        if mx >= x1s[k] and mx < x2s[k]
+            nuevo = -1
+            if k > 0
+                nuevo = ls[k - 1]
+            end
+            if nuevo != pe_delante[lado]
+                pe_delante[lado] = nuevo
+                if pe_foco >= 0 and paneles[pe_foco].lado == lado
+                    pe_foco = -1
+                    pe_foco_entrada = false
+                end
+            end
+            return true
+        end
+        k = k + 1
+    end
+    return true
+end
+
+# El panel de delante de un lado, en su zona (bajo la fila de las pestañas)
+func pe_dibujar_panel(lado: Int, x: Int, y: Int, ancho: Int, alto: Int)
+    p = pe_visible(lado)
+    if p == nil
+        return
+    end
+    i = pe_delante[lado]
+    fondo = tema.fondo_panel
+    if lado == PE_ABAJO
+        fondo = tema.fondo_salida
+    end
+    gfx_pen(fondo)
+    gfx_rect(x, y + PE_TITULO_ALTO, x + ancho - 1, y + alto - 1)
+    usar_codigo()
+    fila = alto_letra + 2
+    pe_fila[lado] = fila
+    # de abajo arriba: los botones (en filas, los que caben), la entrada y las líneas
+    abajo = y + alto
+    var bx1: [Int] = []
+    var bx2: [Int] = []
+    var by1: [Int] = []
+    var by2: [Int] = []
+    if p.botones.length > 0
+        alto_b = alto_letra + 4
+        # los textos: los largos si caben en una fila; si no, los cortos ("texto|orden|corto"); si tampoco, en
+        # varias filas
+        var textos: [String] = []
+        total = 0
+        for b in p.botones
+            textos.push(_pe_boton_texto(b))
+            total = total + font_text_width(_pe_boton_texto(b)) + 13
+        end
+        if total > ancho - 8
+            textos.clear()
+            for b in p.botones
+                textos.push(_pe_boton_corto(b))
+            end
+        end
+        filas_b = 1
+        bx = x + 4
+        for t in textos
+            w = font_text_width(t) + 10
+            if bx + w > x + ancho - 4 and bx > x + 4
+                filas_b = filas_b + 1
+                bx = x + 4
+            end
+            bx = bx + w + 3
+        end
+        by = abajo - filas_b * (alto_b + 2) - 1
+        abajo = by - 2
+        bx = x + 4
+        for t in textos
+            w = font_text_width(t) + 10
+            if bx + w > x + ancho - 4 and bx > x + 4
+                by = by + alto_b + 2
+                bx = x + 4
+            end
+            gfx_pen(tema.fondo_linea)
+            gfx_rect(bx, by, bx + w - 1, by + alto_b - 1)
+            gfx_pen(tema.borde)
+            gfx_rect(bx, by, bx + w - 1, by)
+            gfx_rect(bx, by, bx, by + alto_b - 1)
+            gfx_pen(tema.tenue)
+            gfx_rect(bx, by + alto_b - 1, bx + w - 1, by + alto_b - 1)
+            gfx_rect(bx + w - 1, by, bx + w - 1, by + alto_b - 1)
+            gfx_pen(tema.texto)
+            gfx_text_at(bx + 5, by + 2 + base_letra, t)
+            bx1.push(bx)
+            bx2.push(bx + w)
+            by1.push(by)
+            by2.push(by + alto_b)
+            bx = bx + w + 3
+        end
+    end
+    pe_boton_x1[lado] = bx1
+    pe_boton_x2[lado] = bx2
+    pe_boton_y1[lado] = by1
+    pe_boton_y2[lado] = by2
+    pe_entrada_y[lado] = -1
+    if p.etiqueta != ""
+        ey = abajo - fila - 3
+        abajo = ey - 2
+        pe_entrada_y[lado] = ey
+        con_foco = pe_foco == i and pe_foco_entrada
+        # la etiqueta a la izquierda si hay sitio; si no, dentro del campo mientras está vacío
+        ex = x + 4
+        fuera = font_text_width(p.etiqueta) * 3 <= ancho
+        if fuera
+            gfx_pen(tema.tenue)
+            gfx_text_at(x + 4, ey + 2 + base_letra, p.etiqueta)
+            ex = x + 4 + font_text_width(p.etiqueta) + 6
+        end
+        pe_entrada_x[lado] = ex
+        gfx_pen(tema.fondo)
+        gfx_rect(ex, ey, x + ancho - 5, ey + fila + 2)
+        gfx_pen(tema.borde)
+        if con_foco
+            gfx_pen(tema.acento)
+        end
+        gfx_rect(ex, ey + fila + 2, x + ancho - 5, ey + fila + 2)
+        # lo que cabe del texto, con el cursor a la vista
+        caben = (x + ancho - 8 - ex) / ancho_letra
+        if caben < 1
+            caben = 1
+        end
+        d0 = 0
+        if p.cc > caben - 1
+            d0 = p.cc - caben + 1
+        end
+        t = p.entrada[d0:]
+        if t.length > caben
+            t = t[0:caben]
+        end
+        gfx_pen(tema.texto)
+        if t == "" and not con_foco and not fuera
+            gfx_pen(tema.tenue)
+            t = p.etiqueta
+            if t.length > caben
+                t = t[0:caben]
+            end
+        end
+        gfx_text_at(ex + 2, ey + 2 + base_letra, t)
+        if con_foco
+            cx = ex + 2 + (p.cc - d0) * ancho_letra
+            gfx_pen(tema.cursor)
+            gfx_rect(cx, ey + 1, cx + 1, ey + fila)
+        end
+    end
+    # las líneas
+    ly = y + PE_TITULO_ALTO + 3
+    pe_zona_x[lado] = x
+    pe_zona_y[lado] = ly
+    pe_zona_ancho[lado] = ancho
+    caben = (abajo - ly) / fila
+    if caben < 1
+        caben = 1
+    end
+    pe_caben[lado] = caben
+    p.desde = pe_desde_valido(p, p.desde, caben)
+    k = p.desde
+    fy = ly
+    while k < p.lineas.length and k < p.desde + caben
+        if k == p.cursor
+            gfx_pen(tema.fondo_linea)
+            if pe_foco == i and not pe_foco_entrada
+                gfx_pen(tema.seleccion)
+            end
+            gfx_rect(x, fy, x + ancho - 1, fy + fila - 1)
+        end
+        c = " "
+        if k < p.colores.length
+            c = p.colores[k:k + 1]
+        end
+        gfx_pen(ed_color_vista(c))
+        gfx_text_at(x + 6, fy + base_letra + 1, p.lineas[k])
+        fy = fy + fila
+        k = k + 1
+    end
+end
+
+# "texto|orden" -> texto
+func _pe_boton_texto(b: String) -> String
+    p = str_find(b, "|")
+    if p < 0
+        return b
+    end
+    return b[0:p]
+end
+
+func _pe_boton_orden(b: String) -> String
+    ps = str_split(b, "|")
+    if ps.length < 2
+        return b
+    end
+    return ps[1]
+end
+
+# El corto (la tercera parte), o el largo si no lo trae
+func _pe_boton_corto(b: String) -> String
+    ps = str_split(b, "|")
+    if ps.length < 3 or ps[2] == ""
+        return ps[0]
+    end
+    return ps[2]
+end
+
+func pe_desde_valido(p: PanelExt, desde: Int, caben: Int) -> Int
+    m = p.lineas.length - caben
+    if m < 0
+        m = 0
+    end
+    if desde > m
+        return m
+    end
+    if desde < 0
+        return 0
+    end
+    return desde
+end
+
+# Que la elegida se vea
+func pe_cursor_a_la_vista(p: PanelExt)
+    caben = pe_caben[p.lado]
+    if p.cursor < 0
+        return
+    end
+    if p.cursor < p.desde
+        p.desde = p.cursor
+    elif p.cursor >= p.desde + caben
+        p.desde = p.cursor - caben + 1
+    end
+end
+
+# --- Clics y teclas ---
+# Lo que hay que mandar a la extensión del panel (lo manda main.dash con ext_suceso_a): "" nada
+var pe_suceso: String = ""
+
+# Un clic (desde la esquina de la ventana) en la zona del panel de delante de un lado: lo que pasa se queda en
+# pe_suceso; el panel toma el teclado
+func pe_clic(lado: Int, mx: Int, my: Int)
+    pe_suceso = ""
+    i = pe_delante[lado]
+    if i < 0
+        return
+    end
+    p = paneles[i]
+    pe_foco = i
+    pe_foco_entrada = false
+    pe_dibujar[lado] = true
+    # un botón
+    k = 0
+    while k < pe_boton_x1[lado].length
+        if mx >= pe_boton_x1[lado][k] and mx < pe_boton_x2[lado][k] and my >= pe_boton_y1[lado][k] and my < pe_boton_y2[lado][k]
+            if k < p.botones.length
+                pe_suceso = "PANELBOTON " + p.titulo + "|" + _pe_boton_orden(p.botones[k])
+            end
+            return
+        end
+        k = k + 1
+    end
+    # la entrada
+    ey = pe_entrada_y[lado]
+    if ey >= 0 and my >= ey and my < ey + pe_fila[lado] + 3
+        pe_foco_entrada = true
+        c = (mx - pe_entrada_x[lado] - 2) / ancho_letra
+        if c < 0 or mx < pe_entrada_x[lado]
+            c = p.entrada.length
+        end
+        if c > p.entrada.length
+            c = p.entrada.length
+        end
+        p.cc = c
+        return
+    end
+    # una línea
+    if my < pe_zona_y[lado]
+        return
+    end
+    n = p.desde + (my - pe_zona_y[lado]) / pe_fila[lado]
+    if n >= p.lineas.length or n >= p.desde + pe_caben[lado]
+        return
+    end
+    otra_vez = 0
+    if n == p.cursor
+        otra_vez = 1
+    end
+    p.cursor = n
+    col = (mx - pe_zona_x[lado] - 6) / ancho_letra + 1
+    if col < 1
+        col = 1
+    end
+    pe_suceso = "PANEL " + p.titulo + "|#{n + 1}|#{col}|#{otra_vez}"
+end
+
+# La rueda sobre el panel de delante de un lado
+func pe_rueda(lado: Int, rueda: Int)
+    p = pe_visible(lado)
+    if p != nil
+        p.desde = pe_desde_valido(p, p.desde - rueda * 3, pe_caben[lado])
+        pe_dibujar[lado] = true
+    end
+end
+
+# Una tecla con el panel pe_foco con el teclado (codigo en bruto, letra, calificadores): lo que pasa, en pe_suceso.
+# false si no es del panel (Esc le quita el teclado y es del panel; las de Amiga no llegan aquí)
+func pe_tecla(codigo: Int, letra: String) -> Bool
+    pe_suceso = ""
+    if pe_foco < 0 or pe_foco >= paneles.length
+        pe_foco = -1
+        return false
+    end
+    p = paneles[pe_foco]
+    pe_dibujar[p.lado] = true
+    if codigo == T_ESC
+        if pe_foco_entrada
+            pe_foco_entrada = false
+        else
+            pe_foco = -1
+        end
+        return true
+    end
+    if codigo == T_TAB
+        # de las líneas a la entrada y vuelta
+        if p.etiqueta != ""
+            pe_foco_entrada = not pe_foco_entrada
+            if pe_foco_entrada
+                p.cc = p.entrada.length
+            end
+        end
+        return true
+    end
+    if pe_foco_entrada
+        if codigo == T_RETURN or codigo == T_ENTER
+            pe_suceso = "PANELTEXTO " + p.titulo + "|" + p.entrada
+        elif codigo == T_IZQUIERDA and p.cc > 0
+            p.cc = p.cc - 1
+        elif codigo == T_DERECHA and p.cc < p.entrada.length
+            p.cc = p.cc + 1
+        elif codigo == T_RETROCESO and p.cc > 0
+            p.entrada = p.entrada[0:p.cc - 1] + p.entrada[p.cc:]
+            p.cc = p.cc - 1
+        elif codigo == T_SUPRIMIR and p.cc < p.entrada.length
+            p.entrada = p.entrada[0:p.cc] + p.entrada[p.cc + 1:]
+        elif codigo == T_ARRIBA or codigo == T_ABAJO
+            p.cc = 0
+            if codigo == T_ABAJO
+                p.cc = p.entrada.length
+            end
+        elif letra != "" and str_code(letra, 0) >= 32 and p.entrada.length < 500
+            p.entrada = p.entrada[0:p.cc] + letra + p.entrada[p.cc:]
+            p.cc = p.cc + 1
+        end
+        return true
+    end
+    if codigo == T_ARRIBA or codigo == T_ABAJO
+        if p.lineas.length == 0
+            return true
+        end
+        if p.cursor < 0
+            p.cursor = p.desde
+        elif codigo == T_ARRIBA and p.cursor > 0
+            p.cursor = p.cursor - 1
+        elif codigo == T_ABAJO and p.cursor < p.lineas.length - 1
+            p.cursor = p.cursor + 1
+        end
+        pe_cursor_a_la_vista(p)
+        return true
+    end
+    if codigo == T_IZQUIERDA or codigo == T_DERECHA
+        return true
+    end
+    t = letra
+    if codigo == T_RETURN or codigo == T_ENTER
+        t = "return"
+    elif codigo == T_RETROCESO or codigo == T_SUPRIMIR
+        t = "borrar"
+    elif t == " "
+        t = "espacio"
+    end
+    if t == "" or str_code(t, 0) < 32
+        return true
+    end
+    pe_suceso = "PANELTECLA " + p.titulo + "|" + t + "|#{p.cursor + 1}"
+    return true
+end
+
+# PANELES: uno por línea, "extensión|título|lado|delante|fila elegida|líneas|texto de la entrada" (lado izquierda o
+# abajo; delante 1 si es el que se ve en su lado)
+func pe_lista() -> String
+    t = ""
+    i = 0
+    while i < paneles.length
+        p = paneles[i]
+        lado = "izquierda"
+        if p.lado == PE_ABAJO
+            lado = "abajo"
+        end
+        delante = 0
+        if pe_delante[p.lado] == i
+            delante = 1
+        end
+        t = t + p.ext + "|" + p.titulo + "|" + lado + "|#{delante}|#{p.cursor + 1}|#{p.lineas.length}|" + p.entrada + "\n"
+        i = i + 1
+    end
+    return t
+end
+
+# Para la sonda (ENV:FORJA_PANELES; env_get lee una sola línea: van separadas por el carácter 30): una por lado con lo
+# que se ve, y una por panel
+#   lado L: o=x,y pest=x1-x2,... y=... | delante título | líneas x,y,fila,desde,caben | entrada y | botones x1,y1,x2,y2;...
+#   panel ext|título|lado|cursor|n líneas|foco|entrada
+func pe_sonda() -> String
+    t = ""
+    for lado in [0, 1]
+        t = t + "lado #{lado}: o=#{pe_ox[lado]},#{pe_oy[lado]} pest="
+        k = 0
+        while k < pe_pest_x1[lado].length
+            t = t + "#{pe_pest_x1[lado][k]}-#{pe_pest_x2[lado][k]},"
+            k = k + 1
+        end
+        t = t + " y=#{pe_pest_y[lado]}"
+        p = pe_visible(lado)
+        if p != nil
+            t = t + " | " + p.titulo + " | #{pe_zona_x[lado]},#{pe_zona_y[lado]},#{pe_fila[lado]},#{p.desde},#{pe_caben[lado]} | #{pe_entrada_y[lado]} | "
+            k = 0
+            while k < pe_boton_x1[lado].length
+                t = t + "#{pe_boton_x1[lado][k]},#{pe_boton_y1[lado][k]},#{pe_boton_x2[lado][k]},#{pe_boton_y2[lado][k]};"
+                k = k + 1
+            end
+        end
+        t = t + str_char(30)
+    end
+    i = 0
+    while i < paneles.length
+        p = paneles[i]
+        foco = "-"
+        if pe_foco == i
+            foco = "lista"
+            if pe_foco_entrada
+                foco = "entrada"
+            end
+        end
+        t = t + "panel " + p.ext + "|" + p.titulo + "|#{p.lado}|#{p.cursor + 1}|#{p.lineas.length}|" + foco + "|" + p.entrada + str_char(30)
+        i = i + 1
+    end
+    return t
+end

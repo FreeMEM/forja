@@ -3,6 +3,7 @@
 import "tema.dash"
 import "marcas.dash"
 import "expresion.dash"
+import "paneles_ext.dash"
 
 const TITULO_ALTO = 18
 
@@ -346,7 +347,15 @@ func proyecto_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     if nombre == ""
         nombre = tr(60, "Proyecto")
     end
-    _titulo(x, y, ancho, str_upper(nombre))
+    # con paneles de extensiones a este lado, el título es la primera de sus pestañas
+    if pe_pestanas(PE_IZQUIERDA, x, y, ancho, str_upper(nombre))
+        if pe_delante[PE_IZQUIERDA] >= 0
+            pe_dibujar_panel(PE_IZQUIERDA, x, y, ancho, alto)
+            return
+        end
+    else
+        _titulo(x, y, ancho, str_upper(nombre))
+    end
     usar_panel(0)
     fila = font_height() + 3
     proyecto_fila = fila
@@ -910,18 +919,18 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     gfx_mode(0)
     gfx_pen(tema.fondo_salida)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
-    _titulo(x, y, ancho, tr(62, "SALIDA"))
-    # la barra de las extensiones (docs/EXTENSIONES.md: BARRA), a la derecha del título
-    barra = barra_texto()
-    if barra != ""
-        usar_panel(0)
-        while barra.length > 0 and font_text_width(barra) > ancho - 98
-            barra = barra[0:barra.length - 1]
+    izquierda = 98      # dónde acaba el título (la barra va a su derecha)
+    if pe_pestanas(PE_ABAJO, x, y, ancho, tr(62, "SALIDA"))
+        izquierda = pe_pest_x2[PE_ABAJO][pe_pest_x2[PE_ABAJO].length - 1] - x + 16
+        if pe_delante[PE_ABAJO] >= 0
+            pe_dibujar_panel(PE_ABAJO, x, y, ancho, alto)
+            _salida_barra(x, y, ancho, izquierda)
+            return
         end
-        bx = x + ancho - 8 - font_text_width(barra)
-        gfx_pen(tema.texto)
-        gfx_text_at(bx, y + (TITULO_ALTO - font_height()) / 2 + font_baseline(), barra)
+    else
+        _titulo(x, y, ancho, tr(62, "SALIDA"))
     end
+    _salida_barra(x, y, ancho, izquierda)
     usar_codigo()
     fila = alto_letra + 2
     cabe = (alto - TITULO_ALTO - 4) / fila
@@ -962,6 +971,26 @@ func salida_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         fy = fy + fila
         i = i + 1
     end
+end
+
+# La barra de las extensiones (docs/EXTENSIONES.md: BARRA), a la derecha del título (o de las pestañas), si cabe
+func _salida_barra(x: Int, y: Int, ancho: Int, izquierda: Int)
+    barra = barra_texto()
+    if barra == ""
+        return
+    end
+    usar_panel(0)
+    while barra.length > 0 and font_text_width(barra) > ancho - izquierda
+        barra = barra[0:barra.length - 1]
+    end
+    if barra == ""
+        return
+    end
+    bx = x + ancho - 8 - font_text_width(barra)
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(bx - 4, y, x + ancho - 1, y + TITULO_ALTO - 1)
+    gfx_pen(tema.texto)
+    gfx_text_at(bx, y + (TITULO_ALTO - font_height()) / 2 + font_baseline(), barra)
 end
 
 # Las letras de las extensiones de una entrada del panel (un cajón acaba en "/")

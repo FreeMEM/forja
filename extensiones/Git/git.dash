@@ -5,7 +5,7 @@
 # Lo que pone en Forja: la rama y "N cambios" en la barra de botones (un clic abre el panel Cambios), una letra en cada
 # fichero y cajón cambiado del proyecto (M, A, D, U, ?), las rayas del margen (lo cambiado frente a HEAD, también
 # mientras se escribe, sin guardar), su menú Git (en la barra de menús) y la vista de las diferencias (n, p, Return).
-# El panel Cambios es una ventana suya.
+# El panel Cambios es un panel de Forja (API 6, PANEL): una pestaña junto al proyecto, con el mensaje y los botones.
 #
 #   ./dash extensiones/Git/git.dash -o Extensiones/Git/Git    (desde el cajón de Forja)
 #
@@ -20,21 +20,12 @@ import "lib/forja.dash"
 import "lib/red/idioma.dash"
 import "cambios.dash"
 import "vista.dash"
-import "git.dashui"
 
 const EV_TIC = 1
-const EV_GC_CONFIRMAR = 80      # el panel Cambios (git.dashui)
-const EV_GC_DIFERENCIAS = 81
-const EV_GC_TODO = 82
-const EV_GC_NADA = 83
-const EV_GC_CERRAR = 86
-const EV_GC_BARRA = 87
-const EV_GC_LISTA = 88
 const TIC_MS = 150
 
 var app: Int = 0
-var vc: GitCambios = nil
-var vc_abierta: Bool = false
+var vc_abierta: Bool = false       # el panel Cambios está en Forja
 var proyecto: String = ""          # el cajón del proyecto de Forja
 var activo: String = ""            # el fichero de delante
 var tic_armado: Bool = false
@@ -114,8 +105,7 @@ func al_dia()
         if gc_sel >= git_lineas.length
             gc_sel = -1
         end
-        mui_set_range(vc.barra, git_lineas.length, gc_caben)
-        mui_canvas_redraw(vc.lista)
+        panel_llenar()
     end
 end
 
@@ -214,8 +204,8 @@ func mirar()
             end
             if git_rc == 0
                 forja_aviso_tipo(hueco(tr(7, "Git: hecho en %1."), segundos(time_ms() - salida_inicio)), 2)
-                if git_commit
-                    mui_set_text(vc.mensaje, "")
+                if git_commit and vc_abierta
+                    forja_panel_entrada_texto(titulo_panel(), tr(31, "Mensaje:"), "")
                 end
             else
                 forja_aviso_tipo(hueco(tr(8, "Git acabó con código %1."), "#{git_rc}"), 1)
@@ -310,28 +300,59 @@ func tecla(dato: String)
 end
 
 # --- El panel Cambios ---
+# Un panel de Forja a la izquierda (una pestaña junto al proyecto): una fila por fichero, "[x] M ruta" (la casilla dice
+# si va en el commit), el mensaje en su entrada y cuatro botones. Un clic en la casilla (o Espacio) lo prepara o lo
+# quita; un clic en la elegida (o Return) abre sus diferencias; Return en el mensaje confirma.
+
+func titulo_panel() -> String
+    return tr(30, "Cambios")
+end
+
+func panel_llenar()
+    var ls: [String] = []
+    colores = ""
+    if git_lineas.length == 0
+        t = tr(18, "Sin cambios.")
+        if git_raiz == ""
+            t = tr(11, "El proyecto no está en un repositorio de git.")
+        end
+        ls.push(t)
+        colores = "#"
+    end
+    for l in git_lineas
+        ls.push(gc_fila_texto(l))
+        colores = colores + gc_fila_color(l)
+    end
+    if not forja_panel(titulo_panel(), "izquierda", ls, colores)
+        vc_abierta = false
+    end
+end
 
 func panel_abrir()
     if git_raiz == ""
         forja_aviso_tipo(tr(11, "El proyecto no está en un repositorio de git."), 1)
     end
-    mui_window_open(vc.window)
-    vc_abierta = true
-    # el mensaje, listo para escribir
-    mui_set_active(vc.window, vc.mensaje)
+    if not vc_abierta
+        vc_abierta = true
+        panel_llenar()
+        forja_panel_entrada(titulo_panel(), tr(31, "Mensaje:"))
+        forja_panel_botones(titulo_panel(), [tr(32, "Diferencias") + "|diff|" + tr(36, "Dif"), tr(33, "Preparar todo") + "|todo|" + tr(37, "Todo"), tr(34, "Quitar todo") + "|nada|" + tr(38, "Nada"), tr(35, "Confirmar") + "|confirmar|" + tr(39, "OK")])
+    end
+    # delante, y el mensaje listo para escribir
+    forja_panel_ver(titulo_panel(), true)
     git_pedir_estado()
     al_dia()
 end
 
-func confirmar()
-    m = str_trim(mui_get_text(vc.mensaje))
+func confirmar(mensaje: String)
+    m = str_trim(mensaje)
     if m == ""
         forja_aviso_tipo(tr(12, "Escribe el mensaje del commit."), 1)
-        mui_set_active(vc.window, vc.mensaje)
+        forja_panel_ver(titulo_panel(), true)
         return
     end
     if gc_preparados() == 0
-        mui_request(vc.window, tr(13, "Nada preparado"), tr(14, "Marca la casilla de los ficheros que van en el commit."), tr(15, "_Vale"))
+        forja_aviso_tipo(tr(13, "Nada preparado") + ": " + tr(14, "Marca la casilla de los ficheros que van en el commit."), 1)
         return
     end
     if salida_ocupada
@@ -341,38 +362,62 @@ func confirmar()
     a_la_salida("commit -m " + git_comillas(m))
 end
 
-func panel_evento(ev: Int)
-    if ev == EV_GC_CERRAR
-        mui_window_close(vc.window)
-        vc_abierta = false
-    elif ev == EV_GC_CONFIRMAR
-        confirmar()
-    elif ev == EV_GC_DIFERENCIAS
-        ver_diferencias(gc_ruta(gc_sel))
-    elif ev == EV_GC_TODO
-        git_orden("add -A", G_NADA, "", "")
-    elif ev == EV_GC_NADA
-        git_orden("reset -q", G_NADA, "", "")
-    elif ev == EV_GC_BARRA
-        desde = mui_get_value(vc.barra)
-        if desde != gc_desde
-            gc_desde = gc_desde_valido(desde)
-            mui_canvas_redraw(vc.lista)
+# La casilla de la fila i: prepara o quita (la fila cambia ya; el estado de verdad llega después)
+func alternar(i: Int)
+    o = gc_alternar(i)
+    if o != ""
+        git_orden(o, G_NADA, "", "")
+        panel_llenar()
+    end
+end
+
+# PANEL, PANELTECLA, PANELBOTON y PANELTEXTO del panel Cambios
+func panel_suceso()
+    if forja_campo(0) != titulo_panel()
+        return
+    end
+    t = forja_tipo
+    if t == "PANEL"
+        i = Int(forja_campo(1)) - 1
+        if i < 0 or i >= git_lineas.length
+            return
         end
-    elif ev == EV_GC_LISTA
-        rueda = mui_canvas_wheel(vc.lista)
-        if rueda != 0
-            gc_desde = gc_desde_valido(gc_desde - rueda * 3)
-            mui_set_value(vc.barra, gc_desde)
-            mui_canvas_redraw(vc.lista)
-        elif mui_canvas_button(vc.lista) == 1
-            o = gc_clic(mui_canvas_mouse_x(vc.lista), mui_canvas_mouse_y(vc.lista))
-            if o == "diff"
-                ver_diferencias(gc_ruta(gc_sel))
-            elif o != ""
-                git_orden(o, G_NADA, "", "")
+        if Int(forja_campo(2)) <= 3
+            alternar(i)
+        elif forja_campo(3) == "1"
+            ver_diferencias(gc_ruta(i))
+        end
+        gc_sel = i
+    elif t == "PANELTECLA"
+        i = Int(forja_campo(2)) - 1
+        if i < 0 or i >= git_lineas.length
+            return
+        end
+        gc_sel = i
+        if forja_campo(1) == "espacio"
+            alternar(i)
+        elif forja_campo(1) == "return" or forja_campo(1) == "d"
+            ver_diferencias(gc_ruta(i))
+        end
+    elif t == "PANELTEXTO"
+        confirmar(forja_campo(1))
+    elif t == "PANELBOTON"
+        o = forja_campo(1)
+        if o == "confirmar"
+            e = forja_panel_estado(titulo_panel())
+            if e.length >= 7
+                confirmar(e[6])
             end
-            mui_canvas_redraw(vc.lista)
+        elif o == "diff"
+            e = forja_panel_estado(titulo_panel())
+            if e.length >= 5 and Int(e[4]) > 0
+                gc_sel = Int(e[4]) - 1
+            end
+            ver_diferencias(gc_ruta(gc_sel))
+        elif o == "todo"
+            git_orden("add -A", G_NADA, "", "")
+        elif o == "nada"
+            git_orden("reset -q", G_NADA, "", "")
         end
     end
 end
@@ -436,6 +481,8 @@ func suceso()
         panel_abrir()
     elif t == "TECLA"
         tecla(d)
+    elif t == "PANEL" or t == "PANELTECLA" or t == "PANELBOTON" or t == "PANELTEXTO"
+        panel_suceso()
     end
 end
 
@@ -542,9 +589,6 @@ Main
         if app == 0
             forja_aviso_tipo(tr(17, "Git: no se puede abrir MUI."), 1)
         else
-            vc = GitCambios_create()
-            mui_canvas_on_draw(vc.lista, gc_dibujar)
-            mui_canvas_on_input(vc.lista, EV_GC_LISTA)
             git_programa = programa_dashgit()
             srv_dueno = "FORJAEXT." + str_upper(forja_ext)
             srv_quitado = env_get("Forja/git_servidor") == "no"
@@ -557,8 +601,6 @@ Main
                 end
                 if ev == EV_TIC
                     tic_armado = false
-                elif ev >= EV_GC_CONFIRMAR and ev <= EV_GC_LISTA
-                    panel_evento(ev)
                 end
                 atender_rexx()
                 s = forja_suceso(-1)

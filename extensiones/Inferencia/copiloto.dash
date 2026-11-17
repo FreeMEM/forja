@@ -7,8 +7,9 @@
 # - Arreglar el error, Documentar la función, Escribir la prueba, Cambiar el código...: un encargo aparte (ENCARGO de
 #   Inferencia, que puede leer el proyecto y la ayuda de Dash); la respuesta sale en una pestaña de solo lectura con
 #   las diferencias, y a (o el menú) la acepta: el cambio entra en el deshacer de Forja. r la rechaza.
-# - Sugerencias al escribir (apagadas al empezar): tras una pausa al final de una línea, Inferencia propone cómo
-#   sigue; se ve en gris y Tab la mete (SUGERENCIA de Forja).
+# - Sugerencias al escribir (apagadas al empezar): tras una pausa al escribir, Inferencia propone qué va en el cursor
+#   (al final de una línea, en medio o en una línea vacía tras un bloque que empieza), de una o de varias líneas; se ve
+#   en gris y Tab la mete (SUGERENCIA de Forja).
 #
 # Nunca se queda esperando a nadie mucho rato: a Inferencia le habla con rexx_send_wait (5 s como mucho) y mira cómo
 # va el encargo con un tic.
@@ -76,6 +77,12 @@ var activo: String = ""            # el fichero de delante
 var errores: Int = -1              # los de la última compilación (-1: no se sabe)
 var tras_compilar: String = ""     # lo que se hace al llegar COMPILADO (explicar o arreglar el error)
 var sugerir: Bool = false          # sugerencias al escribir
+
+# La prueba que se ejecuta (Escribir la prueba): su fichero, desde dónde es suya la salida de Forja y cuándo empezó
+var prueba_ruta: String = ""
+var prueba_desde: Int = 0
+var prueba_inicio: Int = 0
+var prueba_corre: Bool = false     # Forja ya está con ella (compilando o ejecutando)
 
 func aviso(t: String)
     forja_aviso_tipo(tr(6, "Inferencia: ") + t, 0)
@@ -587,9 +594,10 @@ func aceptar()
         quitar_vista()
         forja_abrir(c_ruta, 1)
         forja_aviso_tipo(tr(6, "Inferencia: ") + hueco(tr(46, "escrito %1."), c_ruta), 2)
-        # y se ejecuta (la prueba es un programa con su Main): lo que dice sale en la salida de Forja
-        if c_tipo == "prueba" and not forja_compilar("", true)
-            forja_aviso_tipo(tr(6, "Inferencia: ") + tr(77, "Forja está ocupada: ejecuta la prueba tú (Amiga-E)."), 1)
+        # y se ejecuta (la prueba es un programa con su Main): lo que dice sale en la salida de Forja, y el resultado en
+        # su panel, abajo
+        if c_tipo == "prueba"
+            ejecutar_prueba(c_ruta)
         end
         zona_al_dia()
         return
@@ -636,13 +644,113 @@ func rechazar()
     zona_al_dia()
 end
 
+# --- El resultado de la prueba (un panel de Forja, abajo) ---
+
+func titulo_prueba() -> String
+    return tr(81, "Prueba")
+end
+
+func ejecutar_prueba(ruta: String)
+    prueba_desde = forja_orden("SALIDA").length
+    if not forja_compilar(ruta, true)
+        forja_aviso_tipo(tr(6, "Inferencia: ") + tr(77, "Forja está ocupada: ejecuta la prueba tú (Amiga-E)."), 1)
+        prueba_ruta = ""
+        return
+    end
+    prueba_ruta = ruta
+    prueba_inicio = time_ms()
+    prueba_corre = false
+    armar_tic(TIC_MS)
+end
+
+# Con el tic: si Forja ya acabó con ella, lee lo que escribió y lo enseña en el panel Prueba: una línea por "bien:" (en
+# verde) y por "FALLO" (en rojo), y arriba la cuenta
+func mirar_prueba()
+    e = forja_orden("ESTADO")
+    if e == "compilando" or e == "ejecutando"
+        prueba_corre = true
+    end
+    if (e != "libre" or not prueba_corre) and time_ms() - prueba_inicio < 120000
+        if e == "libre" and time_ms() - prueba_inicio > 3000
+            # (acabó antes del primer tic)
+            prueba_corre = true
+        else
+            armar_tic(TIC_MS)
+            return
+        end
+    end
+    salida = forja_orden("SALIDA")
+    if salida.length > prueba_desde
+        salida = salida[prueba_desde:]
+    else
+        salida = ""
+    end
+    var ls: [String] = []
+    colores = ""
+    bien = 0
+    mal = 0
+    for l in str_split(salida, "\n")
+        t = str_trim(l)
+        if t == ""
+            continue
+        end
+        if str_starts(t, "bien:")
+            bien = bien + 1
+            ls.push(t)
+            colores = colores + "+"
+        elif str_starts(t, "FALLO") or str_contains(t, "rror")
+            mal = mal + 1
+            ls.push(t)
+            colores = colores + "-"
+        else
+            ls.push(t)
+            colores = colores + "#"
+        end
+    end
+    cuenta = str_replace(str_replace(tr(82, "%1: %2 bien, %3 mal."), "%1", nombre_de(prueba_ruta)), "%2", "#{bien}")
+    cuenta = str_replace(cuenta, "%3", "#{mal}")
+    tipo = 2
+    color = "+"
+    if mal > 0 or bien == 0
+        tipo = 1
+        color = "-"
+    end
+    ls.insert(0, cuenta)
+    colores = color + colores
+    forja_panel(titulo_prueba(), "abajo", ls, colores)
+    forja_panel_botones(titulo_prueba(), [tr(83, "Otra vez") + "|otra", tr(84, "Abrir la prueba") + "|abrir", tr(85, "Cerrar") + "|cerrar"])
+    forja_panel_ver(titulo_prueba(), false)
+    forja_aviso_tipo(tr(6, "Inferencia: ") + cuenta, tipo)
+    if sonda
+        env_set("FORJA_COPILOTO_PRUEBA", "#{bien} #{mal}", false)
+    end
+    prueba_ultima = prueba_ruta
+    prueba_ruta = ""
+end
+
+var prueba_ultima: String = ""
+
+func panel_suceso()
+    if forja_campo(0) != titulo_prueba() or forja_tipo != "PANELBOTON"
+        return
+    end
+    o = forja_campo(1)
+    if o == "otra" and prueba_ultima != ""
+        ejecutar_prueba(prueba_ultima)
+    elif o == "abrir" and prueba_ultima != ""
+        forja_abrir(prueba_ultima, 1)
+    elif o == "cerrar"
+        forja_panel_cerrar(titulo_prueba())
+    end
+end
+
 # --- Sugerencias al escribir ---
 
 func sugerencias_alternar()
     sugerir = not sugerir
     if sugerir
         env_set("Forja/inferencia_sugerencias", "si", true)
-        aviso(tr(52, "sugerencias al escribir encendidas. Al parar al final de una línea, Inferencia propone cómo sigue (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan."))
+        aviso(tr(52, "sugerencias al escribir encendidas. Al parar de escribir, Inferencia propone qué va en el cursor, de una o de varias líneas (en gris); Tab la mete. Van por la red: con un 68020 o un servidor lejano tardan."))
     else
         env_set("Forja/inferencia_sugerencias", "no", true)
         aviso(tr(53, "sugerencias al escribir apagadas."))
@@ -679,20 +787,39 @@ func pedir_sugerencia(ruta: String)
     l = Int(c[0])
     col = Int(c[1])
     linea = forja_linea(l)
-    if forja_rc != 0 or str_trim(linea) == "" or col != linea.length + 1
+    if forja_rc != 0 or col < 1 or col > linea.length + 1
         sonda_sug("no: cursor #{l} #{col} [" + linea + "]")
         return
+    end
+    # dónde: al final de una línea con algo, en medio de una (lo de detrás sigue tras la sugerencia) o en una línea
+    # vacía tras otra que abre un bloque (el cuerpo, de varias líneas)
+    al_final = col == linea.length + 1
+    if str_trim(linea) == ""
+        anterior = ""
+        if l > 1
+            anterior = str_trim(forja_linea(l - 1))
+        end
+        if not abre_bloque(anterior)
+            sonda_sug("no: línea vacía [" + anterior + "]")
+            return
+        end
     end
     desde = l - 30
     if desde < 1
         desde = 1
     end
-    antes = forja_lineas(desde, l)
+    antes = forja_lineas(desde, l - 1)
     despues = forja_lineas(l + 1, l + 8)
     if not inf_lista()
         return
     end
-    t = hueco2(tr(54, "Fichero %1. El cursor está al final de la línea %2:"), a[1], "#{l}") + "\n" + linea + "\n\n" + tr(55, "Lo de antes (hasta esa línea):") + "\n```dash\n" + antes + "\n```\n\n" + tr(56, "Lo de después:") + "\n```dash\n" + despues + "\n```"
+    donde = hueco2(tr(54, "Fichero %1. El cursor está al final de la línea %2:"), a[1], "#{l}") + "\n" + linea
+    if not al_final
+        donde = str_replace(hueco2(tr(78, "Fichero %1. El cursor está en la línea %2, columna %3 (lo que va antes y lo que va después del cursor):"), a[1], "#{l}"), "%3", "#{col}") + "\n" + linea[0:col - 1] + "\n" + linea[col - 1:]
+    elif str_trim(linea) == ""
+        donde = hueco2(tr(79, "Fichero %1. El cursor está en la línea %2, vacía, la primera del bloque que empieza encima: escribe su cuerpo (varias líneas, con su sangría)."), a[1], "#{l}")
+    end
+    t = donde + "\n\n" + tr(55, "Lo de antes (hasta esa línea):") + "\n```dash\n" + antes + "\n```\n\n" + tr(56, "Lo de después:") + "\n```dash\n" + despues + "\n```\n\n" + tr(80, "Contesta solo con el texto que va en el cursor: una línea o varias (8 como mucho), sin repetir lo que ya está escrito.")
     inf("ENCARGO completar\n" + t)
     if inf_rc != 0
         sonda_sug("no: ENCARGO RC #{inf_rc}")
@@ -708,19 +835,56 @@ func pedir_sugerencia(ruta: String)
     armar_tic(TIC_MS)
 end
 
+# ¿Abre un bloque esta línea (sin blancos alrededor)? func, if, while, for, struct... o acaba en "then"/":"
+func abre_bloque(l: String) -> Bool
+    if l == ""
+        return false
+    end
+    for p in ["func ", "if ", "elif ", "else", "while ", "for ", "struct ", "enum ", "Main", "asm", "try", "match "]
+        if str_starts(l, p)
+            return true
+        end
+    end
+    return false
+end
+
+# Lo que llegó de Inferencia: el texto que va en el cursor, de 8 líneas como mucho. Sin repetir lo de antes del
+# cursor (si lo trae al principio) ni lo de después (si lo trae al final).
 func sugerencia(texto: String)
-    t = str_split(str_replace(texto, "\r", ""), "\n")[0]
-    if str_starts(str_trim(t), "```")
-        t = str_split(cp_codigo(texto), "\n")[0]
+    r = str_replace(texto, "\r", "")
+    if str_contains(r, "```")
+        r = cp_codigo(r)
+    end
+    var ls: [String] = str_split(r, "\n")
+    while ls.length > 0 and str_trim(ls[ls.length - 1]) == ""
+        ls.remove(ls.length - 1)
+    end
+    while ls.length > 8
+        ls.remove(ls.length - 1)
+    end
+    if ls.length == 0
+        sonda_sug("vacía")
+        return
     end
     linea = forja_linea(p_l)
-    # si repite lo que ya está escrito, se quita
-    if str_trim(linea) != "" and str_starts(t, linea)
-        t = t[linea.length:]
-    elif str_trim(linea) != "" and str_starts(t, str_trim(linea))
-        t = t[str_trim(linea).length:]
+    antes = linea[0:p_c - 1]
+    despues = linea[p_c - 1:]
+    t = ls[0]
+    if str_trim(antes) != "" and str_starts(t, antes)
+        t = t[antes.length:]
+    elif str_trim(antes) != "" and str_starts(t, str_trim(antes))
+        t = t[str_trim(antes).length:]
+    elif str_trim(antes) == "" and antes != "" and ls.length > 1 and str_starts(t, antes)
+        # en una línea vacía con sangría: la primera sin la sangría que ya está
+        t = t[antes.length:]
     end
-    if str_trim(t) == ""
+    ls[0] = t
+    ultima = ls[ls.length - 1]
+    if str_trim(despues) != "" and str_ends(ultima, despues)
+        ls[ls.length - 1] = ultima[0:ultima.length - despues.length]
+    end
+    t = unir(ls, "\n")
+    if str_trim(str_replace(t, "\n", "")) == ""
         sonda_sug("vacía")
         return
     end
@@ -735,6 +899,9 @@ end
 
 # El tic: cómo va el encargo
 func tic()
+    if prueba_ruta != ""
+        mirar_prueba()
+    end
     if pedido == ""
         return
     end
@@ -843,6 +1010,8 @@ func suceso()
         zona_al_dia()
     elif t == "TECLA"
         tecla(d)
+    elif t == "PANELBOTON"
+        panel_suceso()
     elif t == "ZONA"
         if pedido != "" and pedido != "completar"
             cancelar()

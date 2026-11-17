@@ -104,21 +104,54 @@ func fila_de(nombre: String) -> Int
     return -1
 end
 
-# Un clic en la fila i del panel Cambios, en la casilla (x pequeña) o en el nombre
-func clic_fila(i: Int, en_casilla: Bool)
-    z = str_split(env_get("FORJA_GIT_CAMBIOS"), "|")[0]
-    x = campo(z, 0) + 8
-    if not en_casilla
-        x = campo(z, 0) + 60
+# Las líneas del panel de la izquierda de Forja (ENV:FORJA_PANELES): "x,y,fila,desde,caben"
+func zona_panel() -> [Int]
+    var r: [Int] = []
+    for l in str_split(env_get("FORJA_PANELES"), str_char(30))
+        if str_starts(l, "lado 0:")
+            ps = str_split(l, " | ")
+            if ps.length >= 3
+                for c in str_split(ps[2], ",")
+                    r.push(Int(c))
+                end
+            end
+        end
     end
-    y = campo(z, 1) + (i - campo(z, 3)) * campo(z, 2) + campo(z, 2) / 2
-    activar("Cambios")
+    return r
+end
+
+# Un clic en la fila i del panel Cambios (un panel de Forja), en la casilla ("[x]") o en el nombre
+func clic_fila(i: Int, en_casilla: Bool)
+    z = zona_panel()
+    if z.length < 5
+        anotar("  (sin el panel: " + env_get("FORJA_PANELES") + ")")
+        return
+    end
+    x = z[0] + 6 + 8
+    if not en_casilla
+        x = z[0] + 6 + 8 * 8
+    end
+    y = z[1] + (i - z[3]) * z[2] + z[2] / 2
+    activar("Forja")
     input_move(x, y)
     time_delay(5)
     input_click(x, y, 0)
     # (dos clics seguidos en el mismo sitio serían un doble clic)
     time_delay(125)
     anotar("  (clic en #{x},#{y}: " + env_get("FORJA_GIT_CAMBIOS") + ")")
+end
+
+# Espera a que el panel Cambios esté en Forja, delante
+func panel_delante() -> Bool
+    n = 0
+    while n < 200
+        if str_contains(rexx("PANELES"), "Git|Cambios|izquierda|1|")
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
 end
 
 func esperar_fila(texto: String) -> Bool
@@ -252,8 +285,10 @@ Main
     activar("Forja")
     ver("el menú Git en la barra de menús", input_menu(6, 5, 5), "")
     time_delay(100)
-    ver("el panel Cambios se abre", activar("Cambios"), input_active_title())
+    ver("el panel Cambios se abre, junto al proyecto", panel_delante(), rexx("PANELES"))
     ver("las filas", esperar_fila(" M main.dash") and esperar_fila("?? nuevo.dash"), env_get("FORJA_GIT_CAMBIOS"))
+    time_delay(25)
+    screen_save_png(BASE + "/git-panel.png")
     clic_fila(fila_de("main.dash"), true)
     ver("la casilla prepara main.dash (add)", esperar_fila("M  main.dash"), env_get("FORJA_GIT_CAMBIOS"))
     clic_fila(fila_de("nuevo.dash"), true)
@@ -291,7 +326,8 @@ Main
     # confirmar: al abrir el panel el cursor está en el mensaje; se escribe y Return
     rgit("CAMBIOS")
     time_delay(30)
-    activar("Cambios")
+    activar("Forja")
+    ver("el mensaje tiene el teclado", str_contains(env_get("FORJA_PANELES"), "panel Git|Cambios|0|") and str_contains(env_get("FORJA_PANELES"), "|entrada|"), env_get("FORJA_PANELES"))
     input_text("tercero desde el panel")
     input_key(0x44, 0)
     time_delay(30)
