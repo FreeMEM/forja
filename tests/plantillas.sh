@@ -32,12 +32,12 @@ uno() {
 }
 "$dash/dash" "$tmp/orden/main.dash" -o "$tmp/orden/Prueba"
 uno orden 1 --system "$HOME/.cache/dash-emu/sys31mui" --file "$tmp/orden/Prueba" "$aqui/tests/plantillas_orden.dash"
-uno commodity 20 --autoclose 8 --system "$HOME/.cache/dash-emu/sys31mui" "$tmp/commodity/main.dash"
-uno mui 20 --autoclose 10 --system "$HOME/.cache/dash-emu/sys31mui" "$tmp/mui/main.dash"
+uno commodity 20 --autoclose 30 --system "$HOME/.cache/dash-emu/sys31mui" "$tmp/commodity/main.dash"
+uno mui 20 --autoclose 30 --system "$HOME/.cache/dash-emu/sys31mui" "$tmp/mui/main.dash"
 uno juego 20 --autoclose 10 "$tmp/juego/main.dash"
 uno demo 20 --autoclose 10 "$tmp/demo/main.dash"
 if [ -n "$DASH_EMU_MINIGL" ] && [ -n "$DASH_EMU_DISK_COFFIN" ]; then
-  uno 3d 40 --fpu --autoclose 15 --machine coffin --lib "$DASH_EMU_MINIGL" "$tmp/3d/main.dash"
+  uno 3d 25 --fpu --autoclose 40 --machine coffin --lib "$DASH_EMU_MINIGL" "$tmp/3d/main.dash"
 else
   echo "(sin DASH_EMU_MINIGL y DASH_EMU_DISK_COFFIN: la 3D no se prueba)"
 fi

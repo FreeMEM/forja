@@ -59,7 +59,20 @@ func menu(ev: Int)
     if e.length >= 4
         input_move(Int(e[0]) + Int(e[2]) / 2, Int(e[1]) + Int(e[3]) / 2)
     end
-    input_key(0x45, 0)
+    # (activar la ventana ya es un evento: si Forja lo miró con él, no hace falta Esc, que cerraría lo que abrió)
+    k = 0
+    while k < 10 and env_get("FORJA_EVENTO") != ""
+        time_delay(5)
+        k = k + 1
+    end
+    if env_get("FORJA_EVENTO") != ""
+        input_key(0x45, 0)
+        k = 0
+        while k < 40 and env_get("FORJA_EVENTO") != ""
+            time_delay(5)
+            k = k + 1
+        end
+    end
     time_delay(10)
 end
 

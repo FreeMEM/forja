@@ -7,7 +7,7 @@
 #   tests/forja_proyecto.sh DASH_DIR DASHC_AMIGA [capturas/]
 #
 # DASHC_AMIGA: el cajón con dash para el Amiga (make amiga en dashc/ de Dash: dashc.amiga y los dashc_*.drt).
-#   SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/forja_proyecto.sh ...   # con MUI 3.8 (y el icono, en 3.2)
+#   SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/forja_proyecto.sh ...   # con MUI 3.8 (y el icono, en 3.2: con LoadWB)
 set -e
 dash=$1; dashc=$2; capturas=${3:-}
 aqui=$(cd "$(dirname "$0")/.." && pwd)
@@ -38,7 +38,7 @@ cp -r "$dash/lib" "$tmp/sys/Dash/lib"
   echo "SetEnv Forja/buscar_dash no"
   echo "SetEnv FORJA_SONDA 1"
 } >> "$tmp/sys/S/Startup-Extra"
-cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-600} --system "$tmp/sys" $maquina ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/ProyectoT" || true
+cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-600} --system "$tmp/sys" $maquina ${RTG:+--workbench} ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/ProyectoT" || true
 if [ -n "$capturas" ]; then
   mkdir -p "$capturas"
   for f in "$tmp"/disco/Prueba/*.png; do [ -f "$f" ] && cp "$f" "$capturas/"; done

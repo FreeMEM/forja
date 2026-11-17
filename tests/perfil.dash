@@ -66,7 +66,20 @@ func menu(ev: Int)
     env_set("FORJA_EVENTO", "#{ev}", false)
     activar()
     input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
-    input_key(0x45, 0)
+    # (activar la ventana ya es un evento: si Forja lo miró con él, no hace falta Esc, que cerraría lo que abrió)
+    k = 0
+    while k < 10 and env_get("FORJA_EVENTO") != ""
+        time_delay(5)
+        k = k + 1
+    end
+    if env_get("FORJA_EVENTO") != ""
+        input_key(0x45, 0)
+        k = 0
+        while k < 40 and env_get("FORJA_EVENTO") != ""
+            time_delay(5)
+            k = k + 1
+        end
+    end
     time_delay(15)
 end
 
@@ -147,7 +160,7 @@ Main
         input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
         time_delay(40)
         c = sonda()
-        ver("un clic en el aviso lleva a la línea 7", c[2] == "main.dash" and c[0] == "6", c[0] + " " + c[2])
+        ver("un clic en el aviso lleva a la línea 7", c[2] == "main.dash" and c[0] == "6", c[0] + " " + c[2] + " | salida " + env_get("FORJA_SALIDA") + " error #{error} y #{y} | " + s)
     end
     ver("memcheck lo cuenta", str_contains(s, "memcheck: un aviso"), s)
     if fallos == 0

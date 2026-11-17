@@ -22,6 +22,8 @@ struct PuntoProy
     condicion: String = ""
     contador: String = ""
     veces: Int = 0          # cuántas veces se ha cumplido su condición en esta depuración
+    guardada: Int = -1      # su línea en el fichero tal como está en el disco (-1: puesto en cambios sin guardar);
+                            # al escribir, linea sigue a su texto, y al descartar los cambios vuelve aquí
 end
 
 struct Proyecto
@@ -178,7 +180,7 @@ func pr_leer(ruta: String) -> Proyecto
             f = _pr_texto(e, "fichero", "")
             l = _pr_int(e, "linea")
             if f != "" and l > 0
-                otros.push(PuntoProy(pr_ruta(p, f), l, _pr_texto(e, "condicion", ""), _pr_texto(e, "contador", "")))
+                otros.push(PuntoProy(pr_ruta(p, f), l, _pr_texto(e, "condicion", ""), _pr_texto(e, "contador", ""), 0, l))
             end
             i = i + 1
         end
@@ -350,6 +352,31 @@ func pr_punto_poner(ruta: String, linea: Int, puesto: Bool)
     end
     if puesto
         pr_puntos.push(PuntoProy(ruta, linea))
+    end
+end
+
+# El fichero se guardó (o se puso un punto sin cambios sin guardar): sus puntos están donde dice el disco
+func pr_puntos_guardados(ruta: String)
+    for q in pr_puntos
+        if _pr_misma(q.fichero, ruta)
+            q.guardada = q.linea
+        end
+    end
+end
+
+# Se descartaron los cambios del fichero: sus puntos vuelven a la línea del disco; los puestos después, se van
+func pr_puntos_descartar(ruta: String)
+    i = 0
+    while i < pr_puntos.length
+        q = pr_puntos[i]
+        if _pr_misma(q.fichero, ruta)
+            if q.guardada < 0
+                pr_puntos.remove(i)
+                continue
+            end
+            q.linea = q.guardada
+        end
+        i = i + 1
     end
 end
 

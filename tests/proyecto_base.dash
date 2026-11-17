@@ -79,6 +79,15 @@ Main
     pr_punto_poner("RAM:Cueva/main.dash", 30, true)
     pr_punto_poner("RAM:Cueva/main.dash", 20, false)
     ver("poner y quitar", pr_punto("RAM:Cueva/main.dash", 30) != nil and pr_punto("RAM:Cueva/main.dash", 20) == nil)
+    # al escribir, linea sigue al texto; al descartar los cambios, vuelve a la del disco (guardada)
+    ver("leído del .forja: guardada", pr_punto("RAM:Cueva/lib/red.dash", 7).guardada == 7)
+    ver("puesto en cambios sin guardar: sin guardada", pr_punto("RAM:Cueva/main.dash", 30).guardada == -1)
+    pr_puntos_guardados("RAM:Cueva/main.dash")
+    ver("al guardar el fichero, guardada", pr_punto("RAM:Cueva/main.dash", 30).guardada == 30)
+    pr_punto("RAM:Cueva/main.dash", 30).linea = 32
+    pr_punto_poner("RAM:Cueva/main.dash", 40, true)
+    pr_puntos_descartar("RAM:Cueva/main.dash")
+    ver("descartar: vuelve a su línea y el nuevo se va", pr_punto("RAM:Cueva/main.dash", 30) != nil and pr_punto("RAM:Cueva/main.dash", 40) == nil and pr_lineas_de("RAM:Cueva/main.dash").length == 1)
     igual("opciones", pr_opciones(q, false, false), " --cpu 68020 --fpu --stack 32768 --memcheck")
     igual("con perfil pedido", pr_opciones(nil, true, false), " --profile")
     q.opciones = "--tiempos"

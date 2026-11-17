@@ -73,6 +73,8 @@ struct Documento
     temporal: String = ""     # un ejemplo de la ayuda sin nombre (Probar): el fichero de T: desde el que se compila
     marcadores: [Int] = nil   # las líneas (desde 0) con marcador, en orden; siguen a su texto al escribir
     plegados: [Int] = nil     # las líneas (desde 0) de los bloques plegados, en orden
+    puntos_antes: [Int] = nil # al escribir, los puntos siguen a su texto: la línea que tenía antes cada uno de puntos
+                              # (en el mismo orden), hasta que se pasa a los del proyecto (ed_puntos_movidos)
 end
 
 var documentos: [Documento] = []
@@ -345,9 +347,13 @@ func ed_cambiar_lineas(d: Documento, desde: Int, hasta: Int, texto: String) -> B
         # las mismas líneas que había (comentar, cambiar en el proyecto...): los marcadores y los plegados se quedan
         var marcas: [Int] = nil
         var plegados: [Int] = nil
+        var puntos: [Int] = nil
+        var puntos_antes: [Int] = nil
         if str_split(texto, "\n").length == hasta - desde + 1
             marcas = _copia(d.marcadores)
             plegados = _copia(d.plegados)
+            puntos = _copia(d.puntos)
+            puntos_antes = d.puntos_antes
         end
         d.al = desde - 1
         d.ac = 0
@@ -359,6 +365,10 @@ func ed_cambiar_lineas(d: Documento, desde: Int, hasta: Int, texto: String) -> B
         end
         if plegados != nil
             d.plegados = plegados
+        end
+        if puntos != nil
+            d.puntos = puntos
+            d.puntos_antes = puntos_antes
         end
     end
     ed_seguir_cursor(d)
@@ -777,6 +787,9 @@ end
 # Los marcadores y los plegados siguen a su texto: n líneas nuevas tras la línea l (metidas en su columna c: en la
 # columna 0, el texto de la línea l también baja)
 func _lineas_metidas(d: Documento, l: Int, c: Int, n: Int, resto: Bool)
+    if d.puntos.length > 0
+        _puntos_correr(d, l, c == 0 and resto, n)
+    end
     if d.marcadores != nil
         _correr(d.marcadores, l, c == 0 and resto, n)
     end
@@ -798,6 +811,9 @@ end
 
 # Se quitaron las líneas l1 + 1 a l2 (lo que quedaba de l2 pasó a l1)
 func _lineas_quitadas(d: Documento, l1: Int, l2: Int)
+    if d.puntos.length > 0
+        _puntos_encoger(d, l1, l2)
+    end
     if d.marcadores != nil
         _encoger(d.marcadores, l1, l2, true)
     end
@@ -826,6 +842,65 @@ func _encoger(ls: [Int], l1: Int, l2: Int, juntar: Bool)
         end
     end
     _ordenar(ls)
+end
+
+# Los puntos de parada siguen a su texto como los marcadores (sus líneas van desde 1). Se mueven en su sitio, sin
+# ordenar, y puntos_antes guarda la línea de antes de cada uno: main lo pasa a los puntos del proyecto (con su
+# condición) con ed_puntos_movidos
+func _puntos_guardar(d: Documento)
+    if d.puntos_antes == nil or d.puntos_antes.length != d.puntos.length
+        d.puntos_antes = _copia(d.puntos)
+    end
+end
+
+func _puntos_correr(d: Documento, l: Int, baja: Bool, n: Int)
+    _puntos_guardar(d)
+    i = 0
+    while i < d.puntos.length
+        p = d.puntos[i] - 1
+        if p > l or (p == l and baja)
+            d.puntos[i] = d.puntos[i] + n
+        end
+        i = i + 1
+    end
+end
+
+func _puntos_encoger(d: Documento, l1: Int, l2: Int)
+    _puntos_guardar(d)
+    n = l2 - l1
+    i = 0
+    while i < d.puntos.length
+        p = d.puntos[i] - 1
+        if p > l2
+            d.puntos[i] = d.puntos[i] - n
+            i = i + 1
+        elif p > l1
+            # su línea ya no está: pasa a l1, si no tiene ya uno; si lo tiene, se va
+            if not _tiene(d.puntos, l1 + 1)
+                d.puntos[i] = l1 + 1
+                i = i + 1
+            else
+                d.puntos.remove(i)
+                d.puntos_antes.remove(i)
+            end
+        else
+            i = i + 1
+        end
+    end
+end
+
+# Si sus puntos se movieron al escribir: true, y deja en ed_movidos_antes y ed_movidos_ahora la línea de antes y la
+# de ahora de cada uno (un punto que había en antes y no está ya se quitó). Después, ya no cuentan como movidos.
+var ed_movidos_antes: [Int] = []
+var ed_movidos_ahora: [Int] = []
+func ed_puntos_movidos(d: Documento) -> Bool
+    if d.puntos_antes == nil
+        return false
+    end
+    ed_movidos_antes = d.puntos_antes
+    ed_movidos_ahora = _copia(d.puntos)
+    d.puntos_antes = nil
+    return true
 end
 
 func _tiene(ls: [Int], n: Int) -> Bool
@@ -1459,7 +1534,22 @@ func ed_mover_lineas(d: Documento, arriba: Bool) -> Bool
     else
         ed_cambiar_lineas(d, a + 1, b + 2, d.lineas[b + 1] + "\n" + _lineas_texto(d, a, b))
     end
-    # los marcadores van con sus líneas
+    # los marcadores y los puntos de parada van con sus líneas
+    if d.puntos.length > 0
+        _puntos_guardar(d)
+        i = 0
+        while i < d.puntos.length
+            m = d.puntos[i] - 1
+            if m >= a and m <= b
+                d.puntos[i] = d.puntos[i] + paso
+            elif arriba and m == a - 1
+                d.puntos[i] = b + 1
+            elif not arriba and m == b + 1
+                d.puntos[i] = a + 1
+            end
+            i = i + 1
+        end
+    end
     if d.marcadores != nil
         i = 0
         while i < d.marcadores.length

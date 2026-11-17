@@ -1,7 +1,8 @@
 # Hace de usuario del depurador de Forja con lo del paso 4.1, sobre tests/prueba/depurar2 (con su .forja): un punto
 # en la línea 16 con la condición i == 3 (en la pregunta de Depurar > Condición...), vigilar total * 2, ver los
 # registros y la memoria en a7; depura (Amiga-G) y para con i = 3; el valor de total bajo el ratón; un punto en la 17
-# con contador % 2 (para en la segunda vez); Ctrl F10 hasta la 19; los puntos y lo vigilado, en el .forja.
+# con contador % 2 (para en la segunda vez); Ctrl F10 hasta la 19; los puntos y lo vigilado, en el .forja; y una
+# línea nueva arriba: el punto baja con su texto (y así va al .forja al guardar).
 # Lo arranca tests/depurar_mas.sh; anota en DH0:Prueba/depurar_mas.txt. Sale con Amiga-Q.
 
 const AMIGA = 8
@@ -63,6 +64,7 @@ func al_editor()
     time_delay(5)
 end
 
+# El cursor a la línea n (con las flechas; si alguna se pierde con el emulador cargado, con CURSOR por ARexx)
 func a_la_linea(n: Int)
     al_editor()
     input_key(ARRIBA, CTRL)
@@ -71,7 +73,29 @@ func a_la_linea(n: Int)
         input_key(ABAJO, 0)
         k = k + 1
     end
-    time_delay(5)
+    # (Forja atiende las flechas de una en una, con su dibujo: con el emulador cargado tardan en llegar todas)
+    k = 0
+    while k < 60 and not str_starts(rexx_send(FORJA, "CURSOR"), "#{n} ")
+        time_delay(5)
+        k = k + 1
+    end
+    if not str_starts(rexx_send(FORJA, "CURSOR"), "#{n} ")
+        anotar("  (las flechas no llegaron a la línea #{n}: " + rexx_send(FORJA, "CURSOR") + ")")
+        rexx_send(FORJA, "CURSOR #{n} 1")
+        time_delay(5)
+    end
+end
+
+# Espera a que el .forja diga algo (Forja lo escribe al poner un punto)
+func forja_con(t: String) -> String
+    n = 0
+    f = file_read_text("DH0:Prueba/depurar2/depurar2.forja")
+    while n < 40 and not str_contains(f, t)
+        time_delay(5)
+        f = file_read_text("DH0:Prueba/depurar2/depurar2.forja")
+        n = n + 1
+    end
+    return f
 end
 
 func esperar_parada(que: String) -> String
@@ -94,7 +118,20 @@ func menu(ev: Int)
     env_set("FORJA_EVENTO", "#{ev}", false)
     activar()
     input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
-    input_key(0x45, 0)
+    # (activar la ventana ya es un evento: si Forja lo miró con él, no hace falta Esc, que cerraría lo que abrió)
+    k = 0
+    while k < 10 and env_get("FORJA_EVENTO") != ""
+        time_delay(5)
+        k = k + 1
+    end
+    if env_get("FORJA_EVENTO") != ""
+        input_key(0x45, 0)
+        k = 0
+        while k < 40 and env_get("FORJA_EVENTO") != ""
+            time_delay(5)
+            k = k + 1
+        end
+    end
     time_delay(15)
 end
 
@@ -121,7 +158,8 @@ Main
     a_la_linea(16)
     input_key(F9, 0)
     time_delay(10)
-    ver("F9 lo guarda en el .forja", str_contains(file_read_text("DH0:Prueba/depurar2/depurar2.forja"), "\"linea\": 16"), file_read_text("DH0:Prueba/depurar2/depurar2.forja"))
+    f = forja_con("\"linea\": 16")
+    ver("F9 lo guarda en el .forja", str_contains(f, "\"linea\": 16"), f)
     menu(264)
     responder("i == 3")
     ver("la condición", str_contains(rexx_send(FORJA, "PROPIEDAD puntos"), "main.dash:16 [i == 3]"), rexx_send(FORJA, "PROPIEDAD puntos"))
@@ -181,6 +219,16 @@ Main
     ver("acaba", str_starts(e, "4 "), e)
     f = file_read_text("DH0:Prueba/depurar2/depurar2.forja")
     ver("en el .forja: el punto con su condición y lo vigilado", str_contains(f, "\"condicion\": \"i == 3\"") and str_contains(f, "\"total * 2\"") and not str_contains(f, "\"linea\": 17"), f)
+    # el punto sigue a su línea al escribir: una línea nueva arriba lo baja a la 17 (con su condición); al .forja, al
+    # guardar el fichero
+    a_la_linea(1)
+    input_key(RETURN, 0)
+    time_delay(10)
+    ver("al escribir, el punto baja con su línea", str_contains(rexx_send(FORJA, "PROPIEDAD puntos"), "main.dash:17 [i == 3]"), rexx_send(FORJA, "PROPIEDAD puntos"))
+    input_key(0x21, AMIGA)
+    time_delay(20)
+    f = forja_con("\"linea\": 17")
+    ver("al guardar, en el .forja", str_contains(f, "\"linea\": 17") and not str_contains(f, "\"linea\": 16") and str_contains(f, "\"condicion\": \"i == 3\""), f)
     if fallos == 0
         anotar("TODO BIEN")
     else

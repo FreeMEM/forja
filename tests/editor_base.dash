@@ -69,6 +69,10 @@ func letra(d: Documento, l: String)
     ed_tecla(0x7F, 0, l)
 end
 
+func tiene_punto(d: Documento, n: Int) -> Bool
+    return d.puntos.has(n)
+end
+
 func teclear(d: Documento, t: String)
     i = 0
     while i < t.length
@@ -314,6 +318,33 @@ Main
     ed_deshacer(d)
     ed_deshacer(d)
     ver("deshacer: vuelven", ed_tiene_marcador(d, 1) and ed_tiene_marcador(d, 3))
+    # los puntos de parada (desde 1) siguen igual a su texto; ed_puntos_movidos dice cómo (para los del proyecto)
+    d = doc("a\nb\nc\nd\ne")
+    ed_alternar_punto(d, 2)
+    ed_alternar_punto(d, 4)
+    ver("puntos: nada movido aún", not ed_puntos_movidos(d))
+    d.cl = 0
+    d.cc = 1
+    ed_tecla(T_RETURN, 0, "")
+    ver("puntos: una línea antes, bajan", tiene_punto(d, 3) and tiene_punto(d, 5))
+    ver("puntos: movidos de 2 y 4 a 3 y 5", ed_puntos_movidos(d) and ed_movidos_antes.length == 2 and ed_movidos_antes[0] == 2 and ed_movidos_ahora[0] == 3 and ed_movidos_antes[1] == 4 and ed_movidos_ahora[1] == 5)
+    ver("puntos: ya contados", not ed_puntos_movidos(d))
+    d.cl = 2
+    ed_comentar(d)
+    ver("puntos: comentar no los mueve", tiene_punto(d, 3) and tiene_punto(d, 5) and not ed_puntos_movidos(d))
+    d.cl = 2
+    ed_mover_lineas(d, false)
+    ver("puntos: bajar su línea, va con ella", tiene_punto(d, 4) and tiene_punto(d, 5) and ed_puntos_movidos(d) and ed_movidos_ahora[0] == 4)
+    d.cl = 3
+    ed_borrar_lineas(d)
+    ver("puntos: borrar la línea de uno con otro debajo: se queda uno", d.puntos.length == 1 and tiene_punto(d, 4) and ed_puntos_movidos(d) and ed_movidos_antes.length == 1 and ed_movidos_ahora[0] == 4)
+    ed_deshacer(d)
+    ed_puntos_movidos(d)
+    d = doc("a\nb\nc\nd\ne")
+    d.cl = 1
+    ed_marcador(d)
+    d.cl = 3
+    ed_marcador(d)
     d.cl = 0
     ed_ir_marcador(d, true)
     ver("siguiente", d.cl == 1)

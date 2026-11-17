@@ -376,6 +376,13 @@ func guardar_en(d: Documento, ruta: String) -> Bool
     d.ruta = ruta
     d.nombre = nombre_de(ruta)
     d.cambiado = false
+    # los puntos de parada que se movieron al escribir, al .forja (con el fichero ya como dicen)
+    puntos_seguir()
+    pr_puntos_guardados(ruta)
+    if puntos_por_guardar and proyecto_de(ruta) != nil
+        puntos_por_guardar = false
+        proyecto_guardar()
+    end
     avisar(tr(3, "Guardado: ") + ruta, 2)
     ext_suceso("GUARDADO", ruta)
     # sus errores, con dash --check en segundo plano (paso 3.5)
@@ -460,6 +467,9 @@ func proyecto(ev: Int) -> Bool
             if r == 0 or (r == 1 and not guardar(d))
                 return false
             end
+            if r == 2
+                puntos_descartar(d)
+            end
         end
         cerrada = d.ruta
         if cerrada == ""
@@ -477,6 +487,13 @@ func proyecto(ev: Int) -> Bool
             r = mui_request(v.window, tr(63, "Cambios sin guardar"), texto, tr(6, "_Guardar|_Descartar|_Cancelar"))
             if r == 0
                 return false
+            end
+            if r == 2
+                for o in documentos
+                    if o.cambiado
+                        puntos_descartar(o)
+                    end
+                end
             end
             if r == 1
                 for o in documentos
@@ -2713,10 +2730,14 @@ end
 
 # Pone o quita un punto de parada; si se está depurando, también en el programa
 func alternar_punto(d: Documento, n: Int)
+    puntos_seguir()
     puesto = ed_alternar_punto(d, n)
     # con el proyecto: se guarda en el .forja (también su condición, si la tiene)
     if d.ruta != ""
         pr_punto_poner(d.ruta, n, puesto)
+        if not d.cambiado
+            pr_puntos_guardados(d.ruta)
+        end
         puntos_raros_al_dia()
         if proyecto_de(d.ruta) != nil
             proyecto_guardar()
@@ -3465,6 +3486,7 @@ func seguir_antes()
 end
 
 func seguir_despues()
+    puntos_seguir()
     d = _sm_doc
     _sm_doc = nil
     if d != nil and d.version != _sm_version
@@ -4482,8 +4504,69 @@ func _indice_en(lista: String, t: String) -> Int
     return 0
 end
 
+# Los puntos de parada siguen a su texto al escribir: el editor mueve los del documento (ed_puntos_movidos) y aquí
+# se mueven los del proyecto, con su condición y su contador. Al .forja van al guardar el fichero (puntos_por_guardar).
+# Depurando, el depurador sigue con los de antes: el programa en marcha es el texto de antes.
+var puntos_por_guardar: Bool = false
+func puntos_seguir()
+    movidos = false
+    for d in documentos
+        if d.puntos_antes != nil and ed_puntos_movidos(d)
+            if d.ruta != "" and _puntos_mover(d.ruta)
+                movidos = true
+            end
+        end
+    end
+    if movidos
+        puntos_por_guardar = true
+        puntos_raros_al_dia()
+    end
+end
+
+# Cerrar sin guardar: sus puntos vuelven a donde estaban en el fichero del disco (y así al .forja)
+func puntos_descartar(d: Documento)
+    puntos_seguir()
+    if d.ruta == ""
+        return
+    end
+    pr_puntos_descartar(d.ruta)
+    d.puntos = pr_lineas_de(d.ruta)
+    d.puntos_antes = nil
+    puntos_raros_al_dia()
+    if proyecto_de(d.ruta) != nil
+        proyecto_guardar()
+    end
+end
+
+func _puntos_mover(ruta: String) -> Bool
+    cambio = false
+    i = 0
+    while i < pr_puntos.length
+        q = pr_puntos[i]
+        if str_lower(q.fichero) == str_lower(ruta)
+            k = 0
+            while k < ed_movidos_antes.length and ed_movidos_antes[k] != q.linea
+                k = k + 1
+            end
+            if k == ed_movidos_antes.length
+                # su línea se borró y ya había otro punto donde iba a parar
+                pr_puntos.remove(i)
+                cambio = true
+                continue
+            end
+            if q.linea != ed_movidos_ahora[k]
+                q.linea = ed_movidos_ahora[k]
+                cambio = true
+            end
+        end
+        i = i + 1
+    end
+    return cambio
+end
+
 # Los puntos de parada de los ficheros abiertos, los del proyecto (al abrirlo)
 func proyecto_puntos_al_dia()
+    puntos_seguir()
     for d in documentos
         if d.ruta != "" and proy != nil and pr_dentro(proy, d.ruta)
             d.puntos = pr_lineas_de(d.ruta)
@@ -4533,7 +4616,9 @@ func nuevo_proyecto_abrir()
     mui_set_text(vn.nombre, "")
     mui_set_text(vn.cajon, cajon)
     nuevo_proyecto_descripcion()
-    mui_window_open(vn.window)
+    if not mui_window_open(vn.window)
+        avisar(hueco(tr(1005, "No se puede abrir la ventana %1."), tr(920, "Nuevo proyecto (Forja)")), 1)
+    end
     mui_set_active(vn.window, vn.nombre)
 end
 
@@ -4703,7 +4788,9 @@ func propiedades_abrir()
     mui_set_text(vq.opciones, p.opciones)
     mui_set_text(vq.argumentos, p.argumentos)
     mui_set_text(vq.argumentos_depurar, p.argumentos_depurar)
-    mui_window_open(vq.window)
+    if not mui_window_open(vq.window)
+        avisar(hueco(tr(1005, "No se puede abrir la ventana %1."), tr(930, "Propiedades del proyecto (Forja)")), 1)
+    end
 end
 
 func propiedades_guardar()
@@ -4937,6 +5024,7 @@ func quitar_puntos()
             end
         end
         d.puntos.clear()
+        d.puntos_antes = nil
     end
     if tarea == DEPURANDO
         for q in pr_puntos
