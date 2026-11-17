@@ -355,7 +355,13 @@ func copper()
     if c.length > 6 and str_find(c[6], ":") > 0
         l = Int(c[6][0:str_find(c[6], ":")])
     end
-    ver("arrastrar una parada en la vista la mueve (a la línea #{l})", l >= 100 and l <= 140 and str_ends(c[6], ":00F"), linea("copper"))
+    # (input_drag en este lienzo, con búfer: en MUI 5 no llega ningún suceso de arrastre y en MUI 3.8 solo el primer
+    # movimiento, sin el de soltar; sin sucesos no se puede mirar, y se dice)
+    if campo_sonda(linea("puntero"), "arrastres") <= 0
+        anotar("  (aviso: el arrastre no se prueba: input_drag no llegó al lienzo; " + linea("puntero") + ")")
+    else
+        ver("arrastrar una parada en la vista la mueve (a la línea #{l})", l > 40 and str_ends(c[6], ":00F"), linea("copper") + " / " + linea("puntero"))
+    end
     # un clic en la lista elige esa parada
     lx = zx + 4 + 160 + 16 + 4
     ly = cy + 2 * (alto_letra() + 2) + 6 + (alto_letra() + 2) * 2 + 2

@@ -666,6 +666,8 @@ func copper_tecla(k: Int, q: Int, ch: String)
     redibujar()
 end
 
+var arrastres: Int = 0             # (para la sonda: cuántos sucesos de arrastre y el último)
+var ultimo_arrastre: String = ""
 var cu_arrastrando: Bool = false    # se mueve la parada elegida con el ratón (el clic fue en la vista)
 
 # Un clic en la vista elige la parada más cercana (y arrastrando se mueve); en la lista, esa parada
@@ -2214,6 +2216,8 @@ func evento(ev: Int) -> Bool
     if ev == EV_LIENZO
         en_lienzo()
     elif ev == EV_ARRASTRE
+        arrastres = arrastres + 1
+        ultimo_arrastre = "#{mui_canvas_drag(lienzo)} #{mui_canvas_mouse_y(lienzo)} #{cu_arrastrando}"
         if pagina == PAG_COPPER
             copper_arrastrar(mui_canvas_mouse_y(lienzo), mui_canvas_drag(lienzo) == 2)
         end
@@ -2330,7 +2334,7 @@ func publicar_sonda()
     end
     t = t + "mensaje " + mensaje + "\n"
     # (el puntero, desde la esquina de la zona: la prueba sabe así dónde está la zona en la ventana)
-    t = t + "puntero #{mui_canvas_pointer_x(lienzo)} #{mui_canvas_pointer_y(lienzo)}\n"
+    t = t + "puntero #{mui_canvas_pointer_x(lienzo)} #{mui_canvas_pointer_y(lienzo)} arrastres #{arrastres} " + ultimo_arrastre + "\n"
     t = t + "dibujo #{ms_dibujo} pens #{_pens_lista.length} enteros #{dibujos} partes #{parciales} parte #{mediana(_ultimos)}\n"
     if t != sonda_antes
         sonda_antes = t
