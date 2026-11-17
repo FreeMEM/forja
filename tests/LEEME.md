@@ -214,7 +214,7 @@ dashc.amiga>] [capturas/]` arranca Forja con el copiloto y la Inferencia de verd
 Inferencia (`tests/servidor_falso.py` de su repositorio) con los guiones de `tests/guiones_copiloto`, y la ayuda de
 Dash (`AYUDA=.../Dash.ayuda`; si no, la de `build/ayuda` de Dash, de `tools/gen_ayuda.py`). `tests/copiloto.dash`, sobre
 `tests/prueba/copiloto/main.dash`: documentar la función (con la ayuda, la vista, `a`, Amiga-Z), cambiar el código
-(su ventana, `r`), explicar la selección y preguntar (a la conversación), escribir la prueba (fichero nuevo), con dashc
+(su ventana, `r`), explicar la selección y preguntar (a la conversación), escribir la prueba (fichero nuevo, que Forja ejecuta al aceptarla), con dashc
 explicar y arreglar un error (compila antes), y las sugerencias al escribir (SUGERENCIA y Tab). Guarda
 `copiloto-*.png` en `capturas/`. Con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`; `SOLO=sugerencias`, solo lo
 último. El servidor usa el puerto 40900 del PC: `flock /run/user/1000/dash-emu-red.lock tests/copiloto.sh ...`.
@@ -231,14 +231,22 @@ El editor cómodo (fase 2 de `docs/FORJA_LOOP.md`):
 - `tests/editor.sh <worktree de Dash> [capturas/]`: `tests/editor.dash`, como un usuario, sobre
   `tests/prueba/editor/main.dash` (con un bloque `asm`): el `end` solo y los paréntesis al escribir; Ctrl /, Ctrl D,
   Ctrl Mayús K, Ctrl Alt arriba y Amiga-Z; la pareja de `func`, `asm` y un paréntesis, y Ctrl M; una tecla con el
-  puntero en la salida; Ctrl Mayús F y un clic en lo encontrado; cambiar en el proyecto (la pestaña de cambios y la
-  pregunta) y deshacerlo; el esquema (Ctrl O), abrir un fichero (Ctrl P) e ir a un nombre (Ctrl T); marcadores (Ctrl
+  puntero en la salida; Ctrl Mayús F y un clic en lo encontrado; cambiar en el proyecto (la pestaña Cambios, que se
+  queda abierta: moverse por ella, Esc, ir a otra pestaña y volver con Ctrl Tab, y Return) y deshacerlo; el esquema (Ctrl O), abrir un fichero (Ctrl P) e ir a un nombre (Ctrl T); marcadores (Ctrl
   F3, F3, Mayús F3) que siguen a su línea; renombrar `doble` (F2) en `main.dash`, abierto, y en `util.dash`, en el
   disco; plegar con F4 y desplegar con la tecla de `ENV:Forja/teclas` (la prueba cambia una tecla y un color, y pone
   una línea mala en cada fichero: se dicen en la salida). Mide el repintado al mover el cursor (dos líneas) y el
   dibujo entero. Con `capturas/`: `editor-colores.png`, `editor-pareja.png`, `editor-cambios.png`,
   `editor-esquema.png`, `editor-renombrar.png` y `editor-plegado.png`. `RTG=1` (256 colores), `REAL=1` (la CPU de un
   A1200) y con MUI 3.8 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`.
+
+`tests/pestanas.sh <worktree de Dash> [capturas/]`: `tests/pestanas.dash` abre 12 ficheros de nombre largo (en 640 de
+ancho no caben): la de delante se ve y salen los botones de la derecha; los botones mueven las pestañas sin cambiar la
+de delante; un clic, Ctrl Tab y Ctrl Mayús Tab (que da la vuelta) cambian de pestaña; el botón de la lista y Ctrl E
+abren la lista de todas, que se filtra escribiendo; al cerrar las que sobran, los botones se van.
+`ENV:FORJA_PESTANAS` da el centro de cada pestaña ("-1,-1" las que no se ven) y "botones:x,y";
+`ENV:FORJA_PESTANAS_NOMBRES`, sus nombres y cuántas no se ven. Capturas `pestanas-botones.png`, `pestanas-lista.png` y
+`pestanas-caben.png`. También con MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`).
 
 `tests/memoria.sh <worktree de Dash> [<cajón con dashc.amiga>]` (`MEMORIA=nada`, `git` o `todas`): `tests/memoria.dash`
 arranca Forja dos veces con `tests/prueba/juego` y apunta la memoria chip y fast que usa quieta, compilando (con
@@ -258,7 +266,8 @@ Proyectos, plantillas, depurar más y perfil (pasos 3.1, 3.2, 4.1 y 4.2 de `docs
   `src/plantillas_datos.dash` (que `tools/plantillas.py --comprobar` dice al día).
 - `tests/forja_proyecto.sh <worktree de Dash> <cajón con dashc.amiga> [capturas/]`: `tests/forja_proyecto.dash` arranca
   Forja, hace un proyecto de cada plantilla por ARexx (`NUEVOPROYECTO`) y lo compila con la orden dash del Amiga;
-  ejecuta la orden del Shell con los argumentos del proyecto; `PROPIEDAD` (y la línea `@version`); las ventanas
+  ejecuta la orden del Shell con los argumentos del proyecto; `PROPIEDAD` (y la línea `@version`); un `tope` de
+  tamaño que no cabe (compilar dice lo que pesa y que pasa del tope); las ventanas
   Propiedades (Guardar no cambia nada) y Nuevo proyecto (el nombre y Return); y, con Workbench 3.5 o más
   (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`), sale de Forja y abre un proyecto desde su icono con `wb_open`.
   Capturas `propiedades.png`, `nuevo.png` e `icono.png`.
@@ -291,7 +300,9 @@ compila en el PC la demo con el copper que quedó en `main.dash` y la versión f
 `pistas_datos.dash`. Sondas: `RAM:forja-demos-sonda.txt` y `ENV:FORJA_DEMOS_LIENZO`. Las capturas (sincronia, medidor,
 musica, copper) las hace el propio Amiga con la pantalla de la demo detrás (orden DETRAS); el copper y las barras de
 la demo no salen en ellas (`screen_save_png` lee el bitmap, no lo que pinta el copper).
-La prueba de Demos también deshace y rehace en las pistas, cambia el nombre de una, la mueve y la quita, y apunta lo
+La prueba de Demos también abre un segundo `.sync` (Tab va de uno a otro; una clave en él no llega a la demo), en el
+copper arrastra una parada, elige otra con un clic en la lista y lee el bloque siguiente con Tab, y
+deshace y rehace en las pistas, cambia el nombre de una, la mueve y la quita, y apunta lo
 que tarda un dibujo entero ("dibujo") y la mediana de los dibujos de una parte ("parte": una fila de la tabla, el
 medidor), sin la demo y con ella; `REAL=1` para los tiempos de un A1200.
 
