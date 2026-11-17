@@ -31,7 +31,9 @@ cp -r "$dash/lib" "$r/Dash/lib"
 libs=""
 [ -n "$DASH_EMU_MINIGL" ] && libs="--lib $DASH_EMU_MINIGL"
 cd "$dash" && python3 tools/emu_run.py --machine coffin --timeout ${TIEMPO:-900} $libs --cd "$r" "$r/Coffin" > "$tmp/salida.txt" 2>&1 || true
-if [ -f "$r/coffin.txt" ]; then iconv -f latin1 -t utf-8 "$r/coffin.txt"; else echo "FALLO: no hay registro"; tail -20 "$tmp/salida.txt"; fi
+if [ -f "$r/coffin.txt" ]; then iconv -f latin1 -t utf-8 "$r/coffin.txt"; else echo "FALLO: no hay registro"; fi
+# (lo que dijo el emulador, si el registro no llegó al final)
+grep -q "TODO BIEN\|FALLOS" "$r/coffin.txt" 2>/dev/null || tail -25 "$tmp/salida.txt"
 if [ -n "$capturas" ]; then
   mkdir -p "$capturas"
   cp "$r"/coffin-*.png "$capturas/" 2>/dev/null || true
