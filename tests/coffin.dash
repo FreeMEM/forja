@@ -1,0 +1,426 @@
+# Forja de punta a punta en la máquina CoffinOS de Dash (MUI 3.8, 68040 con JIT, RTG de 1280x1024; paso 0.1 de
+# docs/FORJA_LOOP.md), como la usaría alguien: un proyecto de cada plantilla (y compilarlo), ejecutar la orden del
+# Shell, escribir con un error (marcado al guardar) y arreglarlo, depurar con un punto de parada, git (init, add,
+# commit y la rama en la barra), la ayuda (F1 y Buscar en la ayuda), un sprite en su extensión, y la demo con la
+# extensión Demos (se conecta, la fila avanza, el medidor). Lo lanza tests/coffin.sh, que deja en Proyecto: (una
+# carpeta del PC) Forja, sus extensiones, la ayuda, la orden dash y dashgit. Anota en Proyecto:coffin.txt, con lo que
+# tarda cada cosa, y acaba con "TODO BIEN".
+
+const FORJA = "FORJA.1"
+const GIT = "FORJAEXT.GIT"
+const AMIGA = 8
+const CTRL = 2
+const F1 = 0x50
+const F5 = 0x54
+const F9 = 0x58
+const RETURN = 0x44
+const ESC = 0x45
+const BASE = "RAM:Proyectos"
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("Proyecto:coffin.txt", registro)
+    Print texto
+end
+
+func ver(paso: String, cierto: Bool, detalle: String) -> Bool
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+    return cierto
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func ms(t0: Int) -> String
+    return "#{time_ms() - t0} ms"
+end
+
+func campo(nombre: String, i: Int) -> Int
+    p = str_split(env_get(nombre), " ")
+    if i < p.length
+        return Int(p[i])
+    end
+    return 0
+end
+
+func puerto(nombre: String) -> Bool
+    n = ports_read()
+    i = 0
+    while i < n
+        if port_name(i) == nombre
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func esperar_puerto(nombre: String, si: Bool, decimas: Int) -> Bool
+    n = 0
+    while n < decimas and puerto(nombre) != si
+        time_delay(5)
+        n = n + 5
+    end
+    return puerto(nombre) == si
+end
+
+func esperar_libre()
+    n = 0
+    time_delay(10)
+    while n < 1800 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+end
+
+func activar(titulo: String) -> Bool
+    w = window_find(titulo)
+    if w == 0
+        return false
+    end
+    if input_active_title() != titulo
+        window_found_activate(w)
+        time_delay(10)
+    end
+    return input_active_title() == titulo
+end
+
+func esperar_ventana(titulo: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas and window_find(titulo) == 0
+        time_delay(5)
+        n = n + 5
+    end
+    return window_find(titulo) != 0
+end
+
+# El puntero en el editor de Forja (su ventana, delante)
+func al_editor() -> Bool
+    activar("Forja")
+    if env_get("FORJA_EDITOR") == ""
+        return false
+    end
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+    return true
+end
+
+func esperar_env(nombre: String, empieza: String, decimas: Int) -> String
+    n = 0
+    while n < decimas and not str_starts(env_get(nombre), empieza)
+        time_delay(5)
+        n = n + 5
+    end
+    return env_get(nombre)
+end
+
+func sonda_demos() -> String
+    t = file_read_text("RAM:forja-demos-sonda.txt")
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+func esperar_demos(trozo: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas and not str_contains(sonda_demos(), trozo)
+        time_delay(5)
+        n = n + 5
+    end
+    return str_contains(sonda_demos(), trozo)
+end
+
+func captura(nombre: String)
+    screen_save_png("Proyecto:coffin-" + nombre + ".png")
+end
+
+# --- 1. Un proyecto de cada plantilla, y compilarlo ---
+func plantillas()
+    var tipos: [String] = ["orden", "commodity", "mui", "juego", "demo", "3d"]
+    var nombres: [String] = ["Contar", "Reloj", "Saludo", "Cueva", "Barras", "Cubo"]
+    k = 0
+    while k < tipos.length
+        nombre = nombres[k]
+        dir = BASE + "/" + nombre
+        t0 = time_ms()
+        r = rexx("NUEVOPROYECTO " + tipos[k] + " " + BASE + " " + nombre)
+        ver(tipos[k] + ": proyecto nuevo (" + ms(t0) + ")", r == dir + "/" + nombre + ".forja" and rexx("ABIERTO " + dir + "/main.dash") == "1", r + " rc #{rexx_rc()}")
+        t0 = time_ms()
+        rexx("COMPILAR")
+        esperar_libre()
+        e = rexx("ERRORES")
+        ver(tipos[k] + ": compila (" + ms(t0) + ")", e == "" and file_exists(dir + "/" + nombre), e + " | " + rexx("SALIDA"))
+        k = k + 1
+    end
+end
+
+# --- 2. Ejecutar la orden del Shell, con argumentos ---
+func ejecutar()
+    rexx("ABRIR " + BASE + "/Contar/Contar.forja")
+    rexx("PROPIEDAD argumentos " + BASE + "/Contar/main.dash")
+    antes = rexx("SALIDA").length
+    t0 = time_ms()
+    rexx("EJECUTAR")
+    esperar_libre()
+    s = rexx("SALIDA")
+    nuevo = ""
+    if s.length > antes
+        nuevo = s[antes:]
+    end
+    ver("ejecutar la orden con los argumentos del proyecto (" + ms(t0) + ")", str_contains(nuevo, "main.dash") and str_contains(nuevo, "código 0"), nuevo)
+end
+
+# --- 3. Escribir con un error: se marca al guardar; arreglarlo lo quita ---
+func errores()
+    m = BASE + "/Cueva/main.dash"
+    rexx("ABRIR " + m)
+    # una línea con una función que no existe, al principio de Main
+    ls = str_split(rexx("TEXTO " + m), "\n")
+    k = 0
+    while k < ls.length and not str_starts(ls[k], "Main")
+        k = k + 1
+    end
+    rexx("CAMBIAR " + m + " #{k + 2} #{k + 1} x = no_existe(3)")
+    t0 = time_ms()
+    rexx("GUARDAR " + m)
+    n = 0
+    e = ""
+    while n < 100 and e == ""
+        time_delay(5)
+        e = rexx("ERRORES")
+        n = n + 1
+    end
+    ver("un error al guardar: dash --check lo marca (" + ms(t0) + ")", str_contains(e, "no_existe"), e)
+    captura("error")
+    # (la línea se queda vacía: CAMBIAR la cambia por nada)
+    rexx("CAMBIAR " + m + " #{k + 2} #{k + 2} ")
+    rexx("GUARDAR " + m)
+    n = 0
+    while n < 100 and rexx("ERRORES") != ""
+        time_delay(5)
+        n = n + 1
+    end
+    ver("arreglado, el error se quita", rexx("ERRORES") == "", rexx("ERRORES"))
+end
+
+# --- 4. Depurar: un punto de parada en contar() ---
+func depurar()
+    m = BASE + "/Contar/main.dash"
+    rexx("ABRIR " + m)
+    rexx("PROPIEDAD argumentos_depurar " + m)
+    rexx("CURSOR 18 5")
+    if not al_editor()
+        ver("depurar: el editor", false, "")
+        return
+    end
+    input_key(F9, 0)
+    time_delay(10)
+    t0 = time_ms()
+    input_key(F5, 0)
+    e = esperar_env("FORJA_DEPURAR", "3 18 ", 600)
+    ver("depurar: para en el punto de contar() (" + ms(t0) + ")", str_starts(e, "3 18 contar"), e)
+    v = env_get("FORJA_VARIABLES")
+    ver("depurar: la pila y las variables", str_contains(v, "contar") and str_contains(v, "texto"), v)
+    captura("depurar")
+    input_key(F9, 0)
+    time_delay(10)
+    input_key(F5, 0)
+    e = esperar_env("FORJA_DEPURAR", "4", 600)
+    ver("depurar: F5 sigue hasta el final", str_starts(e, "4"), e)
+    esperar_libre()
+end
+
+# --- 5. Git: init, add, commit y la rama ---
+func git(orden: String) -> String
+    antes = rexx("SALIDA").length
+    rexx_send(GIT, "GIT " + orden)
+    n = 0
+    time_delay(10)
+    while n < 600 and rexx_send(GIT, "ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    s = rexx("SALIDA")
+    if s.length > antes
+        return s[antes:]
+    end
+    return ""
+end
+
+func con_git()
+    rexx("ABRIR " + BASE + "/Cueva/Cueva.forja")
+    if not ver("git: la extensión está", esperar_puerto(GIT, true, 300), "")
+        return
+    end
+    t0 = time_ms()
+    s = git("init")
+    ver("git init (" + ms(t0) + ")", str_contains(str_lower(s), "init"), s)
+    git("config user.name Forja")
+    git("config user.email forja@amiga")
+    git("add -A")
+    t0 = time_ms()
+    s = git("commit -m primero")
+    ver("git commit (" + ms(t0) + ")", str_contains(s, "primero") or str_contains(s, "commit"), s)
+    n = 0
+    t0 = time_ms()
+    e = rexx_send(GIT, "GITESTADO")
+    while n < 300 and not str_contains(e, "master") and not str_contains(e, "main")
+        time_delay(10)
+        e = rexx_send(GIT, "GITESTADO")
+        n = n + 1
+    end
+    ver("git: la rama en la barra (" + ms(t0) + ")", str_contains(e, "master") or str_contains(e, "main"), e)
+    captura("git")
+end
+
+# --- 6. La ayuda: F1 sobre un builtin y Buscar en la ayuda ---
+func ayuda()
+    m = BASE + "/Cueva/main.dash"
+    rexx("ABRIR " + m)
+    t = rexx("TEXTO " + m)
+    # la primera línea con wait_vblank (o Print)
+    ls = str_split(t, "\n")
+    linea = 0
+    col = 0
+    i = 0
+    while i < ls.length and linea == 0
+        c = str_find(ls[i], "wait_vblank")
+        if c < 0
+            c = str_find(ls[i], "Print")
+        end
+        if c >= 0
+            linea = i + 1
+            col = c + 2
+        end
+        i = i + 1
+    end
+    rexx("CURSOR #{linea} #{col}")
+    al_editor()
+    t0 = time_ms()
+    input_key(F1, 0)
+    ok = esperar_ventana("Ayuda de Dash (Forja)", 100)
+    ver("F1 abre la ficha en la ayuda (" + ms(t0) + ")", ok, input_active_title())
+    if ok
+        time_delay(50)
+        captura("ayuda")
+        activar("Ayuda de Dash (Forja)")
+        input_key(ESC, 0)
+    end
+end
+
+# --- 7. Un sprite: Amiga-B en Forja (la extensión Sprites) ---
+func sprite()
+    if not al_editor()
+        return
+    end
+    input_key(0x35, AMIGA)
+    ok = esperar_ventana("Nuevo", 100)
+    ver("Amiga-B: lo que hacen las extensiones", ok, input_active_title())
+    if ok
+        activar("Nuevo")
+        # S: un sprite de hardware
+        input_key(0x21, 0)
+        ok = esperar_ventana("Sprites: sin nombre.iff", 200)
+        ver("un sprite nuevo, en la ventana de Sprites", ok, input_active_title())
+        if ok
+            time_delay(50)
+            captura("sprite")
+        end
+    end
+end
+
+# --- 8. La demo, con la extensión Demos ---
+func demo()
+    rexx("ABRIR " + BASE + "/Barras/Barras.forja")
+    rexx("ABRIR " + BASE + "/Barras/demo.sync")
+    ok = esperar_ventana("Demos", 200)
+    ver("demo.sync abre la ventana de Demos", ok and esperar_demos("sync demo.sync pistas 2", 50), sonda_demos())
+    rexx("ABRIR " + BASE + "/Barras/main.dash")
+    t0 = time_ms()
+    rexx("EJECUTAR")
+    ver("la demo se conecta a la extensión (" + ms(t0) + ")", esperar_demos("demo true", 300), sonda_demos())
+    time_delay(100)
+    f1 = 0
+    l = str_split(sonda_demos(), "\n")
+    for x in l
+        if str_starts(x, "demo true fila ")
+            f1 = Int(str_split(x, " ")[3])
+        end
+    end
+    time_delay(100)
+    f2 = 0
+    for x in str_split(sonda_demos(), "\n")
+        if str_starts(x, "demo true fila ")
+            f2 = Int(str_split(x, " ")[3])
+        end
+    end
+    ver("la fila de la demo avanza en la tabla", f2 > f1, "#{f1} #{f2}")
+    for x in str_split(sonda_demos(), "\n")
+        if str_starts(x, "dibujo ")
+            anotar("  (Demos: " + x + ")")
+        end
+    end
+    rexx_send_wait("DEMOSYNC", "DETRAS", 2000)
+    time_delay(25)
+    captura("demos")
+    rexx_send_wait("DEMOSYNC", "ACABAR", 2000)
+    ver("la demo acaba y la extensión lo ve", esperar_demos("demo false", 200), sonda_demos())
+    esperar_libre()
+end
+
+Main
+    dir_create("ENV:Forja")
+    dir_create(BASE)
+    env_set("Forja/dashc", "Proyecto:Dash/dash", false)
+    env_set("Forja/extensiones", "Proyecto:Extensiones", false)
+    env_set("Forja/extensiones_apagadas", "", false)
+    env_set("Forja/ayuda", "Proyecto:Ayuda", false)
+    env_set("Forja/dashgit", "Proyecto:dashgit", false)
+    env_set("Forja/sesion", "", false)
+    env_set("Forja/buscar_dash", "no", false)
+    env_set("FORJA_SONDA", "1", false)
+    env_set("FORJA_PRUEBA", "", false)
+    anotar("CoffinOS: " + "chip #{mem_chip_free() / 1024} KB y fast #{mem_fast_free() / 1024} KB libres")
+    t0 = time_ms()
+    run_command("Run >NIL: Proyecto:Forja")
+    if ver("Forja arranca (" + ms(t0) + ")", esperar_puerto(FORJA, true, 600) and esperar_ventana("Forja", 300), "")
+        time_delay(100)
+        captura("arranque")
+        plantillas()
+        ejecutar()
+        errores()
+        depurar()
+        con_git()
+        ayuda()
+        sprite()
+        demo()
+        captura("final")
+        t0 = time_ms()
+        rexx("QUIT")
+        n = 0
+        while n < 100 and window_find("Cambios sin guardar") == 0 and puerto(FORJA)
+            time_delay(5)
+            n = n + 1
+        end
+        if activar("Cambios sin guardar")
+            # (el sprite nuevo, sin guardar: Descartar)
+            input_key(0x22, 0)
+        end
+        ver("Forja se cierra, con sus extensiones", esperar_puerto(FORJA, false, 300) and esperar_puerto(GIT, false, 300) and esperar_puerto("FORJAEXT.SPRITES", false, 300) and esperar_puerto("FORJAEXT.DEMOS", false, 300), "")
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+end

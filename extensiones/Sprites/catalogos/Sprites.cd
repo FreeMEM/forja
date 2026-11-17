@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/ext-editores/extensiones/Sprites/editor_sprites.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/pulido/extensiones/Sprites/editor_sprites.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 Sprites
@@ -172,5 +172,7 @@ MSG_144 (144//)
 sus colores, los del fichero (en una pantalla propia del programa)
 MSG_145 (145//)
 sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)
+MSG_146 (146//)
+Salir de Forja
 MSG_870 (870//)
 no es de ancho fijo

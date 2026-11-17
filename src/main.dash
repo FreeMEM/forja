@@ -365,7 +365,8 @@ func abrir_nuevo(ruta: String) -> Bool
     end
     ed_abrir_texto(nombre_de(ruta), ruta, texto)
     # sus puntos de parada (los del proyecto, con su condición)
-    ed_actual().puntos = pr_lineas_de(ruta)
+    d = ed_actual()
+    d.puntos = pr_lineas_de(ruta)
     return true
 end
 
@@ -864,8 +865,14 @@ func armar_tic(ms: Int, ev: Int)
     mui_timer(ms, ev)
 end
 
+var ayuda_campo_luego: Bool = false
+
 func tic()
     tic_armado = false
+    if ayuda_campo_luego
+        ayuda_campo_luego = false
+        mui_set_active(va.window, va.buscar)
+    end
     comprobar_tic()
     ext_reposo()
     actualizar_tic()
@@ -2234,6 +2241,11 @@ func ayuda_evento(ev: Int)
         if ayuda_al_campo
             ayuda_al_campo = false
             mui_set_active(va.window, va.buscar)
+            # (con MUI 3.8 tampoco se queda: algo de MUI se lo quita justo después; otra vez un momento más tarde, en el
+            # tic, que no hace nada antes de tiempo)
+            ayuda_campo_luego = true
+            tic_armado = false
+            armar_tic(150, EV_TIC)
         end
         return
     end
@@ -3590,6 +3602,9 @@ func ext_menus_al_dia()
             mui_menu_end()
         end
     end
+    if sonda
+        env_set("FORJA_MENU_EXT", firma, false)
+    end
     s = 0
     while s < EXT_SUBMENUS
         firma = ""
@@ -3843,10 +3858,17 @@ end
 
 # Instalar desde un cajón (se elige su manifiesto.txt) o un .lha: enseña qué es y pregunta antes de copiar
 func gestor_instalar()
-    if not file_open_dialog(tr(629, "Instalar una extensión: su manifiesto.txt o un .lha"), "(manifiesto.txt|#?.lha)")
+    # (para las pruebas, con la sonda: ENV:FORJA_INSTALAR en vez de la petición de ASL, que no se puede manejar sola)
+    ruta = ""
+    if sonda and env_get("FORJA_INSTALAR") != ""
+        ruta = env_get("FORJA_INSTALAR")
+        env_set("FORJA_INSTALAR", "", false)
+    elif file_open_dialog(tr(629, "Instalar una extensión: su manifiesto.txt o un .lha"), "(manifiesto.txt|#?.lha)")
+        ruta = file_fullpath()
+    end
+    if ruta == ""
         return
     end
-    ruta = file_fullpath()
     dir = cajon_de(ruta)
     if str_ends(str_lower(ruta), ".lha")
         dir = ext_sacar_lha(ruta)

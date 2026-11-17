@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/ext-editores/extensiones/Mapas/editor_mapas.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/pulido/extensiones/Mapas/editor_mapas.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 Mapas
@@ -300,5 +300,7 @@ MSG_220 (220//)
 %1 objetos: tilemap_object_find busca los de una clase; x e y en píxeles del mapa
 MSG_221 (221//)
 Sprite del objeto
+MSG_222 (222//)
+Salir de Forja
 MSG_870 (870//)
 no es de ancho fijo

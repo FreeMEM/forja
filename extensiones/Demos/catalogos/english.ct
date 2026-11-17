@@ -278,6 +278,9 @@ Not a MOD of 4 channels and 31 instruments:
 MSG_92
 The MOD is cut short: 
 ; El MOD está cortado: 
+MSG_94
+Quit Forja
+; Salir de Forja
 MSG_870
 is not fixed-width
 ; no es de ancho fijo

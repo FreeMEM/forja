@@ -60,7 +60,9 @@ dashc_*.drt>`:
 - `tests/salir.sh`: salir con un programa ejecutándose y con otro parado en el depurador. No debe quedar nada vivo.
   Arranca Forja él mismo.
 - `tests/sesion.sh`: abrir lo de la última vez, cerrar con cambios (Descartar) y una sesión con un disco que no
-  está, sin el requester de "Inserta el volumen". Arranca Forja él mismo.
+  está, sin el requester de "Inserta el volumen". Arranca Forja él mismo. También: los marcadores, lo plegado y el
+  cursor de main.dash vuelven (`ENV:FORJA_MARCAS` con la sonda), un sprite abierto en la extensión Sprites vuelve a
+  abrirse con ella, y Amiga-Q en la ventana de Sprites cierra Forja.
 
 `tests/rexx.sh <worktree de Dash> <cajón con dashc.amiga>`: `tests/rexx.dash` maneja Forja por su puerto ARexx
 (ABRIR, ABIERTO, SELECCION, CAMBIAR, TEXTO, GUARDAR, COMPILAR, ERRORES, EJECUTAR). La prueba con Inferencia a la vez
@@ -185,7 +187,9 @@ dashc.amiga>] [capturas/]`: `tests/extensiones.dash` pone en `DH0:Extensiones` l
 (`tests/extensiones/Eco`, que apunta lo que le llega). Contar arranca con Forja y cuenta en la barra; su menú, su
 tecla (Ctrl Alt D) y CAMBIADO; la API por ARexx (y lo que cuesta una orden); Eco arranca con su menú y recibe MENU,
 GUARDADO, ABIERTO, ACTIVO, PROYECTO, EDITAR, MARCA (un clic en su marca), CERRADO y COMPILADO; Eco se cae (Forja lo
-dice y la vuelve a arrancar) y se cuelga (Forja sigue contestando); el gestor la desactiva y la activa. Con
+dice y la vuelve a arrancar) y se cuelga (Forja sigue contestando); el gestor la desactiva y la activa. También instala desde un cajón con el gestor (`DH0:Fuera/Saludo`; la ruta va en `ENV:FORJA_INSTALAR`, sin la
+petición de ASL) y mira que su opción salga en el menú Extensiones (`ENV:FORJA_MENU_EXT`, las opciones que se pusieron
+con `mui_menu_extend`). Con
 `capturas/`, guarda `marcas.png`, `gestor.png` y `gestor-apagada.png`. `input_menu` no llega a los menús de MUI: las
 opciones se eligen con la sonda (`ENV:FORJA_EVENTO` con su evento). Con MUI 3.8:
 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/extensiones.sh ...`.
@@ -238,7 +242,9 @@ El editor cómodo (fase 2 de `docs/FORJA_LOOP.md`):
 
 `tests/memoria.sh <worktree de Dash> [<cajón con dashc.amiga>]` (`MEMORIA=nada`, `git` o `todas`): `tests/memoria.dash`
 arranca Forja dos veces con `tests/prueba/juego` y apunta la memoria chip y fast que usa quieta, compilando (con
-dashc), con un sprite y un mapa abiertos (`todas`) y lo que queda tras salir (MUI y las fuentes siguen cargadas). Con
+dashc), con un sprite y un mapa abiertos (`todas`) y lo que queda tras salir (MUI y las fuentes siguen cargadas). En
+el A1200 (sin `RTG`) tiene topes de fast (quieta, compilando y con un sprite y un mapa; en `tests/memoria.dash`) y lo
+que queda tras salir no puede crecer de una vez a la otra: acaba con "TODO BIEN". Con
 `RTG=1 SISTEMA=~/.cache/dash-emu/sys32rtg38`, con MUI 3.8; `FORJA=otro/cajón`, otras fuentes (para comparar).
 
 Proyectos, plantillas, depurar más y perfil (pasos 3.1, 3.2, 4.1 y 4.2 de `docs/FORJA_LOOP.md`). Las que llevan
@@ -285,3 +291,13 @@ compila en el PC la demo con el copper que quedó en `main.dash` y la versión f
 `pistas_datos.dash`. Sondas: `RAM:forja-demos-sonda.txt` y `ENV:FORJA_DEMOS_LIENZO`. Las capturas (sincronia, medidor,
 musica, copper) las hace el propio Amiga con la pantalla de la demo detrás (orden DETRAS); el copper y las barras de
 la demo no salen en ellas (`screen_save_png` lee el bitmap, no lo que pinta el copper).
+La prueba de Demos también deshace y rehace en las pistas, cambia el nombre de una, la mueve y la quita, y apunta lo
+que tarda un dibujo entero ("dibujo") y la mediana de los dibujos de una parte ("parte": una fila de la tabla, el
+medidor), sin la demo y con ella; `REAL=1` para los tiempos de un A1200.
+
+Forja de punta a punta en la máquina CoffinOS (paso 0.1): `tests/coffin.sh <worktree de Dash> <cajón con dashc.amiga>
+[capturas/] [<dashgit>]` (con `DASH_KICKSTART_32`, `DASH_EMU_DISK_COFFIN` y `DASH_EMU_MINIGL`). Pone Forja, sus
+extensiones, la ayuda, la orden dash y dashgit en una carpeta del PC montada como `Proyecto:`, y `tests/coffin.dash` hace
+un proyecto de cada plantilla y lo compila, ejecuta la orden del Shell, mete un error (marcado al guardar) y lo
+arregla, depura con un punto de parada, usa git (init, add, commit, la rama), abre la ayuda con F1, hace un sprite con
+Amiga-B y ejecuta la demo con la extensión Demos. Anota lo que tarda cada cosa y guarda `coffin-*.png`.

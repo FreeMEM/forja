@@ -42,13 +42,39 @@ func kb(n: Int) -> String
     return "#{(n + 512) / 1024} KB"
 end
 
-# Lo que falta desde el principio, en chip y en fast
-func medir(que: String)
+# Lo que falta desde el principio, en chip y en fast; devuelve la fast
+func medir(que: String) -> Int
     mem_trim()
     c = chip0 - mem_chip_free()
     f = fast0 - mem_fast_free()
     anotar(que + ": chip " + kb(c) + ", fast " + kb(f) + ", en total " + kb(c + f))
+    return f
 end
+
+# Los topes (KB de fast), con lo medido el 2026-11-17 (docs/FORJA_LOOP.md, "Memoria mínima") y unos 300 KB de margen:
+# con 2 MB de chip y 4 de fast quedan unos 5,8 MB tras arrancar el sistema, y Forja con Git compilando tiene que caber.
+# Solo en el A1200 con MUI 5 (con MUI 3.8 y tarjeta gráfica las ventanas gastan más: MEMORIA_TOPE=no)
+var fallos: Int = 0
+func tope(que: String, f: Int, nada: Int, git: Int, todas: Int)
+    if env_get("MEMORIA_TOPE") == "no"
+        return
+    end
+    m = env_get("MEMORIA")
+    t = nada
+    if m == "git"
+        t = git
+    elif m == "todas"
+        t = todas
+    end
+    if f > t * 1024
+        anotar("FALLO: " + que + " pasa del tope: " + kb(f) + " de fast, el tope es #{t} KB")
+        fallos = fallos + 1
+    else
+        anotar("bien: " + que + " por debajo del tope (#{t} KB)")
+    end
+end
+
+var tras_salir: Int = -1
 
 func una_vez(vez: Int, todas: Bool)
     run_command("Run >NIL: DH0:Prueba/Forja")
@@ -58,7 +84,8 @@ func una_vez(vez: Int, todas: Bool)
     end
     # quieta: abierto main.dash (FORJA_PRUEBA), las extensiones de inicio arrancadas y git leído
     time_delay(1500)
-    medir("vez #{vez}, Forja quieta con main.dash")
+    f = medir("vez #{vez}, Forja quieta con main.dash")
+    tope("quieta", f, 3000, 3700, 4100)
     # compilar (con DASH_DIR/dashc para el Amiga): lo más bajo que queda libre mientras compila
     if env_get("Forja/dashc") != ""
         mem_trim()
@@ -79,6 +106,8 @@ func una_vez(vez: Int, todas: Bool)
         c = chip0 - cmin
         f = fast0 - fmin
         anotar("vez #{vez}, compilando main.dash (lo más alto): chip " + kb(c) + ", fast " + kb(f) + ", en total " + kb(c + f) + " (" + rexx_send(FORJA, "ESTADO") + ")")
+        # (con Git compilando tiene que caber en los 5,8 MB que deja libres un A1200 con 2 + 4 MB)
+        tope("compilando", f, 5000, 5600, 6200)
         time_delay(250)
     end
     if todas
@@ -89,7 +118,8 @@ func una_vez(vez: Int, todas: Bool)
         rexx_send(FORJA, "ABRIR DH0:Prueba/juego/nivel.fmap")
         esperar_puerto("FORJAEXT.MAPAS", true, 400)
         time_delay(250)
-        medir("vez #{vez}, y un mapa abierto (extensión Mapas)")
+        f = medir("vez #{vez}, y un mapa abierto (extensión Mapas)")
+        tope("con un sprite y un mapa", f, 4600, 4600, 4600)
     end
     rexx_send(FORJA, "QUIT")
     if not esperar_puerto(FORJA, false, 600)
@@ -101,7 +131,18 @@ func una_vez(vez: Int, todas: Bool)
     esperar_puerto("FORJAEXT.SPRITES", false, 200)
     esperar_puerto("FORJAEXT.MAPAS", false, 200)
     time_delay(250)
-    medir("vez #{vez}, tras salir")
+    f = medir("vez #{vez}, tras salir")
+    if tras_salir < 0
+        tras_salir = f
+    elif env_get("MEMORIA_TOPE") != "no"
+        # lo que se queda (MUI, sus clases, las fuentes) no crece de una vez a la otra
+        if f > tras_salir + 64 * 1024
+            anotar("FALLO: tras salir la segunda vez quedan " + kb(f - tras_salir) + " más que la primera")
+            fallos = fallos + 1
+        else
+            anotar("bien: tras salir, lo mismo que la primera vez (" + kb(f - tras_salir) + " de diferencia)")
+        end
+    end
 end
 
 Main
@@ -114,4 +155,7 @@ Main
     una_vez(1, que == "todas")
     una_vez(2, que == "todas")
     anotar("hecho")
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
 end

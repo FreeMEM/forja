@@ -308,6 +308,7 @@ Main
         end
         intentos = intentos + 1
     end
+    ver("Buscar en la ayuda deja el cursor en el campo (sin clic)", intentos == 1, "#{intentos} intentos")
     anotar("buscar \"sonido\": #{ms_desde(t0)} ms (en Forja #{campo("FORJA_AYUDAV", 7)} ms)")
     l = ficha()
     i = 0

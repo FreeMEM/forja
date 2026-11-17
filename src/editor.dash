@@ -2715,6 +2715,29 @@ end
 
 # --- Dibujar ---
 
+# El nombre de la pestaña: el del fichero, y si otra pestaña se llama igual (el main.dash de dos proyectos), con su
+# cajón delante ("Juego/main.dash")
+func ed_nombre_pestana(d: Documento) -> String
+    if d.ruta == ""
+        return d.nombre
+    end
+    n = str_lower(d.nombre)
+    for o in documentos
+        if o != d and str_lower(o.nombre) == n
+            r = d.ruta[0:d.ruta.length - d.nombre.length]
+            if str_ends(r, "/")
+                r = r[0:r.length - 1]
+            end
+            k = r.length - 1
+            while k >= 0 and r[k:k + 1] != "/" and r[k:k + 1] != ":"
+                k = k - 1
+            end
+            return r[k + 1:] + "/" + d.nombre
+        end
+    end
+    return d.nombre
+end
+
 func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + ALTO_PESTANAS - 1)
@@ -2724,7 +2747,7 @@ func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
     tx = x + 4
     i = 0
     for d in documentos
-        nombre = d.nombre
+        nombre = ed_nombre_pestana(d)
         if d.cambiado
             nombre = nombre + " *"
         end

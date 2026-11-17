@@ -452,6 +452,9 @@ MSG_220
 MSG_221
 The object's sprite
 ; Sprite del objeto
+MSG_222
+Quit Forja
+; Salir de Forja
 MSG_870
 not fixed width
 ; no es de ancho fijo

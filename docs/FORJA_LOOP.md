@@ -504,3 +504,51 @@ VS Code.
     vista del copper tardaba 10 s con MUI 3.8 y tarjeta: ahora va por franjas y con 4 niveles por color. Falta medirlo
     con `REAL=1` y pintar solo lo que cambia (la fila que suena, la columna de la pista).
 
+- 2026-11-17, rama `pulido`: **lo que quedaba pendiente en las listas de "falta", para que Forja sea redonda**, y el
+  paso 0.1 (Forja de punta a punta en la máquina CoffinOS).
+  - **Demos, pintar solo lo que cambia.** La tabla de pistas y el visor de MOD van de página en página, como un
+    tracker (antes se centraban en el cursor y en cada fila nueva se movía todo): al sonar, cambian dos filas. Con
+    `mui_canvas_update_area` se dibujan solo esas filas, la línea de arriba y el estado de la demo (a la derecha de
+    las pestañas, ahora al día con la tabla en cada lectura). El medidor barre como un osciloscopio: cada imagen en su
+    sitio del anillo (la de ahora, vacía) y en cada lectura solo las barras nuevas, con dos cajas cada una (las rayas
+    del 25 al 100 %, a la izquierda). Moverse por la tabla y escribir en una celda, igual. Si hace falta el dibujo
+    entero y no toca (2,5 por segundo como mucho), queda pendiente para la siguiente lectura.
+    - Medido con `REAL=1` (A1200 emulado, MUI 5): sin la demo, un dibujo entero 110-120 ms y una fila 4-5 ms; con la
+      demo en marcha (que gasta la CPU esperando línea a línea) un dibujo entero 500-600 ms y lo que se dibuja ahora en
+      cada fila nueva, unos 20 ms. En la máquina CoffinOS (68040 JIT, MUI 3.8) 40 ms y menos de 1 ms. Con la demo, de
+      cada 100 dibujos unos 60 son ya de una parte.
+  - **Demos, lo demás**: deshacer y rehacer en las pistas (Amiga-Z, Amiga-R; el texto de todas antes de cada cambio,
+    64 pasos), cambiar el nombre de una pista (`r`, en la tabla, con el nombre de ahora), quitarla (Mayúsculas+Supr) y
+    moverla (Alt+flechas), también en un menú Pistas; a la demo le llega todo con `RECARGAR`. Sus textos van con `tr`
+    y tienen catálogo inglés (`extensiones/Demos/catalogos`), como las demás.
+  - **Sesión**: `ENVARC:Forja/sesion_estado` guarda de cada fichero el cursor, la primera línea que se ve, los
+    marcadores y lo plegado, y cuál estaba delante (con el carácter 30 entre ficheros: `env_get` lee una línea). Los
+    ficheros de las extensiones (un sprite, un mapa, las pistas y el MOD de Demos) van en la sesión: la API 5 trae
+    `EDITANDO` (`forja_editando`), y al empezar se abren con su extensión como desde Abrir.
+  - **Depurador**: al "Guardar como", los puntos de parada (con su condición y su contador) pasan a la ruta nueva, y el
+    `.forja` se escribe (también si el fichero sale del proyecto). Los de un fichero sin nombre pasan a los del proyecto.
+  - **Editor**: deshacer y rehacer un cambio de varias líneas deja los marcadores en sus líneas (cada cambio que quita
+    varias líneas apunta los marcadores y lo plegado que había en ellas, y al volver a meterlas se ponen como estaban;
+    antes se juntaban en la primera); renombrar cambia también en las pestañas sin nombre; cambiar en el disco no pasa
+    los tabuladores a espacios (lo cambiado se pone en la línea con sus tabuladores: `bp_con_tabs`); la barra del
+    editor va en filas de las que se ven (lo plegado no cuenta); Forja vigila `ENV:Forja/teclas` y `ENVARC:Forja/teclas`
+    (`file_notify`) y al cambiar las lee otra vez y pone al día las etiquetas del menú Editor (`mui_set_text`).
+  - **Extensiones**: Amiga-Q en la ventana de Sprites, Mapas o Demos cierra Forja como en la suya (orden `SALIR`,
+    `forja_salir`: Forja pregunta por lo que haya sin guardar); las opciones sueltas del menú Extensiones se ponen en
+    marcha con `mui_menu_extend` (solo las que hay; antes 12 vacías y apagadas en `ventana.dashui`); probado instalar
+    desde un cajón con el gestor (la ruta por `ENV:FORJA_INSTALAR` con la sonda, sin la petición de ASL); la prueba de
+    memoria tiene topes que la hacen fallar (paso 0.3).
+  - **MUI 3.8**: "Buscar en la ayuda..." deja el cursor en el campo: al activarse la ventana se le da, y otra vez
+    150 ms después (algo de MUI 3.8 se lo quitaba justo después). La prueba ya no necesita el clic.
+  - **De punta a punta en CoffinOS** (`tests/coffin.sh`, la máquina `coffin` de Dash: el disco de CoffinOS, 68040 con
+    JIT, RTG de 1280x1024, MUI 3.8): un proyecto de cada plantilla y compilarlo (0,3 s; la demo 1,1 s), ejecutar la
+    orden con los argumentos del proyecto, un error marcado al guardar y quitado al arreglarlo (0,5 s), depurar con un
+    punto de parada (0,3 s hasta parar), git (init, commit y la rama), F1, un sprite con Amiga-B y la demo con Demos (se
+    conecta en 1,3 s). Lo que se vio y se arregló:
+    - las pestañas de dos ficheros que se llaman igual (el `main.dash` de cada proyecto) no se distinguían: ahora
+      llevan delante su cajón (`Cueva/main.dash`);
+    - en Demos, el estado de arriba ("demo: fila 31") iba detrás de la tabla ("suena la fila 38"): se pone al día con
+      cada fila.
+  - Memoria (`tests/memoria.sh`, A1200 con MUI 5, fast): sin extensiones 2,8 MB quieta y 4,8 compilando; con todas
+    (Git, el copiloto, Sprites y Mapas) 3,2-3,8 MB quieta, 5,2-5,8 compilando y 4,4 con un sprite y un mapa. Tras
+    salir quedan 1 MB (MUI y las fuentes), igual la segunda vez.

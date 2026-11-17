@@ -1786,10 +1786,17 @@ func refrescar(cambio: Bool)
             _pendiente = true
         end
     end
-    if conectada() and tics % 5 == 0
-        redibujar_estado()
+    # el estado de la demo, arriba a la derecha: con la fila (si no, decía otra que la tabla)
+    if conectada()
+        e = "#{demo_fila} #{demo_lineas} #{demo_pausa}"
+        if e != _estado_visto
+            _estado_visto = e
+            redibujar_estado()
+        end
     end
 end
+
+var _estado_visto: String = ""
 
 # Cada TIC_MS: lee la demo (o la busca), y la música propia
 func tic()
