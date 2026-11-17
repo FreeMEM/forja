@@ -58,6 +58,7 @@
 import "tema.dash"
 import "editor.dash"
 import "paneles.dash"
+import "ayuda.dash"
 import "actualizar.dash"
 import "botones.dash"
 import "extensiones.dash"
@@ -105,6 +106,10 @@ const EV_EXT_ACTIVAR = 183
 const EV_EXT_INSTALAR = 184
 const EV_EXT_CERRAR = 185
 const EV_EXT_MENU = 200        # las opciones de las extensiones en el menú: 200 a 241 (EXT_TOTAL)
+# (los de la ventana de la ayuda, 110 a 120, en ayuda.dash)
+const EV_ERROR_SIGUIENTE = 125 # F8: al siguiente error marcado en el código (errores.dash)
+const EV_ERROR_ANTERIOR = 126  # Mayúsculas+F8
+const COMPROBAR_MS = 1500      # sin escribir este tiempo, se comprueba el programa con dash --check (si se escribió)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
 
@@ -118,6 +123,7 @@ const T_F6 = 0x55
 const T_F7 = 0x56
 const T_F9 = 0x58
 const T_F10 = 0x59
+const T_F8 = 0x57
 const T_ARRIBA = 0x4C
 const T_ABAJO = 0x4D
 const T_DERECHA = 0x4E
@@ -166,6 +172,7 @@ var vb: Buscar = nil
 var vi: IrA = nil
 var vp: PrefForja = nil
 var vx: GestorExt = nil
+var va: VentanaAyuda = nil
 var app: Int = 0
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
 var inferencia_espera: Int = 0      # tics esperando a que arranque Inferencia
@@ -203,6 +210,15 @@ var barra_variables_total: Int = -1
 var barra_variables_caben: Int = -1
 var barra_variables_valor: Int = -1
 var completar_activo: Bool = true  # la lista para completar y la ayuda de los argumentos (preferencia)
+var comprobar_activo: Bool = true  # dash --check tras una pausa al escribir (preferencia; al guardar, siempre)
+var comprobar_pedido: Int = 0      # 1: comprobar en cuanto se pueda (se guardó); 2: tras la pausa al escribir
+var comprobar_doc: Documento = nil # de qué documento
+var comprobar_version: Int = -1    # la versión del texto que se comprobó la última vez
+var comprobar_de: Documento = nil
+var sonda_errores: String = "-"
+var sonda_ayudav: String = ""
+var err_barra: String = ""         # lo que dice la barra del error de la línea del cursor
+var errores_ultimos_marcados: String = ""   # los errores marcados que ya se dijeron en la salida
 var indice_de: String = ""         # de qué fichero son los símbolos de codigo.dash, y de qué versión
 var indice_version: Int = -1
 var ultimo_cambio: Int = 0         # cuándo se escribió por última vez (time_ms)
@@ -366,6 +382,8 @@ func guardar_en(d: Documento, ruta: String) -> Bool
     d.cambiado = false
     avisar(tr(3, "Guardado: ") + ruta, 2)
     ext_suceso("GUARDADO", ruta)
+    # sus errores, con dash --check en segundo plano (paso 3.5)
+    comprobar_pedir(d, false)
     if cajon_de(ruta) == proyecto_cajon
         proyecto_leer(proyecto_cajon)
         mui_canvas_redraw(v.proyecto)
@@ -639,7 +657,7 @@ func compilar(y_ejecutar: Bool)
     if d == nil
         return
     end
-    if d.ruta == "" and not guardar_como(d)
+    if d.ruta == "" and d.temporal == "" and not guardar_como(d)
         return
     end
     # lo que haya sin guardar va al disco antes (dashc lee los ficheros)
@@ -653,8 +671,18 @@ func compilar(y_ejecutar: Bool)
     ruta = programa_de(d)
     nombre = nombre_de(ruta)
     tarea_exe = ejecutable_de(ruta)
+    if d.ruta == ""
+        # un ejemplo de la ayuda (Probar), sin nombre: desde T:, y su ejecutable ahí
+        if not file_write_text(d.temporal, ed_texto_disco(d))
+            avisar(tr(2, "No se puede escribir ") + d.temporal, 1)
+            return
+        end
+        ruta = d.temporal
+        nombre = d.nombre
+        tarea_exe = sin_dash(ruta)
+    end
     tarea_dash = ruta
-    if not cajon_listo(cajon_ejecutables())
+    if d.ruta != "" and not cajon_listo(cajon_ejecutables())
         avisar(tr(377, "No se puede crear el cajón de los ejecutables: ") + cajon_ejecutables(), 1)
         return
     end
@@ -741,6 +769,10 @@ func actualizar_tic()
     actualizar_mensajes()
     if act_preguntar()
         r = mui_request(v.window, tr(448, "Versión nueva de Dash"), hueco2(tr(449, "Está publicada Dash %1. ¿La bajo y la instalo en el cajón de Dash?\n\nSon %2 MB. Pone al día la orden dash, Forja, Inferencia, lib/ y los ejemplos.\nTus programas y tus preferencias no se tocan."), act_version_nueva(), act_megas()), tr(450, "_Instalar|_Cancelar"))
+        if r == 1
+            # (la ayuda abierta no dejaría cambiar DASH:Ayuda)
+            ayf_cerrar_ventana()
+        end
         act_instalar(r == 1)
         actualizar_mensajes()
     end
@@ -770,6 +802,7 @@ end
 
 func tic()
     tic_armado = false
+    comprobar_tic()
     ext_reposo()
     actualizar_tic()
     indice_en_reposo()
@@ -840,6 +873,9 @@ func tic()
         else
             ext_suceso("COMPILADO", "#{errores}")
         end
+        # y marcados en el código (errores.dash), como los de comprobar
+        err_de_salida(texto, cajon_de(tarea_dash), "", "")
+        errores_cambiados(false)
         if rc != 0
             if errores == 1
                 avisar(tr(13, "No compila: un error (clic en él para ir a su línea)."), 1)
@@ -1452,17 +1488,317 @@ func completar_tecla(d: Documento, codigo: Int, teclas: Int) -> Bool
     return false
 end
 
-# Help o F1: la ayuda del nombre del cursor (idea de Javier R. Santurde "Tolkien"); Esc o mover el cursor la cierra
+# Help o F1 (idea de Javier R. Santurde "Tolkien"): la ficha de la ayuda de Dash del nombre del cursor, entera, en la
+# ventana de la ayuda (paso 3.4); sin nombre, la ayuda por donde se dejó; un nombre que la ayuda no tiene, buscado en
+# ella. Lo del proyecto (y todo, sin la ayuda de Dash) saca la ayuda de sus argumentos sobre el texto, como antes: Esc o
+# mover el cursor la cierra.
 func ayuda_del_cursor(d: Documento)
     y1 = ed_pintado_y1
     y2 = ed_pintado_y2
     indice_si_hace_falta(true)
     ac_cerrar()
+    nombre = palabra_del_cursor(d)
+    if nombre == "" or not cx_es_del_proyecto(d.lineas, d.cl, d.version, nombre)
+        id = ayf_nombre(nombre)
+        if id >= 0 or (nombre == "" and ayf_abrir())
+            ay_cerrar()
+            redibujar_tras_tecla(true, y1, y2)
+            ayf_mostrar(id)
+            return
+        end
+    end
     if ay_palabra(d.lineas, d.cl, d.cc, d.version)
         redibujar_tras_tecla(true, y1, y2)
+    elif nombre != "" and ayf_abrir()
+        # (no tiene ficha: lo que sale en la ayuda)
+        mui_set_text(va.buscar, nombre)
+        ayf_mostrar(-1)
+        ayf_evento(EV_AY_CAMPO)
     else
         avisar(tr(379, "No hay ayuda para lo que hay en el cursor."), 1)
     end
+end
+
+# El nombre (letras, cifras y _) en el cursor o justo antes; "" si no hay
+func palabra_del_cursor(d: Documento) -> String
+    if d.cl < 0 or d.cl >= d.lineas.length
+        return ""
+    end
+    s = d.lineas[d.cl]
+    c = d.cc
+    if c >= s.length or ayf_palabra(s, c) == ""
+        c = c - 1
+    end
+    return ayf_palabra(s, c)
+end
+
+# --- La ventana de la ayuda (ayuda.dash) ---
+
+func dibujar_ayuda(x: Int, y: Int, ancho: Int, alto: Int)
+    ayf_dibujar(x, y, ancho, alto)
+end
+
+func ayuda_evento(ev: Int)
+    if ev == EV_AYUDA or ev == EV_AYUDA_BUSCAR
+        if not ayf_mostrar(-1)
+            avisar(ayf_aviso(), 1)
+            return
+        end
+        if ev == EV_AYUDA_BUSCAR
+            mui_set_active(va.window, va.buscar)
+        end
+        return
+    end
+    if ayf_evento(ev) == EV_AY_PROBAR
+        probar_ejemplo()
+    end
+end
+
+# "Probar" en una ficha con un programa entero: en una pestaña nueva sin nombre, y se ejecuta (se compila desde T:)
+func probar_ejemplo()
+    if ayf_ejemplo == "" or tarea != NADA
+        if tarea != NADA
+            avisar(tr(727, "Espera a que acabe lo que está en marcha."), 1)
+        end
+        return
+    end
+    nombre = "ejemplo_" + ayf_ejemplo_de + ".dash"
+    ed_abrir_texto(nombre, "", ayf_ejemplo)
+    d = ed_actual()
+    t = "T:"
+    dos_requesters(false)
+    if not file_exists("T:")
+        t = "RAM:"
+    end
+    dos_requesters(true)
+    d.temporal = t + "forja_" + nombre
+    cerrar_capas()
+    ajustar_paneles()
+    redibujar()
+    mui_window_activate(v.window)
+    compilar(true)
+end
+
+# --- Los errores en el código (errores.dash): dash --check al guardar y tras una pausa al escribir ---
+
+# La clave de un documento para sus errores: su ruta, o la de T: de un ejemplo sin nombre
+func clave_errores(d: Documento) -> String
+    if d.ruta != ""
+        return str_lower(d.ruta)
+    end
+    return str_lower(d.temporal)
+end
+
+# El documento abierto de una ruta (o de la de T: de un ejemplo); nil si no está abierto
+func doc_de(ruta: String) -> Documento
+    r = str_lower(ruta)
+    for o in documentos
+        if (o.ruta != "" and str_lower(o.ruta) == r) or (o.temporal != "" and str_lower(o.temporal) == r)
+            return o
+        end
+    end
+    return nil
+end
+
+# Al guardar d (o tras la pausa al escribir): que se compruebe en cuanto se pueda
+func comprobar_pedir(d: Documento, tras_pausa: Bool)
+    if d == nil or not es_codigo(d) or not str_ends(str_lower(d.nombre), ".dash")
+        return
+    end
+    if tras_pausa and (not comprobar_activo or d.ruta == "" or not tiene_main(d.lineas))
+        # (un módulo sin guardar no se puede comprobar: dash lee del disco lo que importa el programa)
+        return
+    end
+    if comprobar_pedido == 1 and not tras_pausa and comprobar_doc != d
+        # dos ficheros guardados a la vez (compilar los guarda todos): el programa del último basta
+        comprobar_doc = d
+        return
+    end
+    if comprobar_pedido != 1
+        comprobar_pedido = 2
+        if not tras_pausa
+            comprobar_pedido = 1
+        end
+    end
+    comprobar_doc = d
+    if not tic_armado
+        armar_tic(TIC_MS, EV_TIC)
+    end
+end
+
+# Desde tic(): empieza la comprobación pedida (si no hay nada en marcha), o mira si acabó la que corre
+func comprobar_tic()
+    if cmp_en_marcha()
+        if cmp_mirar()
+            if cmp_sin_check
+                avisar(tr(733, "Esta orden dash no sabe comprobar (--check): actualiza Dash para ver los errores al guardar."), 1)
+                comprobar_pedido = 0
+                return
+            end
+            errores_cambiados(true)
+        elif not tic_armado
+            armar_tic(150, EV_TIC)
+        end
+        return
+    end
+    if comprobar_pedido == 0 or tarea != NADA or cmp_sin_check
+        return
+    end
+    d = comprobar_doc
+    if d == nil or indice_doc(d) < 0
+        comprobar_pedido = 0
+        return
+    end
+    if comprobar_pedido == 2
+        if d.version == comprobar_version and comprobar_de == d
+            comprobar_pedido = 0
+            return
+        end
+        espera = COMPROBAR_MS - (time_ms() - ultimo_cambio)
+        if espera > 0
+            if not tic_armado
+                armar_tic(espera + 20, EV_TIC)
+            end
+            return
+        end
+    end
+    pedido = comprobar_pedido
+    comprobar_pedido = 0
+    orden = ""
+    cajon = ""
+    temporal = ""
+    real = ""
+    if pedido == 2 or d.ruta == ""
+        # el texto del editor, sin guardar, a T: (lo que importa se encuentra desde su cajón)
+        temporal = "T:forja_comprobar.dash"
+        dos_requesters(false)
+        if not file_exists("T:")
+            temporal = "RAM:forja_comprobar.dash"
+        end
+        dos_requesters(true)
+        if not file_write_text(temporal, ed_texto_disco(d))
+            return
+        end
+        real = d.ruta
+        if real == ""
+            real = d.temporal
+        else
+            cajon = cajon_de(d.ruta)
+        end
+        orden = dashc() + " --check " + entre_comillas(temporal)
+    else
+        ruta = programa_de(d)
+        cajon = cajon_de(ruta)
+        orden = dashc() + " --check " + entre_comillas(ruta)
+    end
+    comprobar_version = d.version
+    comprobar_de = d
+    if cmp_empezar(orden, cajon, temporal, real) and not tic_armado
+        armar_tic(150, EV_TIC)
+    end
+end
+
+# El sitio de d en las pestañas; -1 si no está
+func indice_doc(d: Documento) -> Int
+    i = 0
+    for o in documentos
+        if o == d
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+func _texto_errores() -> String
+    t = err_sin_sitio
+    for e in err_lista
+        t = t + "\n" + e.entera
+    end
+    return t
+end
+
+# Los errores marcados cambiaron (al compilar o al comprobar): el editor, la barra y la salida (con decir, los que no
+# se dijeron ya: al compilar, ya van a la salida)
+func errores_cambiados(decir: Bool)
+    if not abierta
+        return
+    end
+    t = _texto_errores()
+    if not decir
+        errores_ultimos_marcados = t
+    elif t != errores_ultimos_marcados
+        errores_ultimos_marcados = t
+        if err_lista.length > 0
+            for e in err_lista
+                salida_error_dashc(e.entera)
+            end
+            salida_mostrar(salida_lineas.length - 1)
+        elif err_sin_sitio != ""
+            salida_anadir("dash: Error: " + err_sin_sitio, 1)
+        elif cmp_veces > 0
+            salida_anadir(tr(728, "Sin errores."), 2)
+        end
+        mui_canvas_redraw(v.salida)
+    end
+    barra_error_al_dia()
+    mui_canvas_redraw(v.editor)
+end
+
+# La barra (a la derecha del título de la salida): el error de la línea del cursor, o cuántos hay
+func barra_error_al_dia()
+    t = ""
+    d = ed_actual()
+    if err_lista.length > 0 and d != nil
+        i = err_en(clave_errores(d), d.cl + 1)
+        if i >= 0
+            t = hueco(tr(729, "Línea %1: "), "#{err_lista[i].linea}") + err_lista[i].texto
+        elif err_lista.length == 1
+            t = tr(730, "1 error (F8)")
+        else
+            t = hueco(tr(731, "%1 errores (F8)"), "#{err_lista.length}")
+        end
+    elif err_sin_sitio != ""
+        t = err_sin_sitio
+    end
+    if t != err_barra
+        err_barra = t
+        barra_poner("*errores", t)
+        if abierta
+            mui_canvas_redraw(v.salida)
+        end
+    end
+end
+
+# F8 y Mayúsculas+F8: al siguiente error (o al anterior), también en otro fichero
+func ir_a_error(adelante: Bool)
+    d = ed_actual()
+    r = ""
+    n = 0
+    if d != nil
+        r = clave_errores(d)
+        n = d.cl + 1
+    end
+    i = err_siguiente(r, n, adelante)
+    if i < 0
+        avisar(tr(732, "No hay errores marcados."), 0)
+        return
+    end
+    e = err_lista[i]
+    o = doc_de(e.ruta)
+    if o != nil
+        activo = indice_doc(o)
+    elif not abrir_sitio(e.ruta)
+        return
+    end
+    col = e.col
+    if col < 1
+        col = 1
+    end
+    ed_ir_a(e.linea, col)
+    cerrar_capas()
+    redibujar()
+    barra_error_al_dia()
 end
 
 # Ctrl + Espacio (o el menú): la lista para completar, aunque haya menos letras
@@ -1512,6 +1848,12 @@ end
 
 # Abre (o va a) el fichero de un sitio: una ruta o "*nombre" (uno sin guardar); false si no puede
 func abrir_sitio(ruta: String) -> Bool
+    # un ejemplo de la ayuda sin nombre: su pestaña, no el fichero de T:
+    o = doc_de(ruta)
+    if o != nil and o.ruta == ""
+        activo = indice_doc(o)
+        return true
+    end
     if str_starts(ruta, "*")
         i = 0
         for o in documentos
@@ -2043,6 +2385,12 @@ func en_editor() -> Int
             alternar_punto(d, d.cl + 1)
             return 0
         end
+        if codigo == T_F8
+            if (teclas & Q_MAYUS) != 0
+                return EV_ERROR_ANTERIOR
+            end
+            return EV_ERROR_SIGUIENTE
+        end
         if (codigo == T_HELP or codigo == T_F1) and es_codigo(d)
             ayuda_del_cursor(d)
             return 0
@@ -2088,6 +2436,7 @@ func en_editor() -> Int
                     armar_tic(REPOSO_MS, EV_TIC)
                 end
                 ext_tras_escribir(d)
+                comprobar_pedir(d, true)
             end
             if completar_activo
                 completar_despues(d, codigo, letra)
@@ -2169,6 +2518,26 @@ func publicar_sonda()
         sonda_pestanas = t
         env_set("FORJA_PESTANAS", t, false)
     end
+    # los errores marcados: "veces ms_última en_marcha|ruta:línea:col texto|..." (errores.dash)
+    en_marcha = 0
+    if cmp_en_marcha()
+        en_marcha = 1
+    end
+    e = "#{cmp_veces} #{cmp_ms} #{en_marcha}" + err_resumen() + "~" + err_barra
+    if e != sonda_errores
+        sonda_errores = e
+        env_set("FORJA_ERRORES", e, false)
+    end
+    # la ventana de la ayuda: lo que se ve (ayf_sonda) y, en RAM:forja-ayuda.txt, la ficha como se pinta y la lista
+    a = ayf_sonda()
+    if not ayf_abierta
+        a = "cerrada"
+    end
+    if a != sonda_ayudav
+        sonda_ayudav = a
+        env_set("FORJA_AYUDAV", a, false)
+        sonda_fichero("RAM:forja-ayuda.txt", ayf_sonda_texto())
+    end
 end
 
 # --- Buscar y cambiar, ir a la línea ---
@@ -2229,6 +2598,7 @@ func preferencias_abrir()
     mui_set_value(vp.recordar, recordar_sesion())
     mui_set_value(vp.pantalla, env_get("Forja/pantalla") == "si")
     mui_set_value(vp.completar, completar_activo)
+    mui_set_value(vp.comprobar, comprobar_activo)
     mui_set_value(vp.buscar, env_get("Forja/buscar_dash") != "no")
     mui_window_open(vp.window)
 end
@@ -2258,6 +2628,12 @@ func preferencias_aplicar(guardar: Bool)
         env_set("Forja/completar", "no", guardar)
         cerrar_capas()
         redibujar()
+    end
+    comprobar_activo = mui_get_value(vp.comprobar) != 0
+    if comprobar_activo
+        env_set("Forja/comprobar", "si", guardar)
+    else
+        env_set("Forja/comprobar", "no", guardar)
     end
     if mui_get_value(vp.buscar) != 0
         env_set("Forja/buscar_dash", "si", guardar)
@@ -2515,23 +2891,33 @@ end
 var _sm_doc: Documento = nil
 var _sm_lineas: Int = 0
 var _sm_cl: Int = 0
+var _sm_version: Int = 0
 
 func seguir_antes()
     _sm_doc = ed_actual()
     if _sm_doc != nil
         _sm_lineas = _sm_doc.lineas.length
         _sm_cl = _sm_doc.cl
+        _sm_version = _sm_doc.version
     end
 end
 
 func seguir_despues()
     d = _sm_doc
     _sm_doc = nil
-    if d == nil or d.ruta == "" or (marcas_margen.length == 0 and marcas_rayas.length == 0)
+    if d != nil and d.version != _sm_version
+        # se escribió (también deshacer, pegar, ARexx...): sus errores, tras la pausa
+        ultimo_cambio = time_ms()
+        comprobar_pedir(d, true)
+    end
+    if d == nil or (d.ruta == "" and d.temporal == "") or (marcas_margen.length == 0 and marcas_rayas.length == 0 and err_lista.length == 0)
         return
     end
     delta = d.lineas.length - _sm_lineas
     if delta == 0
+        if err_lista.length > 0 and d.cl != _sm_cl
+            barra_error_al_dia()
+        end
         return
     end
     desde = _sm_cl
@@ -2544,8 +2930,13 @@ func seguir_despues()
         quitadas = 1 - delta
         puestas = 1
     end
-    if marcas_mover(str_lower(d.ruta), desde + 1, quitadas, puestas) and abierta and d == ed_actual()
+    movidas = err_mover(clave_errores(d), desde + 1, quitadas, puestas)
+    movidas = marcas_mover(str_lower(d.ruta), desde + 1, quitadas, puestas) or movidas
+    if movidas and abierta and d == ed_actual()
         mui_canvas_redraw(v.editor)
+    end
+    if err_lista.length > 0
+        barra_error_al_dia()
     end
 end
 
@@ -3213,9 +3604,11 @@ func orden_una(linea: String) -> String
         # las marcas de después siguen a su texto
         quitadas = Int(p[3]) - Int(p[2]) + 1
         marcas_mover(str_lower(d.ruta), Int(p[2]), quitadas, quitadas + d.lineas.length - antes)
+        err_mover(clave_errores(d), Int(p[2]), quitadas, quitadas + d.lineas.length - antes)
         _sm_doc = nil
         ultimo_cambio = time_ms()
         ext_tras_escribir(d)
+        comprobar_pedir(d, true)
         redibujar()
         return ""
     elif orden == "GUARDAR"
@@ -3284,6 +3677,10 @@ end
 func atender(ev: Int)
     if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
         ext_menu(ev - EV_EXT_MENU)
+    elif ev >= EV_AYUDA and ev <= EV_AY_TEXTO
+        ayuda_evento(ev)
+    elif ev == EV_ERROR_SIGUIENTE or ev == EV_ERROR_ANTERIOR
+        ir_a_error(ev == EV_ERROR_SIGUIENTE)
     elif ev >= EV_EXT_GESTOR and ev <= EV_EXT_CERRAR
         gestor(ev)
     elif ev == EV_PROYECTO
@@ -3431,12 +3828,14 @@ Main
         vi = IrA_create()
         vp = PrefForja_create()
         vx = GestorExt_create()
+        va = VentanaAyuda_create()
+        ayf_ventana(va.window, va.lista, va.texto, va.barra, va.buscar, va.atras, va.adelante, va.probar)
         ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11]
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
             screen_make_default()
-            for w in [v.window, vb.window, vi.window, vp.window, vx.window]
+            for w in [v.window, vb.window, vi.window, vp.window, vx.window, va.window]
                 mui_window_screen(w, PANTALLA)
             end
         end
@@ -3454,6 +3853,8 @@ Main
         # VUELTA a las extensiones: la ventana de Forja vuelve a ser la activa
         mui_on_activate(v.window, EV_ACTIVADA)
         mui_canvas_on_input(v.salida, EV_SALIDA)
+        mui_canvas_on_draw(va.texto, dibujar_ayuda)
+        mui_canvas_on_input(va.texto, EV_AY_TEXTO)
         mui_canvas_on_drag(v.salida, EV_ARRASTRE_SALIDA)
         mui_canvas_take_tab(v.editor, true)
         # las teclas, al editor aunque el puntero no esté encima (F5, F10... al depurar: lo contó David Martínez)
@@ -3464,6 +3865,9 @@ Main
         sonda = env_get("FORJA_SONDA") != ""
         ed_anotar_vistas = sonda
         completar_activo = env_get("Forja/completar") != "no"
+        comprobar_activo = env_get("Forja/comprobar") != "no"
+        # la ayuda de Dash también junto al compilador (su cajón Ayuda)
+        ayf_cajon_extra = cajon_de(dashc())
         act_iniciar(env_get("Forja/buscar_dash") != "no" and env_get("FORJA_SONDA") == "")
 
         # las extensiones: sus opciones del menú, sus tipos de fichero y las que arrancan con Forja
@@ -3576,6 +3980,8 @@ Main
                 end
             end
         end
+        cmp_parar()
+        ayf_cerrar_ventana()
         ext_salir()
         ext_esperar_salida()
         mui_app_end()

@@ -1,0 +1,406 @@
+# La ayuda de Dash y los errores marcados en Forja, como un usuario (pasos 3.4 y 3.5 de docs/FORJA_LOOP.md). Forja
+# está como en el paquete de Dash: DH0:Dash/Forja/Forja, con la ayuda en DH0:Dash/Ayuda y la orden en DH0:Dash/dash.
+#   - F1 sobre file_seek abre su ficha en la ventana de la ayuda; un clic en un enlace (file_pos), atrás y adelante;
+#   - Probar abre el ejemplo en una pestaña sin nombre y lo ejecuta (su salida, en la de Forja);
+#   - buscar en la ayuda ("sonido"), el índice (la portada, los grupos) y un enlace de la portada;
+#   - F1 sobre un nombre del proyecto sigue dando la ayuda de sus argumentos;
+#   - errores: al guardar con un error, dash --check lo marca en su línea; F8 va a él; arreglado y guardado, se quita;
+#     escribiendo otro (sin guardar), tras la pausa se marca, y deshacer lo quita.
+# Mide lo que tarda cada cosa y guarda capturas (las hace el propio Amiga). Lo arranca tests/ayuda.sh; anota en
+# DH0:Prueba/ayuda.txt.
+
+const FORJA = "FORJA.1"
+const MAIN = "DH0:Prueba/juego/main.dash"
+const AYUDA = "Ayuda de Dash (Forja)"
+const F1 = 0x50
+const F8 = 0x57
+const RETURN = 0x44
+const RETROCESO = 0x41
+const MAYUS = 1
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/ayuda.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and input_active_title() != titulo
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return input_active_title() == titulo
+end
+
+func campo(nombre: String, i: Int) -> Int
+    p = str_split(env_get(nombre), " ")
+    if i >= p.length
+        return 0
+    end
+    return Int(p[i])
+end
+
+func al_editor() -> Bool
+    if not activar("Forja")
+        return false
+    end
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+    return true
+end
+
+# Lo que se ve en la ayuda: "clave desde líneas probar atrás adelante ms_ficha ms_buscar x y fila caben"
+func ayuda() -> String
+    return env_get("FORJA_AYUDAV")
+end
+
+func clave() -> String
+    return str_split(ayuda(), " ")[0]
+end
+
+# Espera (hasta decimas) a que la ayuda enseñe la ficha c
+func esperar_ficha(c: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        if clave() == c
+            return true
+        end
+        time_delay(2)
+        n = n + 1
+    end
+    return false
+end
+
+# La ficha como se pinta (RAM:forja-ayuda.txt): "prefijo|enlace|texto" por línea, y la lista tras "=lista"
+func ficha() -> [String]
+    t = file_read_text("RAM:forja-ayuda.txt")
+    n = 0
+    while t == nil and n < 10
+        time_delay(2)
+        t = file_read_text("RAM:forja-ayuda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return [""]
+    end
+    return str_split(t, "\n")
+end
+
+# La línea (desde 0) del enlace a c en la ficha; -1 si no está
+func linea_enlace(c: String) -> Int
+    i = 0
+    for l in ficha()
+        if str_starts(l, "=lista")
+            return -1
+        end
+        if str_starts(l, "*|" + c + "|")
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# El puntero sobre la ficha (la ventana de la ayuda, activa): sus teclas van a ella
+func a_la_ficha()
+    activar(AYUDA)
+    input_move(campo("FORJA_AYUDAV", 8) + 40, campo("FORJA_AYUDAV", 9) + 20)
+    time_delay(5)
+end
+
+# El puntero fuera de la ficha (en la barra de título de la ventana de la ayuda): las letras van a los botones
+func fuera_de_la_ficha()
+    activar(AYUDA)
+    input_move(60, 4)
+    time_delay(5)
+end
+
+# Un clic en la línea k de la ficha (en la ventana de la ayuda, que tiene que estar activa); si no se ve, baja con la
+# flecha hasta ella
+func clic_linea(k: Int) -> Bool
+    if not activar(AYUDA)
+        return false
+    end
+    n = 0
+    while n < 80 and k >= campo("FORJA_AYUDAV", 1) + campo("FORJA_AYUDAV", 11)
+        a_la_ficha()
+        input_key(0x4D, 0)
+        time_delay(3)
+        n = n + 1
+    end
+    desde = campo("FORJA_AYUDAV", 1)
+    caben = campo("FORJA_AYUDAV", 11)
+    if k < desde or k >= desde + caben
+        return false
+    end
+    fila = campo("FORJA_AYUDAV", 10)
+    input_click(campo("FORJA_AYUDAV", 8) + 30, campo("FORJA_AYUDAV", 9) + 3 + (k - desde) * fila + fila / 2, 0)
+    return true
+end
+
+func salida_dice(texto: String, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        if str_contains(rexx("SALIDA"), texto)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+# Los errores marcados (ENV:FORJA_ERRORES): "veces ms_última en_marcha|ruta:línea:col texto|...~barra"
+func errores() -> String
+    return env_get("FORJA_ERRORES")
+end
+
+func comprobaciones() -> Int
+    return campo("FORJA_ERRORES", 0)
+end
+
+# Espera (hasta decimas) a que haya acabado una comprobación más que antes y a que los errores digan (o no) texto
+func esperar_errores(antes: Int, texto: String, que_este: Bool, decimas: Int) -> Bool
+    n = 0
+    while n < decimas
+        e = errores()
+        if comprobaciones() > antes and str_contains(e, texto) == que_este
+            return true
+        end
+        time_delay(2)
+        n = n + 1
+    end
+    return false
+end
+
+func cursor() -> String
+    time_delay(10)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return ""
+    end
+    p = str_split(str_split(t, "\n")[0], " ")
+    return p[0] + " " + p[1]
+end
+
+func ms_desde(t0: Int) -> Int
+    return time_ms() - t0
+end
+
+Main
+    run_command("Run >NIL: DH0:Dash/Forja/Forja")
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("Forja contesta", n < 600, "")
+    n = 0
+    while n < 200 and env_get("FORJA_EDITOR") == ""
+        time_delay(5)
+        n = n + 1
+    end
+    ver("la ayuda, cerrada al empezar", ayuda() == "cerrada", ayuda())
+
+    # --- F1 sobre file_seek ---
+    rexx("CAMBIAR " + MAIN + " 18 17 \"    file_seek(0, 0, -1)\"")
+    rexx("CURSOR 18 8")
+    if al_editor()
+        t0 = time_ms()
+        input_key(F1, 0)
+        ok = esperar_ficha("file_seek", 300)
+        ms = ms_desde(t0)
+        ver("F1 abre la ficha de file_seek", ok, ayuda())
+        anotar("F1 hasta ver la ficha: #{ms} ms (en Forja: leerla #{campo("FORJA_AYUDAV", 6)} ms, todo con abrir la ventana #{campo("FORJA_AYUDAV", 12)} ms, el índice en la lista #{campo("FORJA_AYUDAV", 13)} ms)")
+    end
+    ver("la ventana de la ayuda se ve", activar(AYUDA), input_active_title())
+    ver("Probar, encendido (tiene ejemplo)", campo("FORJA_AYUDAV", 3) == 1, ayuda())
+    time_delay(30)
+    screen_save_png("DH0:Prueba/ayuda-ficha.png")
+
+    # --- un enlace, atrás y adelante ---
+    k = linea_enlace("file_pos")
+    ver("el enlace a file_pos está", k >= 0, "#{k}")
+    t0 = time_ms()
+    clic_linea(k)
+    ok = esperar_ficha("file_pos", 200)
+    anotar("seguir un enlace (con bajar hasta él con la flecha): #{ms_desde(t0)} ms (en Forja, leer la ficha: #{campo("FORJA_AYUDAV", 6)} ms)")
+    ver("un clic en el enlace lleva a file_pos", ok, ayuda())
+    fuera_de_la_ficha()
+    input_key(0x14, 0)          # A_trás
+    ver("Atrás vuelve a file_seek", esperar_ficha("file_seek", 200), ayuda())
+    input_key(0x22, 0)          # A_delante
+    ver("Adelante, a file_pos", esperar_ficha("file_pos", 200), ayuda())
+    input_key(0x14, 0)
+    esperar_ficha("file_seek", 200)
+
+    # --- Probar ---
+    t0 = time_ms()
+    fuera_de_la_ficha()
+    input_key(0x19, 0)          # _Probar
+    ok = salida_dice("borrados: true true true", 600)
+    anotar("Probar hasta ver la salida del ejemplo: #{ms_desde(t0)} ms")
+    ver("Probar ejecuta el ejemplo de file_seek (el de su grupo)", ok, rexx("SALIDA"))
+    a = str_split(rexx("ACTIVO"), "\n")
+    ver("en una pestaña nueva sin nombre", a.length >= 2 and a[0] == "" and a[1] == "ejemplo_dos_functions.dash", rexx("ACTIVO"))
+    time_delay(20)
+    screen_save_png("DH0:Prueba/ayuda-probar.png")
+
+    # --- buscar ---
+    env_set("FORJA_EVENTO", "111", false)       # Código > Buscar en la ayuda...
+    if al_editor()
+        input_key(0x45, 0)
+    end
+    ver("Buscar en la ayuda: su ventana", activar(AYUDA), input_active_title())
+    time_delay(20)
+    t0 = time_ms()
+    input_text("sonido")
+    input_key(RETURN, 0)
+    n = 0
+    while n < 200 and not str_contains(file_read_text("RAM:forja-ayuda.txt") + "", "=lista sonido")
+        time_delay(2)
+        n = n + 1
+    end
+    anotar("buscar \"sonido\": #{ms_desde(t0)} ms (en Forja #{campo("FORJA_AYUDAV", 7)} ms)")
+    l = ficha()
+    i = 0
+    resultados = 0
+    while i < l.length
+        if str_starts(l[i], "=lista sonido")
+            resultados = l.length - i - 2
+        end
+        i = i + 1
+    end
+    ver("buscar sonido: la lista con lo encontrado", resultados > 3, "#{resultados}")
+    ver("y la primera ficha a la vista", clave() != "file_seek" and clave() != "-", ayuda())
+    time_delay(20)
+    screen_save_png("DH0:Prueba/ayuda-buscar.png")
+
+    # --- el índice y la portada ---
+    clic_linea(campo("FORJA_AYUDAV", 1))   # (en la primera que se ve: quita el teclado del campo de buscar)
+    fuera_de_la_ficha()
+    t0 = time_ms()
+    input_key(0x36, 0)          # Í_ndice
+    ver("Índice: la portada", esperar_ficha("inicio", 200), ayuda())
+    anotar("Índice tras buscar: #{ms_desde(t0)} ms (en Forja, llenar la lista: #{campo("FORJA_AYUDAV", 13)} ms)")
+    ver("y en la lista, el índice", str_contains(file_read_text("RAM:forja-ayuda.txt") + "", "=lista indice"), "")
+    k = linea_enlace("grupos")
+    clic_linea(k)
+    ver("la portada lleva a los grupos", esperar_ficha("grupos", 200), ayuda())
+    k = linea_enlace("audio_functions")
+    clic_linea(k)
+    ver("y un grupo, con Probar", esperar_ficha("audio_functions", 200) and campo("FORJA_AYUDAV", 3) == 1, ayuda())
+    time_delay(20)
+    screen_save_png("DH0:Prueba/ayuda-grupo.png")
+
+    # --- F1 sobre algo del proyecto: la ayuda de sus argumentos, como antes ---
+    rexx("ABRIR " + MAIN)
+    rexx("CURSOR 21 9")         # mover(lista[j], 5)
+    if al_editor()
+        input_key(F1, 0)
+        time_delay(30)
+    end
+    ver("F1 sobre mover (del proyecto): la ayuda de sus argumentos", str_contains(env_get("FORJA_AYUDA"), "mover(n"), env_get("FORJA_AYUDA"))
+    ver("y la ventana de la ayuda sigue en audio_functions", clave() == "audio_functions", ayuda())
+    if al_editor()
+        input_key(0x45, 0)
+    end
+
+    # --- errores al guardar ---
+    rexx("CAMBIAR " + MAIN + " 18 18 \"    Print noexiste\"")
+    antes = comprobaciones()
+    t0 = time_ms()
+    rexx("GUARDAR " + MAIN)
+    ok = esperar_errores(antes, "main.dash:18:11 ", true, 600)
+    anotar("guardar hasta ver el error marcado: #{ms_desde(t0)} ms (dash --check: #{campo("FORJA_ERRORES", 1)} ms)")
+    ver("al guardar, el error marcado en su línea", ok, errores())
+    ver("y dicho en la barra", str_contains(errores(), "~Línea 18: "), errores())
+    ver("y en la salida", salida_dice("main.dash:18:11: Error: ", 50), rexx("SALIDA"))
+    rexx("CURSOR 1 1")
+    if al_editor()
+        input_key(F8, 0)
+    end
+    ver("F8 va al error", cursor() == "17 10", cursor())
+    time_delay(20)
+    screen_save_png("DH0:Prueba/errores.png")
+    rexx("CURSOR 24 1")
+    if al_editor()
+        input_key(F8, MAYUS)
+    end
+    ver("Mayúsculas+F8 también", cursor() == "17 10", cursor())
+
+    # escribir encima mueve la marca con su texto
+    rexx("CURSOR 16 1")
+    if al_editor()
+        input_key(RETURN, 0)
+    end
+    time_delay(20)
+    ver("Return encima: la marca baja con su línea", str_contains(errores(), "main.dash:19:11 "), errores())
+    if al_editor()
+        input_key(0x31, AMIGA)     # Amiga-Z
+    end
+    time_delay(20)
+    ver("deshacer el Return: vuelve a su sitio", str_contains(errores(), "main.dash:18:11 "), errores())
+
+    # arreglado y guardado: se quita
+    antes = comprobaciones()
+    rexx("CAMBIAR " + MAIN + " 18 18 \"    Print MAX\"")
+    rexx("GUARDAR " + MAIN)
+    ok = esperar_errores(antes, "main.dash", false, 600)
+    ver("arreglado y guardado: sin marcas", ok, errores())
+    ver("y Sin errores en la salida", salida_dice("Sin errores.", 50), "")
+
+    # escribiendo otro, sin guardar: tras la pausa se marca
+    rexx("CURSOR 18 14")
+    antes = comprobaciones()
+    t0 = time_ms()
+    if al_editor()
+        input_text(" + zz")
+    end
+    ok = esperar_errores(antes, "main.dash:18:", true, 600)
+    anotar("escribir hasta ver el error marcado (con la pausa de 1,5 s): #{ms_desde(t0)} ms")
+    ver("al escribir un error (sin guardar), se marca tras la pausa", ok, errores())
+    ver("sin guardar", not str_contains(file_read_text(MAIN) + "", "zz"), "")
+    antes = comprobaciones()
+    if al_editor()
+        input_key(0x31, AMIGA)     # Amiga-Z
+    end
+    ok = esperar_errores(antes, "main.dash", false, 600)
+    ver("deshacer: se quita", ok, errores())
+
+    # lo de antes: el fichero como estaba y guardado
+    rexx("CAMBIAR " + MAIN + " 18 19 \"    j = 0\"")
+    rexx("GUARDAR " + MAIN)
+    rexx("QUIT")
+    n = 0
+    while n < 100 and rexx_send(FORJA, "ESTADO") != ""
+        time_delay(5)
+        n = n + 1
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+end

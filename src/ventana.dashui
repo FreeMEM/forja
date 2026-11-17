@@ -63,7 +63,13 @@
             { "separator": true },
             { "tr": 371, "label": "Ir a la definición (Ctrl+clic)", "key": "J", "event": 72 },
             { "tr": 372, "label": "Volver", "key": "U", "event": 73 },
-            { "tr": 373, "label": "Dónde se usa", "key": "H", "event": 74 }
+            { "tr": 373, "label": "Dónde se usa", "key": "H", "event": 74 },
+            { "separator": true },
+            { "tr": 721, "label": "Siguiente error (F8)", "event": 125 },
+            { "tr": 722, "label": "Error anterior (Mayús+F8)", "event": 126 },
+            { "separator": true },
+            { "tr": 723, "label": "Ayuda de Dash (Help)", "event": 110 },
+            { "tr": 724, "label": "Buscar en la ayuda...", "event": 111 }
           ]
         },
         {
@@ -218,6 +224,8 @@
                   { "type": "checkbox", "name": "pantalla", "checked": false },
                   { "type": "label", "tr": 374, "text": "Completar y ayuda de argumentos:", "color": [220, 220, 210] },
                   { "type": "checkbox", "name": "completar", "checked": true },
+                  { "type": "label", "tr": 725, "text": "Buscar errores al escribir:", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "comprobar", "checked": true },
                   { "type": "label", "tr": 381, "text": "Buscar versiones nuevas de Dash al empezar:", "color": [220, 220, 210] },
                   { "type": "checkbox", "name": "buscar", "checked": true }
                 ]
@@ -255,6 +263,41 @@
               { "type": "button", "name": "instalar", "tr": 624, "label": "_Instalar...", "event": 184, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "space" },
               { "type": "button", "name": "gcerrar", "tr": 625, "label": "_Cerrar", "event": 185, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "VentanaAyuda",
+      "tr": 700, "title": "Ayuda de Dash (Forja)",
+      "id": 21,
+      "size": [90, 85],
+      "close": 119,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          {
+            "type": "hgroup",
+            "weight": 0,
+            "children": [
+              { "type": "button", "name": "atras", "tr": 701, "label": "< A_trás", "event": 112, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "adelante", "tr": 702, "label": "A_delante >", "event": 113, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "indice", "tr": 703, "label": "Í_ndice", "event": 114, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "probar", "tr": 704, "label": "_Probar", "event": 115, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "label", "tr": 705, "text": "Buscar:", "color": [220, 220, 210], "weight": 0 },
+              { "type": "string", "name": "buscar", "text": "", "max": 100, "ack": 116, "weight": 100 }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "weight": 100,
+            "children": [
+              { "type": "list", "name": "lista", "change": 117, "weight": 40 },
+              { "type": "balance" },
+              { "type": "canvas", "name": "texto", "min_width": 200, "min_height": 80, "weight": 100 },
+              { "type": "scrollbar", "name": "barra", "vertical": true, "change": 118 }
             ]
           }
         ]
