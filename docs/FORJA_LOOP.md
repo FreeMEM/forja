@@ -744,3 +744,17 @@ VS Code.
     1,1 s con la demo en marcha, y el soltar llegaba tarde); la vista entera, al soltar. demos_base (64 bien) y
     demos_forja en MUI 5 y 3.8 (62 bien), TODO BIEN.
 
+  - **Pruebas** (rama `cierre`, FS-UAE). En MUI 5 (A1200, 3.1), TODO BIEN: teclas, ficheros, completar, codigo_base,
+    compilar, salida, botones, clic, proyecto, grande, errores, parar, salir, sesion, rexx, diseno, depurar, arbol,
+    depurar_ventana, buscar, pantalla, extensiones_base, extensiones (con paneles, teclas, sugerencia y `.lha`),
+    ayuda_base, ayuda, editor_base, editor, pestanas, memoria (nada y todas), proyecto_base, forja_proyecto, plantillas,
+    depurar_mas, perfil, git_panel (el panel en Forja), git_panel_coffin, sprites_todas, mapas_base, mapas_forja, nuevo,
+    demos_base y demos_forja; el copiloto con el servidor falso (bajo `flock`). En MUI 3.8 (`sys32rtg38`, RTG), TODO
+    BIEN: extensiones, editor, pestanas, ayuda, sprites, mapas_forja, forja_proyecto, depurar_mas, perfil, demos_forja
+    y el copiloto. `tests/coffin.sh` en la máquina CoffinOS: TODO BIEN. `tests/ventana.sh` va. El copiloto contra
+    qwen3-coder de verdad: la sugerencia correcta en 9,5 s (la prueba espera la del guion falso, así que "falla").
+  - **Falta en Forja**: Shrinkler (el tope de 4K/64K ya está); NTSC sin probar en una máquina NTSC; el copiloto en un
+    Amiga de verdad; los paneles son de texto (una extensión que dibuje sigue con su ventana); con MUI 3.8, un menú
+    propio añadido con la ventana abierta la cierra y la abre.
+  - **Falta en Dash**: nada nuevo (lo de la lista de `remate` llegó en PR #193; `env_get_text` aún no se usa: la sesión y
+    `ENV:FORJA_PANELES` siguen con el carácter 30).
