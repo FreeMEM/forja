@@ -111,7 +111,6 @@ func esperar_parada(que: String) -> String
     return env_get("FORJA_DEPURAR")
 end
 
-# Una opción del menú por su evento (los menús de MUI no se dejan elegir con input_menu)
 # Una opción del menú por su evento (input_menu no llega a los menús de MUI): ENV:FORJA_EVENTO y Esc en el editor,
 # para que Forja lo mire
 func menu(ev: Int)
