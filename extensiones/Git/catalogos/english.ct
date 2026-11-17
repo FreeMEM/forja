@@ -44,9 +44,6 @@ Nothing staged
 MSG_14
 Tick the box of the files that go in the commit.
 ; Marca la casilla de los ficheros que van en el commit.
-MSG_15
-_OK
-; _Vale
 MSG_16
 This file is not in the repository of the project.
 ; Este fichero no está en el repositorio del proyecto.
@@ -69,20 +66,32 @@ MSG_23
 did not answer in %1 ms: 
 ; no contestó en %1 ms: 
 MSG_30
-Changes (Forja)
-; Cambios (Forja)
+Changes
+; Cambios
 MSG_31
 Message:
 ; Mensaje:
 MSG_32
-_Differences
-; _Diferencias
+Differences
+; Diferencias
 MSG_33
-_Stage all
-; _Preparar todo
+Stage all
+; Preparar todo
 MSG_34
-_Unstage all
-; _Quitar todo
+Unstage all
+; Quitar todo
 MSG_35
-C_ommit
-; C_onfirmar
+Commit
+; Confirmar
+MSG_36
+Diff
+; Dif
+MSG_37
+All
+; Todo
+MSG_38
+None
+; Nada
+MSG_39
+OK
+; OK

@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/remate/extensiones/Git/git.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/cierre/extensiones/Git/git.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 1 cambio
@@ -28,8 +28,6 @@ MSG_13 (13//)
 Nada preparado
 MSG_14 (14//)
 Marca la casilla de los ficheros que van en el commit.
-MSG_15 (15//)
-_Vale
 MSG_16 (16//)
 Este fichero no está en el repositorio del proyecto.
 MSG_17 (17//)
@@ -45,14 +43,22 @@ no abrió su puerto en %1 ms
 MSG_23 (23//)
 no contestó en %1 ms: 
 MSG_30 (30//)
-Cambios (Forja)
+Cambios
 MSG_31 (31//)
 Mensaje:
 MSG_32 (32//)
-_Diferencias
+Diferencias
 MSG_33 (33//)
-_Preparar todo
+Preparar todo
 MSG_34 (34//)
-_Quitar todo
+Quitar todo
 MSG_35 (35//)
-C_onfirmar
+Confirmar
+MSG_36 (36//)
+Dif
+MSG_37 (37//)
+Todo
+MSG_38 (38//)
+Nada
+MSG_39 (39//)
+OK
