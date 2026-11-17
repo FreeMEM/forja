@@ -4765,6 +4765,15 @@ func orden_sugerencia(linea: String) -> String
     ed_sug_version = d.version
     ed_sug_l = l
     ed_sug_c = c
+    # que se vea entera: si sus líneas pasan de lo que se ve, la vista baja (sin pasar de la línea del cursor)
+    n = str_split(t, "\n").length
+    if n > 1 and (d.plegados == nil or d.plegados.length == 0) and d.cl + n > d.primera + ed_visibles
+        p0 = d.cl + n - ed_visibles
+        if p0 > d.cl
+            p0 = d.cl
+        end
+        d.primera = p0
+    end
     redibujar()
     return ""
 end

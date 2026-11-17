@@ -731,27 +731,26 @@ func mirar_prueba()
     else
         salida = ""
     end
+    # primero lo que falló (y los errores), después lo que fue bien; lo demás de la salida no va
     var ls: [String] = []
+    var buenas: [String] = []
     colores = ""
     bien = 0
     mal = 0
     for l in str_split(salida, "\n")
         t = str_trim(l)
-        if t == ""
-            continue
-        end
         if str_starts(t, "bien:")
             bien = bien + 1
-            ls.push(t)
-            colores = colores + "+"
-        elif str_starts(t, "FALLO") or str_contains(t, "rror")
+            buenas.push(t)
+        elif str_starts(t, "FALLO") or str_contains(t, "Error") or str_contains(t, "error #")
             mal = mal + 1
             ls.push(t)
             colores = colores + "-"
-        else
-            ls.push(t)
-            colores = colores + "#"
         end
+    end
+    for t in buenas
+        ls.push(t)
+        colores = colores + "+"
     end
     cuenta = str_replace(str_replace(tr(82, "%1: %2 bien, %3 mal."), "%1", nombre_de(prueba_ruta)), "%2", "#{bien}")
     cuenta = str_replace(cuenta, "%3", "#{mal}")

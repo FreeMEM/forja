@@ -236,12 +236,13 @@ func clic_forja(x: Int, y: Int)
     time_delay(15)
 end
 
-func veces(texto: String, trozo: String) -> Int
+# Cuántas líneas del texto son esa
+func veces(texto: String, linea: String) -> Int
     n = 0
-    p = str_find(texto, trozo)
-    while p >= 0
-        n = n + 1
-        p = str_find_from(texto, trozo, p + trozo.length)
+    for l in str_split(texto, "\n")
+        if l == linea
+            n = n + 1
+        end
     end
     return n
 end
@@ -250,7 +251,7 @@ end
 func veces_espera(n: Int) -> Bool
     k = 0
     while k < 60
-        if veces(eco(), "\nMENU eco\n") >= n
+        if veces(eco(), "MENU eco") >= n
             return true
         end
         time_delay(5)
@@ -415,7 +416,7 @@ Main
     ver("Paneles: Eco pone los suyos", menu(M_PANELES) and eco_dice("MENU paneles", 100) and paneles_dice("Eco|Charla|abajo|0|0|1|", 60), rexx("PANELES"))
     ver("PANELES", str_contains(rexx("PANELES"), "Eco|Lista|izquierda|0|0|3|\n"), rexx("PANELES"))
     time_delay(25)
-    n_eco = veces(eco(), "\nMENU eco\n")
+    n_eco = veces(eco(), "MENU eco")
     # Ctrl Alt E (la tecla de Eco) con el puntero sobre la salida, sobre el proyecto y sobre la barra de botones
     activar("Forja")
     input_move(campo("FORJA_SALIDA", 0) + 60, campo("FORJA_SALIDA", 1) + 4)
@@ -581,8 +582,8 @@ Main
         end
         # y desde un .lha (con C:LhA en el emulador)
         if file_exists("C:LhA") and file_exists("DH0:Fuera/HolaSrc/Hola/manifiesto.txt")
-            file_write_text("T:hazlha", "CD DH0:Fuera/HolaSrc\nC:LhA -r a DH0:Fuera/Hola.lha Hola/ >NIL:\n")
-            run_command("Execute T:hazlha")
+            # (LhA guarda las rutas desde el cajón que acaba en "/": Hola/manifiesto.txt y Hola/Hola)
+            run_command("C:LhA -r a DH0:Fuera/Hola.lha DH0:Fuera/HolaSrc/ #? >NIL:")
             ver("el .lha, hecho con C:LhA", file_exists("DH0:Fuera/Hola.lha"), "")
             env_set("FORJA_INSTALAR", "DH0:Fuera/Hola.lha", false)
             activar("Extensiones de Forja")

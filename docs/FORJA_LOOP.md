@@ -656,3 +656,44 @@ VS Code.
     - Los de la lista de `pulido` siguen: `music_seek`, `music_tick`/`music_speed`, `music_playing`, `beam_line`,
       `vblank_count`, `mui_post_event`, `env_get` de varias líneas, `mui_menu_separator` que devuelva su objeto.
 
+
+- 2026-11-17, rama `cierre`: **lo que quedaba de Forja para cerrar el plan.**
+  - **API 6 de las extensiones: paneles dentro de la ventana de Forja** (`src/paneles_ext.dash`). Un panel es una
+    pestaña más junto al panel del proyecto (lado `izquierda`) o junto a la salida (`abajo`): con un panel en un lado,
+    la fila del título de ese lado son pestañas (la de Forja y las de los paneles). Forja lo pinta con lo que manda la
+    extensión (líneas con un color, la elegida, botones abajo y una entrada de una línea), así que no hace falta otra
+    ventana ni que la extensión esté despierta para repintar. Órdenes `PANEL`, `PANELVER` (con `entrada`, el teclado a
+    la entrada), `PANELCERRAR`, `PANELBOTONES` (`texto|orden|corto`: los cortos si los largos no caben en una fila),
+    `PANELENTRADA`, `PANELCURSOR` y `PANELES`; sucesos `PANEL título|línea|columna|otra`, `PANELTECLA`, `PANELBOTON` y
+    `PANELTEXTO`. Un clic en el panel le da el teclado (flechas, Return, letras, Tab a la entrada, Esc vuelve); un clic
+    en el editor, `VISTA` o `ABRIR` lo devuelven al editor. La barra y la rueda de su lado lo mueven. 8 como mucho; se
+    van con su extensión. En `lib/forja.dash`: `forja_panel`, `forja_panel_ver`, `forja_panel_cerrar`,
+    `forja_panel_botones`, `forja_panel_entrada`, `forja_panel_entrada_texto`, `forja_panel_cursor`,
+    `forja_panel_estado` y `forja_campo`. Documentado en `docs/EXTENSIONES.md` (Paneles).
+  - **Teclas de las extensiones en toda la ventana**: con el puntero en el proyecto, la salida o la barra de botones,
+    con un panel con el teclado y sin ningún fichero abierto (antes, solo sobre el editor con un fichero).
+  - **Git usa un panel**: el panel Cambios ya no es una ventana suya (fuera `git.dashui`): pestaña Cambios junto al
+    proyecto, `[x] M ruta` por fichero, el mensaje en la entrada, Diferencias, Preparar todo, Quitar todo y Confirmar
+    (Dif, Todo, Nada y OK si no caben). Casilla o Espacio, add/reset; segundo clic o Return, diferencias; Return en el
+    mensaje, commit.
+  - **El copiloto usa dos**: Cambiar el código... pide qué cambiar en el panel Inferencia de abajo (fuera
+    `copiloto.dashui`), que dice cuándo Inferencia está con ello y, al llegar el cambio, tiene Aceptar y Rechazar.
+    **Escribir la prueba** la ejecuta al aceptarla y enseña el resultado en el panel Prueba (cuántas "bien:" y cuántas
+    "FALLO", cada línea en su color, Otra vez y Abrir la prueba), y la cuenta en la salida.
+  - **Sugerencias de varias líneas y en medio de una**: `SUGERENCIA` acepta varias líneas y el cursor en medio de una
+    línea. La primera se ve desde el cursor; las demás, encima de las de debajo como una capa (con una raya a la
+    izquierda), y lo que había tras el cursor, detrás de la última, como quedará. Tab la mete de una vez. El copiloto la
+    pide al final de una línea, en medio (con lo de antes y lo de después) o en una línea vacía tras un `func`, `if`,
+    `while`... (el cuerpo), 8 líneas como mucho, y quita lo que repita de antes o de después del cursor.
+  - **Arreglos**: `EJECUTAR fichero` con un `.dash` abierto con su `Main` lo ejecuta a él (el copiloto ejecutaba
+    `main.dash` en lugar de la prueba); los menús propios de las extensiones llevan 12 opciones (al del copiloto, con 11,
+    le faltaba Dónde está Inferencia, y Forja lo decía en la salida al arrancar).
+  - **Instalar desde un `.lha`, probado**: `tests/extensiones.sh` pone en el emulador un LhA del Amiga (`LHA_AMIGA`; por
+    defecto el de `~/.cache/caffeine-prueba`, no va al repositorio), la prueba hace con él `Hola.lha` y lo instala con
+    el gestor.
+  - **Las pruebas**: `tests/extensiones.dash` con las teclas de Eco en la salida, el proyecto y la barra, sus dos
+    paneles (Lista y Charla), la sugerencia de dos líneas en medio de una y el `.lha`; `tests/git_panel.dash` con el
+    panel en Forja (clics por `ENV:FORJA_PANELES`); `tests/copiloto.dash` con el panel Inferencia, el panel Prueba y una
+    sugerencia de dos líneas (`tests/guiones_copiloto/encargo_completar.json`). `ENV:FORJA_PANELES` va en una sola línea
+    (separada con el carácter 30): `env_get` lee una línea, y la prueba hacía clic en (0, 9), el botón de cerrar de la
+    ventana.
