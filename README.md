@@ -247,8 +247,8 @@ vuelven a abrir la próxima vez con la sesión.
 
 ### Demos
 
-Las herramientas para hacer demos son una extensión (`Extensiones/Demos`), con su menú Demos y una ventana de cuatro
-páginas (Amiga-1 a Amiga-4). Se abre también con un `.sync` o un `.mod` del proyecto. La plantilla Demo ya las usa:
+Las herramientas para hacer demos son una extensión (`Extensiones/Demos`), con su menú Demos y una ventana de cinco
+páginas (Amiga-1 a Amiga-5). Se abre también con un `.sync` o un `.mod` del proyecto. La plantilla Demo ya las usa:
 trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y su versión exportada,
 `pistas_datos.dash`.
 
@@ -275,31 +275,51 @@ trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y s
 - **Visor de MOD**: los patrones del módulo con la fila que suena resaltada. Espacio lo toca o lo para (con
   `music_*`); izquierda y derecha cambian de posición. Si la demo está en marcha, sigue a la suya. Return mete en el
   código la fila de sincronía (posición × 64 + fila) y `s` lleva el cursor de las pistas allí.
-- **Editor de copper**: degradados y cambios de color por línea, con la vista al lado. Unas paradas (una línea y un
-  color de 12 bits): flechas o un clic para elegir (en la vista o en la lista); arrastrar en la vista, o Mayúsculas o
-  Alt + flechas, para moverla; `r` `g` `b` suben cada color (con
-  Mayúsculas, bajan), `n` añade, Supr quita, `d` cambia entre degradado y cambios secos y `c` el registro de color
-  (COLOR00 es el fondo). Return lo pone en el fichero de delante: llamadas a `copper_*` o (`t`) una tabla de 256
-  colores para un bloque `asm`. Si el bloque ya está, lo cambia allí; `l` lo vuelve a leer del código, y Tab lee el
-  bloque siguiente del fichero (con Mayúsculas, el anterior). `p` lo prueba de verdad en una pantalla propia (un clic
-  vuelve).
+- **Editor de copper**: degradados y cambios por línea de uno o varios registros a la vez, con la vista del elegido al
+  lado. Valen los 32 colores (COLOR00 es el fondo) y BPLCON0/1/2 (BPLCON1 desplaza la imagen línea a línea), BPL1MOD
+  y BPL2MOD, DIWSTRT/DIWSTOP y DDFSTRT/DDFSTOP. Cada registro tiene sus paradas (una línea y un valor): flechas
+  arriba y abajo o un clic para elegir (en la vista o en la lista); arrastrar en la vista, o Mayúsculas o Alt +
+  flechas, para moverla; `r` `g` `b` suben cada color (con Mayúsculas, bajan) y en los demás registros `+` y `-` el
+  valor (`<` y `>`, de 16 en 16); `n` añade una parada y Supr la quita. Izquierda y derecha (o un clic en la fila de
+  los registros) pasan de un registro a otro, `a` añade uno, Mayúsculas+Supr lo quita y `c` lo cambia por otro (con
+  Mayúsculas, hacia atrás). `d` cambia el modo: un color, degradado o cambios secos; los demás, secos o lineales.
+  Return lo pone en el fichero de delante: llamadas a `copper_*` (una espera por línea con cambios, y en ella los de
+  todos los registros: `copper_color` o `copper_move`) o (`t`) una tabla por registro para un bloque `asm`. El bloque
+  lleva una línea `# registro:` por registro; si ya está, lo cambia allí; `l` lo vuelve a leer del código (también los
+  de antes, con `# paradas:`), y Tab lee el bloque siguiente del fichero (con Mayúsculas, el anterior). `p` lo prueba
+  de verdad en una pantalla propia (un clic vuelve).
 - **Medidor de raster**: cuántas líneas de la pantalla gasta cada imagen de la demo, con las 64 últimas en barras
   (verde hasta media imagen, amarillo hasta tres cuartos, rojo por encima), la media, el máximo y las imágenes
   perdidas. La demo mide entre `sync_fotograma()` (tras `wait_vblank`) y `sync_fin()`. Vale igual para un juego.
+  - **Por partes**: con `sync_medir("lógica")`, `sync_medir("dibujo")`... la demo dice de quién es lo que se gasta
+    desde ahí (hasta 4 nombres; lo de antes de la primera, "otro"). Las barras se apilan, cada parte de su color, con
+    una leyenda con la media de cada una. La plantilla mide "lógica" y "barras".
+- **Partes** (la línea de tiempo de la demo): qué parte (escena) va de qué fila de la música a qué fila. Una barra
+  con una caja por parte y la fila que suena, y debajo la lista: arriba y abajo eligen, izquierda y derecha la columna
+  (nombre, desde, hasta); las cifras y Return cambian desde o hasta, `+` `-` (`<` `>`, de 16 en 16) los mueven (en la
+  columna del nombre, la parte entera); `n` hace una tras la última, `r` le cambia el nombre, Supr la quita, `g` lleva
+  la demo a su principio y un clic en la barra la elige. Van en el `.sync` (líneas `parte nombre desde hasta`), con el
+  deshacer de las pistas. `c` pone en el fichero de delante el bloque `# partes:` (una constante por parte,
+  `parte_de(fila)` y `parte_cambio(fila)`, que deja en `parte_actual` la de ahora y en `parte_primera` si acaba de
+  empezar); si ya está, lo cambia allí, y `l` lo vuelve a leer. La plantilla tiene dos partes: "entrada" (las barras
+  quietas) y "barras".
 
 ### Git
 
 Git es una extensión (`Extensiones/Git`), que usa [dashgit](https://github.com/FreeMEM/dashgit). **dashgit está en
 alfa**: aún hay mucho que probar, así que ten copia de lo importante.
 
-- En la barra de botones, a la derecha, la rama y "N cambios"; un clic abre el panel Cambios.
+- En la barra de botones, a la derecha, la rama y "N cambios"; un clic abre el panel Cambios, una pestaña junto al
+  panel del proyecto.
 - En el panel del proyecto, una letra en cada fichero o cajón con cambios: M (cambiado), A (nuevo en el índice),
   D (borrado), U (conflicto), ? (sin seguir).
 - En el margen del editor, rayas frente al último commit: añadida (raya llena, verde), cambiada (a trozos, azul) y
   quitadas (un triángulo rojo). Siguen a lo que escribes, sin guardar: al meter o quitar líneas se mueven con su
   texto, y tras una pausa sin escribir llegan las de verdad.
-- El panel Cambios: una fila por fichero con su casilla (preparado o no para el commit), el mensaje y Confirmar.
-  Clic en la casilla, `add` o `reset` de ese fichero; dos clics en el nombre, sus diferencias.
+- El panel Cambios, en la ventana de Forja (junto al proyecto, con su pestaña): una fila por fichero con su casilla
+  (`[x]` preparado para el commit, `[ ]` no, `[-]` a medias), el mensaje y los botones Diferencias, Preparar todo,
+  Quitar todo y Confirmar (en un panel estrecho, Dif, Todo, Nada y OK). Clic en la casilla (o Espacio), `add` o
+  `reset` de ese fichero; dos clics en el nombre (o Return), sus diferencias; Return en el mensaje confirma.
 - Las diferencias se abren en una pestaña de solo lectura, con colores: `n` y `p` van al trozo siguiente y al
   anterior, y Return lleva a esa línea del fichero.
 - Su menú, Git, en la barra de menús: estado, diferencias, historial, añadir los nuevos, Cambios y confirmar, traer (pull) y
@@ -323,14 +343,19 @@ Inferencia, en la barra de menús:
 - **Preguntar sobre esto** (Amiga-I, o un clic en la zona Inferencia): las líneas elegidas, o el fichero, y la lista del proyecto van a la
   conversación de Inferencia; escribes allí la pregunta.
 - **Explicar la selección**: lo elegido, o la función del cursor; la explicación sale en Inferencia.
-- **Cambiar el código...** (Ctrl Alt C): dices qué cambiar en lo elegido (o en la función del cursor).
+- **Cambiar el código...** (Ctrl Alt C): dices qué cambiar en lo elegido (o en la función del cursor), en el panel
+  Inferencia de abajo (una pestaña junto a la salida). El panel dice cuándo está Inferencia con ello y, al llegar el
+  cambio, tiene Aceptar y Rechazar.
 - **Documentar la función**: un comentario encima de la función del cursor.
 - **Escribir la prueba**: un programa de prueba para la función del cursor, en un fichero nuevo `prueba_x.dash`. Al
-  aceptarla, Forja la ejecuta y lo que dice sale en la salida.
+  aceptarla, Forja la ejecuta y el resultado sale en el panel Prueba, abajo: cuántas comprobaciones dieron "bien:" y
+  cuántas "FALLO", cada una en su color, con Otra vez (la vuelve a ejecutar) y Abrir la prueba.
 - **Explicar el error** (Ctrl Alt E) y **Arreglar el error** (Ctrl Alt F): el primer error de la última compilación;
   si no la hay, compila antes.
-- **Sugerencias al escribir**: apagadas al empezar. Encendidas, al parar al final de una línea Inferencia propone
-  cómo sigue, en gris; Tab la mete. Cada una es una petición por la red: con un 68020 y un servidor lejano (o el
+- **Sugerencias al escribir**: apagadas al empezar. Encendidas, al parar de escribir Inferencia propone lo que va en
+  el cursor, en gris: al final de una línea, en medio (lo de detrás se ve tras la sugerencia) o, en una línea vacía
+  tras un `func`, `if`, `while`..., el cuerpo entero. Puede ser de varias líneas (8 como mucho): se ven encima de las
+  de debajo, con una raya a la izquierda. Tab la mete de una vez (Amiga-Z la quita). Cada una es una petición por la red: con un 68020 y un servidor lejano (o el
   saludo de TLS) tardan segundos, así que son más útiles con un modelo en tu red (Ollama) o un Amiga rápido.
 
 Lo que cambia código no toca nada al llegar: la respuesta sale en una pestaña de solo lectura con las diferencias
@@ -357,7 +382,9 @@ hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas pr
 
 Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones (o un menú suyo en
 la barra), teclas, marcas y rayas en el margen, letras en el proyecto, una zona en la barra de botones, un texto en la
-barra, pestañas de solo lectura o un editor para un tipo de fichero con su ventana. Git, el copiloto de Inferencia, Sprites,
+barra, pestañas de solo lectura, paneles dentro de la ventana de Forja (una pestaña junto al proyecto o junto a la
+salida, como Cambios de Git o Prueba del copiloto) o un editor para un tipo de fichero con su ventana. Sus teclas
+valen en toda la ventana de Forja, también con el puntero en el proyecto o la salida. Git, el copiloto de Inferencia, Sprites,
 Mapas y Demos son extensiones. Hablan con Forja por ARexx;
 si una cae o se cuelga, Forja sigue. Extensiones > Gestor de extensiones... las enseña, las activa o las desactiva y
 las instala desde un cajón o un `.lha`. La de ejemplo, Contar, cuenta las líneas y las palabras del fichero y mete
