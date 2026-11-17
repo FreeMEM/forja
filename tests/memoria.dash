@@ -107,7 +107,7 @@ func una_vez(vez: Int, todas: Bool)
         f = fast0 - fmin
         anotar("vez #{vez}, compilando main.dash (lo más alto): chip " + kb(c) + ", fast " + kb(f) + ", en total " + kb(c + f) + " (" + rexx_send(FORJA, "ESTADO") + ")")
         # (con Git compilando tiene que caber en los 5,8 MB que deja libres un A1200 con 2 + 4 MB)
-        tope("compilando", f, 5000, 5600, 6200)
+        tope("compilando", f, 5000, 5900, 6200)   # (git: 5,7 MB el 2026-11-17 con el dash de Dash 2.16)
         time_delay(250)
     end
     if todas
