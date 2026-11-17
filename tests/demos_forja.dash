@@ -58,6 +58,12 @@ end
 func sonda() -> String
     time_delay(15)
     t = file_read_text("RAM:forja-demos-sonda.txt")
+    n = 0
+    while (t == nil or t == "") and n < 10
+        time_delay(2)
+        t = file_read_text("RAM:forja-demos-sonda.txt")
+        n = n + 1
+    end
     if t == nil
         return ""
     end
@@ -99,9 +105,20 @@ func campo_sonda(l: String, palabra: String) -> Int
     return -1
 end
 
+# (antes de cada tecla, la ventana de Demos: en MUI 3.8, Forja se pone delante un rato después de ABRIR)
 func tecla(k: Int, q: Int)
+    if not str_starts(input_active_title(), "Demos")
+        activar()
+    end
     input_key(k, q)
     time_delay(8)
+end
+
+func escribir(t: String)
+    if not str_starts(input_active_title(), "Demos")
+        activar()
+    end
+    input_text(t)
 end
 
 func puerto(nombre: String) -> Bool
@@ -153,7 +170,7 @@ func sincronia()
     tecla(0x4D, 0)
     tecla(0x4D, 0)
     tecla(0x4D, 0)
-    input_text("1.5")
+    escribir("1.5")
     time_delay(10)
     ver("lo escrito se ve en la celda", str_contains(linea("sync"), "cursor 4 0") and str_contains(linea("sync"), "buffer [1.5]"), linea("sync"))
     tecla(0x44, 0)
@@ -164,7 +181,7 @@ func sincronia()
     ver("Supr la quita", str_contains(linea("pista"), "claves 3 aqui -"), linea("pista"))
     tecla(0x4C, MAYUS)
     ver("Mayúsculas+arriba sube 16 (hasta la 0)", str_contains(linea("sync"), "cursor 0 0"), linea("sync"))
-    input_text("2.5")
+    escribir("2.5")
     tecla(0x44, 0)
 end
 
@@ -191,12 +208,12 @@ func con_demo()
     ver("parada, el cursor se queda en su fila", campo_sonda(linea("sync"), "cursor") == fila, linea("sync") + " / #{fila}")
     # una pista nueva: n y su nombre
     tecla(0x36, 0)
-    input_text("brillo")
+    escribir("brillo")
     time_delay(10)
     ver("n pide el nombre de la pista en la tabla", esperar("nombre [brillo]", 5), linea("sync"))
     tecla(0x44, 0)
     ver("n hace una pista nueva", esperar("pistas 3 ", 5) and str_starts(linea("pista"), "pista brillo"), linea("sync") + " / " + linea("pista"))
-    input_text("9")
+    escribir("9")
     tecla(0x44, 0)
     esperar("pista brillo claves 1", 5)
     ver("la demo recibe la clave al momento", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) == "9", rexx_send_wait("DEMOSYNC", "VALOR brillo", 2000) + " fila #{fila}")
@@ -224,7 +241,7 @@ end
 func texto_main(con: String) -> String
     n = 0
     t = ""
-    while n < 20
+    while n < 40
         t = rexx_send("FORJA.1", "TEXTO DH0:Prueba/demo/main.dash")
         if str_contains(t, con)
             return t
@@ -247,6 +264,7 @@ func copper()
     tecla(0x13, 0)
     tecla(0x13, 0)
     ver("Copper: una parada nueva y más rojo", esperar("copper 4 1 0 degradado copper 84:", 5), linea("copper"))
+    anotar("  (" + linea("dibujo") + ")")
     tecla(0x44, 0)
     t = texto_main("# copper: degradado")
     ver("Return lo mete en main.dash (" + input_active_title() + ")", veces(t, "# copper: degradado") == 1 and str_contains(t, "copper_wait(40, 0)") and str_contains(t, "# paradas: 0 degradado 40:00F 84:"), linea("mensaje"))

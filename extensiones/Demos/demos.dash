@@ -79,6 +79,8 @@ var _pest_x2: [Int] = []
 var _pens: {Int: Int} = {}
 var _pens_lista: [Int] = []
 var tics: Int = 0
+var ms_dibujo: Int = 0
+var _tic_dibujo: Int = 0
 
 # la demo
 var demo_mem: Int = 0
@@ -186,6 +188,8 @@ func hacer_ventana()
     mui_canvas_on_draw(lienzo, dibujar)
     mui_canvas_on_input(lienzo, EV_LIENZO)
     mui_canvas_take_keys(lienzo, true)
+    # (se ve de golpe: con la demo, se repinta varias veces por segundo)
+    mui_canvas_buffered(lienzo, true)
     mui_on_close(win, EV_VENTANA)
     mui_window_size(win, 80, 80)
 end
@@ -219,13 +223,27 @@ end
 
 # El lápiz de un color de 12 bits (guardado: color_pen reserva uno en el Workbench)
 func pen_rgb(rgb: Int) -> Int
-    p = _pens.get(rgb, -1)
-    if p < 0
+    p = _pens.get(rgb, -9)
+    if p == -9
         p = color_pen(((rgb >> 8) & 15) * 17, ((rgb >> 4) & 15) * 17, (rgb & 15) * 17)
         _pens[rgb] = p
-        _pens_lista.push(p)
+        if p >= 0
+            _pens_lista.push(p)
+        end
+    end
+    if p < 0
+        return tema.texto
     end
     return p
+end
+
+# El color de la vista, con 4 niveles por componente: en el Workbench cada color nuevo es un lápiz que se reserva (en
+# una pantalla de 256 colores con tarjeta, cambiar la paleta tantas veces tardaba segundos con MUI 3.8)
+func pen_vista(rgb: Int) -> Int
+    r = ((rgb >> 8) & 15) / 5 * 5
+    g = ((rgb >> 4) & 15) / 5 * 5
+    b = (rgb & 15) / 5 * 5
+    return pen_rgb((r << 8) | (g << 4) | b)
 end
 
 func soltar_pens()
@@ -250,6 +268,7 @@ func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         dibujar_pestanas(zona_x, zona_y, zona_ancho)
         return
     end
+    t0 = time_ms()
     zona_x = x
     zona_y = y
     zona_ancho = ancho
@@ -280,6 +299,7 @@ func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         pen = tema.bien
     end
     texto(x + 4, pie + alto_letra + 4, mensaje, pen)
+    ms_dibujo = time_ms() - t0
 end
 
 func ayuda_teclas() -> String
@@ -356,18 +376,30 @@ func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
         cu_nuevo()
     end
     c = cu_colores()
-    # la vista: las 256 líneas en el alto que haya, 160 de ancho
+    # la vista: las 256 líneas en el alto que haya, 160 de ancho; una caja por franja del mismo lápiz (una raya por
+    # línea tardaba 10 s con MUI 3.8 en una pantalla de tarjeta)
     wv = 160
     yy = 0
-    while yy < alto
-        l = yy * CU_LINEAS / alto
-        v = c[l]
-        if v < 0
-            gfx_pen(tema.fondo_panel)
-        else
-            gfx_pen(pen_rgb(v))
+    desde = 0
+    pen_antes = -1
+    while yy <= alto
+        pen = -1
+        if yy < alto
+            l = yy * CU_LINEAS / alto
+            v = c[l]
+            pen = tema.fondo_panel
+            if v >= 0
+                pen = pen_vista(v)
+            end
         end
-        gfx_line(x, y + yy, x + wv - 1, y + yy)
+        if pen != pen_antes or yy == alto
+            if pen_antes >= 0 and yy > desde
+                gfx_pen(pen_antes)
+                gfx_rect(x, y + desde, x + wv - 1, y + yy - 1)
+            end
+            desde = yy
+            pen_antes = pen
+        end
         yy = yy + 1
     end
     gfx_pen(tema.borde)
@@ -406,7 +438,7 @@ func dibujar_copper(x: Int, y: Int, ancho: Int, alto: Int)
             gfx_pen(tema.seleccion)
             gfx_rect(lx - 2, ly - 1, lx + 22 * ancho_letra, ly + alto_letra)
         end
-        gfx_pen(pen_rgb(p.rgb))
+        gfx_pen(pen_vista(p.rgb))
         gfx_rect(lx, ly, lx + 2 * ancho_letra, ly + alto_letra - 2)
         texto(lx + 3 * ancho_letra, ly, "línea #{p.linea}", tema.texto)
         texto(lx + 14 * ancho_letra, ly, "$" + cu_hex(p.rgb), tema.sintaxis[4])
@@ -1244,7 +1276,10 @@ func tic()
                 if tics % 5 == 0
                     redibujar_pestanas()
                 end
-            elif pagina == PAG_MEDIDOR or fila_ahora() != antes_fila or tics % 5 == 0
+            elif (pagina == PAG_MEDIDOR or fila_ahora() != antes_fila or tics % 5 == 0) and tics - _tic_dibujo >= 2
+                # (como mucho 2,5 veces por segundo: con MUI 3.8 en una pantalla de tarjeta, un dibujo entero de la
+                # tabla tarda casi un segundo en el emulador)
+                _tic_dibujo = tics
                 redibujar()
             end
         end
@@ -1255,7 +1290,8 @@ func tic()
         mus_pos = music_pos()
         mus_fila = music_row()
         sy_fila = mus_pos * 64 + mus_fila
-        if fila_ahora() != antes_fila
+        if fila_ahora() != antes_fila and tics - _tic_dibujo >= 2
+            _tic_dibujo = tics
             redibujar()
         end
     end
@@ -1377,6 +1413,7 @@ func publicar_sonda()
         t = t + "pista " + p.nombre + " claves #{p.filas.length} aqui " + clave + " valor " + sync_texto(sync_valor_en(p, sy_fila, Fixed(0))) + "\n"
     end
     t = t + "mensaje " + mensaje + "\n"
+    t = t + "dibujo #{ms_dibujo} pens #{_pens_lista.length}\n"
     if t != sonda_antes
         sonda_antes = t
         n = 0

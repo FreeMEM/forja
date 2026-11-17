@@ -115,7 +115,8 @@ VS Code.
 
 ### Fase 5. Demos, juegos y 3D
 - 5.1 [D] Ensamblador en línea, por los dos caminos de Dash.
-- 5.2 [F] Herramientas de demos: pistas de sincronía, visor de MOD, editor de copper y medidor de rasterlines.
+- 5.2 [F] Herramientas de demos: pistas de sincronía, visor de MOD, editor de copper y medidor de rasterlines. Hecho
+  (rama `demos`, extensión Demos; ver la bitácora).
 - 5.3 [D] Prueba de MiniGL en el emulador y, si va, funciones `gl_*`.
 
 ### Fase 6. VS Code
@@ -448,3 +449,50 @@ VS Code.
     son el proyecto, las plantillas y el depurador nuevo.
   - **Falta en Dash**: con `--profile`, no copiar funciones en línea (como con `--debug`: `can_inline` de
     `dashc/src/gen68k.c`, y las de una línea puestas como expresión).
+- 2026-11-17, rama `demos`: **paso 5.2, las herramientas de demos** en una extensión, `extensiones/Demos`: menú Demos y
+  una ventana con cuatro páginas (Amiga-1 a 4), que también se abre con un `.sync` o un `.mod`. Uso en el README
+  (sección Demos).
+  - **Pistas de sincronía** tipo Rocket, en `plantillas/demo/sync.dash` (Dash puro, en la plantilla de demo y en
+    `Forja/lib` del paquete): claves por fila de la música (posición × 64 + fila), escalón, lineal, suave o rampa, en
+    `Fixed`. Fichero `.sync` de texto. La extensión las edita en una tabla con el teclado; Amiga-X las exporta a
+    `pistas_datos.dash` (tablas en el programa: con `VIVO = false` la demo no necesita ni el `.sync` ni Forja).
+  - **Cómo hablan la demo y Forja** (lo más ligero en un 68000): la demo abre el puerto ARexx `DEMOSYNC` y en cada
+    imagen solo hace `rexx_get` (vacío casi siempre); la extensión manda algo solo al cambiar una clave (`CLAVE`,
+    `QUITAR`, `PISTA`, `RECARGAR`, `PAUSA`, `SIGUE`, `IR`, `DELANTE`, `DETRAS`, `ACABAR`, y `VALOR` para las
+    pruebas). Lo que se lee a menudo (fila, fotograma, líneas, anillo de 64 imágenes, perdidas) lo escribe la demo en
+    un bloque de 160 bytes cuya dirección da `HOLA`; la extensión lo lee 5 veces por segundo con `peek_*`. Se descartó
+    recargar un fichero en cada cambio (más trabajo en la demo: leerlo y analizarlo entero) y escribir en las listas
+    de la demo desde fuera (frágil).
+  - **Visor de MOD** (`mod.dash`): cabecera y patrones, la fila que suena resaltada; lo toca la extensión con
+    `music_*` o sigue a la demo. Return mete la fila de sincronía en el código.
+  - **Editor de copper** (`copper.dash`): paradas (línea y color de 12 bits), degradado o cambios secos, cualquier
+    registro de color. Genera `copper_*` o una tabla de 256 colores para un bloque `asm`, entre `# copper: nombre` y
+    `# fin copper: nombre`, con una línea `# paradas:` para volver a leerlo; si el bloque ya está en el fichero, lo
+    cambia allí (`CAMBIAR`), si no lo mete en el cursor. `p` lo enseña en una pantalla propia con el copper de verdad.
+  - **Medidor**: la demo mide con VPOSR/VHPOSR (`peek_word($DFF004/6)`) entre `sync_fotograma()` y `sync_fin()`; las
+    64 últimas en barras, media, máximo, perdidas (por `time_ms`). También en la barra de Forja mientras corre.
+  - La plantilla de demo usa todo esto: `sync.dash`, `demo.sync` (pistas "velocidad" y "subida" que mueven las
+    barras), `pistas_datos.dash`, `musica.mod` si está, y `sync_fin` alrededor del bloque asm (unas 190 líneas por
+    imagen, porque espera línea a línea).
+  - Pruebas nuevas: `tests/demos_base.sh` (sin ventana; con la demo de verdad por DEMOSYNC; compila en el PC el código
+    de copper que escribe) y `tests/demos_forja.sh` (con Forja y la demo en marcha; compila en el PC la demo con el
+    copper y la versión final con lo exportado). `tests/mod_ejemplo.py` hace el MOD de prueba.
+  - **Falta en Forja**: catálogo inglés de Demos (sus textos van sin `tr`); deshacer en las pistas; renombrar, quitar y
+    ordenar pistas; una sola `.sync` abierta; el copper solo se elige con clic (no se arrastra) y solo cambia un
+    registro por bloque; el copper no llega en vivo a la demo; el medidor no separa partes (lógica, dibujo); tamaño del
+    ejecutable con tope de 4K/64K y Shrinkler (`HERRAMIENTAS_DISENO.md`); línea de tiempo de partes.
+  - **Falta en Dash** (no se ha rodeado con `@native`):
+    - `music_seek(pos, fila)`: hoy `music_position` salta al principio del patrón, así que `IR` y `g` van de patrón en
+      patrón.
+    - `music_tick()` y `music_speed()`: la fracción de la fila para interpolar dentro de ella; `sync.dash` la estima
+      con los fotogramas que duró la fila anterior.
+    - `music_playing()`: `sync.dash` lleva su propia variable (`sync_tocar`).
+    - `beam_line()` (VPOSR y VHPOSR leídos a la vez, sin carrera) y `vblank_count()` (un contador de la interrupción de
+      VBlank): hoy `peek_word` dos veces y las imágenes perdidas se calculan con `time_ms`. También saber si la
+      pantalla es PAL o NTSC (313 o 263 líneas): hoy se supone PAL.
+    - Listas de copper que se cambian ya instaladas (doble búfer): para mandar el copper a la demo en vivo.
+    - `screen_save_png` (y `tools/amiga/shot.c`) leen el bitmap: el copper y los colores cambiados por la CPU no salen
+      en las capturas; para probarlo haría falta una captura de la imagen de FS-UAE.
+    - Esperar un clic en una pantalla sin ventana: `probar` mira el botón en el CIA (`$BFE001`), que no ve los clics
+      de `input_click`.
+
