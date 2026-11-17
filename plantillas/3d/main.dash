@@ -1,0 +1,53 @@
+# %NOMBRE%: 3D con MiniGL. Un cubo que gira, con caras de colores, una luz y el Z-buffer.
+#
+# Pide una FPU (el proyecto compila con --fpu) y minigl.library 29 o más (MiniGL con Warp3D o Wazp3D, o el de
+# PiStorm3D). Se cierra con la ventana, con Esc o con q.
+
+@version "%NOMBRE% 0.1"
+
+import "lib/amiga/gl.dash"
+
+# Una cara: su normal, su color y sus cuatro esquinas (x, y, z de cada una)
+func cara(nx: Float, ny: Float, nz: Float, r: Float, g: Float, b: Float, p: [Float])
+    gl_normal(nx, ny, nz)
+    gl_color(r, g, b)
+    for i in (0..3)
+        gl_vertex(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])
+    end
+end
+
+Main
+    if not gl_open(320, 240)
+        Print "%NOMBRE% necesita minigl.library y una FPU."
+        program_exit(20)
+    end
+    gl_enable(GL_DEPTH_TEST)
+    gl_enable(GL_CULL_FACE)
+    gl_light(0, 0.5, 1.0, 1.0)
+    gl_ambient(0.3, 0.3, 0.3)
+    angulo = 0.0
+    seguir = true
+    while seguir
+        gl_clear_color(0.05, 0.05, 0.2)
+        gl_clear()
+        gl_load_identity()
+        gl_translate(0, 0, -5)
+        gl_rotate(angulo, 1, 0, 0)
+        gl_rotate(angulo * 1.3, 0, 1, 0)
+        gl_begin(GL_QUADS)
+        cara(0, 0, 1, 1, 0.2, 0.2, [-1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0])
+        cara(0, 0, -1, 0.2, 1, 0.2, [-1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0])
+        cara(0, 1, 0, 0.2, 0.2, 1, [-1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0])
+        cara(0, -1, 0, 1, 1, 0.2, [-1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0])
+        cara(1, 0, 0, 1, 0.2, 1, [1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0])
+        cara(-1, 0, 0, 0.2, 1, 1, [-1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0])
+        gl_end()
+        gl_swap()
+        angulo = angulo + 2.0
+        k = gl_key()
+        if gl_closed() or k == 27 or k == 113
+            seguir = false
+        end
+    end
+    gl_close()
+end

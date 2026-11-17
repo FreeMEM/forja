@@ -1,0 +1,73 @@
+# %NOMBRE%: una orden del Shell.
+#
+#   %NOMBRE% fichero... [LINEAS]
+#
+# Cuenta las líneas, las palabras y las letras de cada fichero, como wc de Unix. Con LINEAS=si, solo las líneas.
+# Acaba con código 5 (aviso) sin ficheros y con 10 (error) si uno no se puede leer: los guiones del Shell lo miran
+# con "If WARN" o "If ERROR".
+
+@version "%NOMBRE% 0.1"
+
+struct Cuenta
+    lineas: Int = 0
+    palabras: Int = 0
+    letras: Int = 0
+end
+
+func contar(texto: String) -> Cuenta
+    c = Cuenta()
+    c.letras = texto.length
+    dentro = false
+    i = 0
+    while i < texto.length
+        k = str_code(texto, i)
+        if k == 10
+            c.lineas = c.lineas + 1
+        end
+        if k == 32 or k == 9 or k == 10
+            dentro = false
+        elif not dentro
+            dentro = true
+            c.palabras = c.palabras + 1
+        end
+        i = i + 1
+    end
+    return c
+end
+
+Main
+    solo_lineas = str_lower(tooltype("LINEAS", "no")) == "si"
+    var ficheros: [String] = []
+    i = 0
+    while i < arg_count()
+        a = arg(i)
+        if not str_contains(a, "=")
+            ficheros.push(a)
+        end
+        i = i + 1
+    end
+    if ficheros.length == 0
+        Print "Uso: %NOMBRE% fichero... [LINEAS=si]"
+        program_exit(5)
+    end
+    total = Cuenta()
+    for f in ficheros
+        texto = file_read_text(f)
+        if texto == nil
+            Print "%NOMBRE%: no se puede leer " + f
+            program_exit(10)
+        end
+        c = contar(texto)
+        total.lineas = total.lineas + c.lineas
+        total.palabras = total.palabras + c.palabras
+        total.letras = total.letras + c.letras
+        if solo_lineas
+            Print "#{c.lineas} " + f
+        else
+            Print "#{c.lineas} #{c.palabras} #{c.letras} " + f
+        end
+    end
+    if ficheros.length > 1
+        Print "#{total.lineas} #{total.palabras} #{total.letras} en total"
+    end
+end

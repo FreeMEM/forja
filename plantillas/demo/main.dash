@@ -1,0 +1,78 @@
+# %NOMBRE%: una demo. Una pantalla propia, el bucle de cada imagen (wait_vblank, 50 por segundo en PAL) y la
+# parte que corre en ensamblador en línea (asm ... end, docs/ASM_DISEÑO.md de Dash): unas barras de color que suben
+# y bajan, cambiando el color de fondo en cada línea de la pantalla. Con el botón izquierdo del ratón, se acaba.
+#
+# Para seguir: música con music_load y music_play (un MOD); el texto que pasa, con gfx_text_at y gfx_scroll; la
+# lista de copper (copper_*) para degradados que no gastan CPU.
+
+@version "%NOMBRE% 0.1"
+
+const ARRIBA = 0x40     # la primera línea con barras
+const ABAJO = 0xF0      # y la de después de la última
+
+Main
+    if not screen_open_custom(320, 256, 1, "%NOMBRE%")
+        Print "No se puede abrir la pantalla."
+        program_exit(20)
+    end
+    gfx_rgb(0, 0, 0, 0)
+    gfx_rgb(1, 15, 15, 15)
+    gfx_clear()
+    gfx_pen(1)
+    gfx_text_at(120, 30, "%NOMBRE%")
+    # la tabla de seno: 256 bytes de 4 a 124 (la prepara Dash; el asm solo la lee)
+    tabla = amiga_alloc(256)
+    for i in (0..255)
+        poke_byte(tabla + i, Int(fx_sin(Fixed(i * 360 / 256)) * 60) + 64)
+    end
+    fase = 0
+    imagenes = 0
+    while true
+        wait_vblank()
+        asm in a1 = tabla, d4 = fase out salir = d0 uses d1-d3/d5/a0
+            lea     $dff000,a0
+            move.w  d4,d0               ; el centro de la barra, de la tabla
+            and.w   #255,d0
+            moveq   #0,d5
+            move.b  (a1,d0.w),d5
+            add.w   #ARRIBA+8,d5
+            move.w  #ARRIBA,d1          ; la línea que toca
+        .linea:
+            move.b  6(a0),d0            ; VHPOSR: la línea de ahora, en el byte alto
+            cmp.b   d1,d0
+            bne.s   .linea
+            move.w  d1,d3               ; la distancia al centro, en positivo
+            sub.w   d5,d3
+            bpl.s   .positivo
+            neg.w   d3
+        .positivo:
+            moveq   #0,d2
+            cmp.w   #16,d3
+            bge.s   .pon
+            neg.w   d3                  ; 15 en el centro y menos hacia fuera
+            add.w   #15,d3
+            move.w  d3,d2
+            lsl.w   #4,d2               ; azul y verde
+            or.w    d3,d2
+        .pon:
+            move.w  d2,$180(a0)         ; COLOR00
+            addq.w  #1,d1
+            cmp.w   #ABAJO,d1
+            bne.s   .linea
+            clr.w   $180(a0)
+            moveq   #0,d0               ; el botón izquierdo (CIA-A, bit 6 a 0) acaba
+            btst    #6,$bfe001
+            bne.s   .sigue
+            moveq   #1,d0
+        .sigue:
+        end
+        if salir == 1
+            break
+        end
+        fase = fase + 2
+        imagenes = imagenes + 1
+    end
+    amiga_free(tabla, 256)
+    screen_close()
+    Print "#{imagenes} imágenes"
+end

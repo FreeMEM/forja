@@ -2,11 +2,13 @@
 
 import "tema.dash"
 import "marcas.dash"
+import "expresion.dash"
 
 const TITULO_ALTO = 18
 
 var proyecto_cajon: String = ""
 var proyecto_ficheros: [String] = []    # los cajones acaban en "/"; "/" solo es el de arriba
+var proyecto_forja: String = ""         # el .forja del cajón que se ve ("" si no tiene): Forja lo carga (paso 3.1)
 var proyecto_fila: Int = 14
 var proyecto_y0: Int = 0                # la y de la primera fila, desde la esquina de la zona
 var proyecto_zona_x: Int = 0
@@ -26,6 +28,11 @@ struct FilaDep
     leido: Bool
     total: Int          # una lista desplegada: cuántos elementos tiene
 end
+
+var dep_vigilar: [String] = []     # lo vigilado (paso 4.1): expresiones de Dash, arriba del panel
+var dep_registros: Bool = false     # enseñar los registros
+var dep_memoria: String = ""        # enseñar la memoria desde esta expresión ("" no)
+const DEP_MEMORIA_FILAS = 8
 
 const DEP_ELEMENTOS = 100     # los elementos de una lista que se enseñan al desplegarla (y cada vez que se piden más)
 const DEP_SANGRIA = 12        # los píxeles de cada nivel
@@ -86,6 +93,7 @@ func proyecto_leer(cajon: String)
     proyecto_cajon = cajon
     proyecto_ficheros = []
     proyecto_desde = 0
+    proyecto_forja = ""
     if cajon != "" and not str_ends(cajon, ":")
         proyecto_ficheros.push("/")
     end
@@ -102,6 +110,11 @@ func proyecto_leer(cajon: String)
             end
         elif str_ends(str_lower(nombre), ".dash") or str_ends(str_lower(nombre), ".dashui") or ext_para_fichero(nombre) >= 0
             ficheros.push(nombre)
+        elif str_ends(str_lower(nombre), ".forja")
+            ficheros.push(nombre)
+            if proyecto_forja == ""
+                proyecto_forja = ruta_unir(cajon, nombre)
+            end
         end
         i = i + 1
     end
@@ -680,6 +693,22 @@ end
 func dep_construir()
     var filas: [FilaDep] = []
     var funciones: [String] = []
+    if dep_vigilar.length > 0
+        filas.push(_dep_fila(tr(950, "VIGILAR"), 0))
+        ex_marco = 0
+        for e in dep_vigilar
+            if ex_es_camino(e)
+                _dep_variable(filas, e, e, "*:=" + e, dbg_value_type(0, e), 0)
+            else
+                v = ex_evaluar(e)
+                t = ex_texto(v)
+                if ex_error != ""
+                    t = "? " + ex_error
+                end
+                filas.push(FilaDep(e + " = " + t, 5, 0, "", "*:=" + e, "", "", true, -1))
+            end
+        end
+    end
     filas.push(_dep_fila(tr(64, "PILA"), 0))
     n = dbg_frames()
     i = 0
@@ -722,7 +751,67 @@ func dep_construir()
             g = g + 1
         end
     end
+    if dep_registros
+        filas.push(_dep_fila(tr(951, "REGISTROS"), 0))
+        k = 0
+        while k < 8
+            filas.push(FilaDep("d#{k} " + dep_hex8(dbg_reg(k)) + "  a#{k} " + dep_hex8(dbg_reg(k + 8)), 5, 0, "", "", "", "", true, -1))
+            k = k + 1
+        end
+        filas.push(FilaDep("pc " + dep_hex8(dbg_reg(16)), 5, 0, "", "", "", "", true, -1))
+    end
+    if dep_memoria != ""
+        ex_marco = 0
+        v = ex_evaluar(dep_memoria)
+        if ex_error != "" or v.t != EX_INT
+            filas.push(_dep_fila(tr(952, "MEMORIA"), 0))
+            por = ex_error
+            if por == ""
+                por = "no es un número"
+            end
+            filas.push(FilaDep(dep_memoria + ": ? " + por, 5, 0, "", "", "", "", true, -1))
+        else
+            filas.push(_dep_fila(tr(952, "MEMORIA") + " " + dep_memoria, 0))
+            dir = v.n
+            k = 0
+            while k < DEP_MEMORIA_FILAS
+                filas.push(FilaDep(dep_memoria_fila(dir + k * 8), 5, 0, "", "", "", "", true, -1))
+                k = k + 1
+            end
+        end
+    end
     depuracion = filas
+end
+
+# Un Int en hexadecimal con 8 cifras ("0000002A"; los negativos, como el registro: FFFFFFFF)
+func dep_hex8(n: Int) -> String
+    return dep_hex(((n >> 16) & 0xFFFF), 4) + dep_hex(n & 0xFFFF, 4)
+end
+
+func dep_hex(n: Int, cifras: Int) -> String
+    t = str_upper(str_from_int(n, 16))
+    while t.length < cifras
+        t = "0" + t
+    end
+    return t
+end
+
+# Una fila de la memoria: la dirección, 8 bytes y sus letras ("00C01234 48 6F 6C 61 ... Hola....")
+func dep_memoria_fila(dir: Int) -> String
+    t = dep_hex8(dir)
+    letras = ""
+    k = 0
+    while k < 8
+        b = dbg_peek(dir + k, 1)
+        t = t + " " + dep_hex(b, 2)
+        if b >= 32 and b < 127
+            letras = letras + str_char(b)
+        else
+            letras = letras + "."
+        end
+        k = k + 1
+    end
+    return t + "  " + letras
 end
 
 func _dep_en_lista(l: [String], s: String) -> Bool

@@ -1,0 +1,79 @@
+# %NOMBRE%: una commodity. Sale en Exchange (Mostrar, Ocultar, Activar, Desactivar, Quitar) y tiene una tecla
+# rápida: al pulsarla abre una ventanita con la hora y la memoria libre; otra vez, la cierra.
+#
+# Desde el Shell: %NOMBRE% CX_POPKEY="ctrl alt h" CX_PRIORITY=0. En el icono, los mismos tipos de herramienta.
+# Para que arranque con el Workbench, su icono en SYS:WBStartup.
+
+@version "%NOMBRE% 0.1"
+
+var ventana: Int = 0
+
+func abrir()
+    if ventana != 0
+        return
+    end
+    ventana = window_create("%NOMBRE%", 40, 30, 260, 70, 0)
+    pintar()
+end
+
+func cerrar()
+    if ventana != 0
+        window_close(ventana)
+        ventana = 0
+    end
+end
+
+func pintar()
+    if ventana == 0
+        return
+    end
+    window_use(ventana)
+    gfx_pen(0)
+    gfx_rect(window_border_left(), window_border_top(), 255, 65)
+    gfx_pen(1)
+    gfx_text_at(12, window_border_top() + 16, date_text("%H:%M:%S"))
+    gfx_text_at(12, window_border_top() + 32, "Libre: #{mem_total() / 1024} KB")
+end
+
+Main
+    tecla = tooltype("CX_POPKEY", "ctrl alt h")
+    prioridad = Int(tooltype("CX_PRIORITY", "0"))
+    if not cx_broker("%NOMBRE%", "%NOMBRE% 0.1", "Enseña la hora con " + tecla, prioridad)
+        Print "%NOMBRE% ya está en marcha (o falta commodities.library)."
+        program_exit(5)
+    end
+    if not cx_hotkey(tecla)
+        Print "%NOMBRE%: la tecla no vale: " + tecla
+    end
+    activa = true
+    while true
+        # (cada segundo, para la hora y el botón de cerrar de la ventana)
+        orden = cx_wait(1000)
+        if orden == -1 or orden == 5
+            break                       # Ctrl-C o Quitar en Exchange
+        elif orden == 6 and activa
+            if ventana == 0
+                abrir()
+            else
+                cerrar()
+            end
+        elif orden == 2
+            abrir()
+        elif orden == 1
+            cerrar()
+        elif orden == 3
+            activa = false
+        elif orden == 4
+            activa = true
+        end
+        if ventana != 0
+            window_use(ventana)
+            if window_check_close()
+                cerrar()
+            else
+                pintar()
+            end
+        end
+    end
+    cerrar()
+end

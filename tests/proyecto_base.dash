@@ -1,0 +1,159 @@
+# Prueba sin ventana de los pasos 3.1, 3.2 y 4.1 de docs/FORJA_LOOP.md: el fichero .forja (leer, escribir, rutas,
+# opciones de dash, puntos de parada con condición), las expresiones del depurador (con valores de prueba, sin
+# programa depurado) y las plantillas. tests/proyecto_base.sh la ejecuta.
+
+import "../src/proyecto.dash"
+import "../src/expresion.dash"
+import "../src/plantillas_datos.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso
+        fallos = fallos + 1
+    end
+end
+
+func igual(paso: String, visto: String, esperado: String)
+    if visto == esperado
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso + ": [" + visto + "] en vez de [" + esperado + "]"
+        fallos = fallos + 1
+    end
+end
+
+func ev(t: String) -> String
+    v = ex_evaluar(t)
+    if ex_error != ""
+        return "? " + ex_error
+    end
+    return ex_texto(v)
+end
+
+Main
+    # --- el .forja ---
+    dir_create("RAM:Cueva")
+    p = pr_nuevo("RAM:Cueva/Cueva.forja")
+    igual("nombre por el fichero", p.nombre, "Cueva")
+    igual("cajón", p.cajon, "RAM:Cueva")
+    p.tipo = "juego"
+    p.cpu = "68020"
+    p.fpu = true
+    p.pila = 32768
+    p.memcheck = true
+    p.argumentos = "nivel=2 \"con espacio\""
+    p.version = "0.3"
+    p.icono = "Cueva.info"
+    p.nombre = "La cueva ñ"
+    p.vigilar.push("naves.length")
+    pr_puntos.push(PuntoProy("RAM:Cueva/main.dash", 20, "i > 3", "% 2"))
+    pr_puntos.push(PuntoProy("RAM:Cueva/lib/red.dash", 7))
+    pr_puntos.push(PuntoProy("RAM:otro.dash", 3))
+    ver("escribir", pr_escribir(p))
+    t = file_read_text("RAM:Cueva/Cueva.forja")
+    ver("en UTF-8 (ñ)", str_contains(t, latin1_to_utf8("ñ")))
+    ver("con \"forja\": 1", str_contains(t, "\"forja\": 1"))
+    ver("los puntos de fuera no van", not str_contains(t, "otro.dash"))
+    ver("los puntos, desde el cajón", str_contains(t, "\"lib/red.dash\""))
+    pr_puntos.clear()
+    pr_puntos.push(PuntoProy("RAM:otro.dash", 3))
+    pr_puntos.push(PuntoProy("RAM:Cueva/viejo.dash", 1))
+    q = pr_leer("RAM:Cueva/Cueva.forja")
+    ver("leer", q != nil)
+    igual("nombre", q.nombre, "La cueva ñ")
+    igual("tipo", q.tipo, "juego")
+    igual("cpu", q.cpu, "68020")
+    ver("fpu y memcheck", q.fpu and q.memcheck and not q.perfil and not q.gcc)
+    igual("pila", "#{q.pila}", "32768")
+    igual("argumentos", q.argumentos, "nivel=2 \"con espacio\"")
+    igual("vigilar", str_join(q.vigilar, "|"), "naves.length")
+    igual("puntos: los del cajón se cambian, los de fuera se quedan", "#{pr_puntos.length}", "3")
+    c = pr_punto("ram:cueva/MAIN.dash", 20)
+    ver("punto con condición (sin mayúsculas)", c != nil and c.condicion == "i > 3" and c.contador == "% 2")
+    igual("líneas de un fichero", "#{pr_lineas_de("RAM:Cueva/lib/red.dash").length}", "1")
+    ver("el viejo se fue", pr_punto("RAM:Cueva/viejo.dash", 1) == nil)
+    pr_punto_poner("RAM:Cueva/main.dash", 30, true)
+    pr_punto_poner("RAM:Cueva/main.dash", 20, false)
+    ver("poner y quitar", pr_punto("RAM:Cueva/main.dash", 30) != nil and pr_punto("RAM:Cueva/main.dash", 20) == nil)
+    igual("opciones", pr_opciones(q, false, false), " --cpu 68020 --fpu --stack 32768 --memcheck")
+    igual("con perfil pedido", pr_opciones(nil, true, false), " --profile")
+    q.opciones = "--tiempos"
+    q.memcheck = false
+    igual("más opciones", pr_opciones(q, false, true), " --cpu 68020 --fpu --stack 32768 --memcheck --tiempos")
+    igual("principal", pr_principal(q), "RAM:Cueva/main.dash")
+    igual("ejecutable", pr_ejecutable(q, ""), "RAM:Cueva/Cueva")
+    igual("ejecutable en otro cajón", pr_ejecutable(q, "RAM:"), "RAM:Cueva")
+    ver("dentro", pr_dentro(q, "RAM:Cueva/lib/x.dash") and not pr_dentro(q, "RAM:Cueva2/x.dash") and not pr_dentro(q, "RAM:Cueva"))
+    igual("relativa", pr_relativa(q, "RAM:Cueva/lib/x.dash"), "lib/x.dash")
+    igual("@version", pr_linea_version(q), "@version \"La cueva ñ 0.3\"")
+    file_write_text("RAM:malo.forja", "{ \"nombre\": 1 ")
+    ver("uno malo da nil", pr_leer("RAM:malo.forja") == nil and pr_error != "")
+    file_write_text("RAM:sin.forja", "{ \"nombre\": \"x\" }")
+    ver("sin \"forja\" da nil", pr_leer("RAM:sin.forja") == nil)
+
+    # --- las expresiones ---
+    ex_prueba["i"] = "3"
+    ex_prueba["nombre"] = "\"hola\""
+    ex_prueba["fin"] = "false"
+    ex_prueba["p"] = "Punto(x: 1, y: 2)"
+    ex_prueba_tipos["p"] = "Punto"
+    ex_prueba["p.x"] = "1"
+    ex_prueba["naves"] = "[Nave(x: 5), Nave(x: 7)]"
+    ex_prueba_tipos["naves"] = "[Nave]"
+    ex_prueba["naves[0]"] = "Nave(x: 5)"
+    ex_prueba["naves[1]"] = "Nave(x: 7)"
+    ex_prueba["naves[1].x"] = "7"
+    ex_prueba["vacio"] = "nil"
+    igual("número", ev("i"), "3")
+    igual("cuentas con precedencia", ev("1 + i * 2"), "7")
+    igual("paréntesis", ev("(1 + i) * 2"), "8")
+    igual("comparar", ev("i > 2 and not fin"), "true")
+    igual("or", ev("fin or i == 4"), "false")
+    igual("texto", ev("nombre + \"!\""), "\"hola!\"")
+    igual("largo de un texto", ev("nombre.length"), "4")
+    igual("largo de una lista", ev("naves.length"), "2")
+    igual("índice con cuenta", ev("naves[i - 2].x"), "7")
+    igual("campo", ev("p.x + 1"), "2")
+    igual("struct entero", ev("p"), "Punto(x: 1, y: 2)")
+    igual("nil", ev("vacio == nil"), "true")
+    igual("hexadecimal", ev("$10 + 0x10"), "32")
+    igual("bits", ev("6 & 3 | 8 ^ 1"), "11")
+    igual("desplazar", ev("1 << 4"), "16")
+    igual("negativo", ev("-i % 2"), "-1")
+    igual("and no mira lo de la derecha", ev("fin and nada.x"), "false")
+    igual("no existe", ev("nada"), "? no hay nada")
+    igual("tipos", ev("nombre < 3"), "? < entre String y Int")
+    igual("división por cero", ev("i / 0"), "? división por cero")
+    igual("sobra", ev("i i"), "? sobra: i")
+    igual("comprobar bien", ex_comprobar("naves[k].x > 3 and nombre != \"x\""), "")
+    ver("comprobar mal", ex_comprobar("i > ") != "" and ex_comprobar("\"abierto") != "")
+    ver("camino", ex_es_camino("p.hijos[0].x") and not ex_es_camino("p.x + 1") and not ex_es_camino("naves.length"))
+    ver("registros", ex_registro("d3") == 3 and ex_registro("A7") == 15 and ex_registro("pc") == 16 and ex_registro("d8") == -1)
+    ver("contador: desde la 3", not ex_contador("3", 2) and ex_contador("3", 3) and ex_contador("3", 9))
+    ver("contador: = 3", ex_contador("= 3", 3) and not ex_contador("= 3", 4))
+    ver("contador: % 2", ex_contador("% 2", 4) and not ex_contador("% 2", 3))
+    ver("contador: > 1 y vacío", ex_contador("> 1", 2) and not ex_contador("> 1", 1) and ex_contador("", 1))
+    ver("contador válido", ex_contador_valido(">= 3") and ex_contador_valido("") and not ex_contador_valido("x3"))
+
+    # --- las plantillas ---
+    var tipos: [String] = ["orden", "commodity", "mui", "juego", "demo", "3d"]
+    for tp in tipos
+        fs = pl_ficheros(tp)
+        ver("plantilla " + tp + ": main.dash", str_contains(fs, "main.dash"))
+        texto = pl_texto(tp, "main.dash")
+        ver("plantilla " + tp + ": con Main y %NOMBRE%", str_contains(texto, "\nMain\n") and str_contains(texto, "%NOMBRE%"))
+    end
+    ver("plantilla mui: su ventana", str_contains(pl_ficheros("mui"), "ventana.dashui") and str_contains(pl_texto("mui", "ventana.dashui"), "\"dashui\": 1"))
+    ver("interpolación sin tocar", str_contains(pl_texto("orden", "main.dash"), "Print \"#" + "{c.lineas} \" + f"))
+    ver("asm en la demo", str_contains(pl_texto("demo", "main.dash"), "    asm in a1 = tabla"))
+    ver("icono en hexadecimal", pl_icono_hex().length > 200 and str_starts(pl_icono_hex(), "e310"))
+    if fallos == 0
+        Print "TODO BIEN"
+    else
+        Print "#{fallos} FALLOS"
+    end
+end

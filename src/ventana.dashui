@@ -14,7 +14,10 @@
           "items": [
             { "tr": 302, "label": "Nuevo", "key": "N", "event": 30 },
             { "tr": 646, "label": "Nuevo de extensión...", "key": "B", "event": 36 },
+            { "tr": 900, "label": "Nuevo proyecto...", "event": 250 },
             { "tr": 303, "label": "Abrir...", "key": "O", "event": 31 },
+            { "tr": 901, "label": "Abrir proyecto...", "event": 251 },
+            { "tr": 902, "label": "Propiedades del proyecto...", "event": 252 },
             { "tr": 304, "label": "Guardar", "key": "S", "event": 32 },
             { "tr": 305, "label": "Guardar como...", "event": 33 },
             { "tr": 306, "label": "Cerrar pestaña", "key": "W", "event": 34 },
@@ -31,9 +34,24 @@
             { "tr": 310, "label": "Compilar", "key": "K", "event": 10 },
             { "tr": 311, "label": "Ejecutar", "key": "E", "event": 11 },
             { "tr": 312, "label": "Depurar", "key": "G", "event": 12 },
+            { "tr": 903, "label": "Ejecutar con perfil", "event": 261 },
+            { "tr": 904, "label": "Ejecutar con memcheck", "event": 262 },
             { "separator": true },
             { "tr": 354, "label": "Copiar la salida", "event": 21 },
             { "tr": 355, "label": "Guardar la salida...", "event": 22 }
+          ]
+        },
+        {
+          "tr": 905, "title": "Depurar",
+          "items": [
+            { "tr": 906, "label": "Ejecutar hasta aquí (Ctrl F10)", "event": 263 },
+            { "tr": 907, "label": "Condición del punto de parada...", "event": 264 },
+            { "tr": 908, "label": "Contador del punto de parada...", "event": 265 },
+            { "tr": 909, "label": "Quitar todos los puntos", "event": 269 },
+            { "separator": true },
+            { "tr": 910, "label": "Vigilar una expresión...", "event": 266 },
+            { "tr": 911, "label": "Ver los registros", "event": 267 },
+            { "tr": 912, "label": "Ver la memoria...", "event": 268 }
           ]
         },
         {
@@ -296,6 +314,126 @@
               { "type": "balance" },
               { "type": "canvas", "name": "texto", "min_width": 200, "min_height": 80, "weight": 100 },
               { "type": "scrollbar", "name": "barra", "vertical": true, "change": 118 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "NuevoProyecto",
+      "tr": 920, "title": "Nuevo proyecto (Forja)",
+      "id": 22,
+      "close": 254,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          {
+            "type": "columns", "columns": 2,
+            "children": [
+              { "type": "label", "tr": 921, "text": "Nombre:", "color": [220, 220, 210] },
+              { "type": "string", "name": "nombre", "text": "", "max": 30 },
+              { "type": "label", "tr": 922, "text": "Plantilla:", "color": [220, 220, 210] },
+              { "type": "cycle", "name": "tipo", "tr": 923, "options": "Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL", "change": 256 },
+              { "type": "label", "tr": 924, "text": "En el cajón:", "color": [220, 220, 210] },
+              {
+                "type": "hgroup",
+                "children": [
+                  { "type": "string", "name": "cajon", "text": "", "max": 300, "weight": 100 },
+                  { "type": "button", "name": "elegir_cajon", "tr": 925, "label": "Elegir...", "event": 255, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
+                ]
+              }
+            ]
+          },
+          { "type": "text", "name": "descripcion", "text": "" },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "crear", "tr": 926, "label": "C_rear", "event": 253, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "space" },
+              { "type": "button", "name": "np_cancelar", "tr": 927, "label": "_Cancelar", "event": 254, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "PropProyecto",
+      "tr": 930, "title": "Propiedades del proyecto (Forja)",
+      "id": 23,
+      "close": 258,
+      "background": [20, 20, 24],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          {
+            "type": "tabs", "tr": 931, "titles": "General|Compilar|Ejecutar",
+            "children": [
+              {
+                "type": "columns", "columns": 2,
+                "children": [
+                  { "type": "label", "tr": 921, "text": "Nombre:", "color": [220, 220, 210] },
+                  { "type": "string", "name": "nombre", "text": "", "max": 60 },
+                  { "type": "label", "tr": 932, "text": "Tipo:", "color": [220, 220, 210] },
+                  { "type": "cycle", "name": "tipo", "tr": 933, "options": "Orden del Shell|Commodity|Aplicación MUI|Juego|Demo|3D con MiniGL|Otro" },
+                  { "type": "label", "tr": 934, "text": "Fichero principal:", "color": [220, 220, 210] },
+                  {
+                    "type": "hgroup",
+                    "children": [
+                      { "type": "string", "name": "principal", "text": "", "max": 200, "weight": 100 },
+                      { "type": "button", "name": "elegir_principal", "tr": 925, "label": "Elegir...", "event": 259, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
+                    ]
+                  },
+                  { "type": "label", "tr": 935, "text": "Ejecutable:", "color": [220, 220, 210] },
+                  { "type": "string", "name": "ejecutable", "text": "", "max": 200 },
+                  { "type": "label", "tr": 936, "text": "Versión:", "color": [220, 220, 210] },
+                  { "type": "string", "name": "version", "text": "", "max": 30 },
+                  { "type": "label", "tr": 937, "text": "Icono del programa:", "color": [220, 220, 210] },
+                  {
+                    "type": "hgroup",
+                    "children": [
+                      { "type": "string", "name": "icono", "text": "", "max": 200, "weight": 100 },
+                      { "type": "button", "name": "elegir_icono", "tr": 925, "label": "Elegir...", "event": 260, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "columns", "columns": 2,
+                "children": [
+                  { "type": "label", "tr": 938, "text": "CPU:", "color": [220, 220, 210] },
+                  { "type": "cycle", "name": "cpu", "options": "68000|68020|68030|68040|68060" },
+                  { "type": "label", "tr": 939, "text": "FPU (--fpu):", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "fpu", "checked": false },
+                  { "type": "label", "tr": 940, "text": "Pila en bytes (0: la de siempre):", "color": [220, 220, 210] },
+                  { "type": "string", "name": "pila", "text": "", "max": 10 },
+                  { "type": "label", "tr": 941, "text": "Comprobar la memoria (--memcheck):", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "memcheck", "checked": false },
+                  { "type": "label", "tr": 942, "text": "Perfil (--profile):", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "perfil", "checked": false },
+                  { "type": "label", "tr": 943, "text": "Por C con gcc (--gcc):", "color": [220, 220, 210] },
+                  { "type": "checkbox", "name": "gcc", "checked": false },
+                  { "type": "label", "tr": 944, "text": "Más opciones:", "color": [220, 220, 210] },
+                  { "type": "string", "name": "opciones", "text": "", "max": 200 }
+                ]
+              },
+              {
+                "type": "columns", "columns": 2,
+                "children": [
+                  { "type": "label", "tr": 945, "text": "Argumentos al ejecutar:", "color": [220, 220, 210] },
+                  { "type": "string", "name": "argumentos", "text": "", "max": 300 },
+                  { "type": "label", "tr": 946, "text": "Argumentos al depurar:", "color": [220, 220, 210] },
+                  { "type": "string", "name": "argumentos_depurar", "text": "", "max": 300 }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "pp_guardar", "tr": 947, "label": "_Guardar", "event": 257, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "space" },
+              { "type": "button", "name": "pp_cancelar", "tr": 927, "label": "_Cancelar", "event": 258, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           }
         ]
