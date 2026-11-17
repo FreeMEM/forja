@@ -1247,3 +1247,24 @@ MSG_1017
 MSG_1018
 %1 is %2 bytes: %3 over the project limit.
 ; %1 pesa %2 bytes: %3 más que el tope del proyecto.
+MSG_1019
+To change a value, the program has to be stopped in the debugger.
+; Para cambiar un valor, el programa tiene que estar parado en el depurador.
+MSG_1020
+Change the value
+; Cambiar el valor
+MSG_1021
+name = value: an Int, Char, Bool, Fixed or Float (x = 3, alive = false, v = 1.5).
+; nombre = valor: un Int, Char, Bool, Fixed o Float (x = 3, vivo = false, v = 1.5).
+MSG_1022
+Write name = value.
+; Escribe nombre = valor.
+MSG_1023
+%1 cannot be changed: %2
+; No se puede cambiar %1: %2
+MSG_1024
+%1 is now %2.
+; %1 vale ahora %2.
+MSG_1025
+Change value...
+; Cambiar valor...

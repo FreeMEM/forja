@@ -830,3 +830,17 @@ MSG_1017 (1017//)
 %1 bytes
 MSG_1018 (1018//)
 %1 pesa %2 bytes: %3 más que el tope del proyecto.
+MSG_1019 (1019//)
+Para cambiar un valor, el programa tiene que estar parado en el depurador.
+MSG_1020 (1020//)
+Cambiar el valor
+MSG_1021 (1021//)
+nombre = valor: un Int, Char, Bool, Fixed o Float (x = 3, vivo = false, v = 1.5).
+MSG_1022 (1022//)
+Escribe nombre = valor.
+MSG_1023 (1023//)
+No se puede cambiar %1: %2
+MSG_1024 (1024//)
+%1 vale ahora %2.
+MSG_1025 (1025//)
+Cambiar valor...
