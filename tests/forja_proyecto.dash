@@ -149,6 +149,7 @@ Main
     menu(250)
     ver("la ventana Nuevo proyecto", esperar_ventana("Nuevo proyecto"), "")
     input_text("Otra")
+    time_delay(25)
     screen_save_png("DH0:Prueba/nuevo.png")
     input_key(RETURN, 0)
     n = 0

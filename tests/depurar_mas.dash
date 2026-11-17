@@ -135,16 +135,37 @@ func menu(ev: Int)
     time_delay(15)
 end
 
-# Responde a la pregunta de la lista rápida: borra lo que trae y escribe
+# ¿Se ve la lista rápida (una pregunta)? ENV:FORJA_RAPIDA, con la sonda: "0" si no
+func rapida_vista() -> Bool
+    r = env_get("FORJA_RAPIDA")
+    return r != "" and r != "0"
+end
+
+# Responde a la pregunta de la lista rápida: espera a que salga, borra lo que trae, escribe y pulsa Return (y espera a
+# que se vaya)
 func responder(t: String)
+    k = 0
+    while k < 100 and not rapida_vista()
+        time_delay(5)
+        k = k + 1
+    end
+    if not rapida_vista()
+        anotar("  (no sale la pregunta para " + t + ")")
+    end
     k = 0
     while k < 24
         input_key(RETROCESO, 0)
         k = k + 1
     end
     input_text(t)
+    time_delay(20)
     input_key(RETURN, 0)
-    time_delay(15)
+    k = 0
+    while k < 100 and rapida_vista()
+        time_delay(5)
+        k = k + 1
+    end
+    time_delay(10)
 end
 
 Main

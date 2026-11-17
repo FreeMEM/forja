@@ -5,6 +5,9 @@
 #
 #   tests/perfil.sh DASH_DIR DASHC_AMIGA [capturas/]
 #   SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1 tests/perfil.sh ...   # con MUI 3.8
+# Con Dash 2.14 falla la parte del perfil: dash (el directo, también el del Amiga) copia en línea las funciones de un
+# solo sitio o pequeñas también con --profile, y el perfil solo ve Main. Falta en Dash: no copiar en línea con --profile,
+# como con --debug (can_inline de dashc/src/gen68k.c).
 set -e
 dash=$1; dashc=$2; capturas=${3:-}
 aqui=$(cd "$(dirname "$0")/.." && pwd)
@@ -31,9 +34,6 @@ for f in "$dashc"/dashc_*.drt; do cp "$f" "$tmp/sys/Dash/$(basename "$f" | sed '
   echo "SetEnv Forja/dashc DH0:Dash/dash"
   echo "SetEnv Forja/buscar_dash no"
   echo "SetEnv FORJA_SONDA 1"
-  # (dash del Amiga copia en línea las funciones pequeñas también con --profile, y el perfil solo ve Main: hasta que
-  # Dash lo arregle, sin copiar en línea)
-  echo "SetEnv DASHC_SIN_COPIAR 1"
   echo "SetEnv FORJA_PRUEBA DH0:Prueba/perfil/main.dash"
   echo "Run >NIL: DH0:Prueba/PerfilT"
 } >> "$tmp/sys/S/Startup-Extra"

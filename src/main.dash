@@ -945,6 +945,7 @@ func tic()
         perfil_muestras = 0
         perfil_programa = tarea_dash
         memcheck_avisos = 0
+        memcheck_primero = -1
         tarea_run = run_start("\"" + tarea_exe + "\"" + argumentos, 0)
         volver_al_cajon(antes)
         if tarea_run == 0
@@ -5490,6 +5491,9 @@ func memcheck_linea(l: String, cajon: String) -> Bool
             if not str_contains(ruta, ":")
                 ruta = ruta_unir(cajon, ruta)
             end
+            if memcheck_primero < 0
+                memcheck_primero = salida_lineas.length
+            end
             salida_anadir_sitio(l, ruta, Int(sitio[q + 1:]), 1)
             memcheck_avisos = memcheck_avisos + 1
             return true
@@ -5504,6 +5508,7 @@ func memcheck_linea(l: String, cajon: String) -> Bool
 end
 
 var memcheck_avisos: Int = 0
+var memcheck_primero: Int = -1     # la línea de la salida del primer aviso con sitio (se pone a la vista al acabar)
 
 # Lo que escribió el programa al acabar: las líneas del perfil y de memcheck aparte; lo demás, como siempre. Da la
 # primera línea de un error de ejecución en la salida (-1 si no hay), como salida_anadir_programa
@@ -5551,6 +5556,11 @@ func tras_perfil_y_memcheck()
             avisar(tr(1004, "memcheck: un aviso (un clic en él lleva a su línea)."), 1)
         else
             avisar(hueco(tr(1002, "memcheck: %1 avisos (clic en uno para ir a su línea)."), "#{memcheck_avisos}"), 1)
+        end
+        # el primer aviso con sitio, a la vista (como un error), para hacer clic en él
+        if memcheck_primero >= 0
+            salida_mostrar(memcheck_primero)
+            mui_canvas_redraw(v.salida)
         end
     end
     tarea_perfil = false
