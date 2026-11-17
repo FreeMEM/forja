@@ -1,0 +1,441 @@
+# El editor cómodo de Forja como un usuario (fase 2 de docs/FORJA_LOOP.md), sobre tests/prueba/editor/main.dash
+# (con un bloque asm, para los colores): el end solo y cerrar solos los paréntesis al escribir, comentar, duplicar,
+# subir y borrar líneas con sus teclas, la pareja de un bloque y de un paréntesis y saltar a ella, el teclado en el
+# editor con el puntero en otro sitio, y lo que tarda repintar al mover el cursor. Guarda capturas (las hace el propio
+# Amiga). Lo arranca tests/editor.sh; anota en DH0:Prueba/editor.txt.
+
+const FORJA = "FORJA.1"
+const MAIN = "DH0:Prueba/editor/main.dash"
+const RETURN = 0x44
+const ABAJO = 0x4D
+const ARRIBA = 0x4C
+const MAYUS = 1
+const CTRL = 2
+const ALT = 4
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/editor.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and input_active_title() != titulo
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return input_active_title() == titulo
+end
+
+func campo(nombre: String, i: Int) -> Int
+    p = str_split(env_get(nombre), " ")
+    if i >= p.length
+        return 0
+    end
+    return Int(p[i])
+end
+
+func al_editor() -> Bool
+    if not activar("Forja")
+        return false
+    end
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+    return true
+end
+
+# Las líneas a..b (desde 1) del texto del editor, unidas con "|"
+func lineas(a: Int, b: Int) -> String
+    t = rexx("TEXTO " + MAIN)
+    p = str_split(t, "\n")
+    r = ""
+    i = a
+    while i <= b and i <= p.length
+        if i > a
+            r = r + "|"
+        end
+        r = r + p[i - 1]
+        i = i + 1
+    end
+    return r
+end
+
+# Espera (hasta 3 s) a que las líneas a..b sean esas
+func esperar_lineas(a: Int, b: Int, esperado: String) -> String
+    n = 0
+    t = lineas(a, b)
+    while t != esperado and n < 30
+        time_delay(5)
+        t = lineas(a, b)
+        n = n + 1
+    end
+    return t
+end
+
+func comprobar(paso: String, a: Int, b: Int, esperado: String)
+    t = esperar_lineas(a, b, esperado)
+    ver(paso, t == esperado, t)
+end
+
+func cursor() -> String
+    time_delay(10)
+    return rexx("CURSOR")
+end
+
+func pareja() -> String
+    p = str_split(env_get("FORJA_PAREJA"), " ")
+    if p.length < 4
+        return ""
+    end
+    return p[0] + " " + p[1] + " " + p[2] + " " + p[3]
+end
+
+func esperar_pareja(esperada: String) -> String
+    n = 0
+    while pareja() != esperada and n < 30
+        time_delay(5)
+        n = n + 1
+    end
+    return pareja()
+end
+
+func leer(ruta: String) -> String
+    t = file_read_text(ruta)
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text(ruta)
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t
+end
+
+# Espera (hasta 6 s) a que la salida tenga ese texto
+func esperar_salida(texto: String) -> Bool
+    n = 0
+    while n < 60
+        if str_contains(leer("RAM:forja-salida.txt"), texto)
+            return true
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return false
+end
+
+# Un clic en la (última) línea de la salida que tiene ese texto
+func clic_salida(texto: String) -> Bool
+    lineas = str_split(leer("RAM:forja-salida.txt"), "\n")
+    i = lineas.length - 1
+    while i >= 0 and not str_contains(lineas[i], texto)
+        i = i - 1
+    end
+    if i < 0
+        return false
+    end
+    fila = campo("FORJA_SALIDA", 2)
+    y = campo("FORJA_SALIDA", 1) + (i - campo("FORJA_SALIDA", 3)) * fila + fila / 2
+    activar("Forja")
+    input_click(campo("FORJA_SALIDA", 0) + 60, y, 0)
+    time_delay(20)
+    return true
+end
+
+# Una opción que solo se elige con la sonda (un botón de otra ventana): su evento en ENV:FORJA_EVENTO y una tecla
+# (Esc) para que lo mire
+func evento(ev: Int)
+    env_set("FORJA_EVENTO", "#{ev}", false)
+    al_editor()
+    input_key(0x45, 0)
+    time_delay(10)
+end
+
+func rapida() -> String
+    return env_get("FORJA_RAPIDA")
+end
+
+# Espera a que la lista rápida tenga elegida esa entrada
+func esperar_rapida(elegida: String) -> String
+    n = 0
+    while n < 40 and not str_ends(rapida(), " " + elegida)
+        time_delay(5)
+        n = n + 1
+    end
+    return rapida()
+end
+
+func esperar_cursor(esperado: String) -> String
+    n = 0
+    c = rexx("CURSOR")
+    while c != esperado and n < 30
+        time_delay(5)
+        c = rexx("CURSOR")
+        n = n + 1
+    end
+    return c
+end
+
+Main
+    # las teclas y el tema cambiados (paso 2.8): una tecla nueva, un color y una línea que no se entiende en cada uno
+    file_write_text("ENV:Forja/teclas", "# de la prueba\ndesplegar_todo = ctrl u\npatata = ctrl x\n")
+    file_write_text("ENV:Forja/tema", "comentario = 255 80 80\nfuente = topaz.font 8\nverdura = 1 2\n")
+    run_command("Run >NIL: DH0:Dash/Forja/Forja")
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+        if n == 150
+            screen_save_png("DH0:Prueba/editor-arranque.png")
+        end
+    end
+    ver("Forja contesta", n < 600, "")
+    n = 0
+    while n < 200 and env_get("FORJA_EDITOR") == ""
+        time_delay(5)
+        n = n + 1
+    end
+
+    # --- 2.1 los colores: el bloque asm a la vista ---
+    rexx("CURSOR 13 9")
+    time_delay(40)
+    screen_save_png("DH0:Prueba/editor-colores.png")
+    anotar("dibujo entero con el bloque asm: " + env_get("FORJA_DIBUJO") + " ms")
+
+    # --- 2.2 el end solo y cerrar solos ---
+    rexx("CURSOR 34 1")
+    if al_editor()
+        input_text("func cuadrado(x: Int) -> Int")
+        input_key(RETURN, 0)
+        input_text("return (x * x")
+        input_text(")")
+    end
+    comprobar("el end solo y el paréntesis cerrado solo", 34, 36, "func cuadrado(x: Int) -> Int|    return (x * x)|end")
+    ver("el cursor tras el paréntesis", cursor() == "35 19", cursor())
+    input_key(0x3A, CTRL)
+    comprobar("Ctrl / comenta", 35, 35, "    # return (x * x)")
+    input_key(0x3A, CTRL)
+    comprobar("Ctrl / otra vez, descomenta", 35, 35, "    return (x * x)")
+    input_key(0x22, CTRL)
+    comprobar("Ctrl D duplica", 34, 37, "func cuadrado(x: Int) -> Int|    return (x * x)|    return (x * x)|end")
+    input_key(0x27, CTRL + MAYUS)
+    comprobar("Ctrl Mayús K borra la línea", 34, 36, "func cuadrado(x: Int) -> Int|    return (x * x)|end")
+    input_key(ARRIBA, 0)
+    input_key(ARRIBA, CTRL + ALT)
+    comprobar("Ctrl Alt arriba la sube", 34, 36, "    return (x * x)|func cuadrado(x: Int) -> Int|end")
+    input_key(0x31, AMIGA)
+    comprobar("Amiga-Z lo deshace", 34, 36, "func cuadrado(x: Int) -> Int|    return (x * x)|end")
+
+    # --- la pareja ---
+    rexx("CURSOR 11 2")
+    ver("func y su end", esperar_pareja("10 0 22 0") == "10 0 22 0", pareja())
+    input_key(0x37, CTRL)
+    ver("Ctrl M salta al end", cursor() == "23 1", cursor())
+    rexx("CURSOR 12 6")
+    ver("asm y su end", esperar_pareja("11 4 20 4") == "11 4 20 4", pareja())
+    rexx("CURSOR 26 25")
+    ver("el paréntesis", esperar_pareja("25 23 25 27") == "25 23 25 27", pareja())
+    time_delay(20)
+    screen_save_png("DH0:Prueba/editor-pareja.png")
+
+    # --- el teclado en el editor con el puntero en la salida ---
+    rexx("CURSOR 2 1")
+    activar("Forja")
+    input_move(campo("FORJA_SALIDA", 0) + 40, campo("FORJA_SALIDA", 1) + 10)
+    time_delay(5)
+    input_text("#")
+    t = esperar_lineas(2, 2, "#import \"util.dash\"")
+    ver("con el puntero en la salida, la tecla va al editor", t == "#import \"util.dash\"", t)
+    input_key(0x31, AMIGA)
+    comprobar("y Amiga-Z también", 2, 2, "import \"util.dash\"")
+
+
+    # --- 2.3 buscar y cambiar en el proyecto ---
+    rexx("CURSOR 22 14")
+    al_editor()
+    t0 = time_ms()
+    input_key(0x23, CTRL + MAYUS)
+    ok = esperar_salida("veces en 1 ficheros")
+    anotar("Ctrl Mayús F hasta ver lo encontrado: #{time_ms() - t0} ms")
+    ver("Ctrl Mayús F busca el nombre del cursor en el proyecto", ok and str_contains(leer("RAM:forja-salida.txt"), "Buscar \"salir\": 2 veces"), leer("RAM:forja-salida.txt"))
+    ver("un clic en lo encontrado lleva a su sitio", clic_salida("main.dash:12:") and esperar_cursor("12 38") == "12 38", rexx("CURSOR"))
+    # cambiar en el proyecto: Ctrl Mayús H deja el teclado en "Cambiar por"
+    al_editor()
+    input_key(0x25, CTRL + MAYUS)
+    time_delay(30)
+    input_text("fuera")
+    evento(163)
+    time_delay(60)
+    screen_save_png("DH0:Prueba/editor-cambios.png")
+    ver("antes de preguntar, nada cambiado", str_contains(lineas(22, 22), "salir"), lineas(22, 22))
+    ver("la pregunta", activar("Cambiar en el proyecto"), input_active_title())
+    input_key(0x33, 0)
+    comprobar("cambiado en el editor tras decir que sí", 22, 22, "    return fuera")
+    ver("sin guardar", str_contains(leer(MAIN), "return salir"), "")
+    al_editor()
+    input_key(0x31, AMIGA)
+    comprobar("Amiga-Z lo deshace de una vez", 12, 22, "    asm in a1 = tabla, d4 = fase out salir = d0 uses d1-d7/a0|        lea     $dff000,a0|        move.w  d4,d0|        and.w   #255,d0|        add.w   #ARRIBA+8,d5|    .linea:|        move.b  6(a0),d0            ; VHPOSR: la línea, en el byte alto|        cmp.b   d1,d0|        bne.s   .linea|    end|    return salir")
+
+    # --- 2.4 el esquema, abrir un fichero e ir a un nombre ---
+    rexx("CURSOR 27 1")
+    al_editor()
+    input_key(0x18, CTRL)
+    r = esperar_rapida("espera_linea")
+    ver("Ctrl O: el esquema, con la función de antes del cursor elegida", str_starts(r, "1 ") and str_ends(r, " espera_linea"), r)
+    anotar("esquema: " + r)
+    input_text("esp")
+    r = esperar_rapida("espera_linea")
+    ver("filtrar escribiendo", str_contains(r, "espera_linea"), r)
+    time_delay(20)
+    screen_save_png("DH0:Prueba/editor-esquema.png")
+    input_key(RETURN, 0)
+    ver("Return va a la función", esperar_cursor("11 6") == "11 6", rexx("CURSOR"))
+    input_key(0x19, CTRL)
+    input_text("uti")
+    r = esperar_rapida("util.dash")
+    ver("Ctrl P: abrir un fichero por su nombre", str_contains(r, "util.dash"), r)
+    anotar("abrir: " + r)
+    input_key(RETURN, 0)
+    time_delay(30)
+    ver("abierto util.dash", str_contains(rexx("ACTIVO"), "util.dash"), rexx("ACTIVO"))
+    input_key(0x14, CTRL)
+    input_text("espera")
+    r = esperar_rapida("espera_linea")
+    ver("Ctrl T: un nombre de todo el proyecto", str_contains(r, "espera_linea"), r)
+    anotar("ir a: " + r)
+    input_key(RETURN, 0)
+    time_delay(30)
+    ver("va a main.dash, a su línea", str_contains(rexx("ACTIVO"), "main.dash") and esperar_cursor("11 6") == "11 6", rexx("ACTIVO") + " " + rexx("CURSOR"))
+    input_key(0x18, CTRL)
+    esperar_rapida("espera_linea")
+    input_key(0x45, 0)
+    n = 0
+    while n < 30 and rapida() != "0"
+        time_delay(5)
+        n = n + 1
+    end
+    ver("Esc la cierra", rapida() == "0", rapida())
+
+    # --- 2.5 marcadores (y F8 sigue siendo el siguiente error) ---
+    rexx("CURSOR 5 1")
+    al_editor()
+    input_key(0x52, CTRL)
+    rexx("CURSOR 25 1")
+    al_editor()
+    input_key(0x52, CTRL)
+    rexx("CURSOR 1 1")
+    al_editor()
+    input_key(0x52, 0)
+    ver("F3 al siguiente marcador", esperar_cursor("5 1") == "5 1", rexx("CURSOR"))
+    input_key(0x52, 0)
+    ver("F3 otra vez", esperar_cursor("25 1") == "25 1", rexx("CURSOR"))
+    input_key(0x52, MAYUS)
+    ver("Mayús F3 al anterior", esperar_cursor("5 1") == "5 1", rexx("CURSOR"))
+    rexx("CURSOR 3 1")
+    al_editor()
+    input_key(RETURN, 0)
+    input_key(0x52, 0)
+    ver("el marcador sigue a su línea al escribir", esperar_cursor("6 1") == "6 1", rexx("CURSOR"))
+    input_key(0x31, AMIGA)
+
+    # --- 2.6 renombrar (doble, de util.dash, usada en main.dash) ---
+    rexx("CURSOR 28 30")
+    al_editor()
+    input_key(0x51, 0)
+    r = esperar_rapida("x")
+    time_delay(20)
+    ver("F2 pregunta el nombre nuevo", str_starts(rapida(), "4 "), rapida())
+    k = 0
+    while k < 5
+        input_key(0x41, 0)
+        k = k + 1
+    end
+    input_text("dos_veces")
+    input_key(RETURN, 0)
+    time_delay(60)
+    screen_save_png("DH0:Prueba/editor-renombrar.png")
+    ver("la pregunta", activar("Cambiar en el proyecto"), input_active_title())
+    input_key(0x33, 0)
+    comprobar("renombrado en main.dash (abierto)", 28, 28, "        poke_byte(tabla + i, dos_veces(i) / 4)")
+    u = rexx("TEXTO DH0:Prueba/editor/util.dash")
+    ver("y en util.dash (abierto en su pestaña, sin guardar)", str_contains(u, "func dos_veces(x: Int)") and str_contains(leer("DH0:Prueba/editor/util.dash"), "func doble("), u)
+
+    # --- 2.7 plegar ---
+    rexx("CURSOR 14 3")
+    al_editor()
+    input_key(0x53, 0)
+    ver("F4 pliega el bloque del cursor (el asm)", esperar_cursor("12 3") == "12 3", rexx("CURSOR"))
+    input_key(ABAJO, 0)
+    ver("la flecha se salta lo plegado", esperar_cursor("22 3") == "22 3", rexx("CURSOR"))
+    time_delay(20)
+    screen_save_png("DH0:Prueba/editor-plegado.png")
+    anotar("dibujo entero con un bloque plegado: " + env_get("FORJA_DIBUJO") + " ms")
+    input_key(0x16, CTRL)
+    input_key(ARRIBA, 0)
+    ver("Ctrl U (cambiada en ENV:Forja/teclas) lo despliega todo", esperar_cursor("21 3") == "21 3", rexx("CURSOR"))
+
+    # --- 2.8 las teclas y el tema, cambiados: lo que no se entiende, a la salida ---
+    s = leer("RAM:forja-salida.txt")
+    ver("las teclas que no se entienden se dicen", str_contains(s, "patata = ctrl x"), s)
+    ver("los colores que no se entienden se dicen", str_contains(s, "verdura = 1 2") and not str_contains(s, "comentario = 255"), s)
+
+    # --- lo que tarda repintar al mover el cursor ---
+    rexx("CURSOR 3 1")
+    al_editor()
+    total = 0
+    veces = 0
+    k = 0
+    while k < 8
+        input_key(ABAJO, 0)
+        time_delay(8)
+        if campo("FORJA_PAREJA", 4) >= 1
+            total = total + campo("FORJA_PAREJA", 5)
+            veces = veces + 1
+        end
+        k = k + 1
+    end
+    if veces > 0
+        anotar("flecha abajo (repinta 2 líneas): #{total / veces} ms de media")
+    end
+    input_key(ABAJO, CTRL)
+    time_delay(20)
+    input_key(ARRIBA, CTRL)
+    time_delay(20)
+    anotar("dibujo entero: " + env_get("FORJA_DIBUJO") + " ms")
+
+    rexx("GUARDAR " + MAIN)
+    rexx("QUIT")
+    n = 0
+    while n < 100 and rexx_send(FORJA, "ESTADO") != ""
+        time_delay(5)
+        n = n + 1
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    else
+        anotar("FALLOS: #{fallos}")
+    end
+end

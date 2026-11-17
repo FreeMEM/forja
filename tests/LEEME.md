@@ -206,3 +206,24 @@ Dash (`AYUDA=.../Dash.ayuda`; si no, la de `build/ayuda` de Dash, de `tools/gen_
 explicar y arreglar un error (compila antes), y las sugerencias al escribir (SUGERENCIA y Tab). Guarda
 `copiloto-*.png` en `capturas/`. Con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`; `SOLO=sugerencias`, solo lo
 último. El servidor usa el puerto 40900 del PC: `flock /run/user/1000/dash-emu-red.lock tests/copiloto.sh ...`.
+
+El editor cómodo (fase 2 de `docs/FORJA_LOOP.md`):
+
+- `tests/editor_base.sh <worktree de Dash>`: `tests/editor_base.dash` prueba sin ventana `src/sintaxis.dash` (los
+  colores de la gramática, también la cabecera y las líneas de un bloque `asm`), `src/editor.dash` (comentar, duplicar,
+  subir, bajar y borrar líneas; cerrar solos paréntesis y comillas; el `end` solo; la pareja de un paréntesis y de un
+  bloque; buscar y cambiar con expresiones regulares; marcadores que siguen a su texto; plegar), `src/buscar.dash`
+  (buscar y cambiar en `tests/prueba/editor`, con un fichero abierto sin guardar y otro en el disco) y `src/teclas.dash`
+  (las teclas por defecto y las de un fichero). Mide lo que tarda partir una línea, buscar la pareja de una función
+  larga, buscar en el proyecto y las cuentas de las filas con bloques plegados.
+- `tests/editor.sh <worktree de Dash> [capturas/]`: `tests/editor.dash`, como un usuario, sobre
+  `tests/prueba/editor/main.dash` (con un bloque `asm`): el `end` solo y los paréntesis al escribir; Ctrl /, Ctrl D,
+  Ctrl Mayús K, Ctrl Alt arriba y Amiga-Z; la pareja de `func`, `asm` y un paréntesis, y Ctrl M; una tecla con el
+  puntero en la salida; Ctrl Mayús F y un clic en lo encontrado; cambiar en el proyecto (la pestaña de cambios y la
+  pregunta) y deshacerlo; el esquema (Ctrl O), abrir un fichero (Ctrl P) e ir a un nombre (Ctrl T); marcadores (Ctrl
+  F3, F3, Mayús F3) que siguen a su línea; renombrar `doble` (F2) en `main.dash`, abierto, y en `util.dash`, en el
+  disco; plegar con F4 y desplegar con la tecla de `ENV:Forja/teclas` (la prueba cambia una tecla y un color, y pone
+  una línea mala en cada fichero: se dicen en la salida). Mide el repintado al mover el cursor (dos líneas) y el
+  dibujo entero. Con `capturas/`: `editor-colores.png`, `editor-pareja.png`, `editor-cambios.png`,
+  `editor-esquema.png`, `editor-renombrar.png` y `editor-plegado.png`. `RTG=1` (256 colores), `REAL=1` (la CPU de un
+  A1200) y con MUI 3.8 `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`.

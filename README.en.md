@@ -36,14 +36,46 @@ When compiling, the executable goes next to the `.dash`. In the preferences, "Ex
 `.dash`'s drawer, so it finds its files with a relative path (`"jugador.iff"`) even when the executable is elsewhere.
 What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the executable's drawer.
 
-- **Editor**: the keyboard goes to the editor when the pointer is over it. Arrows; with Shift they select; Alt: start
-  and end of line, page up and down; Ctrl: word by word, start and end of the text. Tab and Shift+Tab indent;
-  pressing Return after `func`, `if`, `while` and the like indents the new line one level, and `end`, `else` and
-  `elif` go back to their place by themselves, as in the VS Code extension. Undo (Amiga-Z), redo (Amiga-R), cut, copy
-  and paste with the system clipboard.
+- **Editor**: the keyboard goes to the editor even with the pointer over the project, the output or the button bar.
+  Arrows; with Shift they select; Alt: start and end of line, page up and down; Ctrl: word by word, start and end of
+  the text. Tab and Shift+Tab indent; pressing Return after `func`, `if`, `while` and the like indents the new line one
+  level and, if the block has no `end` yet, adds it below; `end`, `else` and `elif` go back to their place by
+  themselves, as in the VS Code extension. Brackets, braces and quotes close by themselves (typing the closing one
+  steps over it; Backspace between the two removes both). Both can be turned off in the Editor menu. Undo (Amiga-Z),
+  redo (Amiga-R), cut, copy and paste with the system clipboard.
+- **Colours**: those of Dash's grammar (the words come from Dash with `tools/sintaxis.py`, not written by hand), also
+  the directives (`@native`...) and the `asm ... end` blocks with their own: instructions, registers and labels.
+- **Editor menu** (the default keys; change them in `ENVARC:Forja/teclas`):
+
+  | Command | Key |
+  |---|---|
+  | Comment or uncomment (the line or the selection; in an asm block, with `;`) | Ctrl / |
+  | Duplicate, move up, move down and delete the lines | Ctrl D, Ctrl Alt up, Ctrl Alt down, Ctrl Shift K |
+  | Go to the pair (the bracket, or the `end` of a `func`, `if`, `asm`...; with the cursor on one, both are boxed) | Ctrl M |
+  | Set or clear bookmark, next, previous | Ctrl F3, F3, Shift F3 |
+  | Outline of the file (functions, structs, constants...: filtered by typing) | Ctrl O |
+  | Open a file of the project by its name | Ctrl P |
+  | Go to a name of the whole project | Ctrl T |
+  | Find in the project (the word at the cursor; results to click in the output) | Ctrl Shift F |
+  | Replace in the project (the list of changes first) | Ctrl Shift H |
+  | Rename in the whole project (the list of changes first) | F2 |
+  | Fold or unfold the block at the cursor; unfold all | F4; Shift F4 |
+
+  F8 is still the next error. `ENVARC:Forja/teclas` has one command per line, `command = keys`: for instance
+  `duplicar = alt d` or `comentar = nada`. The commands: comentar, duplicar, subir, bajar, borrar_linea, pareja,
+  marcador, marcador_siguiente, marcador_anterior, esquema, abrir_fichero, abrir_simbolo, buscar_proyecto,
+  cambiar_proyecto, renombrar, plegar, desplegar_todo. Letters go by their place on an English keyboard (like those of
+  the extensions); a sign (`/`) goes by the character. Whatever is not understood is reported in the output at start.
+- **Theme**: `ENVARC:Forja/tema` changes the colours (`comentario = 120 120 136`: fondo, texto, tenue, acento, error,
+  seleccion, cursor..., and the syntax ones: clave, tipo, cadena, numero, comentario, llamada, constante, directiva,
+  asm_instruccion, asm_registro, asm_etiqueta) and the font of the code (`fuente = xen.font 8`, fixed width).
 - **Files**: tabs; Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click (folders first, in order); the
   wheel and its scroll bar move it. It asks when closing with unsaved changes.
-- **Find and replace** (Amiga-F) and **go to line** (Amiga-L).
+- **Find and replace** (Amiga-F) and **go to line** (Amiga-L). With "Regular expression", the text is a regular
+  expression (those of Dash's `regex_find`), and in "Replace with", `$1` to `$9` are its groups. "Find in the project"
+  and "Replace in the project" do it in every `.dash` and `.dashui` of the project drawer and the ones inside (with the
+  unsaved text of the open ones); before replacing, a tab with each line as it is and as it will be, and a question.
+  Open files change in the editor (Amiga-Z undoes it); the others, on disk.
 - **Completion**: after two letters a list appears under the cursor with Dash's words, its builtins and the
   project's names (functions, structs, constants, global variables and the function's locals; also those of the
   files it imports). After a dot, the struct's fields and methods, or what lists and strings have. Arrows choose,

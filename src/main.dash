@@ -6,9 +6,11 @@
 #
 #   Forja [fichero]      # sin fichero, la bienvenida: el logo de Dash con el cursor parpadeando
 #
-# El teclado va al editor cuando el puntero está encima. Flechas; con Mayúsculas seleccionan; Alt: principio y
-# final de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Los atajos con
-# Amiga son los del menú, también sobre el editor.
+# El teclado va al editor (también con el puntero en el proyecto, la salida o la barra). Flechas; con Mayúsculas
+# seleccionan; Alt: principio y final de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final
+# del texto. Los atajos con Amiga son los del menú, también sobre el editor. Las órdenes del menú Editor (comentar,
+# duplicar, esquema, buscar en el proyecto, renombrar, plegar...) tienen sus teclas en teclas.dash, que se cambian en
+# ENVARC:Forja/teclas; los colores y la fuente, en ENVARC:Forja/tema (tema.dash).
 #
 # Compilar (Amiga-K) llama a dashc sin parar la ventana (ENV:Forja/dashc, o "dashc" del camino de órdenes); sus
 # errores van a la salida y un clic en uno lleva a su línea. Ejecutar (Amiga-E) compila y ejecuta; mientras el
@@ -62,6 +64,9 @@ import "ayuda.dash"
 import "actualizar.dash"
 import "botones.dash"
 import "extensiones.dash"
+import "teclas.dash"
+import "buscar.dash"
+import "rapido.dash"
 import "ventana.dashui"
 
 const VERSION = "0.6.5"
@@ -109,6 +114,11 @@ const EV_EXT_MENU = 200        # las opciones de las extensiones en el menú: 20
 # (los de la ventana de la ayuda, 110 a 120, en ayuda.dash)
 const EV_ERROR_SIGUIENTE = 125 # F8: al siguiente error marcado en el código (errores.dash)
 const EV_ERROR_ANTERIOR = 126  # Mayúsculas+F8
+const EV_ED = 130               # las órdenes del editor (teclas.dash): 131 a 147, EV_ED + TC_*
+const EV_ED_CERRAR = 160        # Editor > Cerrar solos paréntesis y comillas
+const EV_ED_END = 161           # Editor > end solo
+const EV_BUSCAR_PROYECTO = 162  # los botones de la ventana de buscar: en el proyecto
+const EV_CAMBIAR_PROYECTO = 163
 const COMPROBAR_MS = 1500      # sin escribir este tiempo, se comprueba el programa con dash --check (si se escribió)
 const TIC_MS = 100
 const ESPERA_DASHC = 300000    # cinco minutos como mucho para compilar
@@ -124,10 +134,6 @@ const T_F7 = 0x56
 const T_F9 = 0x58
 const T_F10 = 0x59
 const T_F8 = 0x57
-const T_ARRIBA = 0x4C
-const T_ABAJO = 0x4D
-const T_DERECHA = 0x4E
-const T_IZQUIERDA = 0x4F
 const T_F1 = 0x50
 const T_HELP = 0x5F
 const T_ESPACIO = 0x40
@@ -162,6 +168,7 @@ const EV_PREF_GUARDAR = 57
 const EV_PREF_USAR = 58
 const EV_PREF_CANCELAR = 59
 const EV_SALIR = 99
+const EV_NADA = 9999           # un evento ya atendido
 
 const PANTALLA = "FORJA"       # el nombre de su pantalla pública, con la preferencia
 
@@ -232,6 +239,14 @@ var sonda_completar: String = "-"
 var sonda_ayuda: String = "-"
 var sonda_botones: String = ""
 var sonda_arbol: String = ""
+var lienzo_teclas: Int = 0        # de qué lienzo se leen el clic y la tecla del editor: el editor, o la salida o el
+                                   # proyecto cuando el puntero está encima (sus teclas también son del editor)
+var menu_cerrar: Int = 0           # las opciones con marca del menú Editor
+var menu_end: Int = 0
+var sonda_pareja: String = ""
+var sonda_rapida: String = ""
+var ms_lineas: Int = 0             # lo que tardó el último repintado de unas líneas sueltas, y cuántas
+var n_lineas: Int = 0
 
 func dibujar_proyecto(x: Int, y: Int, ancho: Int, alto: Int)
     proyecto_dibujar(x, y, ancho, alto)
@@ -239,6 +254,8 @@ end
 
 func dibujar_editor(x: Int, y: Int, ancho: Int, alto: Int)
     ed_dibujar(x, y, ancho, alto)
+    # la lista rápida (esquema, abrir por nombre), encima de todo
+    lr_dibujar(x, y, ancho, alto)
 end
 
 func dibujar_botones(x: Int, y: Int, ancho: Int, alto: Int)
@@ -1440,6 +1457,517 @@ func redibujar_tras_tecla(solo_linea: Bool, y1: Int, y2: Int)
     end
 end
 
+# Como redibujar_tras_tecla, con la pareja (el paréntesis o el end que casa con el del cursor): si cambió, también
+# sus líneas. otra: el cursor pasó de la línea antes_cl a otra sin nada más (solo esas dos)
+func redibujar_tras_tecla_pareja(solo: Bool, otra: Bool, antes_cl: Int, y1: Int, y2: Int)
+    d = ed_actual()
+    cambio = d != nil and ed_pareja_calcular(d)
+    ed_capas_geometria(d)
+    ed_capas_rango()
+    if d == nil or y1 >= 0 or ed_capas_y1 >= 0 or not (solo or otra)
+        redibujar()
+        return
+    end
+    var ls: [Int] = [d.cl]
+    if otra
+        ls.push(antes_cl)
+    end
+    if cambio
+        for l in [ed_par_antes_l1, ed_par_antes_l2, ed_par_l1, ed_par_l2]
+            ls.push(l)
+        end
+    end
+    redibujar_lineas(ls)
+end
+
+# Repinta esas líneas (las que se ven, cada una una vez)
+func redibujar_lineas(ls: [Int])
+    d = ed_actual()
+    t0 = time_ms()
+    var hechas: [Int] = []
+    for l in ls
+        repetida = false
+        for h in hechas
+            if h == l
+                repetida = true
+            end
+        end
+        if l >= 0 and ed_fila_y(d, l) >= 0 and not repetida
+            hechas.push(l)
+            ed_solo_linea = l
+            mui_canvas_update_area(v.editor, 0, ed_fila_y(d, l), ed_zona_ancho, ed_alto_fila)
+        end
+    end
+    ed_solo_linea = -1
+    ms_lineas = time_ms() - t0
+    n_lineas = hechas.length
+    escribir_sonda()
+end
+
+# Tras cambiar el texto con una orden (no con una tecla): lo mismo que al escribir
+func tras_escribir(d: Documento)
+    cx_locales_olvidar()
+    linea_escrita = d.cl
+    lineas_antes = d.lineas.length
+    ultimo_cambio = time_ms()
+    if completar_activo and not tic_armado
+        armar_tic(REPOSO_MS, EV_TIC)
+    end
+    ext_tras_escribir(d)
+    comprobar_pedir(d, true)
+end
+
+# Una orden del editor (TC_* de teclas.dash), con su tecla o desde el menú Editor
+func orden_editor(o: Int)
+    if o == TC_ABRIR_FICHERO
+        abrir_por_nombre()
+        return
+    elif o == TC_BUSCAR_PROYECTO or o == TC_CAMBIAR_PROYECTO
+        ventana_buscar_proyecto(o == TC_CAMBIAR_PROYECTO)
+        return
+    elif o == TC_ABRIR_SIMBOLO
+        nombres_del_proyecto()
+        return
+    end
+    d = ed_actual()
+    if d == nil or d.sprite != nil or d.mapa != nil or d.diseno
+        return
+    end
+    cerrar_capas()
+    version = d.version
+    texto = d.vista == 0
+    if o == TC_COMENTAR and texto
+        ed_comentar(d)
+    elif o == TC_DUPLICAR and texto
+        ed_duplicar(d)
+    elif o == TC_SUBIR and texto
+        ed_mover_lineas(d, true)
+    elif o == TC_BAJAR and texto
+        ed_mover_lineas(d, false)
+    elif o == TC_BORRAR_LINEA and texto
+        ed_borrar_lineas(d)
+    elif o == TC_PAREJA
+        if not ed_ir_pareja(d)
+            avisar(tr(801, "Aquí no hay nada que haga pareja (un paréntesis, o la primera palabra de un bloque)."), 1)
+        end
+    else
+        orden_editor_mas(d, o)
+    end
+    if d.version != version
+        tras_escribir(d)
+    end
+    ed_pareja_calcular(d)
+    redibujar()
+end
+
+# --- Las teclas y el menú del editor (fase 2) ---
+
+func si_no(b: Bool) -> String
+    if b
+        return "si"
+    end
+    return "no"
+end
+
+# Las teclas de las órdenes del editor: ENV:Forja/teclas (o ENVARC:, si ENV: no la tiene); lo que no se entiende se
+# dice en la salida
+func teclas_leer()
+    t = file_read_text("ENV:Forja/teclas")
+    if t == nil
+        t = file_read_text("ENVARC:Forja/teclas")
+    end
+    if t != nil
+        malas = tc_leer(t)
+        if malas != ""
+            salida_anadir(tr(802, "No entiendo estas líneas de las teclas (ENVARC:Forja/teclas):"), 1)
+            for l in str_split(str_trim(malas), "\n")
+                salida_anadir("  " + l, 1)
+            end
+        end
+    end
+end
+
+func _opcion_editor(texto: String, o: Int)
+    k = tc_texto(o)
+    if k != ""
+        texto = texto + "  (" + k + ")"
+    end
+    mui_menu_item(texto, "", EV_ED + o)
+end
+
+# El menú Editor: las órdenes del editor con su tecla (la de ENVARC:Forja/teclas, si se cambió)
+func menu_editor()
+    mui_menu_add(v.window, tr(800, "Editor"))
+    _opcion_editor(tr(803, "Comentar o descomentar"), TC_COMENTAR)
+    _opcion_editor(tr(804, "Duplicar las líneas"), TC_DUPLICAR)
+    _opcion_editor(tr(805, "Subir las líneas"), TC_SUBIR)
+    _opcion_editor(tr(806, "Bajar las líneas"), TC_BAJAR)
+    _opcion_editor(tr(807, "Borrar las líneas"), TC_BORRAR_LINEA)
+    _opcion_editor(tr(808, "Ir a la pareja"), TC_PAREJA)
+    mui_menu_separator()
+    _opcion_editor(tr(809, "Poner o quitar marcador"), TC_MARCADOR)
+    _opcion_editor(tr(810, "Siguiente marcador"), TC_MARCADOR_SIGUIENTE)
+    _opcion_editor(tr(811, "Marcador anterior"), TC_MARCADOR_ANTERIOR)
+    mui_menu_separator()
+    _opcion_editor(tr(812, "Esquema del fichero..."), TC_ESQUEMA)
+    _opcion_editor(tr(813, "Abrir un fichero por su nombre..."), TC_ABRIR_FICHERO)
+    _opcion_editor(tr(814, "Ir a un nombre del proyecto..."), TC_ABRIR_SIMBOLO)
+    _opcion_editor(tr(815, "Buscar en el proyecto..."), TC_BUSCAR_PROYECTO)
+    _opcion_editor(tr(816, "Cambiar en el proyecto..."), TC_CAMBIAR_PROYECTO)
+    _opcion_editor(tr(817, "Renombrar..."), TC_RENOMBRAR)
+    mui_menu_separator()
+    _opcion_editor(tr(818, "Plegar o desplegar el bloque"), TC_PLEGAR)
+    _opcion_editor(tr(819, "Desplegar todo"), TC_DESPLEGAR_TODO)
+    mui_menu_separator()
+    menu_cerrar = mui_menu_check(tr(820, "Cerrar solos paréntesis y comillas"), "", EV_ED_CERRAR, ed_cerrar_solo)
+    menu_end = mui_menu_check(tr(821, "Poner el end al abrir un bloque"), "", EV_ED_END, ed_auto_end)
+    mui_menu_end()
+end
+
+# Las órdenes de los pasos 2.4 a 2.7 (esquema, marcadores, renombrar, plegar)
+func orden_editor_mas(d: Documento, o: Int)
+    if o == TC_ESQUEMA
+        esquema(d)
+    elif o == TC_MARCADOR
+        ed_marcador(d)
+    elif o == TC_MARCADOR_SIGUIENTE or o == TC_MARCADOR_ANTERIOR
+        if not ed_ir_marcador(d, o == TC_MARCADOR_SIGUIENTE)
+            avisar(hueco2(tr(857, "No hay marcadores en %1 (%2 pone o quita uno)."), d.nombre, tc_texto(TC_MARCADOR)), 1)
+        end
+    elif o == TC_RENOMBRAR and d.vista == 0
+        renombrar_preguntar(d)
+    elif o == TC_PLEGAR
+        if not ed_plegar_cursor(d)
+            avisar(tr(864, "El cursor no está en un bloque (func, if, while, struct...)."), 1)
+        end
+    elif o == TC_DESPLEGAR_TODO
+        ed_desplegar_todo(d)
+    else
+        avisar(tr(822, "Esa orden aún no está hecha."), 1)
+    end
+end
+
+# Ctrl Mayús F (o H): la ventana de buscar, con lo elegido o el nombre del cursor, y busca en el proyecto (o deja el
+# cursor en "Cambiar por")
+func ventana_buscar_proyecto(cambiar: Bool)
+    d = ed_actual()
+    t = ""
+    if d != nil and d.sprite == nil and d.mapa == nil
+        t = ed_seleccion(d)
+        if t == "" or str_contains(t, "\n")
+            t = palabra_del_cursor(d)
+        end
+    end
+    if t != ""
+        mui_set_text(vb.texto, t)
+    end
+    mui_window_open(vb.window)
+    if cambiar
+        mui_set_active(vb.window, vb.cambio)
+    else
+        mui_set_active(vb.window, vb.texto)
+        if t != ""
+            buscar_proyecto()
+        end
+    end
+end
+
+# --- La lista rápida (paso 2.4) ---
+
+# El esquema del fichero: sus funciones, structs (con sus campos), enums, constantes y variables, en su orden; queda
+# elegido lo que hay donde está el cursor
+func esquema(d: Documento)
+    if not es_codigo(d) and not str_ends(str_lower(d.nombre), ".dashui")
+        return
+    end
+    t0 = time_ms()
+    sims = cx_simbolos_de(clave_de(d), d.lineas, d.version)
+    lr_abrir(LR_ESQUEMA, hueco(tr(852, "Esquema de %1"), d.nombre))
+    aqui = -1
+    for s in sims
+        if s.clase != CX_LOCAL
+            t = s.nombre
+            if s.dueno != ""
+                t = "  " + t
+            end
+            lr_anadir(t, s.clase, "", s.linea, s.col, "#{s.linea}")
+            if s.linea <= d.cl + 1 and s.dueno == ""
+                aqui = lr_textos.length - 1
+            end
+        end
+    end
+    lr_filtrar()
+    if aqui >= 0
+        lr_elegir(aqui)
+    end
+    lr_ms = time_ms() - t0
+    redibujar()
+end
+
+# Abrir un fichero del proyecto por su nombre (Ctrl P)
+func abrir_por_nombre()
+    cajon = cajon_proyecto()
+    if cajon == ""
+        avisar(tr(853, "No hay proyecto: abre antes un fichero."), 1)
+        return
+    end
+    t0 = time_ms()
+    dos_requesters(false)
+    rutas = bp_todos_de(cajon)
+    dos_requesters(true)
+    lr_abrir(LR_FICHEROS, tr(854, "Abrir"))
+    for r in rutas
+        rel = _nombre_en_proyecto(r, cajon)
+        nombre = nombre_de(r)
+        det = ""
+        if rel.length > nombre.length
+            det = rel[0:rel.length - nombre.length - 1]
+        end
+        lr_anadir(nombre, LR_FICHERO, r, 0, 0, det)
+    end
+    lr_filtrar()
+    lr_ms = time_ms() - t0
+    redibujar()
+end
+
+# Ir a un nombre de todo el proyecto (Ctrl T): lo de arriba de cada fichero de código y los métodos
+func nombres_del_proyecto()
+    cajon = cajon_proyecto()
+    if cajon == ""
+        avisar(tr(853, "No hay proyecto: abre antes un fichero."), 1)
+        return
+    end
+    t0 = time_ms()
+    dos_requesters(false)
+    rutas = bp_ficheros_de(cajon)
+    lr_abrir(LR_NOMBRES, tr(855, "Ir a"))
+    for r in rutas
+        k = ed_buscar_ruta(r)
+        var sims: [Simbolo] = []
+        if k >= 0
+            sims = cx_simbolos_de(r, documentos[k].lineas, documentos[k].version)
+        else
+            sims = cx_simbolos_de(r, nil, 0)
+        end
+        rel = _nombre_en_proyecto(r, cajon)
+        for s in sims
+            if s.dueno == "" or s.clase == CX_METODO
+                t = s.nombre
+                if s.clase == CX_METODO
+                    t = s.dueno + "." + s.nombre
+                end
+                lr_anadir(t, s.clase, r, s.linea, s.col, rel + ":#{s.linea}")
+            end
+        end
+    end
+    dos_requesters(true)
+    lr_filtrar()
+    lr_ms = time_ms() - t0
+    redibujar()
+end
+
+# --- Renombrar (paso 2.6) ---
+
+var renombrar_viejo: String = ""
+
+# F2: dónde se usa el nombre del cursor, y pregunta el nuevo (en la lista rápida, sin lista)
+func renombrar_preguntar(d: Documento)
+    if not es_codigo(d)
+        return
+    end
+    indice_si_hace_falta(true)
+    cajon = cajon_proyecto()
+    var otros: [String] = []
+    if cajon != ""
+        dos_requesters(false)
+        otros = bp_ficheros_de(cajon)
+        dos_requesters(true)
+    end
+    dos_requesters(false)
+    hay = cx_referencias(d.lineas, clave_de(d), d.cl, d.cc, d.version, otros)
+    dos_requesters(true)
+    if not hay or cx_ref_lineas.length == 0
+        avisar(tr(230, "No hay un nombre en el cursor."), 1)
+        return
+    end
+    renombrar_viejo = cx_def_nombre
+    lr_abrir(LR_PREGUNTA, hueco(tr(858, "Renombrar %1 a"), renombrar_viejo))
+    lr_filtro = renombrar_viejo
+    lr_ayuda = hueco(tr(859, "%1 sitios; antes de cambiar nada, la lista de cambios."), "#{cx_ref_lineas.length}")
+    redibujar()
+end
+
+func es_nombre(t: String) -> Bool
+    return regex_match("[A-Za-z_][A-Za-z0-9_]*", t, false)
+end
+
+# Con el nombre nuevo: los cambios de cx_ref_* en bp_c_*, la lista y la pregunta (aplicar_cambios)
+func renombrar(nuevo: String)
+    viejo = renombrar_viejo
+    if nuevo == "" or nuevo == viejo
+        return
+    end
+    if not es_nombre(nuevo) or bi_buscar(nuevo) >= 0 and bi_clase(bi_buscar(nuevo)) != 2
+        avisar(hueco(tr(860, "\"%1\" no vale como nombre."), nuevo), 1)
+        return
+    end
+    if cx_global(nuevo) != nil
+        avisar(hueco(tr(861, "Ya hay un %1 en el proyecto: no renombro, se mezclarían."), nuevo), 1)
+        return
+    end
+    # por fichero y línea, en el orden de cx_ref_* (por fichero, de arriba abajo)
+    bp_c_rutas.clear()
+    bp_c_lineas.clear()
+    bp_c_antes.clear()
+    bp_c_despues.clear()
+    bp_c_veces = 0
+    i = 0
+    n = cx_ref_lineas.length
+    while i < n
+        ruta = cx_ref_rutas[i]
+        if str_starts(ruta, "*")
+            # (un fichero sin nombre: no se puede cambiar desde aquí)
+            i = i + 1
+        else
+            lineas = bp_lineas_de(ruta)
+            nums = ""
+            antes = ""
+            despues = ""
+            while i < n and cx_ref_rutas[i] == ruta
+                num = cx_ref_lineas[i]
+                # las columnas de esa línea (de derecha a izquierda, para que no se muevan)
+                var cols: [Int] = []
+                while i < n and cx_ref_rutas[i] == ruta and cx_ref_lineas[i] == num
+                    cols.push(cx_ref_cols[i])
+                    i = i + 1
+                end
+                if num >= 1 and num <= lineas.length
+                    s = lineas[num - 1]
+                    t = s
+                    k = cols.length - 1
+                    while k >= 0
+                        c = cols[k] - 1
+                        if c >= 0 and c + viejo.length <= t.length and t[c:c + viejo.length] == viejo
+                            t = t[0:c] + nuevo + t[c + viejo.length:]
+                            bp_c_veces = bp_c_veces + 1
+                        end
+                        k = k - 1
+                    end
+                    if t != s
+                        if nums != ""
+                            nums = nums + " "
+                            antes = antes + "\n"
+                            despues = despues + "\n"
+                        end
+                        nums = nums + "#{num}"
+                        antes = antes + s
+                        despues = despues + t
+                    end
+                end
+            end
+            if nums != ""
+                bp_c_rutas.push(ruta)
+                bp_c_lineas.push(nums)
+                bp_c_antes.push(antes)
+                bp_c_despues.push(despues)
+            end
+        end
+    end
+    if bp_c_veces == 0
+        return
+    end
+    if aplicar_cambios(hueco2(tr(862, "Renombrar %1 a %2"), viejo, nuevo), cajon_proyecto())
+        avisar(hueco2(tr(863, "Renombrado %1 en %2 sitios."), viejo + " -> " + nuevo, "#{bp_c_veces}"), 2)
+    end
+end
+
+# Lo que pasa sobre el editor con la lista rápida abierta: es suya
+func en_lista_rapida() -> Int
+    teclas = mui_canvas_qualifiers(lienzo_teclas)
+    if mui_canvas_button(lienzo_teclas) == 1
+        x = mui_canvas_mouse_x(lienzo_teclas)
+        y = mui_canvas_mouse_y(lienzo_teclas)
+        if lr_dentro(x, y)
+            if lr_clic(x, y)
+                ir_lista_rapida()
+            end
+            return 0
+        end
+        lr_cerrar()
+        redibujar()
+        return 0
+    end
+    rueda = mui_canvas_wheel(lienzo_teclas)
+    if rueda != 0
+        lr_primera = lr_primera - rueda * 3
+        if lr_primera > lr_vistos.length - LR_FILAS
+            lr_primera = lr_vistos.length - LR_FILAS
+        end
+        if lr_primera < 0
+            lr_primera = 0
+        end
+        redibujar()
+        return 0
+    end
+    codigo = mui_canvas_key(lienzo_teclas)
+    if codigo < 0
+        return 0
+    end
+    letra = mui_canvas_char(lienzo_teclas)
+    if (teclas & Q_AMIGA) != 0
+        lr_cerrar()
+        redibujar()
+        return atajo(letra)
+    end
+    o = tc_orden(codigo, teclas, letra)
+    if o != 0
+        # otra vez su tecla la cierra; la de otra lista, la cambia
+        tipo = lr_tipo
+        lr_cerrar()
+        redibujar()
+        if (o == TC_ESQUEMA and tipo == LR_ESQUEMA) or (o == TC_ABRIR_FICHERO and tipo == LR_FICHEROS) or (o == TC_ABRIR_SIMBOLO and tipo == LR_NOMBRES)
+            return 0
+        end
+        return EV_ED + o
+    end
+    r = lr_tecla(codigo, teclas, letra)
+    if r == LR_ELEGIDA
+        ir_lista_rapida()
+        return 0
+    end
+    redibujar()
+    return 0
+end
+
+func ir_lista_rapida()
+    if lr_tipo == LR_PREGUNTA
+        nuevo = str_trim(lr_filtro)
+        lr_cerrar()
+        redibujar()
+        renombrar(nuevo)
+        return
+    end
+    k = lr_la_elegida()
+    if k < 0
+        return
+    end
+    ruta = lr_rutas[k]
+    linea = lr_lineas[k]
+    col = lr_cols[k]
+    tipo = lr_tipo
+    lr_cerrar()
+    if tipo == LR_ESQUEMA
+        ed_ir_a(linea, col)
+        cerrar_capas()
+        redibujar()
+    elif tipo == LR_FICHEROS
+        abrir_sitio(ruta)
+        redibujar()
+    else
+        ir_a_sitio(ruta, linea, col)
+    end
+end
+
 # Antes de que una tecla llegue al editor: la lista para completar se queda con las flechas, Tab, Return y Esc;
 # Ctrl + Espacio la saca. true si la tecla era para ella (y ya se ha redibujado).
 func completar_tecla(d: Documento, codigo: Int, teclas: Int) -> Bool
@@ -1985,9 +2513,12 @@ func redibujar_linea(n: Int)
         redibujar()
         return
     end
+    t0 = time_ms()
     ed_solo_linea = n
     mui_canvas_update_area(v.editor, 0, fy, ed_zona_ancho, ed_alto_fila)
     ed_solo_linea = -1
+    ms_lineas = time_ms() - t0
+    n_lineas = 1
     escribir_sonda()
 end
 
@@ -2032,6 +2563,23 @@ func escribir_sonda()
             end
         end
         env_set("FORJA_VISTA", "#{d.primera} #{ed_alto_fila} #{ed_margen} #{ms_completar} #{ed_visibles}", false)
+        ra = "0"
+        if lr_visible
+            el = ""
+            if lr_la_elegida() >= 0
+                el = str_trim(lr_textos[lr_la_elegida()])
+            end
+            ra = "#{lr_tipo} #{lr_vistos.length} #{lr_textos.length} #{lr_ms} " + el
+        end
+        if ra != sonda_rapida
+            sonda_rapida = ra
+            env_set("FORJA_RAPIDA", ra, false)
+        end
+        pa = "#{ed_par_l1} #{ed_par_c1} #{ed_par_l2} #{ed_par_c2} #{n_lineas} #{ms_lineas}"
+        if pa != sonda_pareja
+            sonda_pareja = pa
+            env_set("FORJA_PAREJA", pa, false)
+        end
         if c != sonda_completar
             sonda_completar = c
             env_set("FORJA_COMPLETAR", c, false)
@@ -2311,16 +2859,27 @@ end
 # Lo que pasa sobre el editor: un clic, la rueda o una tecla. Devuelve otro evento si es un atajo.
 func en_editor() -> Int
     # un clic o una tecla en el editor (no un atajo con Amiga) le devuelven el foco
-    if mui_canvas_button(v.editor) != 0 or (mui_canvas_key(v.editor) >= 0 and (mui_canvas_qualifiers(v.editor) & Q_AMIGA) == 0)
+    if mui_canvas_button(lienzo_teclas) != 0 or (mui_canvas_key(lienzo_teclas) >= 0 and (mui_canvas_qualifiers(lienzo_teclas) & Q_AMIGA) == 0)
         salida_foco = false
+    end
+    if lr_visible
+        return en_lista_rapida()
     end
     d = ed_actual()
     if d == nil
+        codigo = mui_canvas_key(lienzo_teclas)
+        if codigo >= 0
+            # sin ficheros, abrir uno del proyecto por su nombre también vale
+            o = tc_orden(codigo, mui_canvas_qualifiers(lienzo_teclas), mui_canvas_char(lienzo_teclas))
+            if o == TC_ABRIR_FICHERO or o == TC_BUSCAR_PROYECTO
+                return EV_ED + o
+            end
+        end
         return 0
     end
-    rueda = mui_canvas_wheel(v.editor)
-    teclas = mui_canvas_qualifiers(v.editor)
-    if rueda != 0 or mui_canvas_button(v.editor) != 0
+    rueda = mui_canvas_wheel(lienzo_teclas)
+    teclas = mui_canvas_qualifiers(lienzo_teclas)
+    if rueda != 0 or mui_canvas_button(lienzo_teclas) != 0
         # la lista para completar y la ayuda se cierran (lo que sigue lo redibuja todo)
         cerrar_capas()
     end
@@ -2329,7 +2888,7 @@ func en_editor() -> Int
     elif rueda != 0 and d.mapa != nil
         mp_resultado(d, mp_rueda(d.mapa, rueda, teclas))
     elif rueda != 0
-        d.primera = d.primera - rueda * 3
+        d.primera = ed_filas_desde(d, d.primera, -rueda * 3)
         maximo = d.lineas.length - ed_visibles
         if d.primera > maximo
             d.primera = maximo
@@ -2338,51 +2897,60 @@ func en_editor() -> Int
             d.primera = 0
         end
         redibujar()
-    elif mui_canvas_button(v.editor) == 1 and ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor)) >= 0
-        activo = ed_pestana_en(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
+    elif mui_canvas_button(lienzo_teclas) == 1 and ed_pestana_en(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas)) >= 0
+        activo = ed_pestana_en(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
         redibujar()
     elif d.mapa != nil
-        if mui_canvas_button(v.editor) == 1
-            mp_resultado(d, mp_clic(d.mapa, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), teclas))
-        elif mui_canvas_key(v.editor) >= 0 and (teclas & Q_AMIGA) != 0
-            return atajo(mui_canvas_char(v.editor))
-        elif mui_canvas_key(v.editor) >= 0
-            mp_resultado(d, mp_tecla(d.mapa, mui_canvas_key(v.editor), teclas, mui_canvas_char(v.editor)))
+        if mui_canvas_button(lienzo_teclas) == 1
+            mp_resultado(d, mp_clic(d.mapa, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), teclas))
+        elif mui_canvas_key(lienzo_teclas) >= 0 and (teclas & Q_AMIGA) != 0
+            return atajo(mui_canvas_char(lienzo_teclas))
+        elif mui_canvas_key(lienzo_teclas) >= 0
+            mp_resultado(d, mp_tecla(d.mapa, mui_canvas_key(lienzo_teclas), teclas, mui_canvas_char(lienzo_teclas)))
         end
         return 0
     elif d.sprite != nil
-        if mui_canvas_button(v.editor) == 1
-            sp_resultado(d, sp_clic(d.sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), teclas))
-        elif mui_canvas_key(v.editor) >= 0 and (teclas & Q_AMIGA) != 0
-            return atajo(mui_canvas_char(v.editor))
-        elif mui_canvas_key(v.editor) >= 0
-            sp_resultado(d, sp_tecla(d.sprite, mui_canvas_key(v.editor), teclas, mui_canvas_char(v.editor)))
+        if mui_canvas_button(lienzo_teclas) == 1
+            sp_resultado(d, sp_clic(d.sprite, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), teclas))
+        elif mui_canvas_key(lienzo_teclas) >= 0 and (teclas & Q_AMIGA) != 0
+            return atajo(mui_canvas_char(lienzo_teclas))
+        elif mui_canvas_key(lienzo_teclas) >= 0
+            sp_resultado(d, sp_tecla(d.sprite, mui_canvas_key(lienzo_teclas), teclas, mui_canvas_char(lienzo_teclas)))
         end
         return 0
-    elif mui_canvas_button(v.editor) == 1 and d.diseno
-        dv_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
+    elif mui_canvas_button(lienzo_teclas) == 1 and d.diseno
+        dv_clic(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
         redibujar()
-    elif mui_canvas_button(v.editor) == 1 and ed_ancho_marca > 0 and mui_canvas_mouse_x(v.editor) >= ed_x_marca(0) - 2 and mui_canvas_mouse_x(v.editor) < ed_margen - 4 and mui_canvas_mouse_y(v.editor) >= ALTO_PESTANAS and ext_clic_marca(d, ed_linea_en(d, mui_canvas_mouse_y(v.editor)))
+    elif mui_canvas_button(lienzo_teclas) == 1 and ed_ancho_marca > 0 and mui_canvas_mouse_x(lienzo_teclas) >= ed_x_marca(0) - 2 and mui_canvas_mouse_x(lienzo_teclas) < ed_margen - 4 and mui_canvas_mouse_y(lienzo_teclas) >= ALTO_PESTANAS and ext_clic_marca(d, ed_linea_en(d, mui_canvas_mouse_y(lienzo_teclas)))
         # un clic en la marca de una extensión: MARCA a la suya
         return 0
-    elif mui_canvas_button(v.editor) == 1 and mui_canvas_mouse_x(v.editor) < ed_margen - 4 and mui_canvas_mouse_y(v.editor) >= ALTO_PESTANAS
+    elif mui_canvas_button(lienzo_teclas) == 1 and mui_canvas_mouse_x(lienzo_teclas) < ed_margen - 4 and mui_canvas_mouse_y(lienzo_teclas) >= ALTO_PESTANAS
         # un clic en el margen de los números: punto de parada
-        alternar_punto(d, ed_linea_en(d, mui_canvas_mouse_y(v.editor)))
-    elif mui_canvas_button(v.editor) == 1 and (teclas & Q_CTRL) != 0
+        alternar_punto(d, ed_linea_en(d, mui_canvas_mouse_y(lienzo_teclas)))
+    elif mui_canvas_button(lienzo_teclas) == 1 and (teclas & Q_CTRL) != 0
         # Ctrl + clic: a la definición de lo que hay ahí
-        ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), false)
+        ed_clic(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), false)
         d.al = -1
         redibujar()
         ir_definicion()
-    elif mui_canvas_button(v.editor) == 1
-        ed_clic(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), (teclas & Q_MAYUS) != 0)
+    elif mui_canvas_button(lienzo_teclas) == 1
+        ed_clic(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), (teclas & Q_MAYUS) != 0)
+        # un clic en el " ... end" de un bloque plegado lo despliega
+        if ed_plegada(d, d.cl) and d.cc == d.lineas[d.cl].length and mui_canvas_mouse_x(lienzo_teclas) > ed_margen + (d.cc - d.izquierda) * ancho_letra + ancho_letra
+            ed_desplegar(d, d.cl)
+        end
         redibujar()
     else
-        codigo = mui_canvas_key(v.editor)
+        codigo = mui_canvas_key(lienzo_teclas)
         if codigo < 0
             return 0
         end
-        letra = mui_canvas_char(v.editor)
+        letra = mui_canvas_char(lienzo_teclas)
+        # las órdenes del editor (teclas.dash, menú Editor)
+        o = tc_orden(codigo, teclas, letra)
+        if o != 0 and not d.diseno
+            return EV_ED + o
+        end
         # las teclas de las extensiones (las de Forja van antes)
         r = ext_tecla(codigo, teclas)
         if r >= 0 and ((teclas & Q_AMIGA) == 0 or atajo(letra) == 0)
@@ -2456,7 +3024,9 @@ func en_editor() -> Int
                 completar_despues(d, codigo, letra)
             end
             solo = d.lineas.length == antes_lineas and d.cl == antes_cl and d.primera == antes_primera and d.izquierda == antes_izquierda and antes_cambiado and not antes_sel and not ed_hay_seleccion(d)
-            redibujar_tras_tecla(solo, y1, y2)
+            # el cursor pasó a otra línea sin mover la vista ni cambiar el texto: solo las dos líneas
+            otra = d.version == antes_version and d.cl != antes_cl and d.primera == antes_primera and d.izquierda == antes_izquierda and not antes_sel and not ed_hay_seleccion(d)
+            redibujar_tras_tecla_pareja(solo, otra, antes_cl, y1, y2)
         end
     end
     return 0
@@ -2557,13 +3127,27 @@ end
 # --- Buscar y cambiar, ir a la línea ---
 
 # Busca lo de la ventana de buscar; false (y un aviso) si no está
+# La casilla "Expresión regular" de la ventana de buscar pasa a ed_regex; false (y lo dice) si el patrón está mal
+func con_regex(t: String) -> Bool
+    ed_regex = mui_get_value(vb.regex) != 0
+    malo = ed_patron_malo(t)
+    if malo != ""
+        avisar(hueco(tr(833, "La expresión regular está mal: %1"), malo), 1)
+        ed_regex = false
+        return false
+    end
+    return true
+end
+
 func buscar(adelante: Bool) -> Bool
     d = ed_actual()
     t = mui_get_text(vb.texto)
-    if d == nil or t == ""
+    if d == nil or t == "" or not con_regex(t)
         return false
     end
-    if not ed_buscar(d, t, mui_get_value(vb.mayus) != 0, adelante)
+    hallado = ed_buscar(d, t, mui_get_value(vb.mayus) != 0, adelante)
+    ed_regex = false
+    if not hallado
         avisar(tr(24, "No está \"") + t + "\".", 1)
         return false
     end
@@ -2578,9 +3162,13 @@ func cambiar_uno()
     if d == nil or t == ""
         return
     end
-    if ed_hay_seleccion(d) and ed_elegido_es(d, t, mui_get_value(vb.mayus) != 0)
-        ed_escribir(d, mui_get_text(vb.cambio))
+    if not con_regex(t)
+        return
     end
+    if ed_hay_seleccion(d) and ed_elegido_es(d, t, mui_get_value(vb.mayus) != 0)
+        ed_escribir(d, ed_texto_cambio(mui_get_text(vb.cambio)))
+    end
+    ed_regex = false
     buscar(true)
     redibujar()
 end
@@ -2590,10 +3178,147 @@ func cambiar_todo(t: String, nuevo: String, mayus: Bool) -> Int
     if d == nil
         return 0
     end
+    if not con_regex(t)
+        return 0
+    end
     n = ed_cambiar_todo(d, t, nuevo, mayus)
+    ed_regex = false
     avisar(hueco(tr(71, "Cambiado %1 veces."), "#{n}"), 2)
     redibujar()
     return n
+end
+
+# --- Buscar y cambiar en el proyecto (paso 2.3) ---
+
+func cajon_proyecto() -> String
+    if proyecto_cajon != ""
+        return proyecto_cajon
+    end
+    d = ed_actual()
+    if d != nil and d.ruta != ""
+        return cajon_de(d.ruta)
+    end
+    return ""
+end
+
+# Lo de la ventana de buscar, en todo el proyecto: a la salida, con clic a cada sitio
+func buscar_proyecto()
+    t = mui_get_text(vb.texto)
+    cajon = cajon_proyecto()
+    if t == "" or cajon == "" or not con_regex(t)
+        return
+    end
+    dos_requesters(false)
+    n = bp_buscar(cajon, t, mui_get_value(vb.mayus) != 0, BP_MAX)
+    dos_requesters(true)
+    ed_regex = false
+    if bp_veces == 0
+        avisar(hueco2(tr(834, "\"%1\" no está en el proyecto (%2 ficheros)."), t, "#{bp_mirados}"), 1)
+        return
+    end
+    salida_anadir(tr(835, "Buscar \"") + t + "\": " + hueco2(tr(836, "%1 veces en %2 ficheros (clic en una para ir)."), "#{bp_veces}", "#{bp_ficheros}"), 2)
+    i = 0
+    while i < n
+        salida_anadir_sitio(_nombre_en_proyecto(bp_rutas[i], cajon) + ":#{bp_lineas[i]}: " + str_trim(bp_textos[i]), bp_rutas[i], bp_lineas[i], bp_cols[i])
+        i = i + 1
+    end
+    if bp_veces > n
+        salida_anadir(hueco(tr(837, "... y %1 más."), "#{bp_veces - n}"), 1)
+    end
+    salida_atras = 0
+    mui_canvas_redraw(v.salida)
+end
+
+# La ruta desde el cajón del proyecto ("lib/red.dash")
+func _nombre_en_proyecto(ruta: String, cajon: String) -> String
+    if cajon != "" and str_starts(str_lower(ruta), str_lower(cajon))
+        r = ruta[cajon.length:]
+        if str_starts(r, "/")
+            r = r[1:]
+        end
+        return r
+    end
+    return nombre_de(ruta)
+end
+
+# Cambiar en todo el proyecto: primero la lista de cambios (una pestaña de solo lectura: cada línea antes, en rojo, y
+# después, en verde), y luego se pregunta
+func cambiar_proyecto()
+    t = mui_get_text(vb.texto)
+    nuevo = mui_get_text(vb.cambio)
+    cajon = cajon_proyecto()
+    if t == "" or cajon == "" or not con_regex(t)
+        return
+    end
+    dos_requesters(false)
+    n = bp_cambios(cajon, t, nuevo, mui_get_value(vb.mayus) != 0)
+    dos_requesters(true)
+    ed_regex = false
+    if n == 0
+        avisar(hueco2(tr(834, "\"%1\" no está en el proyecto (%2 ficheros)."), t, "#{bp_mirados}"), 1)
+        return
+    end
+    titulo = hueco2(tr(838, "Cambiar \"%1\" por \"%2\""), t, nuevo)
+    if aplicar_cambios(titulo, cajon)
+        avisar(hueco2(tr(839, "Cambiado %1 veces en %2 ficheros."), "#{n}", "#{bp_c_rutas.length}"), 2)
+    end
+end
+
+# Enseña los cambios de bp_c_* en una pestaña, pregunta y los hace (true si se hicieron). Lo usan cambiar en el
+# proyecto y renombrar
+func aplicar_cambios(titulo: String, cajon: String) -> Bool
+    var lineas: [String] = [titulo + "  (" + hueco2(tr(840, "%1 veces en %2 ficheros"), "#{bp_c_veces}", "#{bp_c_rutas.length}") + ")", ""]
+    colores = "@ "
+    i = 0
+    while i < bp_c_rutas.length
+        lineas.push(_nombre_en_proyecto(bp_c_rutas[i], cajon))
+        colores = colores + "@"
+        nums = str_split(bp_c_lineas[i], " ")
+        antes = str_split(bp_c_antes[i], "\n")
+        despues = str_split(bp_c_despues[i], "\n")
+        j = 0
+        while j < nums.length
+            num = nums[j]
+            while num.length < 5
+                num = " " + num
+            end
+            lineas.push("- " + num + ": " + antes[j])
+            lineas.push("+ " + num + ": " + despues[j])
+            colores = colores + "-+"
+            j = j + 1
+        end
+        lineas.push("")
+        colores = colores + " "
+        i = i + 1
+    end
+    activo_antes = activo
+    ed_abrir_vista("", tr(841, "Cambios"), lineas, colores)
+    redibujar()
+    r = mui_request(v.window, tr(842, "Cambiar en el proyecto"), hueco2(tr(843, "¿Hago estos %1 cambios en %2 ficheros?\n\nLos ficheros abiertos cambian en el editor (sin guardar; se pueden deshacer).\nLos demás se guardan en el disco."), "#{bp_c_veces}", "#{bp_c_rutas.length}"), tr(844, "_Cambiar|C_ancelar"))
+    # la pestaña de los cambios se cierra; se vuelve a la de antes
+    k = activo
+    if k >= 0 and documentos[k].vista != 0 and documentos[k].vista_ext == ""
+        ed_cerrar(k)
+    end
+    if activo_antes >= 0 and activo_antes < documentos.length
+        activo = activo_antes
+    end
+    if r != 1
+        redibujar()
+        return false
+    end
+    hechos = bp_aplicar()
+    for ruta in bp_c_rutas
+        k = ed_buscar_ruta(ruta)
+        if k >= 0
+            tras_escribir(documentos[k])
+        end
+    end
+    for ruta in bp_no_escritos
+        avisar(hueco(tr(845, "No he podido escribir %1."), ruta), 1)
+    end
+    redibujar()
+    return hechos > 0
 end
 
 func ir_a(n: Int)
@@ -3784,6 +4509,14 @@ end
 func atender(ev: Int)
     if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
         ext_menu(ev - EV_EXT_MENU)
+    elif ev > EV_ED and ev < EV_ED + TC_TOTAL
+        orden_editor(ev - EV_ED)
+    elif ev == EV_ED_CERRAR
+        ed_cerrar_solo = mui_get_value(menu_cerrar) != 0
+        env_set("Forja/cerrar_solo", si_no(ed_cerrar_solo), true)
+    elif ev == EV_ED_END
+        ed_auto_end = mui_get_value(menu_end) != 0
+        env_set("Forja/auto_end", si_no(ed_auto_end), true)
     elif ev >= EV_AYUDA and ev <= EV_AY_ACTIVADA
         ayuda_evento(ev)
     elif ev == EV_ERROR_SIGUIENTE or ev == EV_ERROR_ANTERIOR
@@ -3816,6 +4549,10 @@ func atender(ev: Int)
         cambiar_uno()
     elif ev == EV_TODO_CAMBIAR
         cambiar_todo(mui_get_text(vb.texto), mui_get_text(vb.cambio), mui_get_value(vb.mayus) != 0)
+    elif ev == EV_BUSCAR_PROYECTO
+        buscar_proyecto()
+    elif ev == EV_CAMBIAR_PROYECTO
+        cambiar_proyecto()
     elif ev == EV_BUSCAR_CERRAR
         mui_window_close(vb.window)
     elif ev == EV_IRA
@@ -3907,12 +4644,12 @@ func atender(ev: Int)
     elif ev >= EV_CORTAR and ev <= EV_VISTA
         edicion(ev)
     elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().mapa != nil
-        mp_resultado(ed_actual(), mp_arrastrar(ed_actual().mapa, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
+        mp_resultado(ed_actual(), mp_arrastrar(ed_actual().mapa, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), mui_canvas_drag(v.editor) == 2))
     elif ev == EV_ARRASTRE and ed_actual() != nil and ed_actual().sprite != nil
-        sp_resultado(ed_actual(), sp_arrastrar(ed_actual().sprite, mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor), mui_canvas_drag(v.editor) == 2))
+        sp_resultado(ed_actual(), sp_arrastrar(ed_actual().sprite, mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), mui_canvas_drag(v.editor) == 2))
     elif ev == EV_ARRASTRE
         if mui_canvas_drag(v.editor) == 1
-            ed_arrastrar(mui_canvas_mouse_x(v.editor), mui_canvas_mouse_y(v.editor))
+            ed_arrastrar(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
             redibujar()
         end
     elif ev == EV_BARRA
@@ -3946,6 +4683,7 @@ Main
                 mui_window_screen(w, PANTALLA)
             end
         end
+        lienzo_teclas = v.editor
         mui_canvas_on_draw(v.proyecto, dibujar_proyecto)
         mui_canvas_on_draw(v.editor, dibujar_editor)
         mui_canvas_on_draw(v.salida, dibujar_salida)
@@ -3982,6 +4720,11 @@ Main
         ext_leer_todas(ext_cajon_de_forja())
         # sus menús propios, antes de abrir la ventana (con MUI 3.8, después habría que cerrarla y abrirla)
         ext_menus_al_dia()
+        # las teclas del editor (ENVARC:Forja/teclas) y su menú, con las teclas que tengan
+        ed_cerrar_solo = env_get("Forja/cerrar_solo") != "no"
+        ed_auto_end = env_get("Forja/auto_end") != "no"
+        teclas_leer()
+        menu_editor()
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
             ruta = arg(0)
@@ -3998,6 +4741,14 @@ Main
         mui_set_visible(v.barra_variables, false)     # la de abajo del panel de las variables, solo al depurar
         mui_window_open(v.window)
         abierta = true
+        # los colores y la fuente (ENVARC:Forja/tema): lo que no se entiende, a la salida
+        tema_preparar()
+        if tema_malas != ""
+            salida_anadir(tr(871, "No entiendo estas líneas del tema (ENVARC:Forja/tema):"), 1)
+            for l in str_split(str_trim(tema_malas), "\n")
+                salida_anadir("  " + l, 1)
+            end
+        end
         mui_canvas_set_pointer(v.editor, 1)
         ajustar_barra()
         if ed_actual() == nil
@@ -4018,7 +4769,7 @@ Main
             if sonda
                 sonda_eventos = sonda_eventos + "#{ev}@#{(time_ms() / 100) % 10000}"
                 if ev == EV_EDITOR
-                    sonda_eventos = sonda_eventos + ":#{mui_canvas_key(v.editor)}/#{mui_canvas_button(v.editor)}q#{mui_canvas_qualifiers(v.editor)}"
+                    sonda_eventos = sonda_eventos + ":#{mui_canvas_key(lienzo_teclas)}/#{mui_canvas_button(lienzo_teclas)}q#{mui_canvas_qualifiers(lienzo_teclas)}"
                 elif ev == EV_ARRASTRE
                     sonda_eventos = sonda_eventos + "d#{mui_canvas_drag(v.editor)}"
                 end
@@ -4043,11 +4794,36 @@ Main
                     ev = bb_clic(mui_canvas_mouse_x(v.botones))
                 elif mui_canvas_key(v.botones) >= 0
                     ev = tecla_depurador(mui_canvas_key(v.botones))
+                    if ev == 0 and ed_actual() != nil and mui_canvas_wheel(v.botones) == 0
+                        # las demás, al editor
+                        lienzo_teclas = v.botones
+                        ev = en_editor()
+                        lienzo_teclas = v.editor
+                        if ev == 0
+                            ev = EV_NADA
+                        end
+                    end
                 end
             elif ev == EV_PROYECTO and mui_canvas_key(v.proyecto) >= 0 and tecla_depurador(mui_canvas_key(v.proyecto)) != 0
                 ev = tecla_depurador(mui_canvas_key(v.proyecto))
             elif ev == EV_SALIDA and mui_canvas_key(v.salida) >= 0 and tecla_depurador(mui_canvas_key(v.salida)) != 0
                 ev = tecla_depurador(mui_canvas_key(v.salida))
+            elif (ev == EV_PROYECTO or ev == EV_SALIDA) and ed_actual() != nil
+                # una tecla con el puntero sobre el proyecto o la salida: es del editor (el teclado va al editor
+                # aunque el puntero no esté encima)
+                lienzo = v.salida
+                if ev == EV_PROYECTO
+                    lienzo = v.proyecto
+                end
+                if mui_canvas_key(lienzo) >= 0 and mui_canvas_button(lienzo) == 0 and mui_canvas_wheel(lienzo) == 0
+                    lienzo_teclas = lienzo
+                    otro = en_editor()
+                    lienzo_teclas = v.editor
+                    ev = otro
+                    if otro == 0
+                        ev = EV_NADA
+                    end
+                end
             end
             if ev == -1
                 ev = EV_SALIR

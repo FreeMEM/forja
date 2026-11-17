@@ -75,6 +75,8 @@ struct Documento
     vista_ext: String = ""    # de qué extensión es la vista
     colores: String = ""      # el color de cada línea de la vista: un carácter por línea (ed_color_vista)
     temporal: String = ""     # un ejemplo de la ayuda sin nombre (Probar): el fichero de T: desde el que se compila
+    marcadores: [Int] = nil   # las líneas (desde 0) con marcador, en orden; siguen a su texto al escribir
+    plegados: [Int] = nil     # las líneas (desde 0) de los bloques plegados, en orden
 end
 
 var documentos: [Documento] = []
@@ -130,6 +132,7 @@ var _fin_c: Int = 0
 var ed_marca_ruta: String = ""
 var ed_err_ruta: String = ""   # la del documento para sus errores (errores.dash): la ruta, o la de T: de un ejemplo
 var ed_ancho_marca: Int = 0
+var _fila_asm: Bool = false    # la fila que se dibuja está dentro de un bloque asm (sus propios colores)
 var _l1: Int = 0
 var _c1: Int = 0
 var _l2: Int = 0
@@ -323,7 +326,8 @@ func ed_ir_a(n: Int, c: Int)
     end
     d.al = -1
     # la línea, hacia la mitad de lo que se ve
-    d.primera = d.cl - ed_visibles / 2
+    ed_destapar(d, d.cl)
+    d.primera = ed_filas_desde(d, d.cl, -(ed_visibles / 2))
     if d.primera < 0
         d.primera = 0
     end
@@ -350,14 +354,38 @@ func ed_cambiar_lineas(d: Documento, desde: Int, hasta: Int, texto: String) -> B
             ed_escribir(d, texto + "\n")
         end
     else
+        # las mismas líneas que había (comentar, cambiar en el proyecto...): los marcadores y los plegados se quedan
+        var marcas: [Int] = nil
+        var plegados: [Int] = nil
+        if str_split(texto, "\n").length == hasta - desde + 1
+            marcas = _copia(d.marcadores)
+            plegados = _copia(d.plegados)
+        end
         d.al = desde - 1
         d.ac = 0
         d.cl = hasta - 1
         d.cc = d.lineas[hasta - 1].length
         ed_escribir(d, texto)
+        if marcas != nil
+            d.marcadores = marcas
+        end
+        if plegados != nil
+            d.plegados = plegados
+        end
     end
     ed_seguir_cursor(d)
     return true
+end
+
+func _copia(ls: [Int]) -> [Int]
+    if ls == nil
+        return nil
+    end
+    var r: [Int] = []
+    for k in ls
+        r.push(k)
+    end
+    return r
 end
 
 # La selección exacta, "l1 c1 l2 c2" (desde 1, en orden); sin selección, el cursor dos veces
@@ -423,26 +451,105 @@ func ed_lineas_seleccion(d: Documento)
     end
 end
 
-# La posición de t en s desde la columna desde (-1 si no está); sin mayus, sin mirar mayúsculas
-func _buscar_en(s: String, t: String, desde: Int, mayus: Bool) -> Int
+# Buscar con expresiones regulares (la casilla de la ventana de buscar): t es un patrón de regex_find de Dash, y en
+# lo que lo cambia, $1 a $9 son sus grupos ($0 todo lo encontrado, $$ un $)
+var ed_regex: Bool = false
+var ed_hallado: Int = 0        # el largo de lo último encontrado por ed_buscar_en
+
+# La posición de t en s desde la columna desde (-1 si no está; su largo en ed_hallado); sin mayus, sin mirar
+# mayúsculas
+func ed_buscar_en(s: String, t: String, desde: Int, mayus: Bool) -> Int
+    if desde > s.length
+        return -1
+    end
+    if ed_regex
+        p = regex_find(t, s, desde, not mayus)
+        ed_hallado = regex_length()
+        return p
+    end
+    ed_hallado = t.length
     if not mayus
         s = str_lower(s)
         t = str_lower(t)
     end
-    if desde > s.length
-        return -1
-    end
     return str_find_from(s, t, desde)
+end
+
+# ¿Está mal el patrón? (con expresiones regulares): por qué, o ""
+func ed_patron_malo(t: String) -> String
+    if not ed_regex
+        return ""
+    end
+    regex_find(t, "", 0, false)
+    return regex_error()
+end
+
+# Lo que cambia lo último encontrado: nuevo, con los grupos puestos si es una expresión regular
+func ed_texto_cambio(nuevo: String) -> String
+    if not ed_regex or not str_contains(nuevo, "$")
+        return nuevo
+    end
+    r = ""
+    i = 0
+    while i < nuevo.length
+        c = str_code(nuevo, i)
+        k = str_code(nuevo, i + 1)
+        if c == 36 and k >= 48 and k <= 57
+            r = r + regex_group(k - 48)
+            i = i + 2
+        elif c == 36 and k == 36
+            r = r + "$"
+            i = i + 2
+        else
+            r = r + nuevo[i:i + 1]
+            i = i + 1
+        end
+    end
+    return r
+end
+
+# La línea s con todo lo que encaja con t cambiado por nuevo; cuántas veces, en ed_veces
+var ed_veces: Int = 0
+
+func ed_cambiar_en(s: String, t: String, nuevo: String, mayus: Bool) -> String
+    ed_veces = 0
+    r = ""
+    desde = 0
+    p = ed_buscar_en(s, t, 0, mayus)
+    while p >= 0
+        largo = ed_hallado
+        r = r + s[desde:p] + ed_texto_cambio(nuevo)
+        ed_veces = ed_veces + 1
+        desde = p + largo
+        if largo == 0
+            # (lo vacío encaja en todas partes: se pasa al carácter siguiente)
+            if p >= s.length
+                return r
+            end
+            r = r + s[p:p + 1]
+            desde = p + 1
+        end
+        p = ed_buscar_en(s, t, desde, mayus)
+    end
+    return r + s[desde:]
 end
 
 # La última posición de t en s que empieza antes de la columna hasta (-1 si no hay)
 func _buscar_antes(s: String, t: String, hasta: Int, mayus: Bool) -> Int
     ultima = -1
-    p = _buscar_en(s, t, 0, mayus)
+    largo = 0
+    p = ed_buscar_en(s, t, 0, mayus)
     while p >= 0 and p < hasta
         ultima = p
-        p = _buscar_en(s, t, p + 1, mayus)
+        largo = ed_hallado
+        # (desde el final de lo encontrado: con una expresión regular, desde p + 1 saldría un trozo de lo mismo)
+        siguiente = p + largo
+        if largo == 0
+            siguiente = p + 1
+        end
+        p = ed_buscar_en(s, t, siguiente, mayus)
     end
+    ed_hallado = largo
     return ultima
 end
 
@@ -456,13 +563,20 @@ func ed_buscar(d: Documento, t: String, mayus: Bool, adelante: Bool) -> Bool
         l = d.cl
         c = d.cc
         k = 0
+        if ed_regex and not ed_hay_seleccion(d)
+            # (lo vacío encontrado en el cursor no cuenta: siguiente)
+            p = ed_buscar_en(d.lineas[l], t, c, mayus)
+            if p == c and ed_hallado == 0
+                c = c + 1
+            end
+        end
         while k <= n
-            p = _buscar_en(d.lineas[l], t, c, mayus)
+            p = ed_buscar_en(d.lineas[l], t, c, mayus)
             if p >= 0
                 d.al = l
                 d.ac = p
                 d.cl = l
-                d.cc = p + t.length
+                d.cc = p + ed_hallado
                 ed_seguir_cursor(d)
                 return true
             end
@@ -487,7 +601,7 @@ func ed_buscar(d: Documento, t: String, mayus: Bool, adelante: Bool) -> Bool
             d.al = l
             d.ac = p
             d.cl = l
-            d.cc = p + t.length
+            d.cc = p + ed_hallado
             ed_seguir_cursor(d)
             return true
         end
@@ -501,6 +615,9 @@ end
 # Lo elegido es t (para Cambiar)
 func ed_elegido_es(d: Documento, t: String, mayus: Bool) -> Bool
     s = ed_seleccion(d)
+    if ed_regex
+        return regex_match(t, s, not mayus)
+    end
     if mayus
         return s == t
     end
@@ -515,16 +632,8 @@ func ed_cambiar_todo(d: Documento, t: String, nuevo: String, mayus: Bool) -> Int
     veces = 0
     var lineas: [String] = []
     for linea in d.lineas
-        r = ""
-        desde = 0
-        p = _buscar_en(linea, t, 0, mayus)
-        while p >= 0
-            r = r + linea[desde:p] + nuevo
-            desde = p + t.length
-            veces = veces + 1
-            p = _buscar_en(linea, t, desde, mayus)
-        end
-        lineas.push(r + linea[desde:])
+        lineas.push(ed_cambiar_en(linea, t, nuevo, mayus))
+        veces = veces + ed_veces
     end
     if veces > 0
         texto = ""
@@ -648,6 +757,7 @@ func _meter(d: Documento, l: Int, c: Int, t: String)
     d.lineas.insert(l + i, ultima + despues)
     _fin_l = l + i
     _fin_c = ultima.length
+    _lineas_metidas(d, l, c, partes.length - 1, despues != "")
 end
 
 func _texto_entre(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int) -> String
@@ -673,7 +783,141 @@ func _quitar(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int) -> String
         d.lineas.remove(l1 + 1)
         n = n - 1
     end
+    if l2 > l1
+        _lineas_quitadas(d, l1, l2)
+    end
     return t
+end
+
+# Los marcadores y los plegados siguen a su texto: n líneas nuevas tras la línea l (metidas en su columna c: en la
+# columna 0, el texto de la línea l también baja)
+func _lineas_metidas(d: Documento, l: Int, c: Int, n: Int, resto: Bool)
+    if d.marcadores != nil
+        _correr(d.marcadores, l, c == 0 and resto, n)
+    end
+    if d.plegados != nil
+        _correr(d.plegados, l, c == 0 and resto, n)
+    end
+end
+
+# (baja: el texto de la línea l pasó entero a la última de las metidas)
+func _correr(ls: [Int], l: Int, baja: Bool, n: Int)
+    i = 0
+    while i < ls.length
+        if ls[i] > l or (ls[i] == l and baja)
+            ls[i] = ls[i] + n
+        end
+        i = i + 1
+    end
+end
+
+# Se quitaron las líneas l1 + 1 a l2 (lo que quedaba de l2 pasó a l1)
+func _lineas_quitadas(d: Documento, l1: Int, l2: Int)
+    if d.marcadores != nil
+        _encoger(d.marcadores, l1, l2, true)
+    end
+    if d.plegados != nil
+        _encoger(d.plegados, l1, l2, false)
+    end
+end
+
+func _encoger(ls: [Int], l1: Int, l2: Int, juntar: Bool)
+    n = l2 - l1
+    i = 0
+    while i < ls.length
+        if ls[i] > l2
+            ls[i] = ls[i] - n
+            i = i + 1
+        elif ls[i] > l1
+            # su línea ya no está: un marcador pasa a l1 (si no tiene ya uno); un plegado se quita
+            if juntar and not _tiene(ls, l1)
+                ls[i] = l1
+                i = i + 1
+            else
+                ls.remove(i)
+            end
+        else
+            i = i + 1
+        end
+    end
+    _ordenar(ls)
+end
+
+func _tiene(ls: [Int], n: Int) -> Bool
+    for k in ls
+        if k == n
+            return true
+        end
+    end
+    return false
+end
+
+func _ordenar(ls: [Int])
+    # (pocos y casi en orden: por inserción)
+    i = 1
+    while i < ls.length
+        k = ls[i]
+        j = i - 1
+        while j >= 0 and ls[j] > k
+            ls[j + 1] = ls[j]
+            j = j - 1
+        end
+        ls[j + 1] = k
+        i = i + 1
+    end
+end
+
+# --- Marcadores (paso 2.5) ---
+
+# Pone o quita el marcador de la línea del cursor; true si queda puesto
+func ed_marcador(d: Documento) -> Bool
+    if d.marcadores == nil
+        d.marcadores = []
+    end
+    i = 0
+    while i < d.marcadores.length
+        if d.marcadores[i] == d.cl
+            d.marcadores.remove(i)
+            return false
+        end
+        i = i + 1
+    end
+    d.marcadores.push(d.cl)
+    _ordenar(d.marcadores)
+    return true
+end
+
+func ed_tiene_marcador(d: Documento, n: Int) -> Bool
+    return d.marcadores != nil and _tiene(d.marcadores, n)
+end
+
+# Al marcador siguiente (o anterior), dando la vuelta; false si no hay
+func ed_ir_marcador(d: Documento, adelante: Bool) -> Bool
+    if d.marcadores == nil or d.marcadores.length == 0
+        return false
+    end
+    var destino: Int = -1
+    if adelante
+        destino = d.marcadores[0]
+        for m in d.marcadores
+            if m > d.cl
+                destino = m
+                break
+            end
+        end
+    else
+        destino = d.marcadores[d.marcadores.length - 1]
+        i = d.marcadores.length - 1
+        while i >= 0
+            if d.marcadores[i] < d.cl
+                destino = d.marcadores[i]
+                break
+            end
+            i = i - 1
+        end
+    end
+    ed_ir_a_quieto(destino + 1, d.cc + 1)
+    return true
 end
 
 # El final de un texto metido en (l, c)
@@ -830,7 +1074,10 @@ func _abre_bloque(linea: String) -> Bool
     if str_starts(t, "@native") and str_contains(t, " func ")
         p = "func"
     end
-    for k in ["func", "if", "elif", "else", "while", "for", "struct", "enum", "Window", "Main", "EventLoop", "On", "@c"]
+    if p == "asm"
+        return sx_clase_linea(linea) == SXL_ASM
+    end
+    for k in ["func", "if", "elif", "else", "while", "for", "struct", "enum", "Window", "Main", "EventLoop", "On", "@c", "interface"]
         if p == k
             return t != "end" and not str_ends(t, " end")
         end
@@ -866,7 +1113,15 @@ func ed_nueva_linea(d: Documento)
             sangria = _espacios_delante(d.lineas[d.cl]) + SANGRIA
         end
     end
-    _insertar(d, "\n" + _blancos(sangria), false)
+    # tras abrir un bloque que aún no tiene su end, el end debajo (en el mismo paso de deshacer)
+    if ed_auto_end and es_codigo_dash(d) and d.cc == d.lineas[d.cl].length and _falta_end(d, d.cl)
+        base = _blancos(_espacios_delante(d.lineas[d.cl]))
+        _insertar(d, "\n" + _blancos(sangria) + "\n" + base + "end", false)
+        d.cl = d.cl - 1
+        d.cc = sangria
+    else
+        _insertar(d, "\n" + _blancos(sangria), false)
+    end
     if junto
         d.deshacer[d.deshacer.length - 1].junto = true
     end
@@ -970,6 +1225,9 @@ func ed_retroceso(d: Documento)
     if ed_borrar_seleccion(d)
         return
     end
+    if _quitar_pareja(d)
+        return
+    end
     if d.cc > 0
         n = 1
         # en la sangría, hasta la parada anterior
@@ -1064,6 +1322,988 @@ func ed_seleccionar_todo(d: Documento)
     d.cc = d.lineas[d.cl].length
 end
 
+# --- Comodidades de línea (paso 2.2 de docs/FORJA_LOOP.md) ---
+# Cada una es un paso de deshacer. Trabajan con las líneas de la selección, o con la del cursor.
+
+var ed_cerrar_solo: Bool = true    # cerrar solos paréntesis, corchetes, llaves y comillas (preferencia)
+var ed_auto_end: Bool = true       # el end solo al pulsar Return tras abrir un bloque (preferencia)
+
+# Las líneas a..b (desde 0), unidas con saltos de línea
+func _lineas_texto(d: Documento, a: Int, b: Int) -> String
+    t = ""
+    l = a
+    while l <= b
+        if l > a
+            t = t + "\n"
+        end
+        t = t + d.lineas[l]
+        l = l + 1
+    end
+    return t
+end
+
+# ¿Es un comentario la línea (a partir de su sangría)?
+func _es_comentario(t: String, marca: String) -> Bool
+    e = _espacios_delante(t)
+    return e < t.length and t[e:e + 1] == marca
+end
+
+# Comenta o descomenta: si todas las líneas con texto ya lo son, les quita el "#" (y el espacio de detrás); si no,
+# pone "# " a todas a la altura de la menos sangrada. Dentro de un bloque asm, con ";".
+func ed_comentar(d: Documento) -> Bool
+    ed_lineas_seleccion(d)
+    a = ed_sel_desde - 1
+    b = ed_sel_hasta - 1
+    marca = "#"
+    if ed_en_asm(d, a) and sx_clase_linea(d.lineas[a]) == SXL_NADA
+        marca = ";"
+    end
+    todas = true
+    alguna = false
+    minimo = 10000
+    l = a
+    while l <= b
+        t = d.lineas[l]
+        if str_trim(t) != ""
+            alguna = true
+            e = _espacios_delante(t)
+            if e < minimo
+                minimo = e
+            end
+            if not _es_comentario(t, marca)
+                todas = false
+            end
+        end
+        l = l + 1
+    end
+    if not alguna
+        return false
+    end
+    hubo_sel = ed_hay_seleccion(d)
+    cl = d.cl
+    cc = d.cc
+    paso = 0
+    var nuevas: [String] = []
+    l = a
+    while l <= b
+        t = d.lineas[l]
+        if str_trim(t) == ""
+            nuevas.push(t)
+        elif todas
+            e = _espacios_delante(t)
+            quita = 1
+            if str_code(t, e + 1) == 32
+                quita = 2
+            end
+            nuevas.push(t[0:e] + t[e + quita:])
+            if l == cl
+                paso = -quita
+            end
+        else
+            nuevas.push(t[0:minimo] + marca + " " + t[minimo:])
+            if l == cl
+                paso = 2
+            end
+        end
+        l = l + 1
+    end
+    texto = ""
+    i = 0
+    for t in nuevas
+        if i > 0
+            texto = texto + "\n"
+        end
+        texto = texto + t
+        i = i + 1
+    end
+    ed_cambiar_lineas(d, a + 1, b + 1, texto)
+    if hubo_sel
+        d.al = a
+        d.ac = 0
+        d.cl = b
+        d.cc = d.lineas[b].length
+    else
+        d.cl = cl
+        d.cc = _columna_valida(d, cl, cc + paso)
+        d.al = -1
+    end
+    ed_seguir_cursor(d)
+    return true
+end
+
+# Duplica las líneas (la del cursor o las de la selección) debajo; el cursor (o la selección) pasa a la copia
+func ed_duplicar(d: Documento) -> Bool
+    ed_lineas_seleccion(d)
+    a = ed_sel_desde - 1
+    b = ed_sel_hasta - 1
+    hubo_sel = ed_hay_seleccion(d)
+    cl = d.cl
+    cc = d.cc
+    al = d.al
+    ac = d.ac
+    ed_cambiar_lineas(d, b + 2, b + 1, _lineas_texto(d, a, b))
+    n = b - a + 1
+    d.cl = cl + n
+    d.cc = cc
+    d.al = -1
+    if hubo_sel
+        d.al = al + n
+        d.ac = ac
+    end
+    ed_seguir_cursor(d)
+    return true
+end
+
+# Sube (o baja) las líneas una posición; el cursor y la selección van con ellas
+func ed_mover_lineas(d: Documento, arriba: Bool) -> Bool
+    ed_lineas_seleccion(d)
+    a = ed_sel_desde - 1
+    b = ed_sel_hasta - 1
+    if (arriba and a == 0) or (not arriba and b >= d.lineas.length - 1)
+        return false
+    end
+    hubo_sel = ed_hay_seleccion(d)
+    cl = d.cl
+    cc = d.cc
+    al = d.al
+    ac = d.ac
+    paso = 1
+    if arriba
+        ed_cambiar_lineas(d, a, b + 1, _lineas_texto(d, a, b) + "\n" + d.lineas[a - 1])
+        paso = -1
+    else
+        ed_cambiar_lineas(d, a + 1, b + 2, d.lineas[b + 1] + "\n" + _lineas_texto(d, a, b))
+    end
+    # los marcadores van con sus líneas
+    if d.marcadores != nil
+        i = 0
+        while i < d.marcadores.length
+            m = d.marcadores[i]
+            if m >= a and m <= b
+                d.marcadores[i] = m + paso
+            elif arriba and m == a - 1
+                d.marcadores[i] = b
+            elif not arriba and m == b + 1
+                d.marcadores[i] = a
+            end
+            i = i + 1
+        end
+        _ordenar(d.marcadores)
+    end
+    d.cl = cl + paso
+    d.cc = _columna_valida(d, d.cl, cc)
+    d.al = -1
+    if hubo_sel
+        d.al = al + paso
+        d.ac = ac
+    end
+    ed_seguir_cursor(d)
+    return true
+end
+
+# Borra las líneas enteras (la del cursor o las de la selección)
+func ed_borrar_lineas(d: Documento) -> Bool
+    ed_lineas_seleccion(d)
+    a = ed_sel_desde - 1
+    b = ed_sel_hasta - 1
+    cc = d.cc
+    d.al = -1
+    if b < d.lineas.length - 1
+        _borrar_rango(d, a, 0, b + 1, 0)
+    elif a > 0
+        _borrar_rango(d, a - 1, d.lineas[a - 1].length, b, d.lineas[b].length)
+        a = a - 1
+    elif d.lineas[b] != "" or a != b
+        _borrar_rango(d, a, 0, b, d.lineas[b].length)
+    else
+        return false
+    end
+    d.cl = a
+    d.cc = _columna_valida(d, a, cc)
+    ed_seguir_cursor(d)
+    return true
+end
+
+# --- Cerrar solos paréntesis y comillas ---
+
+func _cierre_de(c: Int) -> Int
+    if c == 40
+        return 41
+    elif c == 91
+        return 93
+    elif c == 123
+        return 125
+    elif c == 34
+        return 34
+    end
+    return 0
+end
+
+# ¿Está la columna c de la línea dentro de un texto? (cuenta las comillas de antes, sin las escapadas)
+func _comillas_impares(s: String, c: Int) -> Bool
+    dentro = false
+    i = 0
+    while i < c and i < s.length
+        k = str_code(s, i)
+        if k == 92 and dentro
+            i = i + 1
+        elif k == 34
+            dentro = not dentro
+        elif k == 35 and not dentro
+            return false
+        end
+        i = i + 1
+    end
+    return dentro
+end
+
+# Una letra escrita con ed_cerrar_solo: "(" mete "()" con el cursor dentro (o rodea la selección), ")" sobre un ")"
+# solo avanza; igual con [ ], { } y las comillas. true si ya está hecho
+func _cerrar_solo(d: Documento, letra: String) -> Bool
+    if letra.length != 1 or not es_codigo_dash(d)
+        return false
+    end
+    c = str_code(letra, 0)
+    linea = d.lineas[d.cl]
+    sig = str_code(linea, d.cc)
+    if d.cc >= linea.length
+        sig = 0
+    end
+    hay_sel = ed_hay_seleccion(d)
+    if not hay_sel and (c == 41 or c == 93 or c == 125 or c == 34) and sig == c
+        # sobre el que cierra: avanzar (una comilla, solo si cierra un texto)
+        if c != 34 or _comillas_impares(linea, d.cc)
+            d.cc = d.cc + 1
+            d.al = -1
+            return true
+        end
+    end
+    cierre = _cierre_de(c)
+    if cierre == 0
+        return false
+    end
+    if hay_sel
+        _orden(d)
+        if _l1 != _l2
+            return false
+        end
+        l1 = _l1
+        c1 = _c1
+        t = ed_seleccion(d)
+        ed_escribir(d, letra + t + str_char(cierre))
+        d.al = l1
+        d.ac = c1 + 1
+        d.cl = l1
+        d.cc = c1 + 1 + t.length
+        return true
+    end
+    # solo si detrás no hay nada (o solo blancos) o algo que cierra: escribiendo delante de un texto no se cierra
+    if sig != 0 and sig != 41 and sig != 93 and sig != 125 and sig != 44 and sig != 58 and str_trim(linea[d.cc:]) != ""
+        return false
+    end
+    if _comillas_impares(linea, d.cc)
+        return false
+    end
+    if c == 34
+        antes = 0
+        if d.cc > 0
+            antes = str_code(linea, d.cc - 1)
+        end
+        if _es_letra(linea, d.cc - 1) or antes == 34
+            return false
+        end
+    end
+    ed_escribir(d, letra + str_char(cierre))
+    d.cc = d.cc - 1
+    return true
+end
+
+# Retroceso entre dos que hacen pareja y están vacíos, "(|)": los quita los dos
+func _quitar_pareja(d: Documento) -> Bool
+    if not ed_cerrar_solo or ed_hay_seleccion(d) or d.cc == 0 or not es_codigo_dash(d)
+        return false
+    end
+    linea = d.lineas[d.cl]
+    if d.cc >= linea.length
+        return false
+    end
+    a = str_code(linea, d.cc - 1)
+    b = str_code(linea, d.cc)
+    if _cierre_de(a) == 0 or _cierre_de(a) != b
+        return false
+    end
+    _borrar_rango(d, d.cl, d.cc - 1, d.cl, d.cc + 1)
+    return true
+end
+
+# --- El end solo (como dash.editor.autoEnd de la extensión de VS Code, endwise.js) ---
+
+# ¿Abre la línea un bloque que acaba en end? (como _abre_bloque, sin elif ni else)
+func _abre_con_end(linea: String) -> Bool
+    if not _abre_bloque(linea)
+        return false
+    end
+    p = _primera_palabra(str_trim(linea))
+    return p != "elif" and p != "else"
+end
+
+func _en_blanco(t: String) -> Bool
+    e = _espacios_delante(t)
+    return e >= t.length or str_code(t, e) == 35
+end
+
+# ¿Le falta el end al bloque que abre la línea fila? La primera línea de después que no está más adentro: si es su
+# end (o un elif o else de su if), lo tiene
+func _falta_end(d: Documento, fila: Int) -> Bool
+    linea = d.lineas[fila]
+    if not _abre_con_end(linea)
+        return false
+    end
+    # "@extern(...)" y luego "func f(...)": una declaración, sin cuerpo ni end
+    k = _anterior_con_texto(d, fila)
+    if k >= 0 and str_starts(str_trim(d.lineas[k]), "@extern")
+        return false
+    end
+    sangria = _espacios_delante(linea)
+    i = fila + 1
+    while i < d.lineas.length
+        t = d.lineas[i]
+        if not _en_blanco(t)
+            e = _espacios_delante(t)
+            if e <= sangria
+                p = _primera_palabra(t[e:])
+                return not (e == sangria and (p == "end" or p == "elif" or p == "else"))
+            end
+        end
+        i = i + 1
+    end
+    return true
+end
+
+# --- La pareja: el paréntesis (o corchete, o llave) que casa con el del cursor, y el end de un bloque ---
+# ed_par_l1 = -1 si no hay; las dos puntas: línea, columna y largo (1 en un paréntesis; el de la palabra en un
+# bloque)
+
+var ed_par_l1: Int = -1
+var ed_par_c1: Int = 0
+var ed_par_n1: Int = 0
+var ed_par_l2: Int = -1
+var ed_par_c2: Int = 0
+var ed_par_n2: Int = 0
+var ed_par_doc: Documento = nil
+var ed_par_version: Int = -1
+var ed_par_cl: Int = -1
+var ed_par_cc: Int = -1
+var _par_pos: [Int] = []    # los paréntesis de una línea fuera de textos y comentarios: columna
+var _par_car: [Int] = []    # y carácter
+const PAR_LINEAS = 1000     # las líneas que se miran como mucho para buscar la pareja
+
+func _par_linea(s: String)
+    _par_pos.clear()
+    _par_car.clear()
+    texto = false
+    i = 0
+    while i < s.length
+        c = str_code(s, i)
+        if texto
+            if c == 92
+                i = i + 1
+            elif c == 34
+                texto = false
+            end
+        elif c == 34
+            texto = true
+        elif c == 35 and str_code(s, i + 1) != 123
+            return
+        elif c == 40 or c == 41 or c == 91 or c == 93 or c == 123 or c == 125
+            _par_pos.push(i)
+            _par_car.push(c)
+        end
+        i = i + 1
+    end
+end
+
+# La clase de bloque de una línea: 1 abre un bloque con end, -1 es un end, 2 elif o else, 0 nada. Rápida: casi todas
+# las líneas se descartan por su primera letra, y la palabra se saca una vez
+func _clase_bloque(t: String) -> Int
+    n = t.length
+    e = 0
+    while e < n and str_code(t, e) == 32
+        e = e + 1
+    end
+    if e >= n
+        return 0
+    end
+    c = str_code(t, e)
+    if c != 102 and c != 105 and c != 119 and c != 115 and c != 101 and c != 77 and c != 69 and c != 79 and c != 87 and c != 64 and c != 97
+        return 0
+    end
+    j = e + 1
+    while j < n and (_es_letra(t, j) or str_code(t, j) == 64)
+        j = j + 1
+    end
+    if j - e < 2 or j - e > 9
+        return 0
+    end
+    p = t[e:j]
+    if p == "end"
+        if sx_clase_linea(t) == SXL_END
+            return -1
+        end
+        return 0
+    end
+    if p == "elif" or p == "else"
+        return 2
+    end
+    if p == "asm"
+        if sx_clase_linea(t) == SXL_ASM
+            return 1
+        end
+        return 0
+    end
+    if p == "@native"
+        if not str_contains(t, " func ")
+            return 0
+        end
+    elif p != "func" and p != "if" and p != "while" and p != "for" and p != "struct" and p != "enum" and p != "Window" and p != "Main" and p != "EventLoop" and p != "On" and p != "@c" and p != "interface"
+        return 0
+    end
+    # "enum E A, B end" en una línea: no abre nada
+    if str_contains(t, " end") and not _abre_con_end(t)
+        return 0
+    end
+    return 1
+end
+
+# Como _clase_bloque, y un func tras @extern es una declaración (sin end)
+func _clase_bloque_en(d: Documento, l: Int) -> Int
+    k = _clase_bloque(d.lineas[l])
+    if k == 1 and str_contains(d.lineas[l], "func")
+        a = _anterior_con_texto(d, l)
+        if a >= 0 and str_starts(str_trim(d.lineas[a]), "@extern")
+            return 0
+        end
+    end
+    return k
+end
+
+# Calcula la pareja de lo que hay en el cursor; true si cambió (hay que repintar sus líneas: las de antes y las de
+# ahora). Solo en el código de Dash.
+var ed_par_antes_l1: Int = -1
+var ed_par_antes_l2: Int = -1
+
+func ed_pareja_calcular(d: Documento) -> Bool
+    if d == ed_par_doc and d.version == ed_par_version and d.cl == ed_par_cl and d.cc == ed_par_cc
+        return false
+    end
+    ed_par_antes_l1 = ed_par_l1
+    ed_par_antes_l2 = ed_par_l2
+    a1 = ed_par_l1
+    a2 = ed_par_l2
+    b1 = ed_par_c1
+    b2 = ed_par_c2
+    ed_par_doc = d
+    ed_par_version = d.version
+    ed_par_cl = d.cl
+    ed_par_cc = d.cc
+    ed_par_l1 = -1
+    ed_par_l2 = -1
+    if d != nil and es_codigo_dash(d) and d.cl < d.lineas.length
+        if not _pareja_parentesis(d)
+            _pareja_bloque(d)
+        end
+    end
+    return a1 != ed_par_l1 or a2 != ed_par_l2 or b1 != ed_par_c1 or b2 != ed_par_c2
+end
+
+func _pareja_parentesis(d: Documento) -> Bool
+    linea = d.lineas[d.cl]
+    _par_linea(linea)
+    # el de detrás del cursor, o si no el de delante
+    k = -1
+    i = 0
+    while i < _par_pos.length
+        if _par_pos[i] == d.cc - 1 or (_par_pos[i] == d.cc and k < 0)
+            k = i
+        end
+        i = i + 1
+    end
+    if k < 0
+        return false
+    end
+    c = _par_car[k]
+    col = _par_pos[k]
+    var abre: Int = 0
+    var cierra: Int = 0
+    adelante = true
+    if c == 40 or c == 91 or c == 123
+        abre = c
+        cierra = _cierre_de(c)
+    else
+        cierra = c
+        abre = 40
+        if c == 93
+            abre = 91
+        elif c == 125
+            abre = 123
+        end
+        adelante = false
+    end
+    ed_par_l1 = d.cl
+    ed_par_c1 = col
+    ed_par_n1 = 1
+    nivel = 0
+    l = d.cl
+    vueltas = 0
+    while l >= 0 and l < d.lineas.length and vueltas < PAR_LINEAS
+        if l != d.cl
+            _par_linea(d.lineas[l])
+        end
+        if adelante
+            i = 0
+            while i < _par_pos.length
+                if l != d.cl or _par_pos[i] > col
+                    if _par_car[i] == abre
+                        nivel = nivel + 1
+                    elif _par_car[i] == cierra
+                        if nivel == 0
+                            ed_par_l2 = l
+                            ed_par_c2 = _par_pos[i]
+                            ed_par_n2 = 1
+                            return true
+                        end
+                        nivel = nivel - 1
+                    end
+                end
+                i = i + 1
+            end
+            l = l + 1
+        else
+            i = _par_pos.length - 1
+            while i >= 0
+                if l != d.cl or _par_pos[i] < col
+                    if _par_car[i] == cierra
+                        nivel = nivel + 1
+                    elif _par_car[i] == abre
+                        if nivel == 0
+                            ed_par_l2 = l
+                            ed_par_c2 = _par_pos[i]
+                            ed_par_n2 = 1
+                            return true
+                        end
+                        nivel = nivel - 1
+                    end
+                end
+                i = i - 1
+            end
+            l = l - 1
+        end
+        vueltas = vueltas + 1
+    end
+    # sin pareja: el del cursor solo (en rojo)
+    ed_par_l2 = -2
+    return true
+end
+
+func _pareja_bloque(d: Documento)
+    linea = d.lineas[d.cl]
+    e = _espacios_delante(linea)
+    p = _primera_palabra(linea[e:])
+    # el cursor sobre la primera palabra (o justo detrás)
+    if d.cc < e or d.cc > e + p.length
+        return
+    end
+    clase = _clase_bloque(linea)
+    if clase == 0
+        return
+    end
+    ed_par_l1 = d.cl
+    ed_par_c1 = e
+    ed_par_n1 = p.length
+    nivel = 0
+    vueltas = 0
+    if clase == 1
+        # hacia abajo, hasta su end
+        l = d.cl + 1
+        while l < d.lineas.length and vueltas < PAR_LINEAS
+            k = _clase_bloque_en(d, l)
+            if k == 1
+                nivel = nivel + 1
+            elif k == -1
+                if nivel == 0
+                    ed_par_l2 = l
+                    ed_par_c2 = _espacios_delante(d.lineas[l])
+                    ed_par_n2 = 3
+                    return
+                end
+                nivel = nivel - 1
+            end
+            l = l + 1
+            vueltas = vueltas + 1
+        end
+        ed_par_l2 = -2
+        return
+    end
+    # end, elif, else: hacia arriba, hasta lo que abre el bloque
+    l = d.cl - 1
+    while l >= 0 and vueltas < PAR_LINEAS
+        k = _clase_bloque_en(d, l)
+        if k == -1
+            nivel = nivel + 1
+        elif k == 1
+            if nivel == 0
+                ed_par_l2 = l
+                ed_par_c2 = _espacios_delante(d.lineas[l])
+                ed_par_n2 = _primera_palabra(d.lineas[l][ed_par_c2:]).length
+                return
+            end
+            nivel = nivel - 1
+        end
+        l = l - 1
+        vueltas = vueltas + 1
+    end
+    ed_par_l2 = -2
+end
+
+# Al otro lado de la pareja (true si hay)
+func ed_ir_pareja(d: Documento) -> Bool
+    ed_par_doc = nil
+    ed_pareja_calcular(d)
+    if ed_par_l1 < 0 or ed_par_l2 < 0
+        return false
+    end
+    d.al = -1
+    if d.cl == ed_par_l2 and d.cc >= ed_par_c2 and d.cc <= ed_par_c2 + ed_par_n2
+        d.cl = ed_par_l1
+        d.cc = ed_par_c1
+    else
+        d.cl = ed_par_l2
+        d.cc = ed_par_c2
+    end
+    if ed_par_n1 == 1 and ed_par_n2 == 1
+        # tras el paréntesis, para que siga siendo la pareja
+        d.cc = d.cc + 1
+    end
+    ed_seguir_cursor(d)
+    return true
+end
+
+# La caja de la pareja en la fila n (si es una de sus puntas)
+func _dibujar_pareja(d: Documento, n: Int, tx: Int, fy: Int)
+    if d != ed_par_doc or ed_par_l1 < 0 or d.version != ed_par_version
+        return
+    end
+    color = tema.acento
+    if ed_par_l2 == -2
+        color = tema.error
+    end
+    gfx_pen(color)
+    if n == ed_par_l1
+        _caja_pareja(d, ed_par_c1, ed_par_n1, tx, fy)
+    end
+    if n == ed_par_l2
+        _caja_pareja(d, ed_par_c2, ed_par_n2, tx, fy)
+    end
+end
+
+func _caja_pareja(d: Documento, c: Int, n: Int, tx: Int, fy: Int)
+    a = c - d.izquierda
+    if a < 0 or a > ed_columnas
+        return
+    end
+    x1 = tx + a * ancho_letra - 1
+    x2 = tx + (a + n) * ancho_letra
+    gfx_box(x1, fy, x2, fy + ed_alto_fila - 1)
+end
+
+# --- Plegado de bloques (paso 2.7) ---
+# Un bloque plegado enseña solo su primera línea (con " ... end" detrás); las de dentro y su end no se ven. Sin nada
+# plegado (lo normal), todo va como siempre: las cuentas con líneas ocultas solo se hacen si hay alguno.
+
+var _pl_doc: Documento = nil
+var _pl_version: Int = -1
+var _pl_cambios: Int = 0         # sube al plegar o desplegar (las líneas ocultas se vuelven a calcular)
+var _pl_visto: Int = -1
+var _pl_desde: [Int] = []        # las líneas ocultas: de _pl_desde[i] a _pl_hasta[i], las dos incluidas
+var _pl_hasta: [Int] = []
+
+func _hay_plegados(d: Documento) -> Bool
+    return d.plegados != nil and d.plegados.length > 0
+end
+
+# El end del bloque que abre la línea l (desde 0); -1 si no lo abre o no tiene
+func ed_fin_de_bloque(d: Documento, l: Int) -> Int
+    if _clase_bloque_en(d, l) != 1
+        return -1
+    end
+    nivel = 0
+    k = l + 1
+    while k < d.lineas.length
+        c = _clase_bloque_en(d, k)
+        if c == 1
+            nivel = nivel + 1
+        elif c == -1
+            if nivel == 0
+                return k
+            end
+            nivel = nivel - 1
+        end
+        k = k + 1
+    end
+    return -1
+end
+
+# Las líneas ocultas, al día (si cambió el texto o lo plegado); quita los plegados que ya no abren un bloque
+func _plegado_al_dia(d: Documento)
+    if d == _pl_doc and d.version == _pl_version and _pl_cambios == _pl_visto
+        return
+    end
+    _pl_doc = d
+    _pl_version = d.version
+    _pl_visto = _pl_cambios
+    _pl_desde.clear()
+    _pl_hasta.clear()
+    if not _hay_plegados(d)
+        return
+    end
+    i = 0
+    while i < d.plegados.length
+        l = d.plegados[i]
+        fin = -1
+        if l >= 0 and l < d.lineas.length
+            fin = ed_fin_de_bloque(d, l)
+        end
+        if fin < 0
+            d.plegados.remove(i)
+        else
+            # uno dentro de otro plegado ya está oculto
+            if _pl_hasta.length == 0 or l > _pl_hasta[_pl_hasta.length - 1]
+                _pl_desde.push(l + 1)
+                _pl_hasta.push(fin)
+            end
+            i = i + 1
+        end
+    end
+end
+
+# ¿Está oculta la línea l?
+func ed_oculta(d: Documento, l: Int) -> Bool
+    if not _hay_plegados(d)
+        return false
+    end
+    _plegado_al_dia(d)
+    i = 0
+    while i < _pl_desde.length
+        if l >= _pl_desde[i] and l <= _pl_hasta[i]
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+# ¿Está plegado el bloque de la línea l?
+func ed_plegada(d: Documento, l: Int) -> Bool
+    if not _hay_plegados(d)
+        return false
+    end
+    _plegado_al_dia(d)
+    for k in _pl_desde
+        if k == l + 1
+            return true
+        end
+    end
+    return false
+end
+
+# La primera línea que se ve desde l hacia abajo (l si se ve); d.lineas.length si ninguna
+func ed_visible_desde(d: Documento, l: Int) -> Int
+    if not _hay_plegados(d)
+        return l
+    end
+    _plegado_al_dia(d)
+    i = 0
+    while i < _pl_desde.length
+        if l >= _pl_desde[i] and l <= _pl_hasta[i]
+            l = _pl_hasta[i] + 1
+        end
+        i = i + 1
+    end
+    return l
+end
+
+# La primera que se ve desde l hacia arriba (l si se ve)
+func ed_visible_antes(d: Documento, l: Int) -> Int
+    if not _hay_plegados(d)
+        return l
+    end
+    _plegado_al_dia(d)
+    i = _pl_desde.length - 1
+    while i >= 0
+        if l >= _pl_desde[i] and l <= _pl_hasta[i]
+            l = _pl_desde[i] - 1
+        end
+        i = i - 1
+    end
+    return l
+end
+
+# La línea n filas (de las que se ven) más abajo de l (más arriba si n < 0), dentro del texto
+func ed_filas_desde(d: Documento, l: Int, n: Int) -> Int
+    if not _hay_plegados(d)
+        l = l + n
+    else
+        while n > 0 and l < d.lineas.length - 1
+            siguiente = ed_visible_desde(d, l + 1)
+            if siguiente >= d.lineas.length
+                n = 0
+            else
+                l = siguiente
+                n = n - 1
+            end
+        end
+        while n < 0 and l > 0
+            l = ed_visible_antes(d, l - 1)
+            n = n + 1
+        end
+    end
+    if l > d.lineas.length - 1
+        l = d.lineas.length - 1
+    end
+    if l < 0
+        l = 0
+    end
+    return l
+end
+
+# Cuántas filas hay de a hasta b (las líneas que se ven entre las dos, a incluida y b no)
+func _filas_entre(d: Documento, a: Int, b: Int) -> Int
+    n = b - a
+    if not _hay_plegados(d)
+        return n
+    end
+    _plegado_al_dia(d)
+    i = 0
+    while i < _pl_desde.length
+        x = _pl_desde[i]
+        y = _pl_hasta[i] + 1
+        if x < a
+            x = a
+        end
+        if y > b
+            y = b
+        end
+        if y > x
+            n = n - (y - x)
+        end
+        i = i + 1
+    end
+    return n
+end
+
+# Pliega el bloque que abre la línea l (true si se pudo)
+func ed_plegar(d: Documento, l: Int) -> Bool
+    if ed_fin_de_bloque(d, l) < 0
+        return false
+    end
+    if d.plegados == nil
+        d.plegados = []
+    end
+    if not _tiene(d.plegados, l)
+        d.plegados.push(l)
+        _ordenar(d.plegados)
+    end
+    _pl_cambios = _pl_cambios + 1
+    return true
+end
+
+func ed_desplegar(d: Documento, l: Int) -> Bool
+    if d.plegados == nil
+        return false
+    end
+    i = 0
+    while i < d.plegados.length
+        if d.plegados[i] == l
+            d.plegados.remove(i)
+            _pl_cambios = _pl_cambios + 1
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+func ed_desplegar_todo(d: Documento) -> Bool
+    if not _hay_plegados(d)
+        return false
+    end
+    d.plegados.clear()
+    _pl_cambios = _pl_cambios + 1
+    return true
+end
+
+# El bloque donde está la línea l: la línea que lo abre (la misma si lo abre ella); -1 si ninguno
+func ed_bloque_de(d: Documento, l: Int) -> Int
+    if _clase_bloque_en(d, l) == 1
+        return l
+    end
+    nivel = 0
+    if _clase_bloque_en(d, l) == -1
+        nivel = 1
+    end
+    k = l - 1
+    while k >= 0
+        c = _clase_bloque_en(d, k)
+        if c == -1
+            nivel = nivel + 1
+        elif c == 1
+            if nivel == 0
+                return k
+            end
+            nivel = nivel - 1
+        end
+        k = k - 1
+    end
+    return -1
+end
+
+# Pliega o despliega el bloque del cursor (F4): si su línea está plegada, la despliega; si no, pliega el bloque donde
+# está el cursor (que pasa a su primera línea). true si cambió algo
+func ed_plegar_cursor(d: Documento) -> Bool
+    if ed_plegada(d, d.cl)
+        return ed_desplegar(d, d.cl)
+    end
+    l = ed_bloque_de(d, d.cl)
+    if l < 0 or not ed_plegar(d, l)
+        return false
+    end
+    if d.cl != l
+        d.cl = l
+        d.cc = _columna_valida(d, l, d.cc)
+    end
+    d.al = -1
+    ed_seguir_cursor(d)
+    return true
+end
+
+# Si la línea l está oculta, despliega lo que la tapa
+func ed_destapar(d: Documento, l: Int)
+    if not _hay_plegados(d)
+        return
+    end
+    _plegado_al_dia(d)
+    i = 0
+    while i < _pl_desde.length
+        if l >= _pl_desde[i] and l <= _pl_hasta[i]
+            ed_desplegar(d, _pl_desde[i] - 1)
+            _plegado_al_dia(d)
+            i = 0
+        else
+            i = i + 1
+        end
+    end
+end
+
 # --- Moverse ---
 
 func _es_letra(s: String, i: Int) -> Bool
@@ -1097,7 +2337,7 @@ func _mover(d: Documento, codigo: Int, teclas: Int)
         elif d.cc > 0
             d.cc = d.cc - 1
         elif d.cl > 0
-            d.cl = d.cl - 1
+            d.cl = ed_visible_antes(d, d.cl - 1)
             d.cc = d.lineas[d.cl].length
         end
     elif codigo == T_DERECHA
@@ -1112,8 +2352,8 @@ func _mover(d: Documento, codigo: Int, teclas: Int)
             end
         elif d.cc < linea.length
             d.cc = d.cc + 1
-        elif d.cl < d.lineas.length - 1
-            d.cl = d.cl + 1
+        elif d.cl < d.lineas.length - 1 and ed_visible_desde(d, d.cl + 1) < d.lineas.length
+            d.cl = ed_visible_desde(d, d.cl + 1)
             d.cc = 0
         end
     elif codigo == T_ARRIBA or codigo == T_ABAJO
@@ -1124,7 +2364,13 @@ func _mover(d: Documento, codigo: Int, teclas: Int)
         if ctrl
             paso = d.lineas.length
         end
-        if codigo == T_ARRIBA
+        if _hay_plegados(d) and not ctrl
+            # de fila en fila: las líneas plegadas se saltan
+            if codigo == T_ARRIBA
+                paso = -paso
+            end
+            d.cl = ed_filas_desde(d, d.cl, paso)
+        elif codigo == T_ARRIBA
             d.cl = d.cl - paso
         else
             d.cl = d.cl + paso
@@ -1149,11 +2395,26 @@ end
 
 # Que el cursor se vea
 func ed_seguir_cursor(d: Documento)
-    if d.cl < d.primera
-        d.primera = d.cl
-    end
-    if d.cl >= d.primera + ed_visibles
-        d.primera = d.cl - ed_visibles + 1
+    if _hay_plegados(d)
+        # el cursor en una línea oculta: se despliega lo que la tapa
+        ed_destapar(d, d.cl)
+        d.primera = ed_visible_desde(d, d.primera)
+        if d.primera >= d.lineas.length
+            d.primera = ed_visible_antes(d, d.lineas.length - 1)
+        end
+        if d.cl < d.primera
+            d.primera = d.cl
+        end
+        if _filas_entre(d, d.primera, d.cl) >= ed_visibles
+            d.primera = ed_filas_desde(d, d.cl, -(ed_visibles - 1))
+        end
+    else
+        if d.cl < d.primera
+            d.primera = d.cl
+        end
+        if d.cl >= d.primera + ed_visibles
+            d.primera = d.cl - ed_visibles + 1
+        end
     end
     if d.cc < d.izquierda
         d.izquierda = d.cc
@@ -1213,8 +2474,10 @@ func ed_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
     elif codigo == T_ESC
         d.al = -1
     elif letra != "" and str_code(letra, 0) >= 32 and str_code(letra, 0) != 127
-        ed_escribir(d, letra)
-        ed_tras_letra(d, letra)
+        if not (ed_cerrar_solo and _cerrar_solo(d, letra))
+            ed_escribir(d, letra)
+            ed_tras_letra(d, letra)
+        end
     else
         return false
     end
@@ -1237,6 +2500,8 @@ func _posicion(d: Documento, x: Int, y: Int)
     l = d.primera + (y - ALTO_PESTANAS - 2) / ed_alto_fila
     if y < ALTO_PESTANAS + 2
         l = d.primera - 1
+    elif _hay_plegados(d)
+        l = ed_filas_desde(d, d.primera, (y - ALTO_PESTANAS - 2) / ed_alto_fila)
     end
     if l < 0
         l = 0
@@ -1323,7 +2588,33 @@ func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
     end
 end
 
-# Una línea del texto en fy, con su número, la selección, los colores y el cursor
+# ¿Está la línea n (desde 0) dentro de un bloque asm ... end? Se mira hacia arriba hasta una línea que lo diga
+# (sx_clase_linea: la cabecera asm, un end o una de Dash seguro), 300 como mucho: no hace falta leer todo el fichero
+func ed_en_asm(d: Documento, n: Int) -> Bool
+    k = n - 1
+    tope = n - 300
+    while k >= 0 and k >= tope
+        c = sx_clase_linea(d.lineas[k])
+        if c == SXL_ASM
+            return true
+        elif c != SXL_NADA
+            return false
+        end
+        k = k - 1
+    end
+    return false
+end
+
+# Si la línea que sigue a esta está dentro de un bloque asm (dentro: si lo está esta)
+func _asm_tras(linea: String, dentro: Bool) -> Bool
+    c = sx_clase_linea(linea)
+    if c == SXL_ASM
+        return true
+    end
+    return dentro and c == SXL_NADA
+end
+
+# Una línea del texto en fy, con su número, la selección, los colores y el cursor (_fila_asm: dentro de un bloque asm)
 func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: Bool)
     linea = d.lineas[n]
     tx = x + ed_margen + 2
@@ -1362,6 +2653,10 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
     if _tiene_punto(d, n + 1)
         gfx_pen(tema.error)
         gfx_rect(x + 2, fy + 2, x + 7, fy + ed_alto_fila - 3)
+    end
+    if d.marcadores != nil and _tiene(d.marcadores, n)
+        # el marcador: una cinta con muesca abajo (sobre el punto de parada, solo su borde)
+        _dibujar_marcador(x + 2, fy)
     end
     # las rayas de las extensiones (git: lo cambiado frente a HEAD), a la derecha del margen; con 4 colores se
     # distinguen por la forma: añadida, una raya llena; cambiada, una raya a trozos; quitadas, un triángulo
@@ -1416,7 +2711,11 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
             gfx_text_at(tx, base, linea[a:b])
         end
     elif linea != ""
-        sx_partir(linea)
+        if _fila_asm and sx_clase_linea(linea) != SXL_END
+            sx_partir_asm(linea)
+        else
+            sx_partir(linea)
+        end
         k = 0
         while k < sx_desde.length
             a = sx_desde[k]
@@ -1437,6 +2736,18 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
             k = k + 1
         end
     end
+    if d.plegados != nil and ed_plegada(d, n)
+        # plegada: " ... end" detrás, en una caja
+        a = linea.length + 1 - d.izquierda
+        if a < 0
+            a = 0
+        end
+        px = tx + a * ancho_letra
+        gfx_pen(tema.borde)
+        gfx_rect(px - 2, fy + 1, px + 9 * ancho_letra + 1, fy + ed_alto_fila - 2)
+        gfx_pen(tema.tenue)
+        gfx_text_at(px, base, " ... end")
+    end
     if n == d.cl and ed_sugerencia_vale(d)
         # la sugerencia, en gris tras el final de la línea (lo que cabe)
         cabe = hasta_col - linea.length
@@ -1452,6 +2763,9 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
     if ecol >= 0
         _subrayar_error(linea, ecol, d.izquierda, hasta_col, tx, fy)
     end
+    if n == ed_par_l1 or n == ed_par_l2
+        _dibujar_pareja(d, n, tx, fy)
+    end
     if n == d.cl
         cx = tx + (d.cc - d.izquierda) * ancho_letra
         if cx >= tx
@@ -1459,6 +2773,16 @@ func _dibujar_fila(d: Documento, n: Int, x: Int, fy: Int, ancho: Int, hay_sel: B
             gfx_rect(cx - 1, fy, cx, fy + ed_alto_fila - 1)
         end
     end
+end
+
+func _dibujar_marcador(mx: Int, fy: Int)
+    gfx_pen(tema.acento)
+    abajo = fy + ed_alto_fila - 2
+    gfx_rect(mx, fy + 1, mx, abajo)
+    gfx_rect(mx + 5, fy + 1, mx + 5, abajo)
+    gfx_rect(mx, fy + 1, mx + 5, fy + 2)
+    gfx_line(mx, abajo, mx + 2, abajo - 2)
+    gfx_line(mx + 5, abajo, mx + 3, abajo - 2)
 end
 
 # La raya en zigzag bajo lo que señala un error: el nombre (o el carácter) de su columna col (desde 1); sin columna,
@@ -1604,6 +2928,16 @@ end
 
 # La y de la fila de la línea n, desde la esquina de la zona (-1 si no se ve)
 func ed_fila_y(d: Documento, n: Int) -> Int
+    if _hay_plegados(d)
+        if n < d.primera or ed_oculta(d, n)
+            return -1
+        end
+        f = _filas_entre(d, d.primera, n)
+        if f >= ed_visibles
+            return -1
+        end
+        return ALTO_PESTANAS + 2 + f * ed_alto_fila
+    end
     if n < d.primera or n >= d.primera + ed_visibles
         return -1
     end
@@ -1718,6 +3052,7 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         fy = ed_fila_y(d, ed_solo_linea)
         if fy >= 0
             usar_codigo()
+            _fila_asm = d.vista == 0 and ed_en_asm(d, ed_solo_linea)
             _dibujar_fila(d, ed_solo_linea, x, y + fy, ancho, false)
         end
         return
@@ -1766,12 +3101,36 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
     if hay_sel
         _orden(d)
     end
+    ed_pareja_calcular(d)
+    hay_plegados = _hay_plegados(d)
+    j = 0
+    if hay_plegados
+        _plegado_al_dia(d)
+        d.primera = ed_visible_desde(d, d.primera)
+        if d.primera >= d.lineas.length
+            d.primera = ed_visible_antes(d, d.lineas.length - 1)
+        end
+    end
     fy = ty + 2
     n = d.primera
+    _fila_asm = d.vista == 0 and ed_en_asm(d, n)
     while n < d.lineas.length and fy + ed_alto_fila <= y + alto
         _dibujar_fila(d, n, x, fy, ancho, hay_sel)
+        if d.vista == 0
+            _fila_asm = _asm_tras(d.lineas[n], _fila_asm)
+        end
         fy = fy + ed_alto_fila
         n = n + 1
+        if hay_plegados
+            # (las de dentro de un bloque plegado no se ven: los tramos ocultos van en orden, se sigue por ellos)
+            while j < _pl_desde.length and _pl_hasta[j] < n
+                j = j + 1
+            end
+            if j < _pl_desde.length and n >= _pl_desde[j]
+                n = _pl_hasta[j] + 1
+                _fila_asm = false
+            end
+        end
     end
     ed_ms_dibujo = time_ms() - t0
     ed_dibujos = ed_dibujos + 1
@@ -1966,7 +3325,7 @@ func ed_capas_rango()
 end
 
 # El color de una clase de símbolo (codigo.dash) y su letra
-func _color_clase(c: Int) -> Int
+func ed_color_clase(c: Int) -> Int
     if c == CX_FUNC or c == CX_METODO or c == CX_BUILTIN
         return tema.sintaxis[S_LLAMADA]
     elif c == CX_STRUCT or c == CX_TIPO or c == CX_ENUM
@@ -1979,7 +3338,7 @@ func _color_clase(c: Int) -> Int
     return tema.sintaxis[S_NUMERO]
 end
 
-func _letra_clase(c: Int) -> String
+func ed_letra_clase(c: Int) -> String
     var letras: [String] = ["?", "f", "S", "k", "v", "E", "c", "m", "e", "l", "p", "t", "b", "m"]
     if c < 0 or c >= letras.length
         return "?"
@@ -2052,8 +3411,8 @@ func _dibujar_capas(d: Documento, x: Int, y: Int)
                 gfx_rect(lx + 2, fy, lx + ed_lista_ancho - 3, fy + ed_alto_fila - 1)
             end
             c = ac_clase(i)
-            gfx_pen(_color_clase(c))
-            gfx_text_at(lx + 4, fy + 1 + base_letra, _letra_clase(c))
+            gfx_pen(ed_color_clase(c))
+            gfx_text_at(lx + 4, fy + 1 + base_letra, ed_letra_clase(c))
             gfx_pen(tema.texto)
             n = ac_nombres[i]
             if n.length > cols - 2

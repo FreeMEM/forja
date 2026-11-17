@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/ayuda/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/editor/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -790,3 +790,117 @@ MSG_731 (731//)
 %1 errores (F8)
 MSG_732 (732//)
 No hay errores marcados.
+MSG_733 (733//)
+Esta orden dash no sabe comprobar (--check): actualiza Dash para ver los errores al guardar.
+MSG_800 (800//)
+Editor
+MSG_801 (801//)
+Aquí no hay nada que haga pareja (un paréntesis, o la primera palabra de un bloque).
+MSG_802 (802//)
+No entiendo estas líneas de las teclas (ENVARC:Forja/teclas):
+MSG_803 (803//)
+Comentar o descomentar
+MSG_804 (804//)
+Duplicar las líneas
+MSG_805 (805//)
+Subir las líneas
+MSG_806 (806//)
+Bajar las líneas
+MSG_807 (807//)
+Borrar las líneas
+MSG_808 (808//)
+Ir a la pareja
+MSG_809 (809//)
+Poner o quitar marcador
+MSG_810 (810//)
+Siguiente marcador
+MSG_811 (811//)
+Marcador anterior
+MSG_812 (812//)
+Esquema del fichero...
+MSG_813 (813//)
+Abrir un fichero por su nombre...
+MSG_814 (814//)
+Ir a un nombre del proyecto...
+MSG_815 (815//)
+Buscar en el proyecto...
+MSG_816 (816//)
+Cambiar en el proyecto...
+MSG_817 (817//)
+Renombrar...
+MSG_818 (818//)
+Plegar o desplegar el bloque
+MSG_819 (819//)
+Desplegar todo
+MSG_820 (820//)
+Cerrar solos paréntesis y comillas
+MSG_821 (821//)
+Poner el end al abrir un bloque
+MSG_822 (822//)
+Esa orden aún no está hecha.
+MSG_830 (830//)
+Expresión regular:
+MSG_831 (831//)
+Buscar en el _proyecto
+MSG_832 (832//)
+Cambiar en el p_royecto...
+MSG_833 (833//)
+La expresión regular está mal: %1
+MSG_834 (834//)
+\"%1\" no está en el proyecto (%2 ficheros).
+MSG_835 (835//)
+Buscar \"
+MSG_836 (836//)
+%1 veces en %2 ficheros (clic en una para ir).
+MSG_837 (837//)
+... y %1 más.
+MSG_838 (838//)
+Cambiar \"%1\" por \"%2\"
+MSG_839 (839//)
+Cambiado %1 veces en %2 ficheros.
+MSG_840 (840//)
+%1 veces en %2 ficheros
+MSG_841 (841//)
+Cambios
+MSG_842 (842//)
+Cambiar en el proyecto
+MSG_843 (843//)
+¿Hago estos %1 cambios en %2 ficheros?\n\nLos ficheros abiertos cambian en el editor (sin guardar; se pueden deshacer).\nLos demás se guardan en el disco.
+MSG_844 (844//)
+_Cambiar|C_ancelar
+MSG_845 (845//)
+No he podido escribir %1.
+MSG_850 (850//)
+(nada)
+MSG_851 (851//)
+%1 de %2
+MSG_852 (852//)
+Esquema de %1
+MSG_853 (853//)
+No hay proyecto: abre antes un fichero.
+MSG_854 (854//)
+Abrir
+MSG_855 (855//)
+Ir a
+MSG_856 (856//)
+Return: aceptar  Esc: cancelar
+MSG_857 (857//)
+No hay marcadores en %1 (%2 pone o quita uno).
+MSG_858 (858//)
+Renombrar %1 a
+MSG_859 (859//)
+%1 sitios; antes de cambiar nada, la lista de cambios.
+MSG_860 (860//)
+\"%1\" no vale como nombre.
+MSG_861 (861//)
+Ya hay un %1 en el proyecto: no renombro, se mezclarían.
+MSG_862 (862//)
+Renombrar %1 a %2
+MSG_863 (863//)
+Renombrado %1 en %2 sitios.
+MSG_864 (864//)
+El cursor no está en un bloque (func, if, while, struct...).
+MSG_870 (870//)
+no es de ancho fijo
+MSG_871 (871//)
+No entiendo estas líneas del tema (ENVARC:Forja/tema):

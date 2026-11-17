@@ -35,18 +35,97 @@ var base_letra: Int = 6
 # Un texto traducido con sus huecos (%1, %2) llenos: hueco y hueco2, los de lib/red/idioma.dash (los usa también
 # lib/red/http.dash, que importa actualizar.dash)
 
+# Los colores y la fuente se pueden cambiar en ENVARC:Forja/tema (ENV: primero): una cosa por línea, "nombre = r g b"
+# (de 0 a 255), y "fuente = nombre.font tamaño" (de letras igual de anchas, como topaz o xen). Los nombres: fondo,
+# fondo_panel, fondo_salida, fondo_linea, texto, tenue, acento, error, bien, borde, seleccion, cursor, parada; y los
+# de la sintaxis: clave, tipo, cadena, numero, comentario, llamada, constante, directiva, asm_instruccion,
+# asm_registro, asm_etiqueta. "#" empieza un comentario. Lo que no se entiende, en tema_malas.
+var tema_malas: String = ""
+var _tema_colores: {String: String} = {}
+var _tema_fuente: String = ""
+var _tema_usados: {String: Int} = {}
+
+func _tema_leer()
+    t = file_read_text("ENV:Forja/tema")
+    if t == nil
+        t = file_read_text("ENVARC:Forja/tema")
+    end
+    if t == nil
+        return
+    end
+    for linea in str_split(t, "\n")
+        l = str_trim(linea)
+        p = str_find(l, "=")
+        if l != "" and not str_starts(l, "#")
+            if p <= 0
+                tema_malas = tema_malas + l + "\n"
+            else
+                nombre = str_lower(str_trim(l[0:p]))
+                valor = str_trim(l[p + 1:])
+                if nombre == "fuente"
+                    _tema_fuente = valor
+                elif str_split(valor, " ").length == 3
+                    _tema_colores[nombre] = valor
+                else
+                    tema_malas = tema_malas + l + "\n"
+                end
+            end
+        end
+    end
+end
+
+# El color con ese nombre: el del fichero del tema, o r, g, b
+func _color(nombre: String, r: Int, g: Int, b: Int) -> Int
+    _tema_usados[nombre] = 1
+    v = _tema_colores.get(nombre, "")
+    if v == ""
+        return color_pen(r, g, b)
+    end
+    # (en variables nuevas: ./dash no cambia bien un parámetro, ver docs/FORJA_LOOP.md)
+    p = str_split(v, " ")
+    return color_pen(Int(p[0]), Int(p[1]), Int(p[2]))
+end
+
 func tema_preparar()
     if tema != nil
         return
     end
-    tema = Tema(color_pen(14, 14, 18), color_pen(26, 26, 32), color_pen(8, 8, 10), color_pen(30, 30, 38),
-                color_pen(220, 220, 210), color_pen(110, 110, 124), color_pen(90, 150, 230), color_pen(230, 80, 70),
-                color_pen(110, 200, 120), color_pen(50, 50, 60), color_pen(40, 70, 130), color_pen(255, 200, 80), [], color_pen(80, 70, 20))
-    # normal, palabra clave, tipo, texto, número, comentario, llamada, constante
-    tema.sintaxis = [tema.texto, color_pen(200, 130, 230), color_pen(100, 190, 230), color_pen(150, 210, 110),
-                     color_pen(240, 170, 90), color_pen(120, 120, 136), color_pen(240, 220, 140), color_pen(240, 170, 90)]
+    _tema_leer()
+    texto = _color("texto", 220, 220, 210)
+    tema = Tema(_color("fondo", 14, 14, 18), _color("fondo_panel", 26, 26, 32), _color("fondo_salida", 8, 8, 10), _color("fondo_linea", 30, 30, 38),
+                texto, _color("tenue", 110, 110, 124), _color("acento", 90, 150, 230), _color("error", 230, 80, 70),
+                _color("bien", 110, 200, 120), _color("borde", 50, 50, 60), _color("seleccion", 40, 70, 130), _color("cursor", 255, 200, 80), [], _color("parada", 80, 70, 20))
+    # normal, palabra clave, tipo, texto, número, comentario, llamada, constante, directiva (@native...), y en los
+    # bloques asm: instrucción, registro y etiqueta (S_* de sintaxis.dash)
+    tema.sintaxis = [tema.texto, _color("clave", 200, 130, 230), _color("tipo", 100, 190, 230), _color("cadena", 150, 210, 110),
+                     _color("numero", 240, 170, 90), _color("comentario", 120, 120, 136), _color("llamada", 240, 220, 140), _color("constante", 240, 170, 90),
+                     _color("directiva", 230, 120, 160), _color("asm_instruccion", 90, 210, 200), _color("asm_registro", 240, 130, 110), _color("asm_etiqueta", 250, 230, 90)]
+    # los nombres que no se usaron no son de ningún color
+    for k in _tema_colores.keys()
+        if _tema_usados.get(k, 0) == 0
+            tema_malas = tema_malas + k + " = " + _tema_colores[k] + "\n"
+        end
+    end
     pen_logo = [color_pen(0, 85, 170), color_pen(255, 136, 0), color_pen(255, 255, 255)]
-    fuente_codigo = font_open("topaz.font", 8)
+    fuente_codigo = 0
+    if _tema_fuente != ""
+        p = str_split(_tema_fuente, " ")
+        tam = 8
+        if p.length >= 2
+            tam = Int(p[1])
+        end
+        nombre = p[0]
+        if not str_ends(str_lower(nombre), ".font")
+            nombre = nombre + ".font"
+        end
+        fuente_codigo = font_open(nombre, tam)
+        if fuente_codigo == 0
+            tema_malas = tema_malas + "fuente = " + _tema_fuente + "\n"
+        end
+    end
+    if fuente_codigo == 0
+        fuente_codigo = font_open("topaz.font", 8)
+    end
     fuente_panel = font_open("helvetica.font", 11)
     if fuente_panel == 0
         fuente_panel = fuente_codigo
@@ -55,6 +134,10 @@ func tema_preparar()
     ancho_letra = font_text_width("M")
     alto_letra = font_height()
     base_letra = font_baseline()
+    if font_text_width("i") != ancho_letra
+        # (de letras de distinto ancho: las columnas no casarían)
+        tema_malas = tema_malas + "fuente = " + _tema_fuente + " (" + tr(870, "no es de ancho fijo") + ")\n"
+    end
 end
 
 func usar_codigo()
