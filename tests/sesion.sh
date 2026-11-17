@@ -16,6 +16,15 @@ cp -r "$aqui/tests/prueba/proyecto" "$tmp/sys/Prueba/Mi juego"
 "$dash/dash" "$aqui/tests/sesion.dash" -o "$tmp/Sesion"
 cp "$dashc/dashc.amiga" "$tmp/sys/Dash/dashc"
 cp "$dashc"/dashc_*.drt "$tmp/sys/Dash/"
+# la extensión Sprites y un sprite en el proyecto: la sesión lo vuelve a abrir con ella
+. "$aqui/tests/extension.sh"
+extension Sprites editor_sprites
+python3 -I - "$tmp/nave.txt" <<'PY'
+import sys
+filas = ["".join("%X" % ((x * 7 + y * 3) % 4 if (x + y) % 3 else 0) for x in range(16)) for y in range(16)]
+open(sys.argv[1], "w").write("16 16 2\n" + "\n".join(filas) + "\npaleta 000000 FF0000 00FF00 0000FF\n")
+PY
+python3 -I "$aqui/tests/iff.py" escribir "$tmp/sys/Prueba/Mi juego/nave.iff" "$tmp/nave.txt"
 mkdir -p "$tmp/sys/Prefs/Env-Archive/Forja"
 {
   echo "Assign ENVARC: DH0:Prefs/Env-Archive"

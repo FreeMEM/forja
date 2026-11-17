@@ -48,6 +48,8 @@ struct Cambio
     texto: String
     seguido: Bool     # letras escritas una tras otra: se deshacen juntas
     junto: Bool       # se deshace con el cambio de antes (escribir sobre una selección: borrarla y meter)
+    marcas: [Int] = nil     # al quitar varias líneas: los marcadores que había en ellas (desde su primera línea), para
+    plegadas: [Int] = nil   # dejarlos como estaban al volver a meterlas (deshacer, rehacer); y lo plegado
 end
 
 struct Documento
@@ -768,8 +770,54 @@ func _texto_entre(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int) -> String
     return t + "\n" + _trozo(d.lineas[l2], 0, c2)
 end
 
+# Lo que _quitar encontró en las líneas que quitó (varias): los marcadores y lo plegado de l1 a l2, desde l1 (nil si
+# era una sola línea)
+var _q_marcas: [Int] = nil
+var _q_plegadas: [Int] = nil
+
+func _de_rango(ls: [Int], l1: Int, l2: Int) -> [Int]
+    if ls == nil
+        return nil
+    end
+    var r: [Int] = []
+    for m in ls
+        if m >= l1 and m <= l2
+            r.push(m - l1)
+        end
+    end
+    return r
+end
+
+# Tras volver a meter las líneas l a l + n (deshacer o rehacer un cambio que las quitó): sus marcadores y lo plegado,
+# como estaban (al quitarlas, los marcadores se juntaron en la primera)
+func _rango_como_estaba(ls: [Int], l: Int, n: Int, como: [Int])
+    if ls == nil or como == nil
+        return
+    end
+    i = 0
+    while i < ls.length
+        if ls[i] >= l and ls[i] <= l + n
+            ls.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    for o in como
+        if o <= n
+            ls.push(l + o)
+        end
+    end
+    _ordenar(ls)
+end
+
 # Quita de (l1, c1) a (l2, c2) y devuelve lo quitado
 func _quitar(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int) -> String
+    _q_marcas = nil
+    _q_plegadas = nil
+    if l2 > l1
+        _q_marcas = _de_rango(d.marcadores, l1, l2)
+        _q_plegadas = _de_rango(d.plegados, l1, l2)
+    end
     t = _texto_entre(d, l1, c1, l2, c2)
     resto = _trozo(d.lineas[l2], c2, d.lineas[l2].length)
     d.lineas[l1] = _trozo(d.lineas[l1], 0, c1) + resto
@@ -1031,7 +1079,10 @@ func _borrar_rango(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int)
     d.cl = l1
     d.cc = c1
     d.cambiado = true
-    _apuntar(d, Cambio(BORRAR, l1, c1, t, false, false))
+    c = Cambio(BORRAR, l1, c1, t, false, false)
+    c.marcas = _q_marcas
+    c.plegadas = _q_plegadas
+    _apuntar(d, c)
 end
 
 func ed_hay_seleccion(d: Documento) -> Bool
@@ -1320,15 +1371,34 @@ func _aplicar(d: Documento, c: Cambio, al_reves: Bool)
         _meter(d, c.l, c.c, c.texto)
         d.cl = _fin_l
         d.cc = _fin_c
+        if _fin_l > c.l
+            # las líneas vuelven: sus marcadores y lo plegado, como estaban al quitarlas (si no, se quedaban todos
+            # juntos en la primera)
+            if _rango_como_estaba_marcas(d, c)
+                _pl_cambios = _pl_cambios + 1
+            end
+        end
     else
         _fin_de(c.l, c.c, c.texto)
         _quitar(d, c.l, c.c, _fin_l, _fin_c)
+        c.marcas = _q_marcas
+        c.plegadas = _q_plegadas
         d.cl = c.l
         d.cc = c.c
     end
     d.al = -1
     d.cambiado = true
     d.version = d.version + 1
+end
+
+func _rango_como_estaba_marcas(d: Documento, c: Cambio) -> Bool
+    n = _fin_l - c.l
+    _rango_como_estaba(d.marcadores, c.l, n, c.marcas)
+    if c.plegadas != nil and d.plegados != nil
+        _rango_como_estaba(d.plegados, c.l, n, c.plegadas)
+        return true
+    end
+    return false
 end
 
 func ed_deshacer(d: Documento) -> Bool
@@ -2249,6 +2319,10 @@ func ed_filas_desde(d: Documento, l: Int, n: Int) -> Int
         l = 0
     end
     return l
+end
+
+func ed_filas_entre(d: Documento, a: Int, b: Int) -> Int
+    return _filas_entre(d, a, b)
 end
 
 # Cuántas filas hay de a hasta b (las líneas que se ven entre las dos, a incluida y b no)

@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/proyecto/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/pulido/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -810,3 +810,5 @@ MSG_1004 (1004//)
 memcheck: un aviso (un clic en él lleva a su línea).
 MSG_1005 (1005//)
 No se puede abrir la ventana %1.
+MSG_1006 (1006//)
+Teclas del editor leídas otra vez (ENVARC:Forja/teclas).

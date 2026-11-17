@@ -2,7 +2,9 @@
 # (DH0:Prueba/Forja) tres veces, con tests/prueba/proyecto en "DH0:Prueba/Mi juego":
 # 1. abre fisica.dash y lib/pantalla.dash desde la lista, cambia fisica.dash y la cierra sin guardar (Descartar),
 #    y sale: la sesión guarda el cajón y los dos que quedan;
-# 2. sin fichero, Forja abre esos dos y el cajón;
+#    Antes, en main.dash, pliega el while (F4) y pone dos marcadores (Ctrl F3), y abre nave.iff (la extensión Sprites);
+# 2. sin fichero, Forja abre esos dos y el cajón, con main.dash delante, su cursor, sus marcadores y lo plegado, y
+#    nave.iff otra vez en la ventana de Sprites;
 # 3. con un fichero de la sesión en un disco que no está (NOESTA:), Forja arranca igual: sin el requester de
 #    "Inserta el volumen", que la dejaría esperando.
 # Lo lanza tests/sesion.sh. Anota en DH0:Prueba/sesion.txt y acaba con "TODO BIEN" si todo fue bien.
@@ -118,6 +120,19 @@ func arrancar(decimas: Int) -> Bool
     return n < decimas
 end
 
+func esperar_ventana(t: String) -> Bool
+    n = 0
+    while n < 60
+        w = window_find(t)
+        if w != 0
+            return true
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return false
+end
+
 func esperar_fin() -> Bool
     n = 0
     while n < 100 and window_find("Forja") != 0
@@ -168,16 +183,45 @@ Main
         activar()
         ver("quedan dos pestañas", pestanas() == 2, env_get("FORJA_PESTANAS"))
         ver("fisica.dash sin el cambio en el disco", leer("DH0:Prueba/Mi juego/fisica.dash") == fisica, "")
+        # marcadores y lo plegado en main.dash, y un sprite en la extensión
+        pestana(0)
+        ver("pestaña de main.dash", activo() == "main.dash", activo())
+        rexx_send("FORJA.1", "CURSOR 9 5")
+        al_editor()
+        input_key(0x53, 0)
+        time_delay(20)
+        input_key(0x52, CTRL)
+        time_delay(20)
+        rexx_send("FORJA.1", "CURSOR 14 1")
+        al_editor()
+        input_key(0x52, CTRL)
+        time_delay(20)
+        ver("dos marcadores y el while plegado", env_get("FORJA_MARCAS") == "8,13|8", env_get("FORJA_MARCAS"))
+        rexx_send("FORJA.1", "ABRIR \"DH0:Prueba/Mi juego/nave.iff\"")
+        ver("nave.iff en la ventana de Sprites", esperar_ventana("Sprites: nave.iff"), input_active_title())
         salir()
         s = env_get("Forja/sesion")
-        ver("la sesión: el cajón y los dos", s == "DH0:Prueba/Mi juego|DH0:Prueba/Mi juego/main.dash|DH0:Prueba/Mi juego/lib/pantalla.dash", s)
+        ver("la sesión: el cajón, los dos y el sprite", s == "DH0:Prueba/Mi juego|DH0:Prueba/Mi juego/main.dash|DH0:Prueba/Mi juego/lib/pantalla.dash|DH0:Prueba/Mi juego/nave.iff", s)
+        e = env_get("Forja/sesion_estado")
+        ver("y lo de cada fichero", str_starts(e, "activo\tDH0:Prueba/Mi juego/main.dash" + str_char(30)) and str_contains(e, "main.dash\t") and str_contains(e, "\t13\t0\t8,13\t8"), e)
     end
     # 2
     env_set("FORJA_PRUEBA", "", false)
     if ver("Forja arranca sin fichero", arrancar(1200), "")
         ver("abre los dos de la última vez", pestanas() == 2, env_get("FORJA_PESTANAS"))
         ver("y el cajón", str_starts(env_get("FORJA_FICHEROS"), "DH0:Prueba/Mi juego|"), env_get("FORJA_FICHEROS"))
-        salir()
+        ver("y nave.iff, con la extensión Sprites", esperar_ventana("Sprites: nave.iff"), input_active_title())
+        activar()
+        ver("main.dash delante, con su cursor", activo() == "main.dash" and str_starts(leer("RAM:forja-sonda.txt"), "13 0 main.dash"), str_split(leer("RAM:forja-sonda.txt"), "\n")[0])
+        ver("sus marcadores y lo plegado", env_get("FORJA_MARCAS") == "8,13|8", env_get("FORJA_MARCAS"))
+        # Amiga-Q en la ventana de la extensión cierra Forja (como en la suya)
+        w = window_find("Sprites: nave.iff")
+        if w != 0
+            window_found_activate(w)
+            time_delay(20)
+        end
+        input_key(0x10, AMIGA)
+        ver("Amiga-Q en la ventana de Sprites cierra Forja", esperar_fin() and window_find("Sprites: nave.iff") == 0, input_active_title())
     end
     # 3
     env_set("Forja/sesion", "DH0:Prueba/Mi juego|NOESTA:juego/main.dash|DH0:Prueba/Mi juego/main.dash", true)

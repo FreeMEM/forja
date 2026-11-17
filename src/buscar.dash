@@ -80,9 +80,24 @@ func _bp_cajon(cajon: String, hondo: Int, r: [String])
     end
 end
 
+# El documento abierto de una ruta (-1 si no está): "*nombre" es una pestaña sin nombre (como las llama codigo.dash)
+func bp_doc(ruta: String) -> Int
+    if str_starts(ruta, "*")
+        i = 0
+        for d in documentos
+            if d.ruta == "" and d.vista == 0 and d.nombre == ruta[1:]
+                return i
+            end
+            i = i + 1
+        end
+        return -1
+    end
+    return ed_buscar_ruta(ruta)
+end
+
 # Las líneas de un fichero: las del editor si está abierto, si no las del disco (en Latin-1, como el editor)
 func bp_lineas_de(ruta: String) -> [String]
-    k = ed_buscar_ruta(ruta)
+    k = bp_doc(ruta)
     if k >= 0
         return documentos[k].lineas
     end
@@ -187,6 +202,52 @@ func bp_cambios(cajon: String, t: String, nuevo: String, mayus: Bool) -> Int
     return bp_c_veces
 end
 
+# Una línea del disco con tabuladores (raw), que se leyó con cada tabulador como 4 espacios (exp) y se cambió (nueva):
+# lo cambiado, en raw, sin tocar sus tabuladores fuera de lo cambiado. Si exp no es raw así, nueva tal cual.
+func bp_con_tabs(raw: String, exp: String, nueva: String) -> String
+    if str_replace(raw, "\t", "    ") != exp
+        return nueva
+    end
+    # lo igual al principio y al final
+    p = 0
+    while p < exp.length and p < nueva.length and exp[p:p + 1] == nueva[p:p + 1]
+        p = p + 1
+    end
+    q = 0
+    while q < exp.length - p and q < nueva.length - p and exp[exp.length - 1 - q:exp.length - q] == nueva[nueva.length - 1 - q:nueva.length - q]
+        q = q + 1
+    end
+    e = exp.length - q
+    # de exp a raw: un tabulador ocupa 4; lo cambiado no puede empezar ni acabar a medio tabulador
+    rp = -1
+    re = -1
+    acum = 0
+    i = 0
+    while i <= raw.length
+        w = 1
+        if i < raw.length and raw[i:i + 1] == "\t"
+            w = 4
+        end
+        if rp < 0 and (acum == p or (acum < p and p < acum + w))
+            rp = i
+            p = acum
+        end
+        if re < 0 and (acum == e or (acum < e and e < acum + w))
+            re = i
+            if acum < e
+                re = i + 1
+                e = acum + w
+            end
+        end
+        acum = acum + w
+        i = i + 1
+    end
+    if rp < 0 or re < 0 or p > nueva.length - (exp.length - e)
+        return nueva
+    end
+    return raw[0:rp] + nueva[p:nueva.length - (exp.length - e)] + raw[re:]
+end
+
 # Hace los cambios de bp_cambios: en los ficheros abiertos, en el editor (cada línea cambiada, todo en un paso de
 # deshacer por fichero; quedan sin guardar); en los demás, en el disco (en UTF-8 si lo estaban). Cuántos ficheros
 # cambió; los que no pudo escribir, en bp_no_escritos
@@ -200,7 +261,7 @@ func bp_aplicar() -> Int
         ruta = bp_c_rutas[i]
         nums = str_split(bp_c_lineas[i], " ")
         nuevas = str_split(bp_c_despues[i], "\n")
-        k = ed_buscar_ruta(ruta)
+        k = bp_doc(ruta)
         if k >= 0
             d = documentos[k]
             # (de abajo arriba no cambia nada; cada línea es un cambio, y van todos juntos al deshacer)
@@ -229,11 +290,18 @@ func bp_aplicar() -> Int
                 end
                 crlf = str_contains(t, "\r\n")
                 lineas = str_split(str_replace(t, "\r\n", "\n"), "\n")
+                viejas = str_split(bp_c_antes[i], "\n")
                 j = 0
                 while j < nums.length
                     n = Int(nums[j])
                     if n >= 1 and n <= lineas.length
-                        lineas[n - 1] = nuevas[j]
+                        if str_contains(lineas[n - 1], "\t") and j < viejas.length
+                            # (las líneas se leyeron con los tabuladores como 4 espacios: el cambio, en la línea con
+                            # sus tabuladores; antes se quedaba con espacios)
+                            lineas[n - 1] = bp_con_tabs(lineas[n - 1], viejas[j], nuevas[j])
+                        else
+                            lineas[n - 1] = nuevas[j]
+                        end
                     end
                     j = j + 1
                 end

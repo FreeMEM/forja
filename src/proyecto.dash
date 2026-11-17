@@ -364,6 +364,33 @@ func pr_puntos_guardados(ruta: String)
     end
 end
 
+# El fichero se guardó con otro nombre (Guardar como): sus puntos pasan a la ruta nueva. Los que tenía ya esa ruta (se
+# escribe encima de otro fichero) se van. Uno sin nombre (antes = "") no tenía puntos aquí: van los de sus líneas.
+func pr_puntos_mover(antes: String, ahora: String, lineas: [Int])
+    if ahora == "" or _pr_misma(antes, ahora)
+        return
+    end
+    i = 0
+    while i < pr_puntos.length
+        if _pr_misma(pr_puntos[i].fichero, ahora)
+            pr_puntos.remove(i)
+        else
+            i = i + 1
+        end
+    end
+    if antes == ""
+        for l in lineas
+            pr_puntos.push(PuntoProy(ahora, l))
+        end
+        return
+    end
+    for q in pr_puntos
+        if _pr_misma(q.fichero, antes)
+            q.fichero = ahora
+        end
+    end
+end
+
 # Se descartaron los cambios del fichero: sus puntos vuelven a la línea del disco; los puestos después, se van
 func pr_puntos_descartar(ruta: String)
     i = 0

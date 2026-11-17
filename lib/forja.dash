@@ -399,6 +399,22 @@ func forja_sin_guardar(nombres: [String])
     forja_orden(t)
 end
 
+# Sus ficheros abiertos (la ruta entera; [] ninguno): Forja los guarda en su sesión y, la próxima vez, los vuelve a
+# abrir (con EDITAR, como al abrirlos desde Forja). Se dice cuando cambian (abrir, cerrar, guardar como).
+func forja_editando(rutas: [String])
+    t = "EDITANDO " + forja_ext
+    for r in rutas
+        t = t + "\n" + r
+    end
+    forja_orden(t)
+end
+
+# Que Forja se cierre, como con Amiga-Q en su ventana (para Amiga-Q en la de la extensión): Forja pregunta por lo que
+# haya sin guardar (también lo de las extensiones, SINGUARDAR) y, si sale, manda SALIR a todas
+func forja_salir()
+    forja_orden("SALIR")
+end
+
 # Compilar (o compilar y ejecutar) el programa de un fichero que no es de Dash (un sprite, un mapa): el .dash con
 # Main abierto de su cajón o el de encima, o su main.dash, o el del proyecto. ruta "": el fichero activo de Forja.
 # forja_rc: 0 bien, 5 si Forja ya compila o ejecuta, 10 si no hay programa
