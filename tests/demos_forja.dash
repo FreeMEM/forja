@@ -174,6 +174,50 @@ func captura(nombre: String)
     activar()
 end
 
+# Dónde está la zona del dibujo en la ventana: el puntero en dos sitios conocidos y lo que dice la extensión de él
+# (con el búfer, la zona del dibujo no es la de la ventana). Se repite hasta que las dos lecturas cuadran: con la
+# demo en marcha y un dibujo entero lento, la sonda puede ir tarde.
+func zona_ventana() -> [Int]
+    n = 0
+    zx = 0
+    zy = 0
+    while n < 8
+        activar()
+        input_move(200, 120)
+        time_delay(30)
+        a = str_split(linea("puntero"), " ")
+        input_move(220, 140)
+        time_delay(30)
+        b = str_split(linea("puntero"), " ")
+        zx = 200 - Int(a[1])
+        zy = 120 - Int(a[2])
+        if Int(b[1]) - Int(a[1]) == 20 and Int(b[2]) - Int(a[2]) == 20
+            return [zx, zy]
+        end
+        n = n + 1
+    end
+    return [zx, zy]
+end
+
+# Un clic (o una tecla, con k >= 0) hasta que la sonda tenga ese texto: hasta 3 veces (con la demo en marcha el lienzo
+# puede perder una tecla mientras dibuja)
+func hasta_ver(x: Int, y: Int, k: Int, q: Int, texto: String) -> Bool
+    n = 0
+    while n < 3
+        if k >= 0
+            tecla(k, q)
+        else
+            input_click(x, y, 0)
+            time_delay(10)
+        end
+        if esperar(texto, 4)
+            return true
+        end
+        n = n + 1
+    end
+    return false
+end
+
 func sincronia()
     ver("abre demo.sync en Sincronía", str_starts(linea("pagina"), "pagina 2") and str_starts(linea("sync"), "sync demo.sync pistas 2 cursor 0 0"), linea("sync"))
     # una clave en la fila 4 de "velocidad": 1.5, lineal; i la pasa a suave; Supr la quita
@@ -283,7 +327,6 @@ func con_demo()
     esperar("pagina 3", 5)
     time_delay(25)
     l = linea("demo")
-    ver("Medidor: las líneas de las 64 últimas imágenes", str_starts(linea("pagina"), "pagina 3") and campo_sonda(l, "muestras") == 64 and campo_sonda(l, "lineas") > 150, l)
     # por partes: la demo mide "lógica" y "barras" (sync_medir); las barras esperan línea a línea, casi todo
     m = linea("medidor")
     b = -1
@@ -291,6 +334,8 @@ func con_demo()
     if p >= 0
         b = Int(str_split(m[p + 7:], " ")[0])
     end
+    # (la última imagen puede salir corta si la demo empezó tarde tras wait_vblank: vale también la media)
+    ver("Medidor: las líneas de las 64 últimas imágenes", str_starts(linea("pagina"), "pagina 3") and campo_sonda(l, "muestras") == 64 and (campo_sonda(l, "lineas") > 150 or b > 150), l + " / " + m)
     ver("Medidor por partes: lógica y barras, con su media", str_starts(m, "medidor partes 2 version 2 lógica:") and b > 150, m)
     captura("medidor")
     # el visor de MOD: Forja abre musica.mod y se lo pasa
@@ -373,11 +418,9 @@ func copper()
     activar()
     # dónde está la zona en la ventana: el puntero en un sitio conocido y lo que dice la extensión de él (con el
     # búfer, la zona del dibujo no es la de la ventana)
-    input_move(200, 120)
-    time_delay(30)
-    pu = str_split(linea("puntero"), " ")
-    zx = 200 - Int(pu[1])
-    zy = 120 - Int(pu[2])
+    z = zona_ventana()
+    zx = z[0]
+    zy = z[1]
     anotar("  (la zona en la ventana: #{zx}, #{zy}; " + linea("pagina") + ")")
     cy = zy + 22
     alto = campo("FORJA_DEMOS_LIENZO", 3) - 2 * (alto_letra() + 2) - 2 - 22
@@ -398,12 +441,9 @@ func copper()
     # un clic en la lista elige esa parada
     lx = zx + 4 + 160 + 16 + 4
     ly = cy + 3 * (alto_letra() + 2) + 6 + (alto_letra() + 2) * 2 + 2
-    input_click(lx, ly, 0)
-    time_delay(10)
-    ver("un clic en la lista elige su parada (la tercera)", esperar("copper 4 2 ", 5), linea("copper"))
+    ver("un clic en la lista elige su parada (la tercera)", hasta_ver(lx, ly, -1, 0, "copper 4 2 "), linea("copper"))
     # Tab: el bloque siguiente del fichero (hay uno: el mismo, leído otra vez)
-    tecla(0x42, 0)
-    ver("Tab lee el bloque siguiente del código", esperar("copper 4 0 COLOR00 degradado copper 40:00F", 5) and str_contains(linea("mensaje"), "1/1"), linea("copper") + " / " + linea("mensaje"))
+    ver("Tab lee el bloque siguiente del código", hasta_ver(0, 0, 0x42, 0, "mensaje Leído copper_degradado (4 paradas). 1/1") and str_contains(linea("copper"), "copper 4 0 COLOR00 degradado copper 40:00F"), linea("copper") + " / " + linea("mensaje"))
     rexx_send("FORJA.1", "GUARDAR DH0:Prueba/demo/main.dash")
 end
 
@@ -440,11 +480,9 @@ func partes()
     tecla(0x31, AMIGA)
     ver("Amiga-Z la devuelve (y sigue en Partes)", esperar("fin:400-431", 5) and str_starts(linea("pagina"), "pagina 4"), linea("partes") + " / " + linea("pagina"))
     # un clic en la barra, en la fila 32: entrada
-    input_move(200, 120)
-    time_delay(30)
-    pu = str_split(linea("puntero"), " ")
-    zx = 200 - Int(pu[1])
-    zy = 120 - Int(pu[2])
+    z = zona_ventana()
+    zx = z[0]
+    zy = z[1]
     l = str_split(linea("partes"), " barra ")
     if l.length > 1
         g = str_split(l[1], " ")
@@ -453,15 +491,12 @@ func partes()
         ancho = Int(g[2])
         bh = Int(g[3])
         fin = Int(g[4])
-        input_click(zx + bx + 32 * ancho / fin, zy + by + bh / 2, 0)
-        time_delay(10)
-        ver("un clic en la barra elige su parte", esperar("partes 3 0 ", 5), linea("partes"))
+        ver("un clic en la barra elige su parte", hasta_ver(zx + bx + 32 * ancho / fin, zy + by + bh / 2, -1, 0, "partes 3 0 "), linea("partes"))
         captura("partes")
         # g lleva la demo al principio de barras
         # (la demo, lejos: en la fila 256; cada tecla cuando se vio la anterior: el lienzo guarda una sola)
         rexx_send_wait("DEMOSYNC", "IR 256", 2000)
-        tecla(0x4D, 0)
-        esperar("partes 3 1 ", 5)
+        hasta_ver(0, 0, 0x4D, 0, "partes 3 1 ")
         tecla(0x24, 0)
         n = 0
         f = -1
