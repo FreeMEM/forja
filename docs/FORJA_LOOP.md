@@ -312,7 +312,8 @@ VS Code.
   - Pruebas: `tests/editor_base.sh` (sin ventana) y `tests/editor.sh` (como un usuario, con capturas): TODO BIEN en
     A1200 con MUI 5 (normal y `REAL=1`), RTG con MUI 5 y MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`).
     Siguen en TODO BIEN: teclas, ficheros, completar, buscar, errores, compilar, rexx, extensiones (MUI 5 y 3.8),
-    extensiones_base, git_panel y ayuda (con el `dashc.amiga` de Dash PR #184). `tests/proyecto.sh` falla igual en
+    extensiones_base, git_panel, ayuda (con el `dashc.amiga` de Dash PR #184) y copiloto (MUI 5, con el servidor
+    falso de Inferencia). `tests/proyecto.sh` falla igual en
     `main` (a219701) con el Dash de hoy: el clic en el error de `fisica.dash` (cajón "Mi juego", con espacio) no lleva a
     su línea, y lo que sigue cae detrás. No es de esta rama; queda por mirar.
   - Tiempos (A1200 emulado con la CPU de un A1200, `REAL=1`, MUI 5): dibujo entero 45 ms (64 con el bloque asm a la
