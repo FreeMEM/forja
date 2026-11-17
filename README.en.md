@@ -2,9 +2,16 @@
 
 *English | [Castellano](README.md)*
 
-A development environment for [Dash](https://github.com/FreeMEM/FreeMEMLang) that runs on the Amiga itself, with a
-black background: code editor with colours, build and run, step-by-step debugger and a `.dashui` window editor with
-real MUI. It talks over ARexx with [Inferencia](https://github.com/FreeMEM/inferencia), the AI for the Amiga.
+Forja is the development environment of [Dash](https://github.com/FreeMEM/FreeMEMLang) for the Amiga itself. This is
+Forja 0.7:
+
+- an editor with colours, tabs, bookmarks, folding, find in the project and rename;
+- build and run, with the errors marked in the code;
+- a step-by-step debugger, with conditions and variables in a tree;
+- projects (a `.forja` file) and six templates;
+- the whole Dash help, with examples that run;
+- a `.dashui` window editor with real MUI;
+- extensions: Git, the [Inferencia](https://github.com/FreeMEM/inferencia) copilot, Sprites, Mapas and Demos.
 
 This is a test version: it works in the emulator, but it has not been tried on a real Amiga yet. It speaks
 English or Spanish, following the Locale preferences (the English catalog is in `Catalogs/`).
@@ -12,7 +19,7 @@ English or Spanish, following the Locale preferences (the English catalog is in 
 ## Requirements
 
 - AmigaOS 3.0 or later, with a 68020 or better, and MUI 3.8 or 5.
-- Dash 2.3.1 or later for the Amiga: the `dash-X.Y.Z-amiga.lha` package from
+- Dash 2.16.0 or later for the Amiga: the `dash-X.Y.Z-amiga.lha` package from
   [Dash](https://github.com/FreeMEM/dash/releases) has the `dash` command and also Forja and dashgit, and its installer sets
   everything up. Forja looks for the compiler in `ENV:Forja/dashc` (in the preferences, with a button to choose it),
   then `DASH:dash`, then as `dash` in the command path.
@@ -61,29 +68,48 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   | Replace in the project (the list of changes first) | Ctrl Shift H |
   | Rename in the whole project (the list of changes first) | F2 |
   | Fold or unfold the block at the cursor; unfold all | F4; Shift F4 |
+  | Next tab, previous tab and the list of all | Ctrl Tab, Ctrl Shift Tab, Ctrl E |
 
   F8 is still the next error. `ENVARC:Forja/teclas` has one command per line, `command = keys`: for instance
   `duplicar = alt d` or `comentar = nada`. The commands: comentar, duplicar, subir, bajar, borrar_linea, pareja,
   marcador, marcador_siguiente, marcador_anterior, esquema, abrir_fichero, abrir_simbolo, buscar_proyecto,
-  cambiar_proyecto, renombrar, plegar, desplegar_todo. Letters go by their place on an English keyboard (like those of
+  cambiar_proyecto, renombrar, plegar, desplegar_todo, pestana_siguiente, pestana_anterior, pestanas. Letters go by their place on an English keyboard (like those of
   the extensions); a sign (`/`) goes by the character. Whatever is not understood is reported in the output. If the
   file changes while Forja is open, it is read again and the Editor menu shows the new keys.
 - **Theme**: `ENVARC:Forja/tema` changes the colours (`comentario = 120 120 136`: fondo, texto, tenue, acento, error,
   seleccion, cursor..., and the syntax ones: clave, tipo, cadena, numero, comentario, llamada, constante, directiva,
   asm_instruccion, asm_registro, asm_etiqueta) and the font of the code (`fuente = xen.font 8`, fixed width).
-- **Files**: tabs; Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click (folders first, in order); the
-  wheel and its scroll bar move it. It asks when closing with unsaved changes.
+- **Files**: Amiga-N, Amiga-O, Amiga-S, Amiga-W. The left panel opens the files of the drawer with a click (folders
+  first, in order); the wheel and its scroll bar move it. It asks when closing with unsaved changes.
+- **Tabs**: one per file. If two files have the same name, their drawer goes in front (`Cueva/main.dash`). Ctrl Tab
+  goes to the next one and Ctrl Shift Tab to the previous one. If they do not fit, the one in front is always shown
+  and three buttons appear on the right: the arrows move the tabs and the triangle opens the list of all of them. Ctrl
+  E opens that list too; typing filters it and Return goes to the chosen one. The wheel over the tabs moves them.
 - **Find and replace** (Amiga-F) and **go to line** (Amiga-L). With "Regular expression", the text is a regular
   expression (those of Dash's `regex_find`), and in "Replace with", `$1` to `$9` are its groups. "Find in the project"
   and "Replace in the project" do it in every `.dash` and `.dashui` of the project drawer and the ones inside (with the
-  unsaved text of the open ones); before replacing, a tab with each line as it is and as it will be, and a question.
-  Open files change in the editor (Amiga-Z undoes it); the others, on disk.
+  unsaved text of the open ones). Before changing anything, the Changes tab shows each line as it is and as it will
+  be. It stays open so you can read it all, also going to other tabs. In it, Return makes the changes and Esc does
+  not. If the files change meanwhile, nothing is done and it says so. Open files change in the editor (Amiga-Z undoes
+  it); the others, on disk. Rename (F2) works the same way.
 - **Completion**: after two letters a list appears under the cursor with Dash's words, its builtins and the
   project's names (functions, structs, constants, global variables and the function's locals; also those of the
   files it imports). After a dot, the struct's fields and methods, or what lists and strings have. Arrows choose,
   Tab or Return insert, Esc closes; Ctrl+Space shows it with fewer letters. Typing "(" after a function or a builtin
   shows its arguments and description. It can be turned off in Preferences. Help or F1 show that help for the name
   under the cursor (idea by Javier R. Santurde "Tolkien").
+- **Dash help**: Help or F1 on a function or a word of the language opens its whole page in the help window: the
+  signature, the parameters, what it does, an example with colours, "see also" and whether it is in DashOS. A click on
+  a link (or a name in the example) goes to its page; Back and Forward (or Backspace, Alt+arrows) go through what you
+  saw. "Search:" finds words in the whole help (also by how they start), and Index shows the groups of functions and
+  the chapters of the manual. **Try** opens the page's example in a new unnamed tab and runs it. In the Code menu:
+  "Dash help" and "Search the help...". The help is the one in the Dash package (`Dash/Ayuda/Dash_en.ayuda`, in Spanish
+  `Dash.ayuda`, following Forja's language); it is read in pieces, without loading it all.
+- **Errors in the code**: on saving, Forja checks the program with `dash --check` in the background (without slowing
+  the editor) and marks the error on its line: the number in red and the text underlined; the output bar says which
+  one it is and the output lists it, with a click. After a pause while typing (1.5 s) it also checks the unsaved text
+  (Preferences, "Look for errors while typing", turns it off). F8 goes to the next error and Shift+F8 to the previous
+  one. Build errors are marked the same way.
 - **Go to definition** (Amiga-J or Ctrl+click): to the file and line where the name is defined, opening it if
   needed; Amiga-U goes back. **Find uses** (Amiga-H): the list in the output, and a click goes to each place. The
   symbols are read when a file is opened or shown and after a moment without typing (in the Code menu).
@@ -94,11 +120,13 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
 - **Build** (Amiga-K) and **run** (Amiga-E): errors show at the bottom, and a click takes you to the line. The
   output keeps everything written to it: the wheel and its scroll bar go back up. A click picks a line (dragging,
   several) and Amiga-C copies it; the Program menu has "Copy the output" and "Save the output...".
-  In a project of several files, compiling or running from one without `Main` uses the project's program. An error
+  In a project of several files, compiling or running from one without `Main` uses the project's program. A file
+  with its own `Main` inside a project (a test, a tool) is built and run by itself. An error
   of the program while it runs is shown in red, and a click goes to its line. **Stop** ends a program stuck in a
   loop (it needs Dash 2.11.0); if it has a window and does not stop, Forja tells you to close it. Quitting with
   something running stops it first.
-- **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin; F5 continue, F10 step over, F6 step into,
+- **Debug** (Amiga-G or F5): breakpoints with F9 or a click in the margin. They follow their line while typing, and
+  undo puts them back on theirs with their condition. F5 continue, F10 step over, F6 step into,
   F7 step out, with the pointer anywhere in the window, unless a text field or another gadget has the keyboard
   (reported by David Martínez). On the left, the call stack and the
   variables, as a tree: a click on the triangle of a list or a struct expands it (one element or field per line,
@@ -136,7 +164,8 @@ before.
   updates the program's `@version` line) and program icon (copied next to the executable when building). Build: CPU
   (`--cpu`), FPU (`--fpu`), stack (`--stack`), `--memcheck`, `--profile`, `--gcc` (the Amiga's `dash` does not build
   through C) and more options. Run: arguments when running and when debugging.
-- With a project, Build and Run always use its main file, executable and options, whatever file is in front.
+- With a project, Build and Run use its main file, executable and options, whatever file is in front. Only a file
+  with its own `Main` is built by itself (with the project's options).
 
 ### More debugging
 
@@ -199,6 +228,38 @@ again next time with the session.
 
   ![The map editor with a 40 x 20 level](docs/img/mapas.png)
 
+### Demos
+
+The tools for making demos are an extension (`Extensiones/Demos`), with its Demos menu and a window of four pages
+(Amiga-1 to Amiga-4). A `.sync` or a `.mod` of the project also opens it. The Demo template already uses them: it
+brings `sync.dash` (also in `Forja/lib`), some tracks in `demo.sync` and their exported version, `pistas_datos.dash`.
+
+- **Sync tracks**, like Rocket: values that change with the music ("velocidad", "fundido", "escena"), with keys on
+  rows of the music (position × 64 + row) and, from one to the next, step, linear, smooth or ramp. A table with a
+  column per track: the arrows move the cursor (with Shift, 16 at a time), digits and Return set a key, Del removes
+  it, `i` changes its type and `n` makes a track; `r` renames it, Shift+Del removes it and Alt+arrows move it (also in
+  the Pistas menu). Amiga-Z and Amiga-R undo and redo. Amiga-S saves them in the `.sync`.
+  - Several `.sync` files can be open: Tab goes from one to another (Shift+Tab, backwards), each with its cursor and
+    its undo. Project > Close these tracks closes the one in front. The demo only gets the changes of its own `.sync`.
+  - With the demo running (one that uses `sync.dash` with `VIVO = true`), the extension connects by itself: the row
+    playing shows in the table and in Forja's bar, Space pauses and resumes it, `g` takes it to the cursor row, `v`
+    puts its screen in front of or behind Forja's, and every key you change reaches the demo at once.
+  - Amiga-X exports them to `pistas_datos.dash`: tables inside the program. With `VIVO = false`, the final version needs
+    neither the `.sync` nor Forja.
+- **MOD viewer**: the module's patterns with the row playing highlighted. Space plays or stops it; left and right
+  change position. If the demo is running, it follows the demo's. Return puts the sync row (position × 64 + row) in
+  the code and `s` takes the tracks' cursor there.
+- **Copper editor**: gradients and colour changes per line, with the view beside them. Some stops (a line and a
+  12-bit colour): arrows or a click to choose one (in the view or in the list); drag in the view, or Shift or Alt +
+  arrows, to move it; `r` `g` `b` raise each colour (with Shift, lower it), `n` adds, Del removes, `d` switches
+  between gradient and hard changes and `c` the colour register (COLOR00 is the background). Return puts it in the
+  file in front: calls to `copper_*` or (`t`) a table of 256 colours for an `asm` block. If the block is already
+  there, it changes it there; `l` reads it back from the code, and Tab reads the file's next block (with Shift, the
+  previous one). `p` tries it for real on a screen of its own (a click goes back).
+- **Raster meter**: how many screen lines each frame of the demo uses, the last 64 in bars (green up to half a
+  frame, yellow up to three quarters, red above), the average, the maximum and the lost frames. The demo measures
+  between `sync_fotograma()` (after `wait_vblank`) and `sync_fin()`. It works for a game too.
+
 ### Git
 
 Git is an extension (`Extensiones/Git`) that uses [dashgit](https://github.com/FreeMEM/dashgit). **dashgit is in
@@ -222,7 +283,8 @@ Inferencia, the Amiga's AI, is an extension too (`Extensiones/Inferencia`): a sm
 the code and the project in Forja and passes them to [Inferencia](https://github.com/FreeMEM/inferencia) over ARexx.
 In the button bar, on the right, the Inferencia zone (the button that used to be Forja's): a click is "Ask about
 this" (Amiga-I). Its Inferencia menu asks, explains, changes and documents code, writes tests and explains and fixes
-build errors; changes come in a read-only tab, `a` accepts and `r` rejects. Inferencia > Where is Inferencia... says
+build errors; changes come in a read-only tab, `a` accepts and `r` rejects. An accepted test is run at once, and
+what it prints shows in Forja's output. Inferencia > Where is Inferencia... says
 where it is (`ENVARC:Forja/inferencia`).
 
 ### ARexx
@@ -242,7 +304,7 @@ batches): [docs/EXTENSIONES.md](docs/EXTENSIONES.md) (in Spanish). The Git exten
 Separate programs in the `Extensiones` drawer next to Forja that add entries to the Extensiones menu (or a menu of
 their own in the menu bar), keys, marks and bars in the margin, letters in the project panel, a zone in the button bar, a
 text in the bar, read-only tabs, or an editor for a file type with its own window. Git, the Inferencia copilot,
-Sprites and Mapas are extensions. They talk to Forja over ARexx;
+Sprites, Mapas and Demos are extensions. They talk to Forja over ARexx;
 if one crashes or hangs, Forja carries on. Extensiones > Gestor de extensiones... lists them, turns them on or off and
 installs them from a drawer or an `.lha`. The example one, Contar, counts the lines and words of the file and inserts
 the date with Ctrl Alt D. How to write one with `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md). Each
@@ -251,7 +313,7 @@ language (`descripcion.english`, `menu.english`).
 
 ## Build
 
-With Dash 2.3.1: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.3`. The tests run in the
+With Dash 2.16.0: `./dash src/main.dash -o Forja`. The package: `python3 tools/paquete.py 0.7`. The tests run in the
 emulator: [tests/LEEME.md](tests/LEEME.md) (in Spanish).
 
 Written in Dash. MIT license.

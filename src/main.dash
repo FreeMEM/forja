@@ -723,8 +723,16 @@ func compilar(y_ejecutar: Bool)
     elif d.ruta != ""
         tarea_proy = proyecto_de(d.ruta)
     end
+    var aparte: Proyecto = nil
     if tarea_proy != nil and file_exists(pr_principal(tarea_proy))
-        ruta = pr_principal(tarea_proy)
+        if desde == "" and d.ruta != "" and str_ends(str_lower(d.ruta), ".dash") and tiene_main(d.lineas) and str_lower(d.ruta) != str_lower(pr_principal(tarea_proy))
+            # un programa aparte dentro del proyecto, con su Main (una prueba, una herramienta): ese, con las opciones
+            # de compilar del proyecto, pero sin su ejecutable, sus argumentos ni su icono
+            aparte = tarea_proy
+            tarea_proy = nil
+        else
+            ruta = pr_principal(tarea_proy)
+        end
     else
         tarea_proy = nil
     end
@@ -749,6 +757,9 @@ func compilar(y_ejecutar: Bool)
         return
     end
     opciones = pr_opciones(tarea_proy, perfil_pedido, memcheck_pedido)
+    if aparte != nil
+        opciones = pr_opciones(aparte, perfil_pedido, memcheck_pedido)
+    end
     tarea_perfil = str_contains(opciones, "--profile")
     tarea_memcheck = str_contains(opciones, "--memcheck")
     perfil_pedido = false

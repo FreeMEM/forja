@@ -2,17 +2,24 @@
 
 *[English](README.en.md) | Castellano*
 
-Un entorno de desarrollo para [Dash](https://github.com/FreeMEM/FreeMEMLang) que corre en el propio Amiga, con
-fondo negro: editor con colores, compilar y ejecutar, depurador paso a paso y editor de ventanas `.dashui` con MUI
-de verdad. Se entiende por ARexx con [Inferencia](https://github.com/FreeMEM/inferencia), la IA para el Amiga.
+Forja es el entorno de desarrollo de [Dash](https://github.com/FreeMEM/FreeMEMLang) para el propio Amiga. Esto es
+Forja 0.7:
 
-Es una versión de prueba: funciona en el emulador, pero aún no se ha probado en un Amiga de verdad. Habla en
+- un editor con colores, pestañas, marcadores, plegado, buscar en el proyecto y renombrar;
+- compilar y ejecutar, con los errores marcados en el código;
+- un depurador paso a paso, con condiciones y variables en árbol;
+- proyectos (un fichero `.forja`) y seis plantillas;
+- la ayuda de Dash entera, con ejemplos que se ejecutan;
+- un editor de ventanas `.dashui` con MUI de verdad;
+- extensiones: Git, el copiloto de [Inferencia](https://github.com/FreeMEM/inferencia), Sprites, Mapas y Demos.
+
+Es una versión de prueba. Funciona en el emulador, pero aún no se ha probado en un Amiga de verdad. Habla en
 castellano o en inglés, según el idioma de las Preferencias de Locale (el catálogo inglés va en `Catalogs/`).
 
 ## Qué necesita
 
 - AmigaOS 3.0 o mejor, con un 68020 o mejor, y MUI 3.8 o 5.
-- Dash 2.3.1 o posterior para el Amiga: el paquete `dash-X.Y.Z-amiga.lha` de
+- Dash 2.16.0 o posterior para el Amiga: el paquete `dash-X.Y.Z-amiga.lha` de
   [Dash](https://github.com/FreeMEM/dash/releases) trae la orden `dash` y también Forja y dashgit, y su instalador lo deja
   todo listo. Forja busca el compilador en `ENV:Forja/dashc` (en Preferencias, con un botón para elegirlo), si no en
   `DASH:dash` y si no como `dash` en el camino de órdenes.
@@ -62,24 +69,31 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   | Cambiar en el proyecto (antes, la lista de cambios) | Ctrl Mayús H |
   | Renombrar en todo el proyecto (antes, la lista de cambios) | F2 |
   | Plegar o desplegar el bloque del cursor; desplegar todo | F4; Mayús F4 |
+  | Pestaña siguiente, anterior y la lista de todas | Ctrl Tab, Ctrl Mayús Tab, Ctrl E |
 
   F8 sigue siendo el siguiente error. `ENVARC:Forja/teclas` lleva una orden por línea, `orden = teclas`: por ejemplo
   `duplicar = alt d` o `comentar = nada`. Las órdenes: comentar, duplicar, subir, bajar, borrar_linea, pareja,
   marcador, marcador_siguiente, marcador_anterior, esquema, abrir_fichero, abrir_simbolo, buscar_proyecto,
-  cambiar_proyecto, renombrar, plegar, desplegar_todo. Las letras van por su sitio en un teclado inglés (como las de
+  cambiar_proyecto, renombrar, plegar, desplegar_todo, pestana_siguiente, pestana_anterior, pestanas. Las letras van por su sitio en un teclado inglés (como las de
   las extensiones); un signo (`/`) va por el carácter. Lo que no se entiende se dice en la salida. Si el fichero
   cambia con Forja abierta, lo lee otra vez y el menú Editor enseña las teclas nuevas.
 - **Tema**: `ENVARC:Forja/tema` cambia los colores (`comentario = 120 120 136`: fondo, texto, tenue, acento, error,
   seleccion, cursor..., y los de la sintaxis: clave, tipo, cadena, numero, comentario, llamada, constante, directiva,
   asm_instruccion, asm_registro, asm_etiqueta) y la fuente del código (`fuente = xen.font 8`, de letras igual de
   anchas).
-- **Ficheros**: pestañas; Amiga-N, Amiga-O, Amiga-S, Amiga-W. El panel de la izquierda abre los ficheros del cajón
-  con un clic, carpetas primero y en orden; la rueda y su barra lo mueven. Al cerrar con cambios, pregunta.
+- **Ficheros**: Amiga-N, Amiga-O, Amiga-S, Amiga-W. El panel de la izquierda abre los ficheros del cajón con un
+  clic, carpetas primero y en orden; la rueda y su barra lo mueven. Al cerrar con cambios, pregunta.
+- **Pestañas**: una por fichero. Si dos ficheros se llaman igual, llevan delante su cajón (`Cueva/main.dash`). Ctrl
+  Tab va a la siguiente y Ctrl Mayús Tab a la anterior. Si no caben, la de delante siempre se ve y a la derecha salen
+  tres botones: las flechas mueven las pestañas y el triángulo abre la lista de todas. Esa lista también sale con
+  Ctrl E; se filtra escribiendo y Return va a la elegida. La rueda sobre las pestañas también las mueve.
 - **Buscar y cambiar** (Amiga-F) e **ir a la línea** (Amiga-L). Con "Expresión regular", lo buscado es una
   expresión regular (las de `regex_find` de Dash), y en "Cambiar por", `$1` a `$9` son sus grupos. "Buscar en el
   proyecto" y "Cambiar en el proyecto" lo hacen en todos los `.dash` y `.dashui` del cajón del proyecto y los de
-  dentro (con el texto sin guardar de los abiertos); antes de cambiar, una pestaña con cada línea como está y como
-  quedará, y una pregunta. Los ficheros abiertos cambian en el editor (se deshace con Amiga-Z); los demás, en el disco.
+  dentro (con el texto sin guardar de los abiertos). Antes de cambiar nada, sale la pestaña Cambios: cada línea como
+  está y como quedará. Se queda abierta para mirarla entera, también yendo a otras pestañas. En ella, Return hace los
+  cambios y Esc no. Si los ficheros cambian entretanto, no se hace nada y lo dice. Los ficheros abiertos cambian en
+  el editor (se deshace con Amiga-Z); los demás, en el disco. Renombrar (F2) va igual.
 - **Completar**: a partir de dos letras sale una lista bajo el cursor con las palabras de Dash, sus builtins y los
   nombres del proyecto (funciones, structs, constantes, variables globales y las locales de la función; también los
   de lo que importa el fichero). Tras un punto, los campos y métodos del struct, o lo que tienen las listas y los
@@ -110,11 +124,13 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
 - **Compilar** (Amiga-K) y **ejecutar** (Amiga-E): los errores salen abajo, y un clic lleva a su línea. La salida
   guarda todo lo que se ha escrito: la rueda y su barra suben a verlo. Un clic elige una línea (arrastrando, varias) y
   Amiga-C la copia; en el menú Programa, "Copiar la salida" y "Guardar la salida...". En un proyecto de varios
-  ficheros, compilar o ejecutar desde uno que no tiene `Main` lo hace con el programa del proyecto. Un error del
+  ficheros, compilar o ejecutar desde uno que no tiene `Main` lo hace con el programa del proyecto. Un fichero con su
+  propio `Main` dentro de un proyecto (una prueba, una herramienta) se compila y se ejecuta él mismo. Un error del
   programa al ejecutarse sale en rojo, y un clic lleva a su línea. **Parar** acaba un programa que se ha quedado en un
   bucle (necesita Dash 2.11.0); si tiene ventana y no para, Forja avisa de que la cierres. Al salir con algo en
   marcha, lo para antes.
-- **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen; F5 seguir, F10 paso, F6 entrar, F7
+- **Depurar** (Amiga-G o F5): puntos de parada con F9 o un clic en el margen. Siguen a su línea al escribir, y al
+  deshacer vuelven a la suya con su condición. F5 seguir, F10 paso, F6 entrar, F7
   salir, con el puntero en cualquier sitio de la ventana, salvo si un campo de texto u otro gadget tiene el teclado
   (lo contó David Martínez). A la izquierda, la pila y las variables, en árbol: un clic en el triángulo de una lista
   o de un struct lo despliega (un elemento o un campo por línea, con sangría por nivel) y otro lo pliega; lo
@@ -158,8 +174,8 @@ vigilado en el depurador. Sin `.forja`, Forja funciona como antes.
   al compilar). Compilar: CPU (`--cpu`), FPU (`--fpu`), pila (`--stack`), `--memcheck`, `--profile`, `--gcc` (la orden
   `dash` del Amiga no compila por C: solo sirve con un dash que lo haga) y más opciones. Ejecutar: los argumentos al
   ejecutar y al depurar. Sin `.forja`, pregunta si hace uno para el cajón del programa.
-- Con proyecto, Compilar y Ejecutar van siempre con su fichero principal, su ejecutable y sus opciones, esté delante
-  el fichero que esté.
+- Con proyecto, Compilar y Ejecutar van con su fichero principal, su ejecutable y sus opciones, esté delante el
+  fichero que esté. Solo un fichero con su propio `Main` se compila él mismo (con las opciones del proyecto).
 
 ### Depurar más
 
@@ -238,6 +254,9 @@ trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y s
   ponen una clave, Supr la quita, `i` cambia su tipo y `n` hace una pista; `r` le cambia el nombre, Mayúsculas+Supr la
   quita y Alt+flechas la mueven (también en el menú Pistas). Amiga-Z y Amiga-R deshacen y rehacen. Amiga-S las guarda
   en el `.sync`. La tabla va de página en página, como un tracker: con la demo en marcha solo se repinta lo que cambia.
+  - Se pueden tener varios `.sync` abiertos: Tab pasa de uno a otro (Mayúsculas+Tab, al revés), cada uno con su
+    cursor y su deshacer. Proyecto > Cerrar estas pistas cierra el de delante. A la demo solo le llegan los cambios
+    de su `.sync`.
   - Con la demo en marcha (la que usa `sync.dash` con `VIVO = true`), la extensión se conecta sola: la fila que suena
     se ve en la tabla y en la barra de Forja, Espacio la para y la deja seguir, `g` la lleva a la fila del cursor, `v`
     pone su pantalla delante o detrás de la de Forja, y
@@ -253,11 +272,13 @@ trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y s
   `music_*`); izquierda y derecha cambian de posición. Si la demo está en marcha, sigue a la suya. Return mete en el
   código la fila de sincronía (posición × 64 + fila) y `s` lleva el cursor de las pistas allí.
 - **Editor de copper**: degradados y cambios de color por línea, con la vista al lado. Unas paradas (una línea y un
-  color de 12 bits): flechas para elegir, Mayúsculas o Alt + flechas para moverla, `r` `g` `b` suben cada color (con
+  color de 12 bits): flechas o un clic para elegir (en la vista o en la lista); arrastrar en la vista, o Mayúsculas o
+  Alt + flechas, para moverla; `r` `g` `b` suben cada color (con
   Mayúsculas, bajan), `n` añade, Supr quita, `d` cambia entre degradado y cambios secos y `c` el registro de color
   (COLOR00 es el fondo). Return lo pone en el fichero de delante: llamadas a `copper_*` o (`t`) una tabla de 256
-  colores para un bloque `asm`. Si el bloque ya está, lo cambia allí; `l` lo vuelve a leer del código. `p` lo prueba
-  de verdad en una pantalla propia (un clic vuelve).
+  colores para un bloque `asm`. Si el bloque ya está, lo cambia allí; `l` lo vuelve a leer del código, y Tab lee el
+  bloque siguiente del fichero (con Mayúsculas, el anterior). `p` lo prueba de verdad en una pantalla propia (un clic
+  vuelve).
 - **Medidor de raster**: cuántas líneas de la pantalla gasta cada imagen de la demo, con las 64 últimas en barras
   (verde hasta media imagen, amarillo hasta tres cuartos, rojo por encima), la media, el máximo y las imágenes
   perdidas. La demo mide entre `sync_fotograma()` (tras `wait_vblank`) y `sync_fin()`. Vale igual para un juego.
@@ -300,7 +321,8 @@ Inferencia, en la barra de menús:
 - **Explicar la selección**: lo elegido, o la función del cursor; la explicación sale en Inferencia.
 - **Cambiar el código...** (Ctrl Alt C): dices qué cambiar en lo elegido (o en la función del cursor).
 - **Documentar la función**: un comentario encima de la función del cursor.
-- **Escribir la prueba**: un programa de prueba para la función del cursor, en un fichero nuevo `prueba_x.dash`.
+- **Escribir la prueba**: un programa de prueba para la función del cursor, en un fichero nuevo `prueba_x.dash`. Al
+  aceptarla, Forja la ejecuta y lo que dice sale en la salida.
 - **Explicar el error** (Ctrl Alt E) y **Arreglar el error** (Ctrl Alt F): el primer error de la última compilación;
   si no la hay, compila antes.
 - **Sugerencias al escribir**: apagadas al empezar. Encendidas, al parar al final de una línea Inferencia propone
@@ -341,7 +363,7 @@ una puede llevar su catálogo (`Catalogs/english/X.catalog` en su cajón) y su m
 
 ## Compilar
 
-Con Dash 2.3.1: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.3`. Las pruebas, en el
+Con Dash 2.16.0: `./dash src/main.dash -o Forja`. El paquete: `python3 tools/paquete.py 0.7`. Las pruebas, en el
 emulador: [tests/LEEME.md](tests/LEEME.md).
 
 Escrito en Dash. Licencia MIT.
