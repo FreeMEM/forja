@@ -51,7 +51,8 @@
             { "separator": true },
             { "tr": 910, "label": "Vigilar una expresión...", "event": 266 },
             { "tr": 911, "label": "Ver los registros", "event": 267 },
-            { "tr": 912, "label": "Ver la memoria...", "event": 268 }
+            { "tr": 912, "label": "Ver la memoria...", "event": 268 },
+            { "tr": 1025, "label": "Cambiar valor...", "event": 271 }
           ]
         },
         {
@@ -403,7 +404,9 @@
                   { "type": "label", "tr": 943, "text": "Por C con gcc (--gcc):", "color": [220, 220, 210] },
                   { "type": "checkbox", "name": "gcc", "checked": false },
                   { "type": "label", "tr": 944, "text": "Más opciones:", "color": [220, 220, 210] },
-                  { "type": "string", "name": "opciones", "text": "", "max": 200 }
+                  { "type": "string", "name": "opciones", "text": "", "max": 200 },
+                  { "type": "label", "tr": 1016, "text": "Tamaño máximo en bytes (0: sin tope):", "color": [220, 220, 210] },
+                  { "type": "string", "name": "tope", "text": "", "max": 10 }
                 ]
               },
               {

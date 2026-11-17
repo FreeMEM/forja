@@ -64,6 +64,11 @@ def main():
     (caj / "LEEME.info").write_bytes(situar(info(documento(), WBPROJECT, herramienta="SYS:Utilities/MultiView"), 90, 6))
     (caj / "README.info").write_bytes(situar(info(documento(), WBPROJECT, herramienta="SYS:Utilities/MultiView"), 160, 6))
     shutil.copy(raiz / "LICENSE", caj / "LICENSE")
+    # la imagen del icono de los .forja (Forja la copia con icon_save y le pone su herramienta)
+    sys.path.insert(0, str(raiz / "tools"))
+    from plantillas import icono_proyecto
+    (caj / "Iconos").mkdir()
+    (caj / "Iconos" / "proyecto.info").write_bytes(icono_proyecto())
     # las extensiones (extensiones/<X>/: su manifiesto y su programa) en Forja/Extensiones/<X>/; git es una de ellas,
     # y lib/forja.dash para escribir más. Contar es el ejemplo: va en el repositorio, no en el paquete
     for d in sorted((raiz / "extensiones").iterdir()):

@@ -48,6 +48,7 @@ Main
     p.argumentos = "nivel=2 \"con espacio\""
     p.version = "0.3"
     p.icono = "Cueva.info"
+    p.tope = 65536
     p.nombre = "La cueva ñ"
     p.vigilar.push("naves.length")
     pr_puntos.push(PuntoProy("RAM:Cueva/main.dash", 20, "i > 3", "% 2"))
@@ -69,6 +70,7 @@ Main
     igual("cpu", q.cpu, "68020")
     ver("fpu y memcheck", q.fpu and q.memcheck and not q.perfil and not q.gcc)
     igual("pila", "#{q.pila}", "32768")
+    igual("tope", "#{q.tope}", "65536")
     igual("argumentos", q.argumentos, "nivel=2 \"con espacio\"")
     igual("vigilar", str_join(q.vigilar, "|"), "naves.length")
     igual("puntos: los del cajón se cambian, los de fuera se quedan", "#{pr_puntos.length}", "3")

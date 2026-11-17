@@ -587,6 +587,10 @@ func aceptar()
         quitar_vista()
         forja_abrir(c_ruta, 1)
         forja_aviso_tipo(tr(6, "Inferencia: ") + hueco(tr(46, "escrito %1."), c_ruta), 2)
+        # y se ejecuta (la prueba es un programa con su Main): lo que dice sale en la salida de Forja
+        if c_tipo == "prueba" and not forja_compilar("", true)
+            forja_aviso_tipo(tr(6, "Inferencia: ") + tr(77, "Forja está ocupada: ejecuta la prueba tú (Amiga-E)."), 1)
+        end
         zona_al_dia()
         return
     end

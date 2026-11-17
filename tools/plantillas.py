@@ -29,7 +29,8 @@ def literal_partido(texto: str) -> str:
 
 
 def icono_proyecto() -> bytes:
-    """El icono de un .forja: un documento con el yunque de Forja (sin herramienta: la pone Forja, su ruta)"""
+    """El icono de un .forja: un documento con el yunque de Forja (sin herramienta: la pone Forja, su ruta, con
+    icon_save). tools/paquete.py lo pone en Forja/Iconos/proyecto.info"""
     sys.path.insert(0, str(raiz / "tools"))
     from iconos_wb import Lienzo, info, NEGRO, BLANCO, AZUL, WBPROJECT
     l = Lienzo(30, 22)
@@ -70,11 +71,7 @@ def generar() -> str:
             out.append(f'    {"if" if primero else "elif"} tipo == "{t}" and fichero == "{p.name}"')
             out.append("        return " + literal_partido(texto))
             primero = False
-    out += ["    end", '    return ""', "end", "",
-            "# El icono de un .forja (un .info de proyecto sin herramienta), en hexadecimal",
-            "func pl_icono_hex() -> String",
-            '    return "' + icono_proyecto().hex() + '"',
-            "end", ""]
+    out += ["    end", '    return ""', "end", ""]
     return "\n".join(out)
 
 

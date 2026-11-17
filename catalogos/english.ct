@@ -884,15 +884,6 @@ MSG_840
 MSG_841
 Changes
 ; Cambios
-MSG_842
-Replace in the project
-; Cambiar en el proyecto
-MSG_843
-Shall I make these %1 changes in %2 files?\n\nThe open files change in the editor (not saved; they can be undone).\nThe others are saved to disk.
-; ¿Hago estos %1 cambios en %2 ficheros?\n\nLos ficheros abiertos cambian en el editor (sin guardar; se pueden deshacer).\nLos demás se guardan en el disco.
-MSG_844
-_Change|C_ancel
-; _Cambiar|C_ancelar
 MSG_845
 I could not write %1.
 ; No he podido escribir %1.
@@ -1220,3 +1211,60 @@ The window %1 cannot be opened.
 MSG_1006
 Editor keys read again (ENVARC:Forja/teclas).
 ; Teclas del editor leídas otra vez (ENVARC:Forja/teclas).
+MSG_1007
+Next tab
+; Pestaña siguiente
+MSG_1008
+Previous tab
+; Pestaña anterior
+MSG_1009
+List of tabs...
+; Lista de pestañas...
+MSG_1010
+Tabs (%1)
+; Pestañas (%1)
+MSG_1011
+Return: make these changes. Esc: do not make them.
+; Return: hacer estos cambios. Esc: no hacerlos.
+MSG_1012
+Look at the changes in their tab: Return makes them, Esc does not.
+; Mira los cambios en su pestaña: Return los hace, Esc no.
+MSG_1013
+Nothing changed.
+; Sin cambiar nada.
+MSG_1014
+The files have changed since the list: nothing changed. Search or rename again.
+; Los ficheros han cambiado desde la lista: no cambio nada. Vuelve a buscar o a renombrar.
+MSG_1015
+Open files change in the editor (not saved; they can be undone); the others, on disk.
+; Los abiertos cambian en el editor (sin guardar; se pueden deshacer); los demás, en el disco.
+MSG_1016
+Maximum size in bytes (0: no limit):
+; Tamaño máximo en bytes (0: sin tope):
+MSG_1017
+%1 bytes
+; %1 bytes
+MSG_1018
+%1 is %2 bytes: %3 over the project limit.
+; %1 pesa %2 bytes: %3 más que el tope del proyecto.
+MSG_1019
+To change a value, the program has to be stopped in the debugger.
+; Para cambiar un valor, el programa tiene que estar parado en el depurador.
+MSG_1020
+Change the value
+; Cambiar el valor
+MSG_1021
+name = value: an Int, Char, Bool, Fixed or Float (x = 3, alive = false, v = 1.5).
+; nombre = valor: un Int, Char, Bool, Fixed o Float (x = 3, vivo = false, v = 1.5).
+MSG_1022
+Write name = value.
+; Escribe nombre = valor.
+MSG_1023
+%1 cannot be changed: %2
+; No se puede cambiar %1: %2
+MSG_1024
+%1 is now %2.
+; %1 vale ahora %2.
+MSG_1025
+Change value...
+; Cambiar valor...

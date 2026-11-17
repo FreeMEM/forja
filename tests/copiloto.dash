@@ -245,6 +245,19 @@ Main
         ver("se escribe y se abre", esperar("libre", 100) and file_exists(PRUEBA) and rexx("ABIERTO \"" + PRUEBA + "\"") == "1", rexx("ABIERTOS"))
         t = file_read_text(PRUEBA)
         ver("con lo que dio el modelo", t != nil and str_starts(t, "# Prueba de saludo\n"), "")
+        if env_get("Forja/dashc") != ""
+            # y Forja la ejecuta: lo que escribe sale en la salida
+            n = 0
+            while n < 600 and not str_contains(rexx("SALIDA"), "bien: saludo")
+                time_delay(5)
+                n = n + 1
+            end
+            ver("y se ejecuta: su salida, en Forja", str_contains(rexx("SALIDA"), "bien: saludo"), rexx("SALIDA"))
+            while n < 600 and rexx("ESTADO") != "libre"
+                time_delay(5)
+                n = n + 1
+            end
+        end
 
         # --- Los errores de compilar (con dashc) ---
         if env_get("Forja/dashc") != ""

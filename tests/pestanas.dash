@@ -1,0 +1,248 @@
+# Las pestañas que no caben, como un usuario: abre 12 ficheros de nombre largo (en 640 de ancho no caben), mira que
+# la de delante se vea y que salgan los botones de la derecha; mueve las pestañas con ellos, cambia de pestaña con un
+# clic, con Ctrl Tab y Ctrl Mayús Tab, y elige una en la lista de todas (el botón de la lista y Ctrl E). Guarda
+# capturas (las hace el propio Amiga). Lo arranca tests/pestanas.sh; anota en DH0:Prueba/pestanas.txt.
+
+const FORJA = "FORJA.1"
+const CAJON = "DH0:Prueba/pestanas/"
+const RETURN = 0x44
+const TAB = 0x42
+const ESC = 0x45
+const MAYUS = 1
+const CTRL = 2
+const TOTAL = 12
+
+var fallos: Int = 0
+var registro: String = ""
+var nombres: [String] = []
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/pestanas.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func rexx(orden: String) -> String
+    return rexx_send(FORJA, orden)
+end
+
+func activar(titulo: String) -> Bool
+    n = 0
+    while n < 40 and input_active_title() != titulo
+        w = window_find(titulo)
+        if w != 0
+            window_found_activate(w)
+        end
+        time_delay(5)
+        n = n + 1
+    end
+    return input_active_title() == titulo
+end
+
+func campo(nombre: String, i: Int) -> Int
+    p = str_split(env_get(nombre), " ")
+    if i >= p.length
+        return 0
+    end
+    return Int(p[i])
+end
+
+func al_editor() -> Bool
+    if not activar("Forja")
+        return false
+    end
+    input_move(campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2) / 2, campo("FORJA_EDITOR", 1) + campo("FORJA_EDITOR", 3) / 2)
+    time_delay(5)
+    return true
+end
+
+func activo() -> String
+    a = str_split(rexx("ACTIVO"), "\n")
+    if a.length < 2
+        return ""
+    end
+    return a[1]
+end
+
+# Espera (hasta 4 s) a que la pestaña de delante se llame así
+func esperar_activo(nombre: String) -> Bool
+    n = 0
+    while n < 40
+        if activo() == nombre
+            return true
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return false
+end
+
+# Las pestañas como las publica la sonda: "x,y" de cada una ("-1,-1" si no se ve) y "botones:x,y" al final
+func pestanas() -> [String]
+    return str_split(env_get("FORJA_PESTANAS"), " ")
+end
+
+func se_ve(i: Int) -> Bool
+    p = pestanas()
+    return i < p.length and p[i] != "-1,-1" and not str_starts(p[i], "botones:")
+end
+
+# El centro del botón b (0 izquierda, 1 derecha, 2 la lista); x -1 si no hay botones
+func boton(b: Int) -> [Int]
+    for t in pestanas()
+        if str_starts(t, "botones:")
+            xy = str_split(t[8:], ",")
+            return [Int(xy[0]) + b * 16, Int(xy[1])]
+        end
+    end
+    return [-1, -1]
+end
+
+func clic_boton(b: Int)
+    xy = boton(b)
+    activar("Forja")
+    input_click(xy[0], xy[1], 0)
+    time_delay(15)
+end
+
+func clic_pestana(i: Int)
+    xy = str_split(pestanas()[i], ",")
+    activar("Forja")
+    input_click(Int(xy[0]), Int(xy[1]), 0)
+    time_delay(15)
+end
+
+func ocultas() -> Int
+    p = str_split(env_get("FORJA_PESTANAS_NOMBRES"), "|")
+    return Int(p[p.length - 1])
+end
+
+func rapida() -> String
+    return env_get("FORJA_RAPIDA")
+end
+
+func esperar_rapida(elegida: String) -> String
+    n = 0
+    while n < 40 and not str_ends(rapida(), " " + elegida)
+        time_delay(5)
+        n = n + 1
+    end
+    return rapida()
+end
+
+Main
+    # los ficheros: main.dash y 11 módulos de nombre largo
+    dir_create("DH0:Prueba/pestanas")
+    nombres.push("main.dash")
+    file_write_text(CAJON + "main.dash", "Main\n    Print \"hola\"\nend\n")
+    k = 1
+    while k < TOTAL
+        n = "modulo_de_prueba_"
+        if k < 10
+            n = n + "0"
+        end
+        n = n + "#{k}.dash"
+        nombres.push(n)
+        file_write_text(CAJON + n, "func f#{k}() -> Int\n    return #{k}\nend\n")
+        k = k + 1
+    end
+    run_command("Run >NIL: DH0:Dash/Forja/Forja")
+    n = 0
+    while n < 600 and rexx("ESTADO") != "libre"
+        time_delay(10)
+        n = n + 1
+    end
+    ver("Forja contesta", n < 600, "")
+    n = 0
+    while n < 200 and env_get("FORJA_EDITOR") == ""
+        time_delay(5)
+        n = n + 1
+    end
+    anotar("editor: " + env_get("FORJA_EDITOR"))
+    for f in nombres
+        rexx("ABRIR " + CAJON + f)
+    end
+    ver("abiertos los 12, delante el último", esperar_activo(nombres[TOTAL - 1]), activo())
+    time_delay(30)
+    p = pestanas()
+    anotar("pestañas: " + env_get("FORJA_PESTANAS"))
+    ver("no caben: botones a la derecha", boton(0)[0] > 0, env_get("FORJA_PESTANAS"))
+    ver("la de delante se ve", se_ve(TOTAL - 1), env_get("FORJA_PESTANAS"))
+    ver("la primera no se ve", not se_ve(0) and ocultas() > 0, env_get("FORJA_PESTANAS_NOMBRES"))
+    ver("ningún botón se sale de la ventana", boton(2)[0] < campo("FORJA_EDITOR", 0) + campo("FORJA_EDITOR", 2), "#{boton(2)[0]} " + env_get("FORJA_EDITOR"))
+    screen_save_png("DH0:Prueba/pestanas-botones.png")
+
+    # el botón de la izquierda las mueve hasta la primera
+    n = 0
+    while n < TOTAL and not se_ve(0)
+        clic_boton(0)
+        n = n + 1
+    end
+    ver("el botón de la izquierda las mueve hasta ver la primera (#{n} clics)", se_ve(0), env_get("FORJA_PESTANAS"))
+    ver("sin cambiar la de delante", activo() == nombres[TOTAL - 1], activo())
+    clic_boton(1)
+    ver("el de la derecha, otra vez a la derecha", not se_ve(0), env_get("FORJA_PESTANAS"))
+    clic_boton(0)
+    clic_pestana(0)
+    ver("un clic en la primera la pone delante", esperar_activo("main.dash"), activo())
+    al_editor()
+    input_key(TAB, CTRL)
+    ver("Ctrl Tab: la siguiente", esperar_activo(nombres[1]), activo())
+    input_key(TAB, CTRL + MAYUS)
+    ver("Ctrl Mayús Tab: la anterior", esperar_activo("main.dash"), activo())
+    input_key(TAB, CTRL + MAYUS)
+    ver("y da la vuelta: la última", esperar_activo(nombres[TOTAL - 1]), activo())
+    time_delay(20)
+    ver("que se ve", se_ve(TOTAL - 1) and not se_ve(0), env_get("FORJA_PESTANAS"))
+
+    # la lista de todas: el botón, filtrar y Return
+    clic_boton(2)
+    r = esperar_rapida(nombres[TOTAL - 1])
+    ver("el botón de la lista: todas, con la de delante elegida", str_starts(r, "5 12 12 "), r)
+    time_delay(20)
+    screen_save_png("DH0:Prueba/pestanas-lista.png")
+    al_editor()
+    input_text("03")
+    r = esperar_rapida(nombres[3])
+    ver("se filtra escribiendo", str_starts(r, "5 1 12 "), r)
+    input_key(RETURN, 0)
+    ver("Return la pone delante", esperar_activo(nombres[3]), activo())
+    time_delay(20)
+    ver("y se ve", se_ve(3), env_get("FORJA_PESTANAS"))
+    input_key(0x12, CTRL)
+    r = esperar_rapida(nombres[3])
+    ver("Ctrl E también la abre", str_starts(r, "5 12 12 "), r)
+    input_key(ESC, 0)
+    n = 0
+    while n < 20 and rapida() != "0"
+        time_delay(5)
+        n = n + 1
+    end
+    ver("Esc la cierra", rapida() == "0" and activo() == nombres[3], rapida() + " " + activo())
+    # cerrar pestañas hasta que caben (quedan main.dash y el 03): los botones se van
+    for k in [11, 10, 9, 8, 7, 6, 5, 4, 2, 1]
+        rexx("ABRIR " + CAJON + nombres[k])
+        esperar_activo(nombres[k])
+        al_editor()
+        input_key(0x11, 8)
+        time_delay(10)
+    end
+    time_delay(30)
+    ver("cerradas 10: caben las dos, sin botones", boton(0)[0] < 0 and se_ve(0) and se_ve(1) and pestanas().length == 2, env_get("FORJA_PESTANAS"))
+    screen_save_png("DH0:Prueba/pestanas-caben.png")
+
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar("Forja")
+    al_editor()
+    input_key(0x10, 8)
+end

@@ -98,6 +98,20 @@ func comprobar(paso: String, a: Int, b: Int, esperado: String)
     ver(paso, t == esperado, t)
 end
 
+# Espera (hasta 4 s) a que la pestaña de delante se llame así
+func esperar_activo(nombre: String) -> Bool
+    n = 0
+    while n < 40
+        a = str_split(rexx("ACTIVO"), "\n")
+        if a.length > 1 and a[1] == nombre
+            return true
+        end
+        time_delay(10)
+        n = n + 1
+    end
+    return false
+end
+
 func cursor() -> String
     time_delay(10)
     return rexx("CURSOR")
@@ -170,8 +184,13 @@ end
 func evento(ev: Int)
     env_set("FORJA_EVENTO", "#{ev}", false)
     al_editor()
-    input_key(0x45, 0)
-    time_delay(10)
+    # (activar la ventana ya es un evento, y Forja mira FORJA_EVENTO con él: el Esc, solo si hace falta; si no, cerraría
+    # lo que se acaba de abrir, como la lista de cambios)
+    time_delay(15)
+    if env_get("FORJA_EVENTO") != ""
+        input_key(0x45, 0)
+        time_delay(10)
+    end
 end
 
 func rapida() -> String
@@ -290,10 +309,30 @@ Main
     evento(163)
     time_delay(60)
     screen_save_png("DH0:Prueba/editor-cambios.png")
-    ver("antes de preguntar, nada cambiado", str_contains(lineas(22, 22), "salir"), lineas(22, 22))
-    ver("la pregunta", activar("Cambiar en el proyecto"), input_active_title())
-    input_key(0x33, 0)
-    comprobar("cambiado en el editor tras decir que sí", 22, 22, "    return fuera")
+    ver("antes de contestar, nada cambiado", str_contains(lineas(22, 22), "salir"), lineas(22, 22))
+    # la lista de cambios es una pestaña que se queda abierta: se puede mirar (y cambiar de pestaña) antes de contestar
+    ver("la lista de cambios, en su pestaña", esperar_activo("Cambios"), rexx("ACTIVO"))
+    al_editor()
+    input_key(ABAJO, 0)
+    input_key(ABAJO, 0)
+    input_key(ABAJO, 0)
+    ver("se mueve por ella", str_starts(cursor(), "4 "), rexx("CURSOR"))
+    input_key(0x45, 0)
+    ver("Esc la cierra sin cambiar nada", esperar_activo("main.dash") and str_contains(lineas(22, 22), "salir"), rexx("ACTIVO") + " / " + lineas(22, 22))
+    input_key(0x25, CTRL + MAYUS)
+    time_delay(30)
+    evento(163)
+    ver("otra vez la lista", esperar_activo("Cambios"), rexx("ACTIVO"))
+    rexx("ABRIR " + MAIN)
+    ver("se puede ir a otra pestaña", esperar_activo("main.dash"), rexx("ACTIVO"))
+    ver("y la lista sigue abierta", str_contains(env_get("FORJA_PESTANAS_NOMBRES"), "Cambios"), env_get("FORJA_PESTANAS_NOMBRES"))
+    al_editor()
+    input_key(0x42, CTRL)
+    ver("Ctrl Tab vuelve a ella (la pestaña siguiente)", esperar_activo("Cambios"), rexx("ACTIVO"))
+    al_editor()
+    input_key(RETURN, 0)
+    comprobar("cambiado en el editor tras Return en la lista", 22, 22, "    return fuera")
+    ver("y la lista se cierra", esperar_activo("main.dash"), rexx("ACTIVO"))
     ver("sin guardar", str_contains(leer(MAIN), "return salir"), "")
     al_editor()
     input_key(0x31, AMIGA)
@@ -377,8 +416,9 @@ Main
     input_key(RETURN, 0)
     time_delay(60)
     screen_save_png("DH0:Prueba/editor-renombrar.png")
-    ver("la pregunta", activar("Cambiar en el proyecto"), input_active_title())
-    input_key(0x33, 0)
+    ver("la lista de cambios de renombrar", esperar_activo("Cambios"), rexx("ACTIVO"))
+    al_editor()
+    input_key(RETURN, 0)
     comprobar("renombrado en main.dash (abierto)", 28, 28, "        poke_byte(tabla + i, dos_veces(i) / 4)")
     u = rexx("TEXTO DH0:Prueba/editor/util.dash")
     ver("y en util.dash (abierto en su pestaña, sin guardar)", str_contains(u, "func dos_veces(x: Int)") and str_contains(leer("DH0:Prueba/editor/util.dash"), "func doble("), u)

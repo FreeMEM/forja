@@ -26,10 +26,13 @@ const TC_CAMBIAR_PROYECTO = 14
 const TC_RENOMBRAR = 15
 const TC_PLEGAR = 16
 const TC_DESPLEGAR_TODO = 17
-const TC_TOTAL = 18
+const TC_PESTANA_SIGUIENTE = 18
+const TC_PESTANA_ANTERIOR = 19
+const TC_PESTANAS = 20
+const TC_TOTAL = 21
 
-var _tc_nombres: [String] = ["", "comentar", "duplicar", "subir", "bajar", "borrar_linea", "pareja", "marcador", "marcador_siguiente", "marcador_anterior", "esquema", "abrir_fichero", "abrir_simbolo", "buscar_proyecto", "cambiar_proyecto", "renombrar", "plegar", "desplegar_todo"]
-var _tc_defecto: [String] = ["", "ctrl /", "ctrl d", "ctrl alt arriba", "ctrl alt abajo", "ctrl shift k", "ctrl m", "ctrl f3", "f3", "shift f3", "ctrl o", "ctrl p", "ctrl t", "ctrl shift f", "ctrl shift h", "f2", "f4", "shift f4"]
+var _tc_nombres: [String] = ["", "comentar", "duplicar", "subir", "bajar", "borrar_linea", "pareja", "marcador", "marcador_siguiente", "marcador_anterior", "esquema", "abrir_fichero", "abrir_simbolo", "buscar_proyecto", "cambiar_proyecto", "renombrar", "plegar", "desplegar_todo", "pestana_siguiente", "pestana_anterior", "pestanas"]
+var _tc_defecto: [String] = ["", "ctrl /", "ctrl d", "ctrl alt arriba", "ctrl alt abajo", "ctrl shift k", "ctrl m", "ctrl f3", "f3", "shift f3", "ctrl o", "ctrl p", "ctrl t", "ctrl shift f", "ctrl shift h", "f2", "f4", "shift f4", "ctrl tab", "ctrl shift tab", "ctrl e"]
 var _tc_teclas: [String] = []     # lo que dice cada orden ("ctrl d")
 var _tc_codigo: [Int] = []        # la tecla en bruto (-1: un signo, o ninguna)
 var _tc_letra: [String] = []      # el signo ("" si va por la tecla en bruto)

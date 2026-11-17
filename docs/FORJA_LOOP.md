@@ -589,3 +589,70 @@ VS Code.
     - Los de antes (no se ha mirado si ya están): `music_seek`, `music_tick`/`music_speed`, `music_playing`, `beam_line` y `vblank_count`,
       PAL/NTSC, listas de copper cambiables ya instaladas, capturas con el copper, esperar un clic sin ventana; `.has`
       de las listas en el directo; `cx_wait` con el puerto ARexx; `rexx_send` con tiempo de espera.
+
+- 2026-11-17, rama `remate`: **los últimos pendientes de Forja** de las listas de "falta".
+  - **Pestañas que no caben** (`src/editor.dash`): la de delante siempre se ve (si cambia, las pestañas se mueven
+    hasta ella) y a la derecha salen tres botones: mover a la izquierda, a la derecha y la lista de todas. La rueda
+    sobre las pestañas también las mueve. Órdenes nuevas del editor (y en el menú Editor, cambiables en
+    `ENVARC:Forja/teclas`): `pestana_siguiente` (Ctrl Tab), `pestana_anterior` (Ctrl Mayús Tab) y `pestanas` (Ctrl
+    E, la lista: la lista rápida con las abiertas, que se filtra escribiendo). Probado en 640 de ancho con 12 ficheros
+    de nombre largo (`tests/pestanas.sh`).
+  - La lista rápida usaba `LR_FILAS` (12) para saber si la elegida se veía y un ancho que no cabía en un editor
+    estrecho: en 640x256 el nombre y el detalle se pisaban y la elegida quedaba fuera. Ahora, con las filas y el ancho
+    que caben de verdad (el detalle se corta por delante: `../pestanas/`).
+  - **La lista de cambios** de cambiar en el proyecto y renombrar ya no es una pregunta modal (no dejaba mirar la
+    lista): la pestaña Cambios (`*cambios`) se queda abierta y se contesta en ella, Return hace los cambios y Esc no
+    (o se cierra). Se puede ir a otras pestañas y volver. Antes de cambiar, mira que las líneas sigan como en la lista
+    (`bp_al_dia`); si no, no cambia nada y lo dice.
+  - **Los puntos de parada vuelven a su línea al deshacer** un cambio de varias líneas, como los marcadores: el
+    `Cambio` apunta los puntos de las líneas quitadas (`puntos`, y cuál pasó a la primera, `punto_junto`). Al volver a
+    meterlas, el que se quedó vuelve a su sitio (main le lleva la condición) y los que se fueron vuelven como nuevos
+    (`puntos_antes` -1): main los saca de su papelera (`puntos_papelera`, los que se fueron con su línea, 64 como
+    mucho) con su condición y su contador.
+  - **Demos**: varios `.sync` abiertos a la vez (`SyncFichero`: el de delante vive en `sync_pistas`, los demás en
+    texto con su cursor y su deshacer). Tab y Mayúsculas+Tab pasan de uno a otro, Proyecto > Cerrar estas pistas
+    cierra el de delante, al salir pregunta por cada uno con cambios, y la sesión y Forja (`SINGUARDAR`, `EDITANDO`)
+    los saben todos. A la demo solo le llegan los cambios de su `.sync` (`mandar_pistas`); si se conecta con uno que no
+    está abierto, se abre detrás. El copper: un clic en la lista elige la parada, arrastrar en la vista la mueve, y Tab
+    lee el bloque de copper siguiente del fichero (Mayúsculas+Tab, el anterior).
+  - **Un fichero con su `Main` dentro de un proyecto** (una prueba, una herramienta) se compila y se ejecuta él mismo
+    (con las opciones de compilar del proyecto, sin su ejecutable ni sus argumentos); antes, Compilar y Ejecutar iban
+    siempre al principal. Con eso, **el copiloto ejecuta la prueba que escribe** al aceptarla (su salida, en la de
+    Forja).
+  - **Tope de tamaño** del ejecutable en el proyecto (`tope` en el `.forja`, en Propiedades > Compilar): al compilar,
+    Forja dice lo que pesa el ejecutable y avisa si pasa del tope (para intros de 4 y 64 KB).
+  - README en castellano e inglés como es Forja 0.7 (el inglés no tenía la ayuda de Dash, los errores marcados ni
+    Demos). Forja no tiene otra ayuda propia: el paquete lleva los README como `LEEME` y `README`.
+  - De Dash PR #190 (llegó durante el remate): **Depurar > Cambiar valor...** con `dbg_set` (la variable del último
+    clic en el panel, también lo vigilado, o la del cursor; "nombre = valor" en la pregunta de la lista rápida; lo que
+    no se puede cambiar se dice con el porqué de Dash), y **el icono de los `.forja` con `icon_save`** en lugar del
+    `.info` escrito a mano en hexadecimal: la imagen del yunque va en el paquete (`Forja/Iconos/proyecto.info`, de
+    `tools/plantillas.py`), y Forja le pone su ruta como herramienta; sin ella, el icono de proyecto del sistema.
+  - **Pruebas** (FS-UAE). En MUI 5 (A1200, 3.1), TODO BIEN: teclas, ficheros, completar, codigo_base, compilar,
+    salida, botones, clic, proyecto, grande, errores, parar, salir, sesion, rexx, diseno, depurar, arbol,
+    depurar_ventana, buscar, pantalla, extensiones_base, extensiones, ayuda_base, ayuda, editor_base, editor, pestanas
+    (nueva), memoria (nada y todas), proyecto_base, forja_proyecto, plantillas, depurar_mas, perfil, demos_base,
+    demos_forja, git_panel, git_panel_coffin, sprites_todas (las 13), mapas_base, mapas_forja, nuevo; bajo `flock`, git,
+    actualizar y copiloto. En MUI 3.8 (`sys32rtg38`, RTG), TODO BIEN: extensiones, editor, pestanas, ayuda, sprites,
+    mapas_forja, demos_forja, forja_proyecto, depurar_mas, perfil y copiloto. `tests/coffin.sh` en la máquina CoffinOS: TODO BIEN.
+  - **`memoria.sh` con git falla** por poco: compilando, 5,7 MB de fast con un tope de 5,6. Falla igual con la Forja
+    de `main` (5,69 MB) y el Dash de hoy (PR #190, compiladores rehechos): no es del remate. Hace falta mirar si el
+    dash del Amiga gasta más al compilar (unos 2,07 MB frente a 1,9) o subir el tope.
+  - Las pruebas que cambian de pestaña con un clic (`proyecto`, `sesion`) usan la flecha de los botones si la
+    pestaña no se ve; `sesion` ya no cuenta "botones:" como una pestaña.
+  - **El arrastre del copper** solo se ha visto en MUI 3.8 (la parada se mueve con el primer movimiento; el suceso
+    de soltar no llega). En MUI 5, `input_drag` no da ningún suceso de arrastre en el lienzo de Demos (con búfer): la
+    prueba lo dice y no lo mira. Falta probarlo con el ratón de verdad.
+  - **Falta en Forja**: teclas de las extensiones fuera del editor; paneles dentro de la ventana; probar instalar un
+    `.lha` (el emulador no tiene `C:LhA`). En Demos: el copper cambia un registro por bloque y no llega en vivo a la
+    demo; el medidor no separa partes (lógica, dibujo); Shrinkler; línea de tiempo de partes. En el copiloto: la
+    sugerencia es de una línea; probarlo contra un modelo de verdad y en un Amiga de verdad.
+  - **Falta en Dash** (apuntado, sin rodeos con `@native`):
+    - `input_drag` sobre un lienzo con `mui_canvas_buffered` (el de Demos): en MUI 5 no llega ningún suceso de
+      arrastre; en MUI 3.8, solo el primer movimiento, sin el de soltar. En Sprites (sin búfer) sí llegan. Por mirar si
+      es del directo (`dashc/runtime`) o de `input_drag`.
+    - `tools/paquete_amiga.py` de Dash mete Forja en el paquete: debería llevar también `Forja/Iconos/proyecto.info`
+      (de `tools/plantillas.py` de Forja); sin él, los `.forja` nuevos salen con el icono de proyecto del sistema.
+    - Los de la lista de `pulido` siguen: `music_seek`, `music_tick`/`music_speed`, `music_playing`, `beam_line`,
+      `vblank_count`, `mui_post_event`, `env_get` de varias líneas, `mui_menu_separator` que devuelva su objeto.
+

@@ -344,7 +344,27 @@ Main
     ed_borrar_lineas(d)
     ver("puntos: borrar la línea de uno con otro debajo: se queda uno", d.puntos.length == 1 and tiene_punto(d, 4) and ed_puntos_movidos(d) and ed_movidos_antes.length == 1 and ed_movidos_ahora[0] == 4)
     ed_deshacer(d)
+    # deshacer: los dos, cada uno en su línea; el que se fue vuelve como nuevo (antes -1: main lo saca de su papelera)
+    ver("puntos: deshacer borrar líneas, cada uno en su línea", d.puntos.length == 2 and tiene_punto(d, 4) and tiene_punto(d, 5) and ed_puntos_movidos(d) and ed_movidos_antes.length == 2 and ed_movidos_antes[0] == 4 and ed_movidos_ahora[0] == 4 and ed_movidos_antes[1] == -1 and ed_movidos_ahora[1] == 5)
+    ed_rehacer(d)
+    ver("puntos: rehacer, otra vez uno", d.puntos.length == 1 and tiene_punto(d, 4))
+    ed_deshacer(d)
+    ver("puntos: y deshacer otra vez, los dos", d.puntos.length == 2 and tiene_punto(d, 4) and tiene_punto(d, 5))
     ed_puntos_movidos(d)
+    # quitar varias líneas con una selección: el primer punto pasa a la primera línea y el otro se va; al deshacer,
+    # cada uno a su línea (antes se quedaban juntos en la primera)
+    d = doc("a\nb\nc\nd\ne")
+    ed_alternar_punto(d, 3)
+    ed_alternar_punto(d, 4)
+    d.al = 1
+    d.ac = 1
+    d.cl = 3
+    d.cc = 1
+    ed_tecla(T_RETROCESO, 0, "")
+    ver("puntos: quitar dos líneas con selección, uno en la primera", d.lineas.length == 3 and d.puntos.length == 1 and tiene_punto(d, 2))
+    ed_puntos_movidos(d)
+    ed_deshacer(d)
+    ver("puntos: deshacer la selección, cada uno en su línea", d.lineas.length == 5 and d.puntos.length == 2 and tiene_punto(d, 3) and tiene_punto(d, 4) and ed_puntos_movidos(d) and ed_movidos_antes[0] == 2 and ed_movidos_ahora[0] == 3 and ed_movidos_antes[1] == -1 and ed_movidos_ahora[1] == 4)
     d = doc("a\nb\nc\nd\ne")
     d.cl = 1
     ed_marcador(d)

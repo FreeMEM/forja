@@ -25,6 +25,9 @@ else
 fi
 mkdir -p "$tmp/sys/Prueba" "$tmp/sys/Forja" "$tmp/sys/Proyectos"
 "$dash/dash" "$aqui/src/main.dash" -o "$tmp/sys/Forja/Forja"
+# la imagen del icono de los .forja, como en el paquete
+mkdir -p "$tmp/sys/Forja/Iconos"
+python3 -c "import sys; sys.path.insert(0, '$aqui/tools'); from plantillas import icono_proyecto; open('$tmp/sys/Forja/Iconos/proyecto.info', 'wb').write(icono_proyecto())"
 "$dash/dash" "$aqui/tests/forja_proyecto.dash" -o "$tmp/ProyectoT"
 # la orden dash en DH0:Dash, con sus runtimes (dash_mc.drt, dash_fpu.drt...) y lib/ (lib/amiga/gl.dash de la 3D)
 mkdir -p "$tmp/sys/Dash"

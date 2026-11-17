@@ -81,14 +81,14 @@ MSG_26
 Window
 ; Ventana
 MSG_27
-arrows stop  Shift/Alt+arrows line  r g b (Shift: -)  n new  Del  d mode  t code  c colour  Return into code  l read  p try
-; flechas parada  May/Alt+flechas línea  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  p probar
+arrows or click stop (drag, or Shift/Alt+arrows: line)  r g b (Shift: -)  n new  Del  d mode  t code  c colour  Return into code  l read  Tab next block  p try
+; flechas o clic parada (arrastrar, o May/Alt+flechas: línea)  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  Tab otro bloque  p probar
 MSG_28
 Space play/stop  left/right position  up/down row  Return puts the row in the code  s to sync
 ; Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía
 MSG_29
-arrows (Shift: 16 rows)  digits and Return key  Del removes  i type  n track  Space pause  g go  v demo front/back
-; flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás
+arrows (Shift: 16 rows)  digits and Return key  Del removes  i type  n track  Space pause  g go  v demo front/back  Tab other .sync
+; flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás  Tab otro .sync
 MSG_30
 The raster lines of each frame of the demo (sync_fotograma and sync_fin)
 ; Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)
@@ -281,6 +281,18 @@ The MOD is cut short:
 MSG_94
 Quit Forja
 ; Salir de Forja
+MSG_95
+Only one track file is open (Amiga-O opens another).
+; Solo hay un fichero de pistas abierto (Amiga-O abre otro).
+MSG_96
+Tracks of %1 (%2).
+; Pistas de %1 (%2).
+MSG_97
+Close these tracks
+; Cerrar estas pistas
+MSG_98
+Another track file (Tab)
+; Otro fichero de pistas (Tab)
 MSG_870
 is not fixed-width
 ; no es de ancho fijo
