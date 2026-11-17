@@ -1080,6 +1080,12 @@ func pl_texto(tipo: String, fichero: String) -> String
         "    elif que == \"ACABAR\"\n" +
         "        sync_acabada = true\n" +
         "        rexx_reply(0, \"\")\n" +
+        "    elif que == \"DELANTE\"\n" +
+        "        screen_to_front()\n" +
+        "        rexx_reply(0, \"\")\n" +
+        "    elif que == \"DETRAS\"\n" +
+        "        screen_to_back()\n" +
+        "        rexx_reply(0, \"\")\n" +
         "    elif que == \"PAUSA\"\n" +
         "        sync_pausar(true)\n" +
         "        rexx_reply(0, \"\")\n" +

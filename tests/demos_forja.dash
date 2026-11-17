@@ -42,6 +42,12 @@ end
 
 func activar() -> Bool
     r = activar_titulo("Demos")
+    n = 0
+    while n < 10 and not r
+        time_delay(10)
+        r = activar_titulo("Demos")
+        n = n + 1
+    end
     if env_get("FORJA_DEMOS_LIENZO") != ""
         input_move(campo("FORJA_DEMOS_LIENZO", 0) + campo("FORJA_DEMOS_LIENZO", 2) / 2, campo("FORJA_DEMOS_LIENZO", 1) + campo("FORJA_DEMOS_LIENZO", 3) / 2)
         time_delay(5)
@@ -132,6 +138,14 @@ func veces(t: String, s: String) -> Int
     return n
 end
 
+# Una captura de la pantalla de Forja (la de la demo, detrás)
+func captura(nombre: String)
+    rexx_send_wait("DEMOSYNC", "DETRAS", 2000)
+    time_delay(25)
+    screen_save_png("DH0:Prueba/" + nombre + ".png")
+    activar()
+end
+
 func sincronia()
     ver("abre demo.sync en Sincronía", str_starts(linea("pagina"), "pagina 2") and str_starts(linea("sync"), "sync demo.sync pistas 2 cursor 0 0"), linea("sync"))
     # una clave en la fila 4 de "velocidad": 1.5, lineal; i la pasa a suave; Supr la quita
@@ -190,19 +204,20 @@ func con_demo()
     file_write_text("DH0:Prueba/valor_velocidad.txt", rexx_send_wait("DEMOSYNC", "VALOR velocidad", 2000))
     tecla(0x40, 0)
     ver("Espacio la deja seguir", esperar("pausa false", 5), linea("demo"))
-    screen_save_png("DH0:Prueba/sincronia.png")
+    captura("sincronia")
     # el medidor
     tecla(0x04, AMIGA)
-    time_delay(50)
+    esperar("pagina 3", 5)
+    time_delay(25)
     l = linea("demo")
     ver("Medidor: las líneas de las 64 últimas imágenes", str_starts(linea("pagina"), "pagina 3") and campo_sonda(l, "muestras") == 64 and campo_sonda(l, "lineas") > 150, l)
-    screen_save_png("DH0:Prueba/medidor.png")
+    captura("medidor")
     # el visor de MOD: Forja abre musica.mod y se lo pasa
     rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/musica.mod")
     ver("Música: abre musica.mod y sigue a la demo", esperar("mod musica.mod suena false", 10) and str_starts(linea("pagina"), "pagina 1") and str_contains(linea("mod"), "largo 6 patrones 4 celda C-1 01 ..."), linea("mod"))
     activar()
     time_delay(25)
-    screen_save_png("DH0:Prueba/musica.png")
+    captura("musica")
 end
 
 # El texto de main.dash en Forja cuando tenga eso (como mucho 5 s)
@@ -222,17 +237,20 @@ end
 
 func copper()
     rexx_send("FORJA.1", "ABRIR DH0:Prueba/demo/main.dash 20")
+    # (Forja se pone delante al abrir: se espera a que lo esté antes de volver a la ventana de Demos)
+    esperar_ventana("Forja")
     time_delay(50)
     activar()
     tecla(0x01, AMIGA)
+    esperar("pagina 0", 5)
     tecla(0x36, 0)
     tecla(0x13, 0)
     tecla(0x13, 0)
     ver("Copper: una parada nueva y más rojo", esperar("copper 4 1 0 degradado copper 84:", 5), linea("copper"))
     tecla(0x44, 0)
     t = texto_main("# copper: degradado")
-    ver("Return lo mete en main.dash", veces(t, "# copper: degradado") == 1 and str_contains(t, "copper_wait(40, 0)") and str_contains(t, "# paradas: 0 degradado 40:00F 84:"), linea("mensaje"))
-    screen_save_png("DH0:Prueba/copper.png")
+    ver("Return lo mete en main.dash (" + input_active_title() + ")", veces(t, "# copper: degradado") == 1 and str_contains(t, "copper_wait(40, 0)") and str_contains(t, "# paradas: 0 degradado 40:00F 84:"), linea("mensaje"))
+    captura("copper")
     tecla(0x4C, MAYUS)
     tecla(0x4C, MAYUS)
     tecla(0x13, MAYUS)
@@ -249,6 +267,8 @@ end
 
 func guardar_exportar()
     activar()
+    tecla(0x03, AMIGA)
+    esperar("pagina 2", 5)
     tecla(0x21, AMIGA)
     esperar("cambiado false", 5)
     t = file_read_text("DH0:Prueba/demo/demo.sync")

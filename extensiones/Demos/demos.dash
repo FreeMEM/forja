@@ -90,6 +90,7 @@ var demo_fotos: Int = 0
 var demo_anillo: [Int] = []
 var demo_fichero: String = ""
 var _barra_antes: String = ""
+var _demo_delante: Bool = true
 var _pausa_vista: Bool = false    # la pausa ya se vio (el cursor queda libre)
 
 # la música que toca la extensión
@@ -287,7 +288,7 @@ func ayuda_teclas() -> String
     elif pagina == PAG_MUSICA
         return "Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía"
     elif pagina == PAG_SYNC
-        return "flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  Amiga-S guarda"
+        return "flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás"
     end
     return "Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)"
 end
@@ -936,6 +937,14 @@ func sync_tecla(k: Int, q: Int, ch: String)
             mandar_demo(pausa_orden())
         elif mod_datos != 0
             tocar(not suena)
+        end
+    elif ch == "v" and conectada()
+        # la pantalla de la demo, delante o detrás de la de Forja
+        _demo_delante = not _demo_delante
+        if _demo_delante
+            mandar_demo("DELANTE")
+        else
+            mandar_demo("DETRAS")
         end
     elif ch == "g"
         if conectada()

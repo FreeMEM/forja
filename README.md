@@ -234,7 +234,8 @@ trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y s
   tabla con una columna por pista: las flechas mueven el cursor (con Mayúsculas, de 16 en 16), las cifras y Return
   ponen una clave, Supr la quita, `i` cambia su tipo y `n` hace una pista. Amiga-S las guarda en el `.sync`.
   - Con la demo en marcha (la que usa `sync.dash` con `VIVO = true`), la extensión se conecta sola: la fila que suena
-    se ve en la tabla y en la barra de Forja, Espacio la para y la deja seguir, `g` la lleva a la fila del cursor, y
+    se ve en la tabla y en la barra de Forja, Espacio la para y la deja seguir, `g` la lleva a la fila del cursor, `v`
+    pone su pantalla delante o detrás de la de Forja, y
     cada clave que se cambia llega a la demo al momento.
   - Amiga-X las exporta a `pistas_datos.dash`: tablas dentro del programa. Con `VIVO = false`, la versión final no
     necesita ni el `.sync` ni Forja.

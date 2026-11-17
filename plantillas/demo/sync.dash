@@ -542,6 +542,12 @@ func _sync_orden(o: String)
     elif que == "ACABAR"
         sync_acabada = true
         rexx_reply(0, "")
+    elif que == "DELANTE"
+        screen_to_front()
+        rexx_reply(0, "")
+    elif que == "DETRAS"
+        screen_to_back()
+        rexx_reply(0, "")
     elif que == "PAUSA"
         sync_pausar(true)
         rexx_reply(0, "")
