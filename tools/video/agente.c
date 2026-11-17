@@ -5,6 +5,8 @@
  *   1 TECLA   a = código raw, b = calificador          (pulsada y soltada)
  *   2 LANZAR  texto = orden del Shell, sin esperar
  *   3 ESCRIBIR texto con el mapa de teclado en uso (MapANSI)
+ *   4 ABAJO   a = código raw, b = calificador          (solo pulsada: para teclas como Ctrl, que se mantienen)
+ *   5 ARRIBA  a = código raw, b = calificador          (solo soltada)
  *   9 SALIR
  * Herramienta para grabar vídeos: no va en ningún paquete. */
 #include <exec/types.h>
@@ -92,6 +94,8 @@ int main(void)
         if (b->pedida != b->hecha) {
             b->texto[sizeof(b->texto) - 1] = 0;
             if (b->orden == 1) tecla((UWORD)b->a, (UWORD)b->b);
+            else if (b->orden == 4) evento((UWORD)b->a, (UWORD)b->b);
+            else if (b->orden == 5) evento((UWORD)b->a | IECODE_UP_PREFIX, (UWORD)b->b);
             else if (b->orden == 2) {
                 BPTR nil = Open("NIL:", MODE_NEWFILE);
                 if (SystemTags((STRPTR)b->texto, SYS_Input, nil, SYS_Output, NULL, SYS_Asynch, TRUE, TAG_DONE) == -1)
