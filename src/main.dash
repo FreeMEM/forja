@@ -1622,6 +1622,12 @@ func orden_editor(o: Int)
     if o == TC_ABRIR_FICHERO
         abrir_por_nombre()
         return
+    elif o == TC_PESTANA_SIGUIENTE or o == TC_PESTANA_ANTERIOR
+        pestana_al_lado(o == TC_PESTANA_SIGUIENTE)
+        return
+    elif o == TC_PESTANAS
+        lista_pestanas()
+        return
     elif o == TC_BUSCAR_PROYECTO or o == TC_CAMBIAR_PROYECTO
         ventana_buscar_proyecto(o == TC_CAMBIAR_PROYECTO)
         return
@@ -1773,6 +1779,10 @@ func menu_editor()
     _opcion_editor(tr(818, "Plegar o desplegar el bloque"), TC_PLEGAR)
     _opcion_editor(tr(819, "Desplegar todo"), TC_DESPLEGAR_TODO)
     mui_menu_separator()
+    _opcion_editor(tr(1007, "Pestaña siguiente"), TC_PESTANA_SIGUIENTE)
+    _opcion_editor(tr(1008, "Pestaña anterior"), TC_PESTANA_ANTERIOR)
+    _opcion_editor(tr(1009, "Lista de pestañas..."), TC_PESTANAS)
+    mui_menu_separator()
     menu_cerrar = mui_menu_check(tr(820, "Cerrar solos paréntesis y comillas"), "", EV_ED_CERRAR, ed_cerrar_solo)
     menu_end = mui_menu_check(tr(821, "Poner el end al abrir un bloque"), "", EV_ED_END, ed_auto_end)
     mui_menu_end()
@@ -1920,6 +1930,49 @@ func nombres_del_proyecto()
     redibujar()
 end
 
+# --- Pestañas ---
+
+# La pestaña de al lado (la siguiente o la anterior; da la vuelta)
+func pestana_al_lado(siguiente: Bool)
+    n = documentos.length
+    if n < 2
+        return
+    end
+    cerrar_capas()
+    if siguiente
+        activo = (activo + 1) % n
+    else
+        activo = (activo + n - 1) % n
+    end
+    redibujar()
+end
+
+# La lista de las pestañas abiertas (Ctrl E, o el botón de la derecha de las pestañas si no caben): se filtra
+# escribiendo, como la de abrir un fichero; elegida la activa
+func lista_pestanas()
+    if documentos.length == 0
+        return
+    end
+    cerrar_capas()
+    lr_abrir(LR_PESTANAS, hueco(tr(1010, "Pestañas (%1)"), "#{documentos.length}"))
+    i = 0
+    for d in documentos
+        det = ""
+        if d.ruta != ""
+            det = d.ruta[0:d.ruta.length - d.nombre.length]
+        end
+        nombre = d.nombre
+        if d.cambiado
+            nombre = nombre + " *"
+        end
+        lr_anadir(nombre, LR_FICHERO, "", i, 0, det)
+        i = i + 1
+    end
+    lr_filtrar()
+    lr_elegir(activo)
+    redibujar()
+end
+
 # --- Renombrar (paso 2.6) ---
 
 var renombrar_viejo: String = ""
@@ -2031,9 +2084,7 @@ func renombrar(nuevo: String)
     if bp_c_veces == 0
         return
     end
-    if aplicar_cambios(hueco2(tr(862, "Renombrar %1 a %2"), viejo, nuevo), cajon_proyecto())
-        avisar(hueco2(tr(863, "Renombrado %1 en %2 sitios."), viejo + " -> " + nuevo, "#{bp_c_veces}"), 2)
-    end
+    aplicar_cambios(hueco2(tr(862, "Renombrar %1 a %2"), viejo, nuevo), cajon_proyecto(), hueco2(tr(863, "Renombrado %1 en %2 sitios."), viejo + " -> " + nuevo, "#{bp_c_veces}"))
 end
 
 # Lo que pasa sobre el editor con la lista rápida abierta: es suya
@@ -2080,7 +2131,7 @@ func en_lista_rapida() -> Int
         tipo = lr_tipo
         lr_cerrar()
         redibujar()
-        if (o == TC_ESQUEMA and tipo == LR_ESQUEMA) or (o == TC_ABRIR_FICHERO and tipo == LR_FICHEROS) or (o == TC_ABRIR_SIMBOLO and tipo == LR_NOMBRES)
+        if (o == TC_ESQUEMA and tipo == LR_ESQUEMA) or (o == TC_ABRIR_FICHERO and tipo == LR_FICHEROS) or (o == TC_ABRIR_SIMBOLO and tipo == LR_NOMBRES) or (o == TC_PESTANAS and tipo == LR_PESTANAS)
             return 0
         end
         return EV_ED + o
@@ -2122,6 +2173,11 @@ func ir_lista_rapida()
         redibujar()
     elif tipo == LR_FICHEROS
         abrir_sitio(ruta)
+        redibujar()
+    elif tipo == LR_PESTANAS
+        if linea >= 0 and linea < documentos.length
+            activo = linea
+        end
         redibujar()
     else
         ir_a_sitio(ruta, linea, col)
@@ -2920,7 +2976,11 @@ func en_editor() -> Int
         # la lista para completar y la ayuda se cierran (lo que sigue lo redibuja todo)
         cerrar_capas()
     end
-    if rueda != 0
+    if rueda != 0 and mui_canvas_mouse_y(lienzo_teclas) < ALTO_PESTANAS and lienzo_teclas == v.editor
+        # la rueda sobre las pestañas las mueve (si no caben)
+        ed_pestanas_mover(-rueda)
+        redibujar()
+    elif rueda != 0
         d.primera = ed_filas_desde(d, d.primera, -rueda * 3)
         maximo = d.lineas.length - ed_visibles
         if d.primera > maximo
@@ -2930,6 +2990,18 @@ func en_editor() -> Int
             d.primera = 0
         end
         redibujar()
+    elif mui_canvas_button(lienzo_teclas) == 1 and ed_boton_pestanas(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas)) != 0
+        b = ed_boton_pestanas(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
+        if b == PB_LISTA
+            lista_pestanas()
+        else
+            if b == PB_IZQUIERDA
+                ed_pestanas_mover(-1)
+            else
+                ed_pestanas_mover(1)
+            end
+            redibujar()
+        end
     elif mui_canvas_button(lienzo_teclas) == 1 and ed_pestana_en(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas)) >= 0
         activo = ed_pestana_en(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
         redibujar()
@@ -2967,7 +3039,7 @@ func en_editor() -> Int
         letra = mui_canvas_char(lienzo_teclas)
         # las órdenes del editor (teclas.dash, menú Editor)
         o = tc_orden(codigo, teclas, letra)
-        if o != 0 and not d.diseno
+        if o != 0 and (not d.diseno or o >= TC_PESTANA_SIGUIENTE)
             return EV_ED + o
         end
         # las teclas de las extensiones (las de Forja van antes)
@@ -2988,6 +3060,9 @@ func en_editor() -> Int
         end
         if d.vista != 0 and d.vista_ext == "*perfil" and (codigo == T_RETURN or codigo == T_ENTER)
             perfil_elegir(d)
+            return 0
+        end
+        if d.vista != 0 and d.vista_ext == "*cambios" and cambios_tecla(codigo)
             return 0
         end
         if codigo == T_F8
@@ -3268,16 +3343,18 @@ func cambiar_proyecto()
         return
     end
     titulo = hueco2(tr(838, "Cambiar \"%1\" por \"%2\""), t, nuevo)
-    if aplicar_cambios(titulo, cajon)
-        avisar(hueco2(tr(839, "Cambiado %1 veces en %2 ficheros."), "#{n}", "#{bp_c_rutas.length}"), 2)
-    end
+    aplicar_cambios(titulo, cajon, hueco2(tr(839, "Cambiado %1 veces en %2 ficheros."), "#{n}", "#{bp_c_rutas.length}"))
 end
 
-# Enseña los cambios de bp_c_* en una pestaña, pregunta y los hace (true si se hicieron). Lo usan cambiar en el
-# proyecto y renombrar
-func aplicar_cambios(titulo: String, cajon: String) -> Bool
-    var lineas: [String] = [titulo + "  (" + hueco2(tr(840, "%1 veces en %2 ficheros"), "#{bp_c_veces}", "#{bp_c_rutas.length}") + ")", ""]
-    colores = "@ "
+# Enseña los cambios de bp_c_* en una pestaña de solo lectura, "Cambios", que se queda abierta para mirarla entera
+# (moverse por ella, ir a otras pestañas) hasta contestar desde ella: Return los hace, Esc (o cerrarla) no. Lo usan
+# cambiar en el proyecto y renombrar. aviso: lo que se dice al hacerlos.
+var cambios_aviso: String = ""
+var cambios_volver: Documento = nil    # la pestaña de antes, para volver a ella al contestar
+
+func aplicar_cambios(titulo: String, cajon: String, aviso: String)
+    var lineas: [String] = [titulo + "  (" + hueco2(tr(840, "%1 veces en %2 ficheros"), "#{bp_c_veces}", "#{bp_c_rutas.length}") + ")", tr(1011, "Return: hacer estos cambios. Esc: no hacerlos."), tr(1015, "Los abiertos cambian en el editor (sin guardar; se pueden deshacer); los demás, en el disco."), ""]
+    colores = "@!# "
     i = 0
     while i < bp_c_rutas.length
         lineas.push(_nombre_en_proyecto(bp_c_rutas[i], cajon))
@@ -3300,21 +3377,49 @@ func aplicar_cambios(titulo: String, cajon: String) -> Bool
         colores = colores + " "
         i = i + 1
     end
-    activo_antes = activo
-    ed_abrir_vista("", tr(841, "Cambios"), lineas, colores)
+    d = ed_actual()
+    if d == nil or d.vista_ext != "*cambios"
+        cambios_volver = d
+    end
+    cambios_aviso = aviso
+    ed_abrir_vista("*cambios", tr(841, "Cambios"), lineas, colores)
+    avisar(tr(1012, "Mira los cambios en su pestaña: Return los hace, Esc no."), 2)
     redibujar()
-    r = mui_request(v.window, tr(842, "Cambiar en el proyecto"), hueco2(tr(843, "¿Hago estos %1 cambios en %2 ficheros?\n\nLos ficheros abiertos cambian en el editor (sin guardar; se pueden deshacer).\nLos demás se guardan en el disco."), "#{bp_c_veces}", "#{bp_c_rutas.length}"), tr(844, "_Cambiar|C_ancelar"))
-    # la pestaña de los cambios se cierra; se vuelve a la de antes
-    k = activo
-    if k >= 0 and documentos[k].vista != 0 and documentos[k].vista_ext == ""
-        ed_cerrar(k)
+end
+
+# Cierra la pestaña de los cambios y vuelve a la de antes
+func _cambios_cerrar()
+    k = 0
+    while k < documentos.length
+        if documentos[k].vista != 0 and documentos[k].vista_ext == "*cambios"
+            ed_cerrar(k)
+        else
+            k = k + 1
+        end
     end
-    if activo_antes >= 0 and activo_antes < documentos.length
-        activo = activo_antes
+    if cambios_volver != nil and indice_doc(cambios_volver) >= 0
+        activo = indice_doc(cambios_volver)
     end
-    if r != 1
+    cambios_volver = nil
+end
+
+# Una tecla en la pestaña de los cambios: Return los hace, Esc no (true si era suya)
+func cambios_tecla(codigo: Int) -> Bool
+    if codigo == T_ESC
+        _cambios_cerrar()
+        avisar(tr(1013, "Sin cambiar nada."), 2)
         redibujar()
+        return true
+    end
+    if codigo != T_RETURN and codigo != T_ENTER
         return false
+    end
+    _cambios_cerrar()
+    # lo que se cambia tiene que seguir como estaba cuando se hizo la lista
+    if not bp_al_dia()
+        avisar(tr(1014, "Los ficheros han cambiado desde la lista: no cambio nada. Vuelve a buscar o a renombrar."), 1)
+        redibujar()
+        return true
     end
     hechos = bp_aplicar()
     for ruta in bp_c_rutas
@@ -3326,8 +3431,11 @@ func aplicar_cambios(titulo: String, cajon: String) -> Bool
     for ruta in bp_no_escritos
         avisar(hueco(tr(845, "No he podido escribir %1."), ruta), 1)
     end
+    if hechos > 0
+        avisar(cambios_aviso, 2)
+    end
     redibujar()
-    return hechos > 0
+    return true
 end
 
 func ir_a(n: Int)
@@ -4770,6 +4878,9 @@ func puntos_descartar(d: Documento)
     end
 end
 
+# Los puntos que se fueron con su línea (al borrar varias): deshacer los vuelve a poner con su condición y su contador
+var puntos_papelera: [PuntoProy] = []
+
 func _puntos_mover(ruta: String) -> Bool
     cambio = false
     i = 0
@@ -4781,7 +4892,11 @@ func _puntos_mover(ruta: String) -> Bool
                 k = k + 1
             end
             if k == ed_movidos_antes.length
-                # su línea se borró y ya había otro punto donde iba a parar
+                # su línea se borró y ya había otro punto donde iba a parar: a la papelera, por si se deshace
+                puntos_papelera.push(q)
+                if puntos_papelera.length > 64
+                    puntos_papelera.remove(0)
+                end
                 pr_puntos.remove(i)
                 cambio = true
                 continue
@@ -4792,6 +4907,29 @@ func _puntos_mover(ruta: String) -> Bool
             end
         end
         i = i + 1
+    end
+    # los que vuelven al deshacer (antes -1): de la papelera si estaban, con su condición
+    k = 0
+    while k < ed_movidos_antes.length
+        if ed_movidos_antes[k] == -1
+            linea = ed_movidos_ahora[k]
+            var q: PuntoProy = nil
+            j = puntos_papelera.length - 1
+            while j >= 0 and q == nil
+                if str_lower(puntos_papelera[j].fichero) == str_lower(ruta) and puntos_papelera[j].linea == linea
+                    q = puntos_papelera[j]
+                    puntos_papelera.remove(j)
+                end
+                j = j - 1
+            end
+            if q == nil
+                q = PuntoProy(ruta, linea)
+            end
+            q.linea = linea
+            pr_puntos.push(q)
+            cambio = true
+        end
+        k = k + 1
     end
     return cambio
 end

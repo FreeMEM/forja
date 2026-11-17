@@ -28,6 +28,7 @@ import "mod.dash"
 const EV_LIENZO = 1
 const EV_TIC = 3
 const EV_VENTANA = 4
+const EV_ARRASTRE = 5
 const EV_ABRIR = 11
 const EV_GUARDAR = 12
 const EV_GUARDAR_COMO = 13
@@ -48,12 +49,15 @@ const EV_PISTA_NOMBRE = 53
 const EV_PISTA_QUITAR = 54
 const EV_PISTA_IZQUIERDA = 55
 const EV_PISTA_DERECHA = 56
+const EV_CERRAR_SYNC = 57
+const EV_SYNC_SIGUIENTE = 58
 const ALTO_PESTANAS = 18
 const Q_MAYUS = 1
 const Q_CTRL = 2
 const Q_ALT = 4
 const Q_AMIGA = 8
 const K_ESPACIO = 64
+const K_TAB = 66
 const K_RETROCESO = 65
 const K_RETURN = 68
 const K_INTRO = 67
@@ -120,6 +124,21 @@ var sy_buffer: String = ""
 var sy_primera: Int = 0       # la primera pista que se ve
 var sin_guardar_dicho: String = "-"
 
+# Los .sync abiertos (varios a la vez). El de delante (sy_actual) vive en sync_pistas y en sy_*; los demás, aquí, con
+# sus pistas en texto, su cursor y su deshacer
+struct SyncFichero
+    ruta: String
+    texto: String
+    cambiado: Bool
+    fila: Int
+    pista: Int
+    primera: Int
+    deshacer: [String]
+    rehacer: [String]
+end
+var sy_ficheros: [SyncFichero] = []
+var sy_actual: Int = -1
+
 # Un texto del catálogo con cuatro huecos (%1 a %4)
 func hueco4(t: String, a: String, b: String, c: String, d: String) -> String
     return str_replace(str_replace(hueco2(t, a, b), "%3", c), "%4", d)
@@ -179,6 +198,7 @@ func hacer_ventana()
     mui_menu_item(tr(3, "Guardar las pistas"), "S", EV_GUARDAR)
     mui_menu_item(tr(4, "Guardar las pistas como..."), "", EV_GUARDAR_COMO)
     mui_menu_item(tr(5, "Exportar las pistas (pistas_datos.dash)"), "X", EV_EXPORTAR)
+    mui_menu_item(tr(97, "Cerrar estas pistas"), "", EV_CERRAR_SYNC)
     mui_menu_separator()
     mui_menu_item(tr(6, "Compilar el programa"), "K", EV_COMPILAR)
     mui_menu_item(tr(7, "Ejecutar el programa"), "E", EV_EJECUTAR)
@@ -202,6 +222,8 @@ func hacer_ventana()
     mui_menu_item(tr(19, "Quitar la pista (Mayús Supr)"), "", EV_PISTA_QUITAR)
     mui_menu_item(tr(20, "Mover a la izquierda (Alt izquierda)"), "", EV_PISTA_IZQUIERDA)
     mui_menu_item(tr(21, "Mover a la derecha (Alt derecha)"), "", EV_PISTA_DERECHA)
+    mui_menu_separator()
+    mui_menu_item(tr(98, "Otro fichero de pistas (Tab)"), "", EV_SYNC_SIGUIENTE)
     mui_menu_end()
     mui_menu_begin(tr(22, "Copper"))
     mui_menu_item(tr(23, "Al código"), "", EV_AL_CODIGO)
@@ -215,6 +237,7 @@ func hacer_ventana()
     mui_window_end()
     mui_canvas_on_draw(lienzo, dibujar)
     mui_canvas_on_input(lienzo, EV_LIENZO)
+    mui_canvas_on_drag(lienzo, EV_ARRASTRE)
     mui_canvas_take_keys(lienzo, true)
     # (se ve de golpe: con la demo, se repinta varias veces por segundo)
     mui_canvas_buffered(lienzo, true)
@@ -387,11 +410,11 @@ end
 
 func ayuda_teclas() -> String
     if pagina == PAG_COPPER
-        return tr(27, "flechas parada  May/Alt+flechas línea  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  p probar")
+        return tr(27, "flechas o clic parada (arrastrar, o May/Alt+flechas: línea)  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  Tab otro bloque  p probar")
     elif pagina == PAG_MUSICA
         return tr(28, "Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía")
     elif pagina == PAG_SYNC
-        return tr(29, "flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás")
+        return tr(29, "flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás  Tab otro .sync")
     end
     return tr(30, "Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)")
 end
@@ -625,6 +648,13 @@ func copper_tecla(k: Int, q: Int, ch: String)
     elif ch == "l"
         leer_codigo()
         return
+    elif k == K_TAB
+        if (q & Q_MAYUS) != 0
+            otro_bloque(-1)
+        else
+            otro_bloque(1)
+        end
+        return
     elif ch == "p"
         probar()
         return
@@ -634,12 +664,27 @@ func copper_tecla(k: Int, q: Int, ch: String)
     redibujar()
 end
 
+var cu_arrastrando: Bool = false    # se mueve la parada elegida con el ratón (el clic fue en la vista)
+
+# Un clic en la vista elige la parada más cercana (y arrastrando se mueve); en la lista, esa parada
 func copper_clic(mx: Int, my: Int)
+    cu_arrastrando = false
     cy = ALTO_PESTANAS + 4
     alto = zona_alto - 2 * (alto_letra + 2) - 2 - cy
+    lx = 4 + 160 + 16
+    ly = cy + 2 * (alto_letra + 2) + 6
+    if mx >= lx and my >= ly and my < cy + alto
+        n = (my - ly) / (alto_letra + 2)
+        if n >= 0 and n < cu_paradas.length
+            cu_elegida = n
+            redibujar()
+        end
+        return
+    end
     if mx < 4 or mx > 4 + 172 or my < cy or my >= cy + alto
         return
     end
+    cu_arrastrando = true
     l = (my - cy) * CU_LINEAS / alto
     mejor = 0
     dif = 9999
@@ -656,6 +701,78 @@ func copper_clic(mx: Int, my: Int)
         i = i + 1
     end
     cu_elegida = mejor
+    redibujar()
+end
+
+# Arrastrar en la vista: la parada elegida va a la línea del puntero
+func copper_arrastrar(my: Int, soltado: Bool)
+    if not cu_arrastrando or cu_paradas.length == 0
+        return
+    end
+    if soltado
+        cu_arrastrando = false
+    end
+    cy = ALTO_PESTANAS + 4
+    alto = zona_alto - 2 * (alto_letra + 2) - 2 - cy
+    if alto <= 0
+        return
+    end
+    l = (my - cy) * CU_LINEAS / alto
+    if l < 0
+        l = 0
+    elif l > CU_LINEAS - 1
+        l = CU_LINEAS - 1
+    end
+    p = cu_paradas[cu_elegida]
+    if p.linea != l
+        p.linea = l
+        cu_ordenar()
+        redibujar()
+    end
+end
+
+# Tab: el bloque de copper siguiente del fichero de delante de Forja (Mayúsculas+Tab, el anterior), leído como l
+func otro_bloque(n: Int)
+    t = forja_texto("")
+    if forja_rc != 0
+        avisar(tr(38, "No hay un fichero delante en Forja."), 1)
+        return
+    end
+    var inicios: [Int] = []
+    var nombres: [String] = []
+    i = 0
+    for linea in str_split(t, "\n")
+        s = str_trim(linea)
+        if str_starts(s, "# copper: ")
+            r = s[10:]
+            k = str_find(r, " ")
+            if k > 0
+                r = r[0:k]
+            end
+            inicios.push(i + 1)
+            nombres.push(r)
+        end
+        i = i + 1
+    end
+    if inicios.length == 0
+        avisar(tr(39, "No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero."), 1)
+        return
+    end
+    k = -1
+    i = 0
+    while i < nombres.length
+        if nombres[i] == cu_nombre
+            k = i
+        end
+        i = i + 1
+    end
+    if k < 0 and n < 0
+        k = 0
+    end
+    k = (k + n + nombres.length) % nombres.length
+    if cu_leer_codigo(t, inicios[k])
+        avisar(hueco2(tr(63, "Leído %1 (%2 paradas)."), "copper_" + cu_nombre, "#{cu_paradas.length}") + " #{k + 1}/#{nombres.length}", 2)
+    end
     redibujar()
 end
 
@@ -1023,6 +1140,9 @@ func tabla_cabecera(x: Int, y: Int)
     if sy_cambiado
         nombre = nombre + " *"
     end
+    if sy_ficheros.length > 1
+        nombre = nombre + " (#{sy_actual + 1}/#{sy_ficheros.length}, Tab)"
+    end
     f = fila_ahora()
     e = ""
     if f >= 0
@@ -1202,6 +1322,13 @@ func sync_tecla(k: Int, q: Int, ch: String)
     elif k == K_ESC
         sy_buffer = ""
         parcial = true
+    elif k == K_TAB
+        # otro de los .sync abiertos
+        if (q & Q_MAYUS) != 0
+            sy_otro(-1)
+        else
+            sy_otro(1)
+        end
     elif (k == K_RETURN or k == K_INTRO) and p != nil and sy_buffer != ""
         v = sync_numero(sy_buffer)
         if sync_error != ""
@@ -1216,7 +1343,7 @@ func sync_tecla(k: Int, q: Int, ch: String)
         end
         para_deshacer()
         sync_clave(p, sy_fila, v, tipo)
-        mandar_demo("CLAVE " + p.nombre + " #{sy_fila} " + sync_texto(v) + " " + sync_tipo_nombre(tipo))
+        mandar_pistas("CLAVE " + p.nombre + " #{sy_fila} " + sync_texto(v) + " " + sync_tipo_nombre(tipo))
         sy_buffer = ""
         cambiado()
     elif k == K_SUPR and (q & Q_MAYUS) != 0 and p != nil
@@ -1231,7 +1358,7 @@ func sync_tecla(k: Int, q: Int, ch: String)
     elif (k == K_SUPR or k == K_RETROCESO) and p != nil and sync_clave_en(p, sy_fila) >= 0
         para_deshacer()
         if sync_quitar(p, sy_fila)
-            mandar_demo("QUITAR " + p.nombre + " #{sy_fila}")
+            mandar_pistas("QUITAR " + p.nombre + " #{sy_fila}")
             cambiado()
         end
     elif ch != "" and str_find("0123456789.-", ch) >= 0 and p != nil
@@ -1242,7 +1369,7 @@ func sync_tecla(k: Int, q: Int, ch: String)
         if c >= 0
             para_deshacer()
             p.tipos[c] = (p.tipos[c] + 1) % 4
-            mandar_demo("CLAVE " + p.nombre + " #{sy_fila} " + sync_texto(p.valores[c]) + " " + sync_tipo_nombre(p.tipos[c]))
+            mandar_pistas("CLAVE " + p.nombre + " #{sy_fila} " + sync_texto(p.valores[c]) + " " + sync_tipo_nombre(p.tipos[c]))
             avisar(tr(73, "Tipo de la clave: ") + sync_tipo_nombre(p.tipos[c]), 0)
             cambiado()
         end
@@ -1302,7 +1429,7 @@ end
 
 # Todas las pistas, otra vez a la demo (tras deshacer, quitar, renombrar u ordenar)
 func demo_recargar()
-    if conectada() and file_write_text("T:forja-demos.sync", sync_a_texto())
+    if es_de_la_demo() and file_write_text("T:forja-demos.sync", sync_a_texto())
         mandar_demo("RECARGAR T:forja-demos.sync")
     end
 end
@@ -1417,7 +1544,7 @@ func nueva_pista(n: String)
     para_deshacer()
     sync_pista(n)
     sy_pista = sync_pistas.length - 1
-    mandar_demo("PISTA " + n)
+    mandar_pistas("PISTA " + n)
     cambiado()
 end
 
@@ -1441,16 +1568,178 @@ func nombre_tecla(k: Int, ch: String)
     redibujar()
 end
 
+# Lo de delante, a su sitio en sy_ficheros (antes de poner otro delante)
+func sy_apartar()
+    if sy_actual < 0 or sy_actual >= sy_ficheros.length
+        return
+    end
+    f = sy_ficheros[sy_actual]
+    f.ruta = sy_ruta
+    f.texto = sync_a_texto()
+    f.cambiado = sy_cambiado
+    f.fila = sy_fila
+    f.pista = sy_pista
+    f.primera = sy_primera
+    f.deshacer = sy_deshacer
+    f.rehacer = sy_rehacer
+end
+
+# Pone delante el .sync i de los abiertos
+func sy_poner(i: Int)
+    f = sy_ficheros[i]
+    sy_actual = i
+    sync_de_texto(f.texto)
+    sy_ruta = f.ruta
+    sy_cambiado = f.cambiado
+    sy_fila = f.fila
+    sy_pista = f.pista
+    sy_primera = f.primera
+    sy_deshacer = f.deshacer
+    sy_rehacer = f.rehacer
+    sy_buffer = ""
+    sy_nombrando = false
+end
+
+# Al .sync siguiente (o al anterior) de los abiertos
+func sy_otro(n: Int)
+    if sy_ficheros.length < 2
+        avisar(tr(95, "Solo hay un fichero de pistas abierto (Amiga-O abre otro)."), 0)
+        return
+    end
+    sy_apartar()
+    sy_poner((sy_actual + n + sy_ficheros.length) % sy_ficheros.length)
+    avisar(hueco2(tr(96, "Pistas de %1 (%2)."), nombre_de(sy_ruta), "#{sy_actual + 1}/#{sy_ficheros.length}"), 0)
+end
+
+func sy_buscar_ruta(ruta: String) -> Int
+    i = 0
+    while i < sy_ficheros.length
+        if str_lower(sy_ficheros[i].ruta) == str_lower(ruta)
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Abre un .sync (o va a él si ya está abierto) y lo pone delante. Si lo de delante son unas pistas sin fichero, vacías
+# y sin cambios, ocupa su sitio.
 func cargar_sync(ruta: String) -> Bool
-    if not sync_cargar(ruta)
+    i = sy_buscar_ruta(ruta)
+    if i >= 0
+        if i != sy_actual
+            sy_apartar()
+            sy_poner(i)
+        end
+        return true
+    end
+    t = file_read_text(ruta)
+    if t == nil
         avisar(tr(80, "No se puede leer ") + ruta, 1)
         return false
     end
-    sy_ruta = ruta
-    sy_cambiado = false
-    sy_pista = 0
-    sy_primera = 0
+    sy_apartar()
+    var d1: [String] = []
+    var d2: [String] = []
+    f = SyncFichero(ruta, t, false, 0, 0, 0, d1, d2)
+    if sy_actual >= 0 and sy_ruta == "" and not sy_cambiado and sync_pistas.length == 0
+        sy_ficheros[sy_actual] = f
+    else
+        sy_ficheros.push(f)
+        sy_actual = sy_ficheros.length - 1
+    end
+    sy_poner(sy_actual)
     return true
+end
+
+# Abre un .sync sin ponerlo delante (el de la demo, al conectarse, si no estaba)
+func sy_abrir_detras(ruta: String)
+    t = file_read_text(ruta)
+    if t != nil
+        var d1: [String] = []
+        var d2: [String] = []
+        sy_ficheros.push(SyncFichero(ruta, t, false, 0, 0, 0, d1, d2))
+    end
+end
+
+# Cierra el .sync de delante (pregunta si tiene cambios); false si se cancela. Queda delante otro, o unas pistas
+# vacías sin fichero.
+func cerrar_sync() -> Bool
+    if sy_cambiado
+        r = mui_request(win, "Demos", hueco(tr(88, "Las pistas de %1 tienen cambios sin guardar."), nombre_de(sy_ruta)), tr(89, "_Guardar|_Descartar|_Cancelar"))
+        if r == 1
+            guardar_sync(false)
+            if sy_cambiado
+                return false
+            end
+        elif r == 0
+            return false
+        end
+    end
+    sy_ficheros.remove(sy_actual)
+    if sy_ficheros.length == 0
+        var d1: [String] = []
+        var d2: [String] = []
+        sy_ficheros.push(SyncFichero("", "", false, 0, 0, 0, d1, d2))
+    end
+    if sy_actual >= sy_ficheros.length
+        sy_actual = sy_ficheros.length - 1
+    end
+    sy_poner(sy_actual)
+    redibujar()
+    return true
+end
+
+# Al cerrar la ventana: cada .sync con cambios pregunta (Guardar, Descartar o Cancelar); false si se cancela
+func cerrar_todos() -> Bool
+    sy_apartar()
+    i = 0
+    while i < sy_ficheros.length
+        if sy_ficheros[i].cambiado
+            sy_poner(i)
+            r = mui_request(win, "Demos", hueco(tr(88, "Las pistas de %1 tienen cambios sin guardar."), nombre_de(sy_ruta)), tr(89, "_Guardar|_Descartar|_Cancelar"))
+            if r == 1
+                guardar_sync(false)
+                if sy_cambiado
+                    return false
+                end
+            elif r == 0
+                redibujar()
+                return false
+            end
+            sy_apartar()
+        end
+        i = i + 1
+    end
+    return true
+end
+
+# GUARDAR de Forja (al salir con Guardar): todos los que tienen cambios
+func guardar_todos()
+    sy_apartar()
+    antes = sy_actual
+    i = 0
+    while i < sy_ficheros.length
+        if sy_ficheros[i].cambiado
+            sy_poner(i)
+            guardar_sync(false)
+            sy_apartar()
+        end
+        i = i + 1
+    end
+    sy_poner(antes)
+end
+
+# ¿Es lo de delante lo que tiene la demo? (si no, los cambios de las pistas no se le mandan)
+func es_de_la_demo() -> Bool
+    return conectada() and (demo_fichero == "" or sy_ruta == "" or str_lower(demo_fichero) == str_lower(sy_ruta))
+end
+
+# Una orden de las pistas a la demo, solo si lo de delante es lo suyo
+func mandar_pistas(o: String)
+    if es_de_la_demo()
+        mandar_demo(o)
+    end
 end
 
 func guardar_sync(como: Bool)
@@ -1519,20 +1808,31 @@ func exportar()
 end
 
 func decir_sin_guardar()
-    d = ""
-    if sy_cambiado
-        d = nombre_de(sy_ruta)
-        if d == ""
-            d = "pistas.sync"
+    var ns: [String] = []
+    i = 0
+    while i < sy_ficheros.length
+        c = sy_ficheros[i].cambiado
+        r = sy_ficheros[i].ruta
+        if i == sy_actual
+            c = sy_cambiado
+            r = sy_ruta
         end
+        if c
+            n = nombre_de(r)
+            if n == ""
+                n = "pistas.sync"
+            end
+            ns.push(n)
+        end
+        i = i + 1
+    end
+    d = ""
+    for n in ns
+        d = d + "\n" + n
     end
     if d != sin_guardar_dicho
         sin_guardar_dicho = d
-        if d == ""
-            forja_sin_guardar([])
-        else
-            forja_sin_guardar([d])
-        end
+        forja_sin_guardar(ns)
     end
 end
 
@@ -1542,8 +1842,16 @@ var salir_por_forja: Bool = false
 func decir_abiertos(ninguno: Bool)
     var rs: [String] = []
     if not ninguno
-        if sy_ruta != ""
-            rs.push(sy_ruta)
+        i = 0
+        while i < sy_ficheros.length
+            r = sy_ficheros[i].ruta
+            if i == sy_actual
+                r = sy_ruta
+            end
+            if r != ""
+                rs.push(r)
+            end
+            i = i + 1
         end
         if mod_ruta != ""
             rs.push(mod_ruta)
@@ -1732,11 +2040,19 @@ func conectar()
     demo_fichero = fichero
     tocar(false)
     if fichero != "" and str_find(fichero, ":") > 0
-        if sy_ruta == "" and not sy_cambiado
+        i = sy_buscar_ruta(fichero)
+        if i < 0 and sy_ruta == "" and not sy_cambiado and sync_pistas.length == 0
             cargar_sync(fichero)
-        elif str_lower(fichero) == str_lower(sy_ruta) and sy_cambiado
+        elif i < 0
+            # abierto, detrás de lo que se está mirando (Tab va a él)
+            sy_abrir_detras(fichero)
+        elif i == sy_actual and sy_cambiado
             # lo de Forja, sin guardar, a la demo
             if file_write_text("T:forja-demos.sync", sync_a_texto())
+                mandar_demo("RECARGAR T:forja-demos.sync")
+            end
+        elif i != sy_actual and sy_ficheros[i].cambiado
+            if file_write_text("T:forja-demos.sync", sy_ficheros[i].texto)
                 mandar_demo("RECARGAR T:forja-demos.sync")
             end
         end
@@ -1886,15 +2202,6 @@ func editar(ruta: String)
     if str_ends(l, ".mod")
         cargar_mod(ruta)
     elif str_ends(l, ".sync")
-        if sy_cambiado and str_lower(ruta) != str_lower(sy_ruta)
-            abrir_ventana()
-            r = mui_request(win, "Demos", hueco(tr(88, "Las pistas de %1 tienen cambios sin guardar."), nombre_de(sy_ruta)), tr(89, "_Guardar|_Descartar|_Cancelar"))
-            if r == 1
-                guardar_sync(false)
-            elif r == 0
-                return
-            end
-        end
         if cargar_sync(ruta)
             ver(PAG_SYNC)
         end
@@ -1904,6 +2211,10 @@ end
 func evento(ev: Int) -> Bool
     if ev == EV_LIENZO
         en_lienzo()
+    elif ev == EV_ARRASTRE
+        if pagina == PAG_COPPER
+            copper_arrastrar(mui_canvas_mouse_y(lienzo), mui_canvas_drag(lienzo) == 2)
+        end
     elif ev == EV_TIC
         if abierta
             tic()
@@ -1958,16 +2269,14 @@ func evento(ev: Int) -> Bool
     elif ev == EV_PISTA_IZQUIERDA or ev == EV_PISTA_DERECHA
         ver(PAG_SYNC)
         mover_pista(ev == EV_PISTA_DERECHA)
+    elif ev == EV_CERRAR_SYNC
+        ver(PAG_SYNC)
+        cerrar_sync()
+    elif ev == EV_SYNC_SIGUIENTE
+        ver(PAG_SYNC)
+        sy_otro(1)
     elif ev == EV_CERRAR or ev == EV_VENTANA
-        if sy_cambiado
-            r = mui_request(win, "Demos", hueco(tr(88, "Las pistas de %1 tienen cambios sin guardar."), nombre_de(sy_ruta)), tr(89, "_Guardar|_Descartar|_Cancelar"))
-            if r == 1
-                guardar_sync(false)
-            elif r == 0
-                return false
-            end
-        end
-        return true
+        return cerrar_todos()
     end
     return false
 end
@@ -2007,7 +2316,7 @@ func publicar_sonda()
     t = t + "demo #{demo_mem != 0} fila #{demo_fila} lineas #{demo_lineas} muestras #{muestras()} pausa #{demo_pausa}\n"
     t = t + cu_sonda() + "\n"
     t = t + "mod " + nombre_de(mod_ruta) + " suena #{suena} pos #{mus_pos} fila #{mus_fila} largo #{mod_largo} patrones #{mod_patrones} celda " + mod_celda(mod_patron(0), 0, 0) + "\n"
-    t = t + "sync " + nombre_de(sy_ruta) + " pistas #{sync_pistas.length} cursor #{sy_fila} #{sy_pista} cambiado #{sy_cambiado} buffer [" + sy_buffer + "] nombre [" + sy_nombre + "]\n"
+    t = t + "sync " + nombre_de(sy_ruta) + " pistas #{sync_pistas.length} cursor #{sy_fila} #{sy_pista} cambiado #{sy_cambiado} buffer [" + sy_buffer + "] nombre [" + sy_nombre + "] abiertos #{sy_ficheros.length} #{sy_actual}\n"
     if sy_pista < sync_pistas.length
         p = sync_pistas[sy_pista]
         c = sync_clave_en(p, sy_fila)
@@ -2053,9 +2362,7 @@ func suceso() -> Bool
             ver(PAG_SYNC)
         end
     elif forja_tipo == "GUARDAR"
-        if sy_cambiado
-            guardar_sync(false)
-        end
+        guardar_todos()
     end
     return false
 end
@@ -2070,6 +2377,10 @@ Main
             forja_aviso_tipo(tr(51, "Demos: no se puede abrir MUI."), 1)
         else
             cu_nuevo()
+            var d1: [String] = []
+            var d2: [String] = []
+            sy_ficheros.push(SyncFichero("", "", false, 0, 0, 0, d1, d2))
+            sy_actual = 0
             hacer_ventana()
             salir = false
             ev = 0

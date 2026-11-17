@@ -50,6 +50,8 @@ struct Cambio
     junto: Bool       # se deshace con el cambio de antes (escribir sobre una selección: borrarla y meter)
     marcas: [Int] = nil     # al quitar varias líneas: los marcadores que había en ellas (desde su primera línea), para
     plegadas: [Int] = nil   # dejarlos como estaban al volver a meterlas (deshacer, rehacer); y lo plegado
+    puntos: [Int] = nil     # y los puntos de parada (desde su primera línea, desde 0)
+    punto_junto: Int = -1   # el punto que pasó a la primera línea (su sitio, como en puntos); -1 si ninguno
 end
 
 struct Documento
@@ -126,9 +128,18 @@ var ed_valor_ancho: Int = 0
 var ed_valor_alto: Int = 0
 # los puntos de parada con condición o contador ("ruta en minúsculas:línea"): se dibujan distintos
 var ed_puntos_raros: [String] = []
-# Las pestañas que se ven: de dónde a dónde, desde la esquina de la zona
+# Las pestañas que se ven: de dónde a dónde, desde la esquina de la zona (-1 las que no se ven)
 var _pestana_x1: [Int] = []
 var _pestana_x2: [Int] = []
+# Si no caben todas: la primera que se ve, y los botones de la derecha (izquierda, derecha y la lista de todas)
+const ANCHO_BOTON_PESTANAS = 16
+const PB_IZQUIERDA = 1
+const PB_DERECHA = 2
+const PB_LISTA = 3
+var ed_pestana_primera: Int = 0
+var _pestana_activo_visto: Int = -1     # la activa del último dibujo: si cambia, se pone a la vista
+var _pestanas_botones_x: Int = -1       # dónde empiezan los botones (desde la esquina de la zona); -1 sin botones
+var ed_pestanas_ocultas: Int = 0        # cuántas no se ven
 # Lo que devuelven las funciones de posiciones
 # Dónde está parado el programa que se depura (la línea, desde 1; 0 si no está parado)
 var ed_dbg_ruta: String = ""
@@ -667,7 +678,7 @@ end
 
 # La pestaña (su número) en x, y de la zona; -1 si no hay ninguna ahí
 func ed_pestana_en(x: Int, y: Int) -> Int
-    if y >= ALTO_PESTANAS
+    if y >= ALTO_PESTANAS or (_pestanas_botones_x >= 0 and x >= _pestanas_botones_x)
         return -1
     end
     i = 0
@@ -680,7 +691,31 @@ func ed_pestana_en(x: Int, y: Int) -> Int
     return -1
 end
 
-# Los centros de las pestañas, desde la esquina de la ventana: "x,y x,y..." (para las pruebas)
+# El botón de las pestañas en x, y de la zona (PB_*); 0 si no hay ninguno ahí
+func ed_boton_pestanas(x: Int, y: Int) -> Int
+    if y >= ALTO_PESTANAS or _pestanas_botones_x < 0 or x < _pestanas_botones_x
+        return 0
+    end
+    b = (x - _pestanas_botones_x) / ANCHO_BOTON_PESTANAS + 1
+    if b > PB_LISTA
+        return PB_LISTA
+    end
+    return b
+end
+
+# Mueve las pestañas que se ven (sin cambiar la activa): -1 una a la izquierda, 1 a la derecha
+func ed_pestanas_mover(n: Int)
+    ed_pestana_primera = ed_pestana_primera + n
+    if ed_pestana_primera > documentos.length - 1
+        ed_pestana_primera = documentos.length - 1
+    end
+    if ed_pestana_primera < 0
+        ed_pestana_primera = 0
+    end
+end
+
+# Los centros de las pestañas, desde la esquina de la ventana: "x,y x,y..." (para las pruebas; "-1,-1" las que no
+# se ven), y si no caben, al final "botones:x,y" (el centro del primero; cada uno mide ANCHO_BOTON_PESTANAS)
 func ed_pestanas_ventana() -> String
     r = ""
     i = 0
@@ -688,8 +723,15 @@ func ed_pestanas_ventana() -> String
         if r != ""
             r = r + " "
         end
-        r = r + "#{ed_zona_x + (_pestana_x1[i] + _pestana_x2[i]) / 2},#{ed_zona_y + ALTO_PESTANAS / 2}"
+        if _pestana_x1[i] < 0
+            r = r + "-1,-1"
+        else
+            r = r + "#{ed_zona_x + (_pestana_x1[i] + _pestana_x2[i]) / 2},#{ed_zona_y + ALTO_PESTANAS / 2}"
+        end
         i = i + 1
+    end
+    if _pestanas_botones_x >= 0
+        r = r + " botones:#{ed_zona_x + _pestanas_botones_x + ANCHO_BOTON_PESTANAS / 2},#{ed_zona_y + ALTO_PESTANAS / 2}"
     end
     return r
 end
@@ -772,6 +814,8 @@ end
 
 # Lo que _quitar encontró en las líneas que quitó (varias): los marcadores y lo plegado de l1 a l2, desde l1 (nil si
 # era una sola línea)
+var _q_puntos: [Int] = nil
+var _q_punto_junto: Int = -1
 var _q_marcas: [Int] = nil
 var _q_plegadas: [Int] = nil
 
@@ -814,9 +858,12 @@ end
 func _quitar(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int) -> String
     _q_marcas = nil
     _q_plegadas = nil
+    _q_puntos = nil
+    _q_punto_junto = -1
     if l2 > l1
         _q_marcas = _de_rango(d.marcadores, l1, l2)
         _q_plegadas = _de_rango(d.plegados, l1, l2)
+        _q_puntos = _puntos_de_rango(d, l1, l2)
     end
     t = _texto_entre(d, l1, c1, l2, c2)
     resto = _trozo(d.lineas[l2], c2, d.lineas[l2].length)
@@ -925,6 +972,7 @@ func _puntos_encoger(d: Documento, l1: Int, l2: Int)
         elif p > l1
             # su línea ya no está: pasa a l1, si no tiene ya uno; si lo tiene, se va
             if not _tiene(d.puntos, l1 + 1)
+                _q_punto_junto = p - l1
                 d.puntos[i] = l1 + 1
                 i = i + 1
             else
@@ -933,6 +981,64 @@ func _puntos_encoger(d: Documento, l1: Int, l2: Int)
             end
         else
             i = i + 1
+        end
+    end
+end
+
+# Los puntos de las líneas l1 a l2 (desde 0), desde l1; nil si no hay
+func _puntos_de_rango(d: Documento, l1: Int, l2: Int) -> [Int]
+    var r: [Int] = nil
+    for p in d.puntos
+        if p - 1 >= l1 and p - 1 <= l2
+            if r == nil
+                r = []
+            end
+            r.push(p - 1 - l1)
+        end
+    end
+    return r
+end
+
+# Tras volver a meter las líneas l a l + n de un cambio que las quitó (deshacer, rehacer): sus puntos de parada, como
+# estaban. El que se quedó en la primera línea (el suyo, o el que pasó a ella) vuelve a su sitio con lo que tenga (main
+# le lleva su condición); los que se fueron vuelven como nuevos (puntos_antes -1: main los saca de su papelera, con
+# su condición)
+func _puntos_como_estaban(d: Documento, c: Cambio, n: Int)
+    if c.puntos == nil
+        return
+    end
+    _puntos_guardar(d)
+    quedo = -1
+    i = 0
+    while i < d.puntos.length
+        p = d.puntos[i] - 1
+        if p >= c.l and p <= c.l + n
+            if quedo < 0
+                quedo = i
+                i = i + 1
+            else
+                d.puntos.remove(i)
+                d.puntos_antes.remove(i)
+            end
+        else
+            i = i + 1
+        end
+    end
+    destino = -1
+    if quedo >= 0
+        if _tiene(c.puntos, 0)
+            destino = 0
+        elif c.punto_junto >= 0
+            destino = c.punto_junto
+        else
+            destino = c.puntos[0]
+        end
+        d.puntos[quedo] = c.l + destino + 1
+    end
+    for o in c.puntos
+        if o <= n and o != destino
+            d.puntos.push(c.l + o + 1)
+            d.puntos_antes.push(-1)
         end
     end
 end
@@ -1082,6 +1188,8 @@ func _borrar_rango(d: Documento, l1: Int, c1: Int, l2: Int, c2: Int)
     c = Cambio(BORRAR, l1, c1, t, false, false)
     c.marcas = _q_marcas
     c.plegadas = _q_plegadas
+    c.puntos = _q_puntos
+    c.punto_junto = _q_punto_junto
     _apuntar(d, c)
 end
 
@@ -1377,12 +1485,15 @@ func _aplicar(d: Documento, c: Cambio, al_reves: Bool)
             if _rango_como_estaba_marcas(d, c)
                 _pl_cambios = _pl_cambios + 1
             end
+            _puntos_como_estaban(d, c, _fin_l - c.l)
         end
     else
         _fin_de(c.l, c.c, c.texto)
         _quitar(d, c.l, c.c, _fin_l, _fin_c)
         c.marcas = _q_marcas
         c.plegadas = _q_plegadas
+        c.puntos = _q_puntos
+        c.punto_junto = _q_punto_junto
         d.cl = c.l
         d.cc = c.c
     end
@@ -2738,34 +2849,138 @@ func ed_nombre_pestana(d: Documento) -> String
     return d.nombre
 end
 
+func _nombre_con_cambio(d: Documento) -> String
+    nombre = ed_nombre_pestana(d)
+    if d.cambiado
+        nombre = nombre + " *"
+    end
+    return nombre
+end
+
+# Un triángulo pequeño en el botón de las pestañas que empieza en bx: hacia la izquierda (-1), la derecha (1) o
+# abajo (0)
+func _triangulo_pestanas(bx: Int, y: Int, hacia: Int)
+    cx = bx + ANCHO_BOTON_PESTANAS / 2
+    cy = y + ALTO_PESTANAS / 2 + 1
+    k = 0
+    while k < 4
+        if hacia == 0
+            gfx_line(cx - 3 + k, cy - 2 + k, cx + 3 - k, cy - 2 + k)
+        elif hacia < 0
+            gfx_line(cx - 2 + k, cy - k, cx - 2 + k, cy + k)
+        else
+            gfx_line(cx + 2 - k, cy - k, cx + 2 - k, cy + k)
+        end
+        k = k + 1
+    end
+end
+
+# Las pestañas. Si no caben, se ven desde ed_pestana_primera (con la activa, si acaba de cambiar) y a la derecha van
+# tres botones: mover a la izquierda, a la derecha y la lista de todas
 func _dibujar_pestanas(x: Int, y: Int, ancho: Int)
     gfx_pen(tema.fondo_panel)
     gfx_rect(x, y, x + ancho - 1, y + ALTO_PESTANAS - 1)
     usar_panel(0)
     _pestana_x1.clear()
     _pestana_x2.clear()
+    var anchos: [Int] = []
+    total = 4
+    for d in documentos
+        w = font_text_width(_nombre_con_cambio(d)) + 20
+        anchos.push(w)
+        total = total + w + 2
+    end
+    n = documentos.length
+    sitio = ancho
+    _pestanas_botones_x = -1
+    if total > ancho and n > 1
+        _pestanas_botones_x = ancho - 3 * ANCHO_BOTON_PESTANAS - 2
+        sitio = _pestanas_botones_x
+        if ed_pestana_primera >= n
+            ed_pestana_primera = n - 1
+        end
+        if activo != _pestana_activo_visto and activo >= 0
+            # la activa, a la vista
+            if activo < ed_pestana_primera
+                ed_pestana_primera = activo
+            end
+            suma = 4
+            k = activo
+            while k >= ed_pestana_primera
+                suma = suma + anchos[k] + 2
+                k = k - 1
+            end
+            while suma > sitio and ed_pestana_primera < activo
+                suma = suma - anchos[ed_pestana_primera] - 2
+                ed_pestana_primera = ed_pestana_primera + 1
+            end
+        end
+        # sin hueco a la derecha si caben más de las de la izquierda
+        suma = 4
+        k = ed_pestana_primera
+        while k < n
+            suma = suma + anchos[k] + 2
+            k = k + 1
+        end
+        while ed_pestana_primera > 0 and suma + anchos[ed_pestana_primera - 1] + 2 <= sitio
+            ed_pestana_primera = ed_pestana_primera - 1
+            suma = suma + anchos[ed_pestana_primera] + 2
+        end
+    else
+        ed_pestana_primera = 0
+    end
+    _pestana_activo_visto = activo
     tx = x + 4
+    ed_pestanas_ocultas = 0
+    hay_derecha = false
     i = 0
     for d in documentos
-        nombre = ed_nombre_pestana(d)
-        if d.cambiado
-            nombre = nombre + " *"
+        w = anchos[i]
+        # la primera que se ve va siempre, aunque no quepa entera (se corta en los botones)
+        if i < ed_pestana_primera or (tx + w - x > sitio and i > ed_pestana_primera)
+            _pestana_x1.push(-1)
+            _pestana_x2.push(-1)
+            ed_pestanas_ocultas = ed_pestanas_ocultas + 1
+            if i > ed_pestana_primera
+                hay_derecha = true
+            end
+        else
+            if i == activo
+                gfx_pen(tema.fondo)
+                gfx_rect(tx, y + 2, tx + w - 1, y + ALTO_PESTANAS - 1)
+                gfx_pen(tema.acento)
+                gfx_rect(tx, y + 2, tx + w - 1, y + 3)
+                gfx_pen(tema.texto)
+            else
+                gfx_pen(tema.tenue)
+            end
+            gfx_text_at(tx + 10, y + (ALTO_PESTANAS - font_height()) / 2 + 2 + font_baseline(), _nombre_con_cambio(d))
+            _pestana_x1.push(tx - x)
+            _pestana_x2.push(tx + w - 1 - x)
+            tx = tx + w + 2
         end
-        w = font_text_width(nombre) + 20
-        if i == activo
-            gfx_pen(tema.fondo)
-            gfx_rect(tx, y + 2, tx + w - 1, y + ALTO_PESTANAS - 1)
-            gfx_pen(tema.acento)
-            gfx_rect(tx, y + 2, tx + w - 1, y + 3)
+        i = i + 1
+    end
+    if _pestanas_botones_x >= 0
+        bx = x + _pestanas_botones_x
+        gfx_pen(tema.fondo_panel)
+        gfx_rect(bx, y, x + ancho - 1, y + ALTO_PESTANAS - 1)
+        gfx_pen(tema.fondo)
+        gfx_rect(bx + 2, y + 2, x + ancho - 1, y + ALTO_PESTANAS - 1)
+        if ed_pestana_primera > 0
             gfx_pen(tema.texto)
         else
             gfx_pen(tema.tenue)
         end
-        gfx_text_at(tx + 10, y + (ALTO_PESTANAS - font_height()) / 2 + 2 + font_baseline(), nombre)
-        _pestana_x1.push(tx - x)
-        _pestana_x2.push(tx + w - 1 - x)
-        tx = tx + w + 2
-        i = i + 1
+        _triangulo_pestanas(bx + 2, y, -1)
+        if hay_derecha
+            gfx_pen(tema.texto)
+        else
+            gfx_pen(tema.tenue)
+        end
+        _triangulo_pestanas(bx + 2 + ANCHO_BOTON_PESTANAS, y, 1)
+        gfx_pen(tema.acento)
+        _triangulo_pestanas(bx + 2 + 2 * ANCHO_BOTON_PESTANAS, y, 0)
     end
 end
 

@@ -14,6 +14,7 @@ const LR_ESQUEMA = 1
 const LR_FICHEROS = 2
 const LR_NOMBRES = 3
 const LR_PREGUNTA = 4         # sin lista: solo lo escrito (el nombre nuevo al renombrar); Return lo acepta
+const LR_PESTANAS = 5         # las pestañas abiertas (su número en la línea)
 const LR_FICHERO = -1        # la clase de una entrada que es un fichero
 const LR_FILAS = 12
 const LR_MAX = 400           # las que se enseñan como mucho

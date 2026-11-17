@@ -253,6 +253,26 @@ end
 # cambió; los que no pudo escribir, en bp_no_escritos
 var bp_no_escritos: [String] = []
 
+# ¿Siguen las líneas de bp_c_* como estaban? (entre la lista de cambios y el sí se puede escribir o guardar)
+func bp_al_dia() -> Bool
+    i = 0
+    while i < bp_c_rutas.length
+        ls = bp_lineas_de(bp_c_rutas[i])
+        nums = str_split(bp_c_lineas[i], " ")
+        antes = str_split(bp_c_antes[i], "\n")
+        j = 0
+        while j < nums.length
+            n = Int(nums[j])
+            if n < 1 or n > ls.length or j >= antes.length or ls[n - 1] != antes[j]
+                return false
+            end
+            j = j + 1
+        end
+        i = i + 1
+    end
+    return true
+end
+
 func bp_aplicar() -> Int
     bp_no_escritos.clear()
     hechos = 0
