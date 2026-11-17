@@ -311,7 +311,11 @@ La prueba de Demos también abre un segundo `.sync` (Tab va de uno a otro; una c
 copper arrastra una parada, elige otra con un clic en la lista y lee el bloque siguiente con Tab, y
 deshace y rehace en las pistas, cambia el nombre de una, la mueve y la quita, y apunta lo
 que tarda un dibujo entero ("dibujo") y la mediana de los dibujos de una parte ("parte": una fila de la tabla, el
-medidor), sin la demo y con ella; `REAL=1` para los tiempos de un A1200.
+medidor), sin la demo y con ella; `REAL=1` para los tiempos de un A1200. Desde la rama `cierre`, las dos prueban
+también el copper de dos registros (un color y BPLCON1, con su línea `# registro:`; el bloque viejo `# paradas:` se
+sigue leyendo), el medidor por partes (`sync_medir`, el bloque de memoria versión 2) y la página Partes (Amiga-5: nueva,
+nombre, límites, quitar, `.sync`, el bloque `# partes:` al código); la captura nueva es `partes.png`. Con la demo en
+marcha cada tecla se pulsa cuando se ve la anterior (un dibujo entero tarda 1,4 s en MUI 5 y 4-5 s en MUI 3.8).
 
 Forja de punta a punta en la máquina CoffinOS (paso 0.1): `tests/coffin.sh <worktree de Dash> <cajón con dashc.amiga>
 [capturas/] [<dashgit>]` (con `DASH_KICKSTART_32`, `DASH_EMU_DISK_COFFIN` y `DASH_EMU_MINIGL`). Pone Forja, sus

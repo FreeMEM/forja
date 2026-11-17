@@ -691,6 +691,32 @@ VS Code.
   - **Instalar desde un `.lha`, probado**: `tests/extensiones.sh` pone en el emulador un LhA del Amiga (`LHA_AMIGA`; por
     defecto el de `~/.cache/caffeine-prueba`, no va al repositorio), la prueba hace con él `Hola.lha` y lo instala con
     el gestor.
+  - **Demos** (`extensiones/Demos`, `plantillas/demo/sync.dash`):
+    - **El copper cambia varios registros por bloque**: cada registro con sus paradas (COLOR00 a COLOR31, BPLCON0/1/2,
+      BPL1MOD, BPL2MOD, DIWSTRT/STOP, DDFSTRT/STOP); los colores en degradado o secos, los demás secos o lineales. El
+      código pone una espera por línea con cambios y en ella los `copper_color` o `copper_move` de todos; en modo
+      tabla, una tabla por registro. Una línea `# registro: NOMBRE modo l:v ...` por registro (los bloques viejos con
+      `# paradas:` se leen). Teclas: izquierda/derecha otro registro, `a` añade, Mayúsculas+Supr quita, `c`/`C` lo
+      cambian, `d` el modo, `+ - < >` el valor.
+    - **El medidor separa partes**: `sync_medir(nombre)` en la demo (4 como mucho; lo de antes de la primera, "otro").
+      El bloque de memoria pasa a la versión 2 (868 bytes: nombres en +164, lo de cada parte por imagen en +228; la
+      extensión sigue leyendo la 1). Barras apiladas en colores con la media de cada parte. La plantilla mide "lógica"
+      y "barras".
+    - **Línea de tiempo de partes** (página 5, Amiga-5, `extensiones/Demos/partes.dash`): una barra con una caja por
+      parte y la fila que suena, y la lista editable (cifras, `+ - < >`, `n`, `r`, Supr, `g` lleva la demo al
+      principio de la parte; con el deshacer de las pistas; avisa si dos se pisan). Van en el `.sync` (`parte nombre
+      desde hasta`; `sync.dash` las lee en `sync_partes` y da `sync_parte_de(fila)`). `c` mete o cambia el bloque
+      `# partes:` (una constante `PARTE_X` por parte, `parte_de(fila)` y `parte_cambio(fila)` con `parte_actual` y
+      `parte_primera`); `l` lo vuelve a leer. La plantilla trae "entrada" y "barras" con su bloque.
+    - **Dónde se enchufa lo de Dash cuando llegue** (otra tarea lo añade): `music_seek(pos, fila)` en `sync_ir` de
+      `sync.dash` (hoy `music_position(fila / 64)`) y en la tecla `g` de `sync_tecla`, `partes_tecla` y `musica_tecla`
+      de `demos.dash`; `music_tick()`/`music_speed()` en `sync_parte()` y en la cuenta de `_sync_por_fila` y
+      `_sync_cuenta` de `sync_fotograma`; `music_playing()` en `sync_musica`/`sync_tocar` y en `suena` (`tocar()`) de
+      `demos.dash`; `beam_line()` en `sync_linea()` (hoy dos `peek_word`); `vblank_count()` en `sync_fotograma`, para
+      las imágenes perdidas (hoy por `time_ms`); PAL/NTSC en `SYNC_LINEAS_PAL` (`sync_fin`, `_sync_apuntar`) con un
+      campo nuevo en el bloque para que `medidor_barra` y `medidor_texto` escalen a 263 o 313 líneas; el copper en vivo,
+      una orden nueva de DEMOSYNC (`COPPER fichero`) en `_sync_orden` que rehaga la lista con doble búfer con la lógica
+      de `cu_instalar` de `copper.dash`, mandada desde `copper_tecla` o `al_codigo` con la demo conectada.
   - **Las pruebas**: `tests/extensiones.dash` con las teclas de Eco en la salida, el proyecto y la barra, sus dos
     paneles (Lista y Charla), la sugerencia de dos líneas en medio de una y el `.lha`; `tests/git_panel.dash` con el
     panel en Forja (clics por `ENV:FORJA_PANELES`); `tests/copiloto.dash` con el panel Inferencia, el panel Prueba y una
