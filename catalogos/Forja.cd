@@ -808,3 +808,5 @@ MSG_1003 (1003//)
 Esta orden dash no compila por C (--gcc): quítalo en Propiedades del proyecto.
 MSG_1004 (1004//)
 memcheck: un aviso (un clic en él lleva a su línea).
+MSG_1005 (1005//)
+No se puede abrir la ventana %1.

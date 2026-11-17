@@ -1214,3 +1214,6 @@ This dash command does not build through C (--gcc): remove it in Project propert
 MSG_1004
 memcheck: one warning (a click on it goes to its line).
 ; memcheck: un aviso (un clic en él lleva a su línea).
+MSG_1005
+The window %1 cannot be opened.
+; No se puede abrir la ventana %1.
