@@ -842,7 +842,6 @@ func pedir_sugerencia(ruta: String)
     end
     # dónde: al final de una línea con algo, en medio de una (lo de detrás sigue tras la sugerencia) o en una línea
     # vacía tras otra que abre un bloque (el cuerpo, de varias líneas)
-    al_final = col == linea.length + 1
     if str_trim(linea) == ""
         anterior = ""
         if l > 1
@@ -857,18 +856,24 @@ func pedir_sugerencia(ruta: String)
     if desde < 1
         desde = 1
     end
-    antes = forja_lineas(desde, l - 1)
+    antes = ""
+    if l > 1
+        antes = forja_lineas(desde, l - 1) + "\n"
+    end
     despues = forja_lineas(l + 1, l + 8)
     if not inf_lista()
         return
     end
-    donde = hueco2(tr(54, "Fichero %1. El cursor está al final de la línea %2:"), a[1], "#{l}") + "\n" + linea
-    if not al_final
-        donde = str_replace(hueco2(tr(78, "Fichero %1. El cursor está en la línea %2, columna %3 (lo que va antes y lo que va después del cursor):"), a[1], "#{l}"), "%3", "#{col}") + "\n" + linea[0:col - 1] + "\n" + linea[col - 1:]
-    elif str_trim(linea) == ""
-        donde = hueco2(tr(79, "Fichero %1. El cursor está en la línea %2, vacía, la primera del bloque que empieza encima: escribe su cuerpo (varias líneas, con su sangría)."), a[1], "#{l}")
+    # el código con una marca donde está el cursor (como un "rellenar en medio"): los modelos lo entienden mejor que
+    # explicándoles la línea y la columna (con qwen3-coder, "Print sal" daba "Print sal" otra vez; así, "udo(...)")
+    marcado = antes + linea[0:col - 1] + "<<CURSOR>>" + linea[col - 1:]
+    if despues != ""
+        marcado = marcado + "\n" + despues
     end
-    t = donde + "\n\n" + tr(55, "Lo de antes (hasta esa línea):") + "\n```dash\n" + antes + "\n```\n\n" + tr(56, "Lo de después:") + "\n```dash\n" + despues + "\n```\n\n" + tr(80, "Contesta solo con el texto que va en el cursor: una línea o varias (8 como mucho), sin repetir lo que ya está escrito.")
+    t = hueco2(tr(93, "Completa el código de Dash del fichero %1 en el sitio marcado con <<CURSOR>> (línea %2)."), a[1], "#{l}") + "\n\n```dash\n" + marcado + "\n```\n\n" + tr(94, "Contesta solo con el texto que hay que escribir en <<CURSOR>>, tal cual, sin repetir nada de lo que ya está antes ni después (puede ser el final de una palabra, una línea o varias; 8 líneas como mucho). Sin explicaciones ni ```.")
+    if str_trim(linea) == ""
+        t = t + " " + tr(95, "La línea está vacía y es la primera del bloque que empieza encima: escribe su cuerpo, con su sangría.")
+    end
     inf("ENCARGO completar\n" + t)
     if inf_rc != 0
         sonda_sug("no: ENCARGO RC #{inf_rc}")
@@ -900,7 +905,7 @@ end
 # Lo que llegó de Inferencia: el texto que va en el cursor, de 8 líneas como mucho. Sin repetir lo de antes del
 # cursor (si lo trae al principio) ni lo de después (si lo trae al final).
 func sugerencia(texto: String)
-    r = str_replace(texto, "\r", "")
+    r = str_replace(str_replace(texto, "\r", ""), "<<CURSOR>>", "")
     if str_contains(r, "```")
         r = cp_codigo(r)
     end
