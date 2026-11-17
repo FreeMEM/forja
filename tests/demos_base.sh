@@ -22,9 +22,10 @@ cp "$tmp/sys/Prueba/musica.mod" "$tmp/sys/Prueba/demo/"
 "$dash/dash" "$aqui/tests/demos_base.dash" -o "$tmp/Prueba"
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-120} --system "$tmp/sys" --keep "$tmp/disco" "$tmp/Prueba" || true
 # el código de copper que escribió, compilado aquí
-for f in copper_gen copper_tabla; do
+for f in copper_gen copper_tabla partes_gen; do
   if [ ! -f "$tmp/disco/Prueba/$f.dash" ]; then echo "FALLO: no está $f.dash"; exit 0; fi
 done
-{ cat "$tmp/disco/Prueba/copper_gen.dash"; echo; cat "$tmp/disco/Prueba/copper_tabla.dash" | sed 's/copper_degradado/copper_tabla/'; 
-  printf 'Main\n    if screen_open_custom(320, 256, 1, "x")\n        copper_degradado()\n        t = copper_tabla()\n        amiga_free(t, 512)\n        screen_close()\n    end\nend\n'; } > "$tmp/gen.dash"
-if "$dash/dash" "$tmp/gen.dash" -o "$tmp/gen"; then echo "bien: el código de copper compila"; echo "TODO BIEN"; else echo "FALLO: el código de copper no compila"; cat "$tmp/gen.dash" | head -30; fi
+{ iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/copper_gen.dash"; echo; iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/copper_tabla.dash" | sed 's/copper_degradado/copper_tabla/'; echo
+  iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/partes_gen.dash"; echo
+  printf 'Main\n    if screen_open_custom(320, 256, 1, "x")\n        copper_degradado()\n        t = copper_tabla()\n        amiga_free(t, 1024)\n        screen_close()\n    end\n    Print parte_cambio(70)\nend\n'; } > "$tmp/gen.dash"
+if "$dash/dash" "$tmp/gen.dash" -o "$tmp/gen"; then echo "bien: el código de copper y el de las partes compilan"; echo "TODO BIEN"; else echo "FALLO: el código de copper o el de las partes no compila"; cat "$tmp/gen.dash" | head -30; fi

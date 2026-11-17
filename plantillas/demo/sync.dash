@@ -32,11 +32,28 @@
 # mira en cada imagen si llegó algo (rexx_get: sin nada, es un GetMsg vacío); Forja solo manda cuando se cambia una
 # clave. Lo que Forja lee a menudo (la fila, las líneas de cada imagen) lo deja la demo en un bloque de memoria
 # (SYNC_TAM bytes) cuya dirección le da con HOLA; Forja lo lee unas veces por segundo sin molestar a la demo:
-#   0 "DSYN", 4 versión (1), 8 fila, 12 fotograma, 16 líneas del último, 20 en pausa, 24 índice del anillo,
-#   28 fotogramas perdidos, 32 las líneas de los 64 últimos fotogramas (una palabra cada uno).
+#   0 "DSYN", 4 versión (2), 8 fila, 12 fotograma, 16 líneas del último, 20 en pausa, 24 índice del anillo,
+#   28 fotogramas perdidos, 32 las líneas de los 64 últimos fotogramas (una palabra cada uno); desde la versión 2,
+#   160 cuántas partes con nombre (sync_medir, hasta 4), 164 sus nombres (16 bytes cada uno, acabados en 0) y 228 lo
+#   que gastó cada parte en los 64 últimos fotogramas (5 palabras por fotograma: la parte sin nombre y las 4).
+#
+# El medidor por partes: sync_medir("dibujo") dice que lo que se gasta desde ahí (hasta la siguiente sync_medir o
+# sync_fin) es de "dibujo". Lo de antes de la primera, entre sync_fotograma y ella, no tiene nombre.
+#
+#   sync_fotograma()
+#   sync_medir("lógica")
+#   ...                                 # mover cosas
+#   sync_medir("dibujo")
+#   ...                                 # pintar
+#   sync_fin()
+#
+# Las partes de la demo (escenas): líneas "parte nombre desde hasta" en el .sync (las filas de la música, las dos
+# incluidas). Las edita Forja (Demos, página Partes), que mete en el programa un bloque "# partes:" con parte_de(fila);
+# sync_partes tiene las del .sync cargado (nombres en sync_partes, filas en sync_partes_desde y sync_partes_hasta).
 
 const SYNC_MAGIA = 0x4453594E
-const SYNC_TAM = 160
+const SYNC_TAM = 868
+const SYNC_PARTES = 4           # las partes del medidor con nombre (sync_medir)
 const SYNC_ANILLO = 64
 const SYNC_ESCALON = 0
 const SYNC_LINEAL = 1
@@ -69,6 +86,14 @@ var _sync_linea0: Int = 0
 var _sync_ms: Int = 0
 var _sync_perdidos: Int = 0
 var _sync_indice: {String: Int} = {}
+var _sync_medidas: [String] = []    # los nombres de sync_medir, en orden (la parte 1 es el primero)
+var _sync_gasto: [Int] = [0, 0, 0, 0, 0]
+var _sync_parte_med: Int = 0        # la parte que se mide ahora (0: sin nombre)
+var _sync_parte_l: Int = 0          # la línea donde empezó
+# Las partes de la demo (escenas), del .sync: nombre y filas
+var sync_partes: [String] = []
+var sync_partes_desde: [Int] = []
+var sync_partes_hasta: [Int] = []
 
 # --- Las pistas ---
 
@@ -319,6 +344,11 @@ end
 # El texto de un fichero .sync: "pista nombre" y, debajo, "fila valor tipo" por clave
 func sync_a_texto() -> String
     t = "# Pistas de sincronía (Forja, extensión Demos)\n"
+    i = 0
+    while i < sync_partes.length
+        t = t + "parte " + sync_partes[i] + " #{sync_partes_desde[i]} #{sync_partes_hasta[i]}\n"
+        i = i + 1
+    end
     for p in sync_pistas
         t = t + "pista " + p.nombre + "\n"
         i = 0
@@ -333,11 +363,21 @@ end
 func sync_de_texto(texto: String)
     sync_pistas.clear()
     _sync_indice = {}
+    sync_partes.clear()
+    sync_partes_desde.clear()
+    sync_partes_hasta.clear()
     var p: SyncPista = nil
     for linea in str_split(texto, "\n")
         l = str_trim(linea)
         if l != "" and not str_starts(l, "#")
-            if str_starts(l, "pista ")
+            if str_starts(l, "parte ")
+                c = str_split(str_trim(l[6:]), " ")
+                if c.length >= 3
+                    sync_partes.push(c[0])
+                    sync_partes_desde.push(Int(c[1]))
+                    sync_partes_hasta.push(Int(c[2]))
+                end
+            elif str_starts(l, "pista ")
                 p = sync_pista(str_trim(l[6:]))
             elif p != nil
                 c = str_split(l, " ")
@@ -398,7 +438,12 @@ func sync_empezar(vivo: Bool)
     if vivo and _sync_mem == 0 and rexx_port("DEMOSYNC")
         _sync_mem = amiga_alloc(SYNC_TAM)
         if _sync_mem != 0
-            poke_long(_sync_mem + 4, 1)
+            k = 0
+            while k < SYNC_TAM
+                poke_long(_sync_mem + k, 0)
+                k = k + 4
+            end
+            poke_long(_sync_mem + 4, 2)
             poke_long(_sync_mem, SYNC_MAGIA)
             sync_vivo = true
         end
@@ -446,6 +491,13 @@ end
 # Tras wait_vblank, al principio de cada imagen
 func sync_fotograma()
     _sync_linea0 = sync_linea()
+    _sync_parte_med = 0
+    _sync_parte_l = _sync_linea0
+    _sync_gasto[0] = 0
+    _sync_gasto[1] = 0
+    _sync_gasto[2] = 0
+    _sync_gasto[3] = 0
+    _sync_gasto[4] = 0
     ahora = time_ms()
     if ahora - _sync_ms > 30 and _sync_ms != 0
         _sync_perdidos = _sync_perdidos + (ahora - _sync_ms + 10) / 20 - 1
@@ -483,7 +535,9 @@ end
 
 # Al acabar el trabajo de la imagen: cuántas líneas de raster se gastaron desde sync_fotograma
 func sync_fin() -> Int
-    n = sync_linea() - _sync_linea0
+    l = sync_linea()
+    _sync_apuntar(l)
+    n = l - _sync_linea0
     if n < 0
         n = n + SYNC_LINEAS_PAL
     end
@@ -491,10 +545,68 @@ func sync_fin() -> Int
     if sync_vivo
         i = peek_long(_sync_mem + 24)
         poke_word(_sync_mem + 32 + i * 2, n)
+        k = 0
+        while k <= SYNC_PARTES
+            poke_word(_sync_mem + 228 + (i * (SYNC_PARTES + 1) + k) * 2, _sync_gasto[k])
+            k = k + 1
+        end
         poke_long(_sync_mem + 16, n)
         poke_long(_sync_mem + 24, (i + 1) % SYNC_ANILLO)
     end
     return n
+end
+
+# Lo gastado desde aquí es de la parte nombre (hasta la siguiente sync_medir o sync_fin), para el medidor de Forja.
+# Hasta SYNC_PARTES nombres distintos; los de más cuentan como la parte sin nombre.
+func sync_medir(nombre: String)
+    l = sync_linea()
+    _sync_apuntar(l)
+    k = 0
+    while k < _sync_medidas.length and _sync_medidas[k] != nombre
+        k = k + 1
+    end
+    if k >= _sync_medidas.length
+        if k >= SYNC_PARTES
+            _sync_parte_med = 0
+            _sync_parte_l = l
+            return
+        end
+        _sync_medidas.push(nombre)
+        if sync_vivo
+            # su nombre en el bloque (16 bytes, acabado en 0) y cuántos hay
+            d = _sync_mem + 164 + k * 16
+            j = 0
+            while j < nombre.length and j < 15
+                poke_byte(d + j, str_code(nombre, j))
+                j = j + 1
+            end
+            poke_byte(d + j, 0)
+            poke_long(_sync_mem + 160, _sync_medidas.length)
+        end
+    end
+    _sync_parte_med = k + 1
+    _sync_parte_l = l
+end
+
+# Lo gastado por la parte que se mide, hasta la línea l
+func _sync_apuntar(l: Int)
+    n = l - _sync_parte_l
+    if n < 0
+        n = n + SYNC_LINEAS_PAL
+    end
+    _sync_gasto[_sync_parte_med] = _sync_gasto[_sync_parte_med] + n
+end
+
+# La parte de la demo (de las del .sync) en esa fila; -1 si ninguna
+func sync_parte_de(fila: Int) -> Int
+    i = 0
+    while i < sync_partes.length
+        if fila >= sync_partes_desde[i] and fila <= sync_partes_hasta[i]
+            return i
+        end
+        i = i + 1
+    end
+    return -1
 end
 
 # Las órdenes de Forja (por el puerto DEMOSYNC)
