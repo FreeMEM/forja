@@ -1,0 +1,1045 @@
+# La ayuda de Dash dentro de Forja (paso 3.4 de docs/FORJA_LOOP.md): las fichas de DASH:Ayuda/Dash.ayuda (o
+# Dash_en.ayuda), leídas a trozos con lib/ayuda.dash de Dash, sin cargar el fichero (1,6 MB). El formato está en
+# docs/AYUDA_FORMATO.md de Dash.
+#
+#   ayf_ventana(win, lista, texto, barra, buscar, atras, adelante, probar)   # los objetos de su ventana (MUI)
+#   ayf_ir(ayf_nombre("file_seek"), true)    # una ficha, apuntada en la historia (atrás y adelante)
+#   ayf_atras(); ayf_adelante()
+#   ayf_buscar("abrir fichero")              # la lista de la izquierda: lo encontrado, lo mejor primero
+#   ayf_indice()                             # la lista: inicio, grupos de funciones y capítulos del manual
+#   ayf_dibujar(x, y, ancho, alto)           # la ficha en el lienzo (colores del tema; el código, con su sintaxis)
+#   ayf_clic(x, y)                           # un clic en un enlace (o en un nombre con ficha) lo sigue
+#   ayf_ejemplo                              # el programa que abre "Probar" ("" si la ficha no tiene uno entero)
+#
+# El fichero se abre al hacer falta y se cierra con la ventana (ayf_cerrar): abierto, no se podría poner al día Dash.
+# Se busca en ENV:Forja/ayuda (un cajón), DASH:Ayuda, el cajón Ayuda de encima del de Forja (en el paquete de Dash,
+# Dash/Forja/Forja y Dash/Ayuda), PROGDIR:Ayuda y el cajón Ayuda junto al compilador (ayf_cajon_extra). Primero la
+# del idioma de Forja (el de su catálogo) y, si no está, la otra.
+
+import "tema.dash"
+import "sintaxis.dash"
+import "lib/ayuda.dash"
+
+const AYF_HISTORIA = 60       # las fichas que recuerda atrás y adelante
+const AYF_RESULTADOS = 80     # lo que enseña una búsqueda como mucho
+const AYF_MARGEN = 8          # a la izquierda del texto, en píxeles
+
+var ayf: Ayuda = nil          # el fichero abierto (nil: cerrado)
+var ayf_ruta: String = ""     # cuál se abrió
+var ayf_cajon_extra: String = ""    # otro cajón donde buscar (el del compilador)
+var ayf_falta: String = ""    # por qué no se pudo abrir ("" si se abrió)
+
+# La ventana (sus objetos de MUI, como números)
+var ayf_win: Int = 0
+var ayf_lista: Int = 0
+var ayf_lienzo: Int = 0
+var ayf_barra: Int = 0
+var ayf_campo: Int = 0
+var ayf_b_atras: Int = 0
+var ayf_b_adelante: Int = 0
+var ayf_b_probar: Int = 0
+var ayf_abierta: Bool = false
+
+# La ficha que se ve
+var ayf_id: Int = -1
+var ayf_clave: String = ""
+var ayf_tipo: String = ""
+var ayf_titulo: String = ""
+var ayf_crudas: [String] = []     # sus líneas, tal cual (con su prefijo)
+var ayf_vt: [String] = []         # las de pintar: su prefijo ("@", "#", " ", "|", "*", "")
+var ayf_vx: [String] = []         # su texto
+var ayf_ve: [String] = []         # la clave del enlace de cada una ("" si no es un enlace)
+var ayf_desde: Int = 0            # la primera que se ve
+var ayf_ejemplo: String = ""      # el programa entero de "Probar" ("" si no hay)
+var ayf_ejemplo_de: String = ""   # su nombre ("audio_functions")
+var ayf_ms: Int = 0               # lo que tardó la última ficha (para la sonda)
+var ayf_ms_buscar: Int = 0        # lo que tardó la última búsqueda (con la lista)
+var ayf_ms_mostrar: Int = 0       # lo que tardó el último ayf_mostrar (con abrir la ventana)
+var ayf_ms_lista: Int = 0         # lo que tardó llenar la lista la última vez
+
+# La historia: los números de las fichas y dónde se estaba en cada una
+var ayf_hist: [Int] = []
+var ayf_hist_desde: [Int] = []
+var ayf_hist_pos: Int = -1
+
+# La lista de la izquierda: la ficha de cada fila (-1, un título que no lleva a nada)
+var ayf_lista_ids: [Int] = []
+var ayf_lista_que: String = ""    # "indice" o lo que se buscó
+
+# La geometría del último dibujo (desde la esquina de la ventana)
+var ayf_zona_x: Int = 0
+var ayf_zona_y: Int = 0
+var ayf_zona_ancho: Int = 0
+var ayf_zona_alto: Int = 0
+var ayf_fila: Int = 10
+var ayf_caben: Int = 1
+var ayf_cols: Int = 76            # las letras que caben a lo ancho (se parte el texto a esto)
+var ayf_cols_partidas: Int = -1   # a cuántas se partió la ficha que se ve
+
+func ayf_ventana(win: Int, lista: Int, lienzo: Int, barra: Int, campo: Int, atras: Int, adelante: Int, probar: Int)
+    ayf_win = win
+    ayf_lista = lista
+    ayf_lienzo = lienzo
+    ayf_barra = barra
+    ayf_campo = campo
+    ayf_b_atras = atras
+    ayf_b_adelante = adelante
+    ayf_b_probar = probar
+end
+
+func _ayf_unir(cajon: String, nombre: String) -> String
+    if cajon == "" or str_ends(cajon, ":") or str_ends(cajon, "/")
+        return cajon + nombre
+    end
+    return cajon + "/" + nombre
+end
+
+# Los nombres de los ficheros, el del idioma de Forja primero: Dash_en.ayuda si su catálogo es otro que el castellano
+func ayf_nombres() -> [String]
+    l = str_lower(catalog_language())
+    if l == "" or str_contains(l, "espa") or str_contains(l, "spanish") or str_contains(l, "castellano")
+        return ["Dash.ayuda", "Dash_en.ayuda"]
+    end
+    return ["Dash_en.ayuda", "Dash.ayuda"]
+end
+
+func ayf_cajones() -> [String]
+    var c: [String] = []
+    e = str_trim(env_get("Forja/ayuda"))
+    if e != ""
+        c.push(e)
+    end
+    c.push("DASH:Ayuda")
+    c.push("PROGDIR:/Ayuda")
+    c.push("PROGDIR:Ayuda")
+    if ayf_cajon_extra != ""
+        c.push(_ayf_unir(ayf_cajon_extra, "Ayuda"))
+    end
+    return c
+end
+
+# Dónde está la ayuda ("" si no está): sin peticiones de "inserta el volumen DASH:"
+func ayf_buscar_fichero() -> String
+    dos_requesters(false)
+    for n in ayf_nombres()
+        for c in ayf_cajones()
+            r = _ayf_unir(c, n)
+            if file_exists(r)
+                dos_requesters(true)
+                return r
+            end
+        end
+    end
+    dos_requesters(true)
+    return ""
+end
+
+# Abre la ayuda si no lo está; false si no hay (ayf_falta dice por qué)
+func ayf_abrir() -> Bool
+    if ayf != nil
+        return true
+    end
+    r = ayf_buscar_fichero()
+    if r == ""
+        ayf_falta = "falta"
+        return false
+    end
+    ayf = ayuda_abrir(r)
+    if ayf == nil
+        ayf_falta = "mala"
+        return false
+    end
+    ayf_ruta = r
+    ayf_falta = ""
+    return true
+end
+
+func ayf_cerrar()
+    if ayf != nil
+        ayuda_cerrar(ayf)
+        ayf = nil
+    end
+end
+
+# El número de la ficha de un nombre (una función, un grupo, "if", "struct"...); -1 si no la hay o no hay ayuda
+func ayf_nombre(nombre: String) -> Int
+    if nombre == "" or not ayf_abrir()
+        return -1
+    end
+    return ayuda_buscar(ayf, nombre)
+end
+
+# --- Una ficha ---
+
+# El valor del campo %nombre de unas líneas ("" si no está)
+func _ayf_campo(lineas: [String], nombre: String) -> String
+    p = "%" + nombre + " "
+    for l in lineas
+        if str_starts(l, p)
+            return l[p.length:]
+        end
+        if str_starts(l, "#") or str_starts(l, " ")
+            break
+        end
+    end
+    return ""
+end
+
+# El primer trozo de código (líneas "|" seguidas) que es un programa entero (tiene Main); "" si no hay
+func _ayf_programa(lineas: [String]) -> String
+    t = ""
+    con_main = false
+    for l in lineas
+        if str_starts(l, "|")
+            c = l[1:]
+            t = t + c + "\n"
+            if str_starts(c, "Main") and (c.length == 4 or str_code(c, 4) == 32 or str_code(c, 4) == 35)
+                con_main = true
+            end
+        else
+            if con_main
+                return t
+            end
+            t = ""
+        end
+    end
+    if con_main
+        return t
+    end
+    return ""
+end
+
+# El ejemplo de "Probar": el de la ficha si es un programa entero; el de una función es un trozo del de su grupo
+# (el mismo fichero de tests/test_doc_*.dash): entonces, el de su grupo
+func _ayf_buscar_ejemplo()
+    ayf_ejemplo = _ayf_programa(ayf_crudas)
+    ayf_ejemplo_de = ayf_clave
+    if ayf_ejemplo != "" or ayf_tipo != "F"
+        return
+    end
+    de = _ayf_campo(ayf_crudas, "ejemplo")
+    g = _ayf_campo(ayf_crudas, "grupo")
+    if de == "" or g == ""
+        return
+    end
+    gid = ayuda_buscar(ayf, g)
+    if gid < 0
+        return
+    end
+    gl = ayuda_ficha(ayf, gid)
+    if _ayf_campo(gl, "ejemplo") == de
+        ayf_ejemplo = _ayf_programa(gl)
+        ayf_ejemplo_de = g
+    end
+end
+
+# Va a la ficha id; con apuntar, se apunta en la historia (lo de delante se olvida). false si no hay esa ficha.
+func ayf_ir(id: Int, apuntar: Bool) -> Bool
+    if not ayf_abrir() or id < 0 or id >= ayuda_fichas(ayf)
+        return false
+    end
+    t0 = time_ms()
+    if apuntar
+        if ayf_hist_pos >= 0 and ayf_hist_pos < ayf_hist.length
+            ayf_hist_desde[ayf_hist_pos] = ayf_desde
+        end
+        while ayf_hist.length > ayf_hist_pos + 1
+            ayf_hist.remove(ayf_hist.length - 1)
+            ayf_hist_desde.remove(ayf_hist_desde.length - 1)
+        end
+        ayf_hist.push(id)
+        ayf_hist_desde.push(0)
+        if ayf_hist.length > AYF_HISTORIA
+            ayf_hist.remove(0)
+            ayf_hist_desde.remove(0)
+        end
+        ayf_hist_pos = ayf_hist.length - 1
+    end
+    ayf_crudas = ayuda_ficha(ayf, id)
+    ayf_id = id
+    ayf_clave = ""
+    ayf_tipo = ""
+    ayf_titulo = ""
+    if ayf_crudas.length > 0 and str_starts(ayf_crudas[0], "@")
+        cab = ayf_crudas[0]
+        p = str_find(cab, " ")
+        if p > 0
+            ayf_clave = cab[1:p]
+            ayf_tipo = cab[p + 1:p + 2]
+            ayf_titulo = cab[p + 3:]
+        end
+    end
+    _ayf_buscar_ejemplo()
+    ayf_partir(ayf_cols)
+    ayf_desde = 0
+    ayf_ms = time_ms() - t0
+    return true
+end
+
+func ayf_hay_atras() -> Bool
+    return ayf_hist_pos > 0
+end
+
+func ayf_hay_adelante() -> Bool
+    return ayf_hist_pos >= 0 and ayf_hist_pos < ayf_hist.length - 1
+end
+
+func _ayf_volver(paso: Int) -> Bool
+    p = ayf_hist_pos + paso
+    if p < 0 or p >= ayf_hist.length
+        return false
+    end
+    ayf_hist_desde[ayf_hist_pos] = ayf_desde
+    ayf_hist_pos = p
+    if not ayf_ir(ayf_hist[p], false)
+        return false
+    end
+    ayf_desde = ayf_desde_valido(ayf_hist_desde[p])
+    return true
+end
+
+func ayf_atras() -> Bool
+    return _ayf_volver(-1)
+end
+
+func ayf_adelante() -> Bool
+    return _ayf_volver(1)
+end
+
+# --- Partir la ficha en las líneas que se pintan ---
+
+func _ayf_poner(t: String, x: String, e: String)
+    ayf_vt.push(t)
+    ayf_vx.push(x)
+    ayf_ve.push(e)
+end
+
+func _ayf_blancos(s: String) -> Int
+    n = 0
+    while n < s.length and str_code(s, n) == 32
+        n = n + 1
+    end
+    return n
+end
+
+# Un texto en líneas de cols letras como mucho, cortando en los espacios; las de después, con sangria espacios
+func _ayf_cortar(tipo: String, s: String, cols: Int, sangria: Int, enlace: String)
+    resto = s
+    delante = ""
+    while true
+        if resto.length + delante.length <= cols or cols < 12
+            _ayf_poner(tipo, delante + resto, enlace)
+            return
+        end
+        corte = cols - delante.length
+        k = corte
+        while k > sangria + 4 and str_code(resto, k) != 32
+            k = k - 1
+        end
+        if k <= sangria + 4
+            k = corte      # una palabra más larga que la línea
+        end
+        _ayf_poner(tipo, delante + resto[0:k], enlace)
+        while k < resto.length and str_code(resto, k) == 32
+            k = k + 1
+        end
+        resto = resto[k:]
+        if resto == ""
+            return
+        end
+        delante = ""
+        i = 0
+        while i < sangria
+            delante = delante + " "
+            i = i + 1
+        end
+    end
+end
+
+# Rehace las líneas de pintar de la ficha para cols letras de ancho. El texto viene cortado a 76: si no cabe, se
+# corta otra vez (las listas, con su sangría); el código no se corta (se ve lo que cabe).
+func ayf_partir(cols: Int)
+    ayf_vt = []
+    ayf_vx = []
+    ayf_ve = []
+    ayf_cols_partidas = cols
+    for l in ayf_crudas
+        if l == ""
+            _ayf_poner("", "", "")
+            continue
+        end
+        p = l[0:1]
+        if p == "@"
+            _ayf_poner("@", ayf_titulo, "")
+            _ayf_poner("", "", "")
+        elif p == "%"
+            continue
+        elif p == "#"
+            _ayf_cortar("#", l[1:], cols, 0, "")
+        elif p == "|"
+            _ayf_poner("|", l[1:], "")
+        elif p == "*"
+            q = str_find(l, " ")
+            if q < 0
+                q = l.length
+            end
+            clave = l[1:q]
+            texto = ""
+            if q < l.length
+                texto = l[q + 1:]
+            end
+            _ayf_cortar("*", "> " + texto, cols, 2, clave)
+        else
+            t = l[1:]
+            n = _ayf_blancos(t)
+            if str_starts(t[n:], "- ")
+                n = n + 2
+            end
+            _ayf_cortar(" ", t, cols, n, "")
+        end
+    end
+end
+
+# --- Pintar ---
+
+func ayf_desde_valido(desde: Int) -> Int
+    maximo = ayf_vt.length - ayf_caben
+    if desde > maximo
+        desde = maximo
+    end
+    if desde < 0
+        desde = 0
+    end
+    return desde
+end
+
+func ayf_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    tema_preparar()
+    gfx_mode(0)
+    gfx_pen(tema.fondo)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    usar_codigo()
+    ayf_zona_x = x
+    ayf_zona_y = y
+    ayf_zona_ancho = ancho
+    ayf_zona_alto = alto
+    ayf_fila = alto_letra + 2
+    ayf_caben = (alto - 6) / ayf_fila
+    if ayf_caben < 1
+        ayf_caben = 1
+    end
+    cols = (ancho - AYF_MARGEN * 2) / ancho_letra
+    if cols < 8
+        cols = 8
+    end
+    if cols != ayf_cols
+        ayf_cols = cols
+    end
+    if ayf_cols_partidas != ayf_cols and ayf_crudas.length > 0
+        ayf_partir(ayf_cols)
+    end
+    ayf_desde = ayf_desde_valido(ayf_desde)
+    tx = x + AYF_MARGEN
+    if ayf_crudas.length == 0
+        gfx_pen(tema.tenue)
+        gfx_text_at(tx, y + 4 + base_letra, ayf_aviso())
+        return
+    end
+    fy = y + 3
+    i = ayf_desde
+    while i < ayf_vt.length and i < ayf_desde + ayf_caben
+        _ayf_fila(i, x, tx, fy, ancho)
+        fy = fy + ayf_fila
+        i = i + 1
+    end
+    font_style(0)
+end
+
+# Lo que se ve sin ficha
+func ayf_aviso() -> String
+    if ayf_falta == "falta"
+        return tr(712, "No encuentro la ayuda de Dash (Dash/Ayuda/Dash.ayuda).")
+    elif ayf_falta == "mala"
+        return tr(713, "La ayuda de Dash no se puede leer: ") + ayf_ruta
+    end
+    return ""
+end
+
+func _ayf_fila(i: Int, x: Int, tx: Int, fy: Int, ancho: Int)
+    t = ayf_vt[i]
+    s = ayf_vx[i]
+    base = fy + 1 + base_letra
+    cabe = ayf_cols
+    if t == "@"
+        font_style(2)
+        gfx_pen(tema.acento)
+        gfx_text_at(tx, base, _ayf_recorte(s, cabe))
+        font_style(0)
+        # el tipo, a la derecha y en tenue
+        k = _ayf_nombre_tipo(ayf_tipo)
+        if k != "" and s.length + k.length + 2 <= cabe
+            gfx_pen(tema.tenue)
+            gfx_text_at(tx + (cabe - k.length) * ancho_letra, base, k)
+        end
+        gfx_pen(tema.borde)
+        gfx_line(x + 4, fy + ayf_fila + 2, x + ancho - 5, fy + ayf_fila + 2)
+    elif t == "#"
+        font_style(2)
+        gfx_pen(tema.cursor)
+        gfx_text_at(tx, base, _ayf_recorte(s, cabe))
+        font_style(0)
+    elif t == "|"
+        gfx_pen(tema.fondo_panel)
+        gfx_rect(x + 3, fy, x + ancho - 4, fy + ayf_fila - 1)
+        if s != ""
+            sx_partir(s)
+            k = 0
+            while k < sx_desde.length
+                a = sx_desde[k]
+                b = s.length
+                if k + 1 < sx_desde.length
+                    b = sx_desde[k + 1]
+                end
+                if b > cabe
+                    b = cabe
+                end
+                if b > a
+                    gfx_pen(tema.sintaxis[sx_tipo[k]])
+                    gfx_text_at(tx + a * ancho_letra, base, s[a:b])
+                end
+                k = k + 1
+            end
+        end
+    elif t == "*"
+        r = _ayf_recorte(s, cabe)
+        gfx_pen(tema.acento)
+        gfx_text_at(tx, base, r)
+        n = _ayf_blancos(r)
+        if str_starts(r, "> ")
+            n = 2
+        end
+        if r.length > n
+            gfx_line(tx + n * ancho_letra, base + 1, tx + r.length * ancho_letra - 1, base + 1)
+        end
+    elif s != ""
+        gfx_pen(tema.texto)
+        gfx_text_at(tx, base, _ayf_recorte(s, cabe))
+    end
+end
+
+func _ayf_recorte(s: String, n: Int) -> String
+    if s.length > n
+        return s[0:n]
+    end
+    return s
+end
+
+func _ayf_nombre_tipo(t: String) -> String
+    if t == "F"
+        return tr(714, "función")
+    elif t == "G"
+        return tr(715, "grupo")
+    elif t == "M"
+        return tr(716, "manual")
+    elif t == "S"
+        return tr(717, "sintaxis")
+    end
+    return ""
+end
+
+# La línea de pintar en la y de la zona; -1 si no hay
+func ayf_linea_en(y: Int) -> Int
+    if y < 3
+        return -1
+    end
+    i = ayf_desde + (y - 3) / ayf_fila
+    if i >= ayf_vt.length
+        return -1
+    end
+    return i
+end
+
+func _ayf_es_id(c: Int) -> Bool
+    return (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95
+end
+
+# El nombre (letras, cifras y _) en la columna c de s; "" si no hay
+func ayf_palabra(s: String, c: Int) -> String
+    if c < 0 or c >= s.length or not _ayf_es_id(str_code(s, c))
+        return ""
+    end
+    a = c
+    while a > 0 and _ayf_es_id(str_code(s, a - 1))
+        a = a - 1
+    end
+    b = c
+    while b < s.length and _ayf_es_id(str_code(s, b))
+        b = b + 1
+    end
+    return s[a:b]
+end
+
+# Un clic en (x, y) desde la esquina de la zona: un enlace va a su ficha; un nombre con ficha en el código, o con
+# "_" en el texto (file_seek), a la suya. true si fue a otra ficha.
+func ayf_clic(x: Int, y: Int) -> Bool
+    i = ayf_linea_en(y)
+    if i < 0
+        return false
+    end
+    if ayf_ve[i] != ""
+        return ayf_ir(ayf_nombre(ayf_ve[i]), true)
+    end
+    t = ayf_vt[i]
+    if t != "|" and t != " " and t != "#"
+        return false
+    end
+    c = (x - AYF_MARGEN) / ancho_letra
+    p = ayf_palabra(ayf_vx[i], c)
+    if p == "" or p == ayf_clave or (t != "|" and not str_contains(p, "_"))
+        return false
+    end
+    id = ayf_nombre(p)
+    if id < 0 or id == ayf_id
+        return false
+    end
+    return ayf_ir(id, true)
+end
+
+# --- Buscar ---
+
+func _ayf_mayor(a: Int, b: Int) -> Int
+    return b - a
+end
+
+# Las fichas donde salen las palabras de q (todas), las mejores primero: la que se llama así, la primera. Una
+# palabra que no está en el índice vale por las que empiezan así ("fich" por "fichero", "ficheros"...).
+func ayf_buscar(q: String) -> [Int]
+    var out: [Int] = []
+    if not ayf_abrir()
+        return out
+    end
+    t0 = time_ms()
+    var total: {String: Int} = {}
+    primera = true
+    for w in str_split(str_trim(ayuda_plegar(q)), " ")
+        if w.length < 3
+            continue
+        end
+        var esta: {String: Int} = {}
+        ids = ayuda_palabra(ayf, w)
+        if ids.length == 0
+            for p in ayuda_prefijo(ayf, w, 8)
+                for id in ayuda_palabra(ayf, p)
+                    if not ("#{id}" in esta)
+                        ids.push(id)
+                        esta["#{id}"] = 0
+                    end
+                end
+            end
+            esta = {}
+        end
+        # los puntos: van de más a menos en la lista
+        n = ids.length
+        k = 0
+        for id in ids
+            esta["#{id}"] = n - k + 10
+            k = k + 1
+        end
+        if primera
+            total = esta
+            primera = false
+        else
+            var juntos: {String: Int} = {}
+            for clave in esta.keys()
+                if clave in total
+                    juntos[clave] = total[clave] + esta[clave]
+                end
+            end
+            total = juntos
+        end
+    end
+    var orden: [Int] = []
+    for clave in total.keys()
+        orden.push(total[clave] * 8192 + Int(clave))
+    end
+    orden.sort(_ayf_mayor)
+    exacta = ayuda_buscar(ayf, str_trim(q))
+    if exacta >= 0
+        out.push(exacta)
+    end
+    for o in orden
+        id = o % 8192
+        if id != exacta and out.length < AYF_RESULTADOS
+            out.push(id)
+        end
+    end
+    ayf_ms_buscar = time_ms() - t0
+    return out
+end
+
+# La lista de la izquierda con lo encontrado (la primera ficha, a la vista); cuántas
+func ayf_lista_buscar(q: String) -> Int
+    ids = ayf_buscar(q)
+    t0 = time_ms()
+    mui_list_quiet(ayf_lista, true)
+    mui_list_clear(ayf_lista)
+    ayf_lista_ids = []
+    ayf_lista_que = q
+    if ids.length == 0
+        mui_list_add(ayf_lista, tr(718, "(nada)"))
+        ayf_lista_ids.push(-1)
+    end
+    for id in ids
+        mui_list_add(ayf_lista, ayf_titulo_de(id))
+        ayf_lista_ids.push(id)
+    end
+    mui_list_quiet(ayf_lista, false)
+    ayf_ms_buscar = ayf_ms_buscar + time_ms() - t0
+    return ids.length
+end
+
+# El título de una ficha, como ayuda_titulo pero leyendo solo el principio de la ficha (para llenar la lista deprisa)
+func ayf_titulo_de(id: Int) -> String
+    if ayf == nil or id < 0 or id >= ayf.f_n
+        return ""
+    end
+    file_seek(ayf.fh, ayf.f_off + id * ayf.f_rec, -1)
+    file_read(ayf.fh, ayf.buf, 8)
+    pos = 0
+    i = 0
+    while i < 8
+        pos = pos * 10 + buffer_get_byte(ayf.buf, i) - 48
+        i = i + 1
+    end
+    file_seek(ayf.fh, pos, -1)
+    n = file_read(ayf.fh, ayf.buf, 120)
+    fin = buffer_find_byte(ayf.buf, 0, n, 10)
+    if fin < 0
+        fin = n
+    end
+    l = str_from_buffer(ayf.buf, 0, fin)
+    p = str_find(l, " ")
+    if p < 0 or p + 3 > l.length
+        return l
+    end
+    return l[p + 3:]
+end
+
+# --- El índice ---
+
+# Las líneas de una parte de texto de la cabecera (grupos o secciones): n líneas desde off
+func ayf_lineas_de(off: Int, n: Int) -> [String]
+    var out: [String] = []
+    trozo = 4096
+    b = buffer_alloc(trozo)
+    if b == 0
+        return out
+    end
+    pos = off
+    resto = ""
+    while out.length < n
+        file_seek(ayf.fh, pos, -1)
+        leidos = file_read(ayf.fh, b, trozo)
+        if leidos <= 0
+            break
+        end
+        pos = pos + leidos
+        partes = str_split(resto + str_from_buffer(b, 0, leidos), "\n")
+        i = 0
+        while i < partes.length - 1 and out.length < n
+            out.push(partes[i])
+            i = i + 1
+        end
+        resto = partes[partes.length - 1]
+    end
+    buffer_free(b)
+    return out
+end
+
+# La lista de la izquierda con el índice: el inicio, la sintaxis, los grupos de funciones y los capítulos del manual
+# (si ya lo tiene, no se vuelve a llenar)
+func ayf_lista_indice()
+    if not ayf_abrir() or ayf_lista_que == "indice"
+        return
+    end
+    t0 = time_ms()
+    mui_list_quiet(ayf_lista, true)
+    mui_list_clear(ayf_lista)
+    ayf_lista_ids = []
+    ayf_lista_que = "indice"
+    for n in ["inicio", "sintaxis", "indice"]
+        id = ayuda_buscar(ayf, n)
+        if id >= 0
+            mui_list_add(ayf_lista, ayuda_titulo(ayf, id))
+            ayf_lista_ids.push(id)
+        end
+    end
+    mui_list_add(ayf_lista, tr(719, "--- Funciones por grupo ---"))
+    ayf_lista_ids.push(ayuda_buscar(ayf, "grupos"))
+    for l in ayf_lineas_de(ayf.g_off, ayf.g_n)
+        if l.length > 6
+            mui_list_add(ayf_lista, "  " + l[6:])
+            ayf_lista_ids.push(Int(l[0:5]))
+        end
+    end
+    mui_list_add(ayf_lista, tr(720, "--- Manual ---"))
+    ayf_lista_ids.push(ayuda_buscar(ayf, "manual"))
+    # (solo los capítulos: cada uno lleva a sus apartados; con todos, la lista tardaba 1,3 s en llenarse en un A1200)
+    for l in ayf_lineas_de(ayf.s_off, ayf.s_n)
+        if l.length > 8 and l[6:7] == "1"
+            mui_list_add(ayf_lista, "  " + l[8:])
+            ayf_lista_ids.push(Int(l[0:5]))
+        end
+    end
+    mui_list_quiet(ayf_lista, false)
+    ayf_ms_lista = time_ms() - t0
+end
+
+# La ficha de la fila i de la lista (-1 si no lleva a ninguna)
+func ayf_id_de_fila(i: Int) -> Int
+    if i < 0 or i >= ayf_lista_ids.length
+        return -1
+    end
+    return ayf_lista_ids[i]
+end
+
+# --- La ventana al día ---
+
+# Los botones (atrás, adelante, probar), la barra y el título de la ventana con lo que se ve
+func ayf_al_dia()
+    if ayf_win == 0
+        return
+    end
+    mui_set_enabled(ayf_b_atras, ayf_hay_atras())
+    mui_set_enabled(ayf_b_adelante, ayf_hay_adelante())
+    mui_set_enabled(ayf_b_probar, ayf_ejemplo != "")
+    ayf_barra_al_dia()
+end
+
+var _ayf_barra_total: Int = -1
+var _ayf_barra_caben: Int = -1
+var _ayf_barra_valor: Int = -1
+
+func ayf_barra_al_dia()
+    if ayf_vt.length != _ayf_barra_total or ayf_caben != _ayf_barra_caben
+        _ayf_barra_total = ayf_vt.length
+        _ayf_barra_caben = ayf_caben
+        mui_set_range(ayf_barra, ayf_vt.length, ayf_caben)
+        _ayf_barra_valor = -1
+    end
+    if ayf_desde != _ayf_barra_valor
+        _ayf_barra_valor = ayf_desde
+        mui_set_value(ayf_barra, ayf_desde)
+    end
+end
+
+# La barra se movió: true si cambió lo que se ve
+func ayf_barra_movida() -> Bool
+    d = ayf_desde_valido(mui_get_value(ayf_barra))
+    _ayf_barra_valor = mui_get_value(ayf_barra)
+    if d == ayf_desde
+        return false
+    end
+    ayf_desde = d
+    return true
+end
+
+# La rueda o una tecla sobre la ficha (arriba, abajo, página, inicio y fin); true si cambió lo que se ve
+func ayf_mover(paso: Int) -> Bool
+    d = ayf_desde_valido(ayf_desde + paso)
+    if d == ayf_desde
+        return false
+    end
+    ayf_desde = d
+    return true
+end
+
+# Para la sonda: "clave desde líneas probar atrás adelante ms_ficha ms_buscar x y fila caben ms_mostrar ms_lista"
+func ayf_sonda() -> String
+    p = 0
+    if ayf_ejemplo != ""
+        p = 1
+    end
+    a = 0
+    if ayf_hay_atras()
+        a = 1
+    end
+    b = 0
+    if ayf_hay_adelante()
+        b = 1
+    end
+    c = ayf_clave
+    if c == ""
+        c = "-"
+    end
+    return c + " #{ayf_desde} #{ayf_vt.length} #{p} #{a} #{b} #{ayf_ms} #{ayf_ms_buscar} #{ayf_zona_x} #{ayf_zona_y} #{ayf_fila} #{ayf_caben} #{ayf_ms_mostrar} #{ayf_ms_lista}"
+end
+
+# Para la sonda: la ficha como se pinta (prefijo, texto y enlace) y la lista
+func ayf_sonda_texto() -> String
+    t = ""
+    i = 0
+    while i < ayf_vt.length
+        t = t + ayf_vt[i] + "|" + ayf_ve[i] + "|" + ayf_vx[i] + "\n"
+        i = i + 1
+    end
+    t = t + "=lista " + ayf_lista_que + "\n"
+    i = 0
+    while i < ayf_lista_ids.length
+        t = t + "#{ayf_lista_ids[i]}\n"
+        i = i + 1
+    end
+    return t
+end
+
+# --- Los eventos de su ventana ---
+
+const EV_AYUDA = 110          # Código > Ayuda de Dash (y Help o F1 sin nombre con ficha): el índice
+const EV_AYUDA_BUSCAR = 111   # Código > Buscar en la ayuda...
+const EV_AY_ATRAS = 112
+const EV_AY_ADELANTE = 113
+const EV_AY_INDICE = 114
+const EV_AY_PROBAR = 115
+const EV_AY_CAMPO = 116       # Return en el campo de buscar
+const EV_AY_LISTA = 117
+const EV_AY_BARRA = 118
+const EV_AY_CERRAR = 119
+const EV_AY_TEXTO = 120       # un clic, la rueda o una tecla en la ficha
+const EV_AY_ACTIVADA = 121    # su ventana pasa a ser la activa
+
+const AYF_T_ARRIBA = 0x4C
+const AYF_T_ABAJO = 0x4D
+const AYF_T_RETROCESO = 0x41
+const AYF_T_DERECHA = 0x4E
+const AYF_T_IZQUIERDA = 0x4F
+
+var _ayf_version: String = ""     # la de la ayuda de la historia (si cambia, la historia no vale)
+
+# Abre la ventana (con el índice en la lista, la primera vez) en la ficha id (-1: la que hubiera, o la portada).
+# false si no hay ayuda.
+func ayf_mostrar(id: Int) -> Bool
+    t0 = time_ms()
+    if not ayf_abrir()
+        return false
+    end
+    if ayf.version + ayf_ruta != _ayf_version
+        _ayf_version = ayf.version + ayf_ruta
+        ayf_hist = []
+        ayf_hist_desde = []
+        ayf_hist_pos = -1
+        ayf_id = -1
+        ayf_lista_que = ""
+    end
+    if ayf_lista_que == ""
+        ayf_lista_indice()
+    end
+    if id < 0 and ayf_id < 0
+        id = ayuda_buscar(ayf, "inicio")
+    end
+    if id >= 0 and id != ayf_id
+        ayf_ir(id, true)
+    elif ayf_id >= 0 and ayf_crudas.length == 0
+        ayf_ir(ayf_id, false)
+    end
+    if not ayf_abierta
+        mui_window_open(ayf_win)
+        ayf_abierta = true
+    else
+        mui_window_activate(ayf_win)
+    end
+    ayf_al_dia()
+    mui_canvas_redraw(ayf_lienzo)
+    ayf_ms_mostrar = time_ms() - t0
+    return true
+end
+
+func ayf_cerrar_ventana()
+    if ayf_abierta
+        mui_window_close(ayf_win)
+        ayf_abierta = false
+    end
+    # (abierto, el fichero no dejaría poner al día Dash)
+    ayf_cerrar()
+    ayf_crudas = []
+end
+
+# Un evento de la ventana de la ayuda (EV_AY_*); devuelve EV_AY_PROBAR si hay que abrir y ejecutar el ejemplo
+# (ayf_ejemplo), 0 si no hay más que hacer
+func ayf_evento(ev: Int) -> Int
+    cambio = false
+    if ev == EV_AY_CERRAR
+        ayf_cerrar_ventana()
+        return 0
+    end
+    if not ayf_abrir()
+        return 0
+    end
+    if ev == EV_AY_ATRAS
+        cambio = ayf_atras()
+    elif ev == EV_AY_ADELANTE
+        cambio = ayf_adelante()
+    elif ev == EV_AY_INDICE
+        ayf_lista_indice()
+        cambio = ayf_ir(ayuda_buscar(ayf, "inicio"), true)
+    elif ev == EV_AY_PROBAR
+        if ayf_ejemplo != ""
+            return EV_AY_PROBAR
+        end
+    elif ev == EV_AY_CAMPO
+        q = str_trim(mui_get_text(ayf_campo))
+        if q == ""
+            ayf_lista_indice()
+        elif ayf_lista_buscar(q) > 0
+            cambio = ayf_ir(ayf_lista_ids[0], true)
+            mui_set_value(ayf_lista, 0)
+        end
+    elif ev == EV_AY_LISTA
+        id = ayf_id_de_fila(mui_get_value(ayf_lista))
+        if id >= 0 and id != ayf_id
+            cambio = ayf_ir(id, true)
+        end
+    elif ev == EV_AY_BARRA
+        if ayf_barra_movida()
+            mui_canvas_redraw(ayf_lienzo)
+        end
+        return 0
+    elif ev == EV_AY_TEXTO
+        cambio = _ayf_entrada()
+    end
+    if cambio
+        ayf_al_dia()
+        mui_canvas_redraw(ayf_lienzo)
+    end
+    return 0
+end
+
+# Lo que llega al lienzo de la ficha: clic, rueda o tecla; true si cambió lo que se ve
+func _ayf_entrada() -> Bool
+    rueda = mui_canvas_wheel(ayf_lienzo)
+    if rueda != 0
+        return ayf_mover(-rueda * 3)
+    end
+    if mui_canvas_button(ayf_lienzo) == 1
+        return ayf_clic(mui_canvas_mouse_x(ayf_lienzo), mui_canvas_mouse_y(ayf_lienzo))
+    end
+    k = mui_canvas_key(ayf_lienzo)
+    q = mui_canvas_qualifiers(ayf_lienzo)
+    pagina = ayf_caben - 1
+    if pagina < 1
+        pagina = 1
+    end
+    if k == AYF_T_ARRIBA and (q & 1) != 0
+        return ayf_mover(-pagina)
+    elif k == AYF_T_ABAJO and (q & 1) != 0
+        return ayf_mover(pagina)
+    elif k == AYF_T_ARRIBA
+        return ayf_mover(-1)
+    elif k == AYF_T_ABAJO
+        return ayf_mover(1)
+    elif k == AYF_T_RETROCESO or (k == AYF_T_IZQUIERDA and (q & 4) != 0)
+        return ayf_atras()
+    elif k == AYF_T_DERECHA and (q & 4) != 0
+        return ayf_adelante()
+    end
+    return false
+end

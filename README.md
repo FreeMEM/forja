@@ -50,6 +50,20 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   textos. Flechas para elegir, Tab o Return la meten, Esc la cierra; Ctrl+Espacio la saca con menos letras. Al
   escribir "(" tras una función o un builtin, una ayuda con sus argumentos y su descripción. Se apaga en
   Preferencias. Help o F1 sacan esa ayuda para el nombre que hay en el cursor (idea de Javier R. Santurde "Tolkien").
+- **Ayuda de Dash**: Help o F1 sobre una función o una palabra del lenguaje abre su ficha entera en la ventana de la
+  ayuda: la firma, los parámetros, qué hace, un ejemplo con colores, "ver también" y si está en DashOS. Un clic en un
+  enlace (o en un nombre del ejemplo) lleva a su ficha; Atrás y Adelante (o Retroceso, Alt+flechas) recorren lo
+  visto. "Buscar:" encuentra palabras en toda la ayuda (también por cómo empiezan: "fich"), e Índice enseña los grupos
+  de funciones y los capítulos del manual. **Probar** abre el ejemplo de la ficha en una pestaña nueva sin nombre y lo
+  ejecuta. En el menú Código: "Ayuda de Dash" y "Buscar en la ayuda...". Sobre un nombre del proyecto, F1 sigue
+  sacando la ayuda de sus argumentos. La ayuda es la que trae el paquete de Dash (`Dash/Ayuda/Dash.ayuda`, en inglés
+  `Dash_en.ayuda`, según el idioma de Forja); se lee a trozos, sin cargarla entera. Se busca en `ENV:Forja/ayuda` (un
+  cajón), `DASH:Ayuda`, el cajón `Ayuda` de encima del de Forja y el que está junto al compilador.
+- **Errores en el código**: al guardar, Forja comprueba el programa con `dash --check` en segundo plano (sin frenar
+  el editor) y marca el error en su línea: el número en rojo y el texto subrayado; la barra de la salida dice cuál es y
+  la salida lo apunta, con clic. Tras una pausa al escribir (1,5 s) también comprueba lo que hay sin guardar (se apaga
+  en Preferencias, "Buscar errores al escribir"). F8 va al siguiente error y Mayúsculas+F8 al anterior. Los errores de
+  compilar se marcan igual. Necesita un Dash con `--check` (posterior a la 2.15.0).
 - **Ir a la definición** (Amiga-J o Ctrl+clic): al fichero y la línea donde se define el nombre, abriéndolo si hace
   falta; Amiga-U vuelve. **Dónde se usa** (Amiga-H): la lista en la salida, y un clic lleva a cada sitio. Los
   símbolos se leen al abrir o cambiar de fichero y tras un momento sin escribir (en el menú Código).

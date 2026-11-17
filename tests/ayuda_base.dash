@@ -1,0 +1,198 @@
+# Prueba de src/ayuda.dash y src/errores.dash sin ventana: encontrar la ayuda de Dash (DH0:Dash/Ayuda, como el cajón
+# del compilador), una ficha (file_seek) con sus enlaces y su ejemplo para Probar, partirla a otro ancho, la historia,
+# buscar, el índice; y los errores de dash (leerlos, moverlos al escribir, el siguiente). Con DH0:Dash/dash, también
+# "dash --check" del Amiga: que existe y lo que tarda. Mide lo que tarda cada cosa. tests/ayuda_base.sh la ejecuta.
+
+import "../src/ayuda.dash"
+import "../src/errores.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso + " [" + detalle + "]"
+        fallos = fallos + 1
+    end
+end
+
+func hay_enlace(clave: String) -> Bool
+    for e in ayf_ve
+        if e == clave
+            return true
+        end
+    end
+    return false
+end
+
+func linea_de(clave: String) -> Int
+    i = 0
+    while i < ayf_ve.length
+        if ayf_ve[i] == clave
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+Main
+    # sin nada: no la encuentra y lo dice
+    ver("sin ayuda: no la encuentra", not ayf_abrir() and ayf_falta == "falta", ayf_falta)
+    ayf_cajon_extra = "DH0:Dash"
+    t0 = time_ms()
+    ver("la encuentra junto al compilador", ayf_abrir(), ayf_falta)
+    Print "abrir: #{time_ms() - t0} ms, " + ayf_ruta + " " + ayf.idioma + " " + ayf.version
+    ver("en castellano (Forja sin catálogo)", str_ends(ayf_ruta, "Dash.ayuda") and ayf.idioma == "es", ayf_ruta)
+
+    t0 = time_ms()
+    id = ayf_nombre("file_seek")
+    ms_nombre = time_ms() - t0
+    ver("file_seek tiene ficha", id >= 0, "#{id}")
+    t0 = time_ms()
+    ayf_ir(id, true)
+    Print "buscar el nombre: #{ms_nombre} ms; leer y partir la ficha: #{time_ms() - t0} ms (#{ayf_vt.length} líneas)"
+    ver("su clave y su tipo", ayf_clave == "file_seek" and ayf_tipo == "F", ayf_clave + " " + ayf_tipo)
+    ver("el título primero", ayf_vt[0] == "@" and ayf_vx[0] == "file_seek", ayf_vx[0])
+    ver("ver también: file_pos", hay_enlace("file_pos"), "")
+    ver("su grupo: dos_functions", hay_enlace("dos_functions"), "")
+    ver("Probar: el ejemplo entero de su grupo", ayf_ejemplo_de == "dos_functions" and str_contains(ayf_ejemplo, "Main") and str_contains(ayf_ejemplo, "file_seek(f, 0, -1)"), ayf_ejemplo_de)
+    ver("sin campos % a la vista", not str_contains(ayf_sonda_texto(), "%firma"), "")
+
+    # partir a 40 columnas: ninguna línea de texto pasa de 40, y el enlace sigue en todas sus líneas
+    ayf_partir(40)
+    largo = true
+    for i in (0..ayf_vt.length - 1)
+        if ayf_vt[i] != "|" and ayf_vx[i].length > 40
+            largo = false
+        end
+    end
+    ver("partida a 40 columnas", largo, "")
+    ayf_partir(76)
+
+    # un clic en el enlace de file_pos (y desde la esquina de la zona: fila 10)
+    ayf_fila = 10
+    ayf_caben = 30
+    ayf_desde = 0
+    k = linea_de("file_pos")
+    ver("clic en el enlace", ayf_clic(20, 3 + k * 10 + 4) and ayf_clave == "file_pos", ayf_clave)
+    ver("atrás vuelve a file_seek", ayf_atras() and ayf_clave == "file_seek", ayf_clave)
+    ver("adelante, a file_pos", ayf_adelante() and ayf_clave == "file_pos", ayf_clave)
+    ver("ya no hay adelante", not ayf_hay_adelante() and ayf_hay_atras(), "")
+
+    # un nombre en el código del ejemplo lleva a su ficha
+    ayf_ir(ayf_nombre("sound_play"), true)
+    k = -1
+    i = 0
+    while i < ayf_vt.length
+        if ayf_vt[i] == "|" and str_starts(ayf_vx[i], "sound_volume")
+            k = i
+        end
+        i = i + 1
+    end
+    ver("clic en sound_volume del ejemplo", k >= 0 and ayf_clic(8 + 3 * 8, 3 + k * 10 + 4) and ayf_clave == "sound_volume", ayf_clave)
+
+    # una palabra del lenguaje y un apartado del manual
+    ver("if tiene ficha (manual)", ayf_ir(ayf_nombre("if"), true) and ayf_tipo == "M", ayf_clave)
+    ver("struct tiene ficha", ayf_nombre("struct") >= 0, "")
+    ver("lo que no existe, -1", ayf_nombre("no_existe_esto") < 0, "")
+
+    # buscar
+    t0 = time_ms()
+    r = ayf_buscar("sonido")
+    Print "buscar \"sonido\": #{time_ms() - t0} ms, #{r.length} fichas"
+    ver("sonido: algo", r.length > 3, "#{r.length}")
+    t0 = time_ms()
+    r = ayf_buscar("abrir fichero")
+    Print "buscar \"abrir fichero\": #{time_ms() - t0} ms, #{r.length} fichas"
+    claves = ""
+    i = 0
+    while i < r.length and i < 8
+        claves = claves + " " + ayuda_clave(ayf, r[i])
+        i = i + 1
+    end
+    Print "  las primeras:" + claves
+    ver("abrir fichero: file_open entre las primeras", str_contains(claves, " file_open"), claves)
+    t0 = time_ms()
+    for id in r
+        ayuda_titulo(ayf, id)
+    end
+    t1 = time_ms()
+    for id in r
+        ayf_titulo_de(id)
+    end
+    Print "los títulos de lo encontrado (#{r.length}): ayuda_titulo #{t1 - t0} ms, ayf_titulo_de #{time_ms() - t1} ms"
+    ver("ayf_titulo_de como ayuda_titulo", ayf_titulo_de(r[0]) == ayuda_titulo(ayf, r[0]), ayf_titulo_de(r[0]))
+    r = ayf_buscar("file_seek")
+    ver("file_seek: su ficha la primera", r.length > 0 and ayuda_clave(ayf, r[0]) == "file_seek", "")
+    r = ayf_buscar("fich")
+    ver("fich: por lo que empieza así", r.length > 0, "#{r.length}")
+    r = ayf_buscar("zzzqqq")
+    ver("zzzqqq: nada", r.length == 0, "#{r.length}")
+
+    # el índice: grupos y secciones del manual
+    t0 = time_ms()
+    g = ayf_lineas_de(ayf.g_off, ayf.g_n)
+    sec = ayf_lineas_de(ayf.s_off, ayf.s_n)
+    Print "índice: #{time_ms() - t0} ms, #{g.length} grupos y #{sec.length} secciones"
+    ver("los grupos", g.length == ayf.g_n and g.length > 30, "#{g.length}")
+    ver("las secciones", sec.length == ayf.s_n and sec.length > 100, "#{sec.length}")
+    ver("un grupo lleva a una ficha G", ayuda_tipo(ayf, Int(g[0][0:5])) == "G", g[0])
+
+    # una ficha grande (un capítulo entero del manual)
+    t0 = time_ms()
+    grande = 0
+    for l in sec
+        if l[6:7] == "1"
+            ayf_ir(Int(l[0:5]), false)
+            if ayf_vt.length > grande
+                grande = ayf_vt.length
+            end
+        end
+    end
+    Print "todos los capítulos del manual: #{time_ms() - t0} ms (el más largo, #{grande} líneas)"
+    ayf_cerrar()
+    ver("cerrada", ayf == nil, "")
+
+    # los errores de dash
+    salida = "DH0:Prueba/juego/main.dash:5:11: Error: la variable y no existe\n"
+    ver("un error leído", err_de_salida(salida, "DH0:Prueba/juego", "", "") and err_lista.length == 1, err_resumen())
+    r1 = "dh0:prueba/juego/main.dash"
+    ver("en su línea y columna", err_col_en(r1, 5) == 11 and err_col_en(r1, 4) < 0, "")
+    ver("el mismo otra vez: sin cambios", not err_de_salida(salida, "", "", ""), "")
+    ver("de T: al fichero de verdad", err_de_salida("T:forja_comprobar.dash:3:1: Error: x\nred.dash:7:2: Error: y\n", "DH0:Prueba/juego", "T:forja_comprobar.dash", "DH0:Prueba/juego/main.dash") and err_col_en(r1, 3) == 1 and err_col_en("dh0:prueba/juego/red.dash", 7) == 2, err_resumen())
+    ver("Return encima: baja", err_mover(r1, 2, 1, 2) and err_col_en(r1, 4) == 1, err_resumen())
+    ver("su línea borrada: se va", err_mover(r1, 3, 2, 1) and err_en(r1, 4) < 0 and err_lista.length == 1, err_resumen())
+    err_de_salida("a.dash:3:1: Error: x\na.dash:9:1: Error: y\nb.dash:2:1: Error: z\n", "DH0:p", "", "")
+    ver("F8 desde la 1: la 3", err_lista[err_siguiente("dh0:p/a.dash", 1, true)].linea == 3, "")
+    ver("F8 desde la 3: la 9", err_lista[err_siguiente("dh0:p/a.dash", 3, true)].linea == 9, "")
+    ver("F8 desde la 9: b.dash", err_lista[err_siguiente("dh0:p/a.dash", 9, true)].ruta == "dh0:p/b.dash", "")
+    ver("Mayúsculas+F8 desde la 9: la 3", err_lista[err_siguiente("dh0:p/a.dash", 9, false)].linea == 3, "")
+    ver("sin sitio", err_de_salida("dash: Error: falta el bloque Main\n", "", "", "") and err_sin_sitio == "falta el bloque Main" and err_lista.length == 0, err_resumen())
+
+    # dash --check en el Amiga
+    if file_exists("DH0:Dash/dash")
+        t0 = time_ms()
+        texto = run_capture("DH0:Dash/dash --check DH0:Prueba/juego/main.dash", 60000)
+        rc = run_rc()
+        Print "dash --check de juego/main.dash (bien): #{time_ms() - t0} ms, rc #{rc}: " + str_trim(texto)
+        ver("--check sin errores: rc 0 y nada escrito", rc == 0 and str_trim(texto) == "", texto)
+        file_write_text("DH0:Prueba/juego/malo.dash", "import \"red.dash\"\n\nMain\n    x = 1\n    Print y\nend\n")
+        ok = cmp_empezar("DH0:Dash/dash --check malo.dash", "DH0:Prueba/juego", "", "")
+        while not cmp_mirar()
+            time_delay(2)
+        end
+        Print "dash --check de un fichero con un error, en segundo plano: #{cmp_ms} ms: " + str_trim(cmp_salida)
+        ver("--check en segundo plano: el error en su sitio", ok and err_col_en("dh0:prueba/juego/malo.dash", 5) == 11, err_resumen())
+        ver("y no deja ejecutable", not file_exists("DH0:Prueba/juego/malo"), "")
+    else
+        Print "(sin DH0:Dash/dash: no se prueba dash --check)"
+    end
+
+    if fallos == 0
+        Print "TODO BIEN"
+    else
+        Print "#{fallos} FALLOS"
+    end
+end

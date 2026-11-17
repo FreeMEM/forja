@@ -170,7 +170,7 @@ Las de "el fichero activo" valen solo con un fichero de texto delante (no con un
 | `CAMBIADOS` | Las rutas de los ficheros abiertos con cambios sin guardar, una por línea. |
 | `PROYECTO` | El cajón del panel del proyecto en la primera línea; después, lo que enseña (los cajones acaban en `/`). |
 | `ESTADO` | `libre`, `compilando`, `ejecutando` o `depurando`. |
-| `ERRORES` | Las líneas de error de la última compilación. |
+| `ERRORES` | Las líneas de error de la última compilación; si no hay, las de los errores marcados al guardar o al escribir (`dash --check`), con la ruta en minúsculas. |
 | `SALIDA` | El texto de la salida. |
 | `BARRA` | Lo que enseña la barra. |
 | `ZONA` | Las zonas de la barra de botones, una por línea: `extensión\|texto\|detalle`. |

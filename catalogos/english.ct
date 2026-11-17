@@ -1,4 +1,4 @@
-## version $VER: Forja.catalog 1.0 (16.11.2026)
+## version $VER: Forja.catalog 1.0 (17.11.2026)
 ## language english
 ## codeset 0
 ;
@@ -1109,3 +1109,81 @@ MSG_633
 MSG_634
 
 ; Instalada la extensión %1.
+MSG_700
+Dash help (Forja)
+; Ayuda de Dash (Forja)
+MSG_701
+< _Back
+; < A_trás
+MSG_702
+_Forward >
+; A_delante >
+MSG_703
+I_ndex
+; Í_ndice
+MSG_704
+_Try it
+; _Probar
+MSG_705
+Search:
+; Buscar:
+MSG_712
+Cannot find the Dash help (Dash/Ayuda/Dash.ayuda).
+; No encuentro la ayuda de Dash (Dash/Ayuda/Dash.ayuda).
+MSG_713
+Cannot read the Dash help: 
+; La ayuda de Dash no se puede leer: 
+MSG_714
+function
+; función
+MSG_715
+group
+; grupo
+MSG_716
+manual
+; manual
+MSG_717
+syntax
+; sintaxis
+MSG_718
+(nothing)
+; (nada)
+MSG_719
+--- Functions by group ---
+; --- Funciones por grupo ---
+MSG_720
+--- Manual ---
+; --- Manual ---
+MSG_721
+Next error (F8)
+; Siguiente error (F8)
+MSG_722
+Previous error (Shift+F8)
+; Error anterior (Mayús+F8)
+MSG_723
+Dash help (Help)
+; Ayuda de Dash (Help)
+MSG_724
+Search the help...
+; Buscar en la ayuda...
+MSG_725
+Look for errors while typing:
+; Buscar errores al escribir:
+MSG_727
+Wait until what is running ends.
+; Espera a que acabe lo que está en marcha.
+MSG_728
+No errors.
+; Sin errores.
+MSG_729
+Line %1: 
+; Línea %1: 
+MSG_730
+1 error (F8)
+; 1 error (F8)
+MSG_731
+%1 errors (F8)
+; %1 errores (F8)
+MSG_732
+No errors marked.
+; No hay errores marcados.

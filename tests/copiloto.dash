@@ -5,7 +5,7 @@
 #   - Cambiar el código... (Ctrl Alt C): la ventana para decir qué; r rechaza;
 #   - Explicar la selección y Preguntar sobre esto (Ctrl Alt I): a la conversación de Inferencia, con el código;
 #   - Escribir la prueba: un fichero nuevo, que se escribe y se abre al aceptar (menú Aceptar);
-#   - con dashc: Explicar el error (compila primero) y Arreglar el error (Ctrl Alt Y acepta);
+#   - con dashc: compilar un error (la zona lo dice), Explicar el error y Arreglar el error (Ctrl Alt Y acepta);
 #   - Sugerencias al escribir: el texto en gris tras el cursor (SUGERENCIA) y Tab lo mete.
 # Lo arranca tests/copiloto.sh; anota en DH0:Prueba/copiloto.txt.
 
@@ -244,10 +244,16 @@ Main
         if env_get("Forja/dashc") != ""
             rexx("ABRIR \"" + MAIN + "\"")
             rexx("CAMBIAR \"" + MAIN + "\" 12 12 \"    Print dobel(21)\"")
-            ver("menú Explicar el error (compila antes)", menu(I_EXPLICAR_ERROR), "")
+            rexx("COMPILAR")
+            n = 0
+            while n < 600 and (rexx("ESTADO") != "libre" or not str_contains(rexx("ZONA"), "1 error"))
+                time_delay(5)
+                n = n + 1
+            end
+            ver("tras compilar, la zona: 1 error", str_contains(rexx("ZONA"), "1 error"), rexx("ZONA"))
+            ver("menú Explicar el error", menu(I_EXPLICAR_ERROR), "")
             r = respuesta_con("Explica este error", 900)
             ver("Inferencia explica el error, con su línea", str_contains(r, "Explica este error de compilación") and str_contains(r, "dobel"), r)
-            ver("la zona: 1 error", str_contains(rexx("ZONA"), "1 error"), rexx("ZONA"))
             ver("menú Arreglar el error", menu(I_ARREGLAR), "")
             ver("el arreglo llega", esperar("cambio", 300), estado())
             v = rexx("TEXTO")

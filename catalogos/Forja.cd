@@ -1,4 +1,4 @@
-; Texts of /home/freemem/Projects/forja/.worktrees/git-ext/src/main.dash (tools/catalogo.py)
+; Texts of /home/freemem/Projects/forja/.worktrees/ayuda/src/main.dash (tools/catalogo.py)
 ;
 MSG_1 (1//)
 No se puede leer 
@@ -738,3 +738,55 @@ MSG_633 (633//)
 Instalar y _activar|_Instalar|_Cancelar
 MSG_634 (634//)
 Instalada la extensión %1.
+MSG_700 (700//)
+Ayuda de Dash (Forja)
+MSG_701 (701//)
+< A_trás
+MSG_702 (702//)
+A_delante >
+MSG_703 (703//)
+Í_ndice
+MSG_704 (704//)
+_Probar
+MSG_705 (705//)
+Buscar:
+MSG_712 (712//)
+No encuentro la ayuda de Dash (Dash/Ayuda/Dash.ayuda).
+MSG_713 (713//)
+La ayuda de Dash no se puede leer: 
+MSG_714 (714//)
+función
+MSG_715 (715//)
+grupo
+MSG_716 (716//)
+manual
+MSG_717 (717//)
+sintaxis
+MSG_718 (718//)
+(nada)
+MSG_719 (719//)
+--- Funciones por grupo ---
+MSG_720 (720//)
+--- Manual ---
+MSG_721 (721//)
+Siguiente error (F8)
+MSG_722 (722//)
+Error anterior (Mayús+F8)
+MSG_723 (723//)
+Ayuda de Dash (Help)
+MSG_724 (724//)
+Buscar en la ayuda...
+MSG_725 (725//)
+Buscar errores al escribir:
+MSG_727 (727//)
+Espera a que acabe lo que está en marcha.
+MSG_728 (728//)
+Sin errores.
+MSG_729 (729//)
+Línea %1: 
+MSG_730 (730//)
+1 error (F8)
+MSG_731 (731//)
+%1 errores (F8)
+MSG_732 (732//)
+No hay errores marcados.
