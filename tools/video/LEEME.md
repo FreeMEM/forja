@@ -40,3 +40,8 @@ Mismas herramientas, con estas diferencias (todo en `*08*` o con un interruptor)
 - Los programas con pantalla propia (el juego de la plantilla, el cubo) se acaban con `Break` (`parar_programa`):
   con Esc (que parece llegarle también a Forja) Forja se cerró dos veces; no se ha investigado.
 - Inferencia del paquete 2.17 es anterior al copiloto (no entiende `ENCARGO`): se copia la compilada del repositorio.
+- Arreglado después (ramas `arreglos-video` de Dash y Forja): el Esc lo convertía en cerrar la ventana una commodity
+  de CoffinOS (Dash ya no cierra tras un Esc de una zona con teclas: `tests/esc.sh` con `COFFIN=1`); los campos negros
+  eran de `mui_app_field_colors` con MUI 3.8 (ya no se pone ahí); Ctrl / con el mapa castellano (Mayúsculas+6) y
+  Arreglar el error en Ctrl Alt G (Ctrl Alt F se la queda una commodity, como Ctrl Alt T, A, flechas y Espacio); los
+  sprites sueltos tras Break; el paquete rehace Inferencia.
