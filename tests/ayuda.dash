@@ -268,19 +268,45 @@ Main
     screen_save_png("DH0:Prueba/ayuda-probar.png")
 
     # --- buscar ---
-    env_set("FORJA_EVENTO", "111", false)       # Código > Buscar en la ayuda...
-    if al_editor()
-        input_key(0x45, 0)
-    end
-    ver("Buscar en la ayuda: su ventana", activar(AYUDA), input_active_title())
-    time_delay(20)
-    t0 = time_ms()
-    input_text("sonido")
-    input_key(RETURN, 0)
-    n = 0
-    while n < 200 and not str_contains(file_read_text("RAM:forja-ayuda.txt") + "", "=lista sonido")
-        time_delay(2)
-        n = n + 1
+    # (con MUI 3.8, a veces el campo aún no tiene el teclado cuando llegan las letras: se reintenta, como el gestor de
+    # tests/extensiones.dash)
+    intentos = 0
+    encontrado = false
+    t0 = 0
+    while intentos < 3 and not encontrado
+        env_set("FORJA_EVENTO", "111", false)       # Código > Buscar en la ayuda...
+        if al_editor()
+            input_key(0x45, 0)
+        end
+        ver("Buscar en la ayuda: su ventana", activar(AYUDA), input_active_title())
+        fuera_de_la_ficha()
+        if intentos > 0
+            # (con MUI 3.8 el campo no se queda el cursor al abrir Buscar en la ayuda: un clic en él, a la derecha de la
+            # fila de los botones, justo encima de la ficha)
+            w = window_find(AYUDA)
+            input_click(window_found_box(w, 2) - 40, campo("FORJA_AYUDAV", 9) - 12, 0)
+            anotar("  clic en el campo de buscar")
+        end
+        time_delay(20)
+        t0 = time_ms()
+        input_text("sonido")
+        input_key(RETURN, 0)
+        n = 0
+        while n < 200 and not str_contains(file_read_text("RAM:forja-ayuda.txt") + "", "=lista sonido")
+            time_delay(2)
+            n = n + 1
+        end
+        encontrado = n < 200
+        if not encontrado
+            anotar("buscar: el campo no recibió el texto (intento #{intentos + 1})")
+            ev = file_read_text("RAM:forja-eventos.txt") + ""
+            if ev.length > 400
+                ev = ev[ev.length - 400:]
+            end
+            anotar("  eventos: " + ev)
+            screen_save_png("DH0:Prueba/buscar-fallo-#{intentos}.png")
+        end
+        intentos = intentos + 1
     end
     anotar("buscar \"sonido\": #{ms_desde(t0)} ms (en Forja #{campo("FORJA_AYUDAV", 7)} ms)")
     l = ficha()

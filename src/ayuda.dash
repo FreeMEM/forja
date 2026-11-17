@@ -471,7 +471,7 @@ func _ayf_fila(i: Int, x: Int, tx: Int, fy: Int, ancho: Int)
     base = fy + 1 + base_letra
     cabe = ayf_cols
     if t == "@"
-        font_style(1)
+        font_style(2)
         gfx_pen(tema.acento)
         gfx_text_at(tx, base, _ayf_recorte(s, cabe))
         font_style(0)
@@ -484,7 +484,7 @@ func _ayf_fila(i: Int, x: Int, tx: Int, fy: Int, ancho: Int)
         gfx_pen(tema.borde)
         gfx_line(x + 4, fy + ayf_fila + 2, x + ancho - 5, fy + ayf_fila + 2)
     elif t == "#"
-        font_style(1)
+        font_style(2)
         gfx_pen(tema.cursor)
         gfx_text_at(tx, base, _ayf_recorte(s, cabe))
         font_style(0)
@@ -905,6 +905,7 @@ const EV_AY_LISTA = 117
 const EV_AY_BARRA = 118
 const EV_AY_CERRAR = 119
 const EV_AY_TEXTO = 120       # un clic, la rueda o una tecla en la ficha
+const EV_AY_ACTIVADA = 121    # su ventana pasa a ser la activa
 
 const AYF_T_ARRIBA = 0x4C
 const AYF_T_ABAJO = 0x4D

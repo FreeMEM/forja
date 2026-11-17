@@ -219,6 +219,7 @@ var sonda_errores: String = "-"
 var sonda_ayudav: String = ""
 var err_barra: String = ""         # lo que dice la barra del error de la línea del cursor
 var errores_ultimos_marcados: String = ""   # los errores marcados que ya se dijeron en la salida
+var ayuda_al_campo: Bool = false   # Buscar en la ayuda: el teclado, al campo de buscar cuando se active su ventana
 var indice_de: String = ""         # de qué fichero son los símbolos de codigo.dash, y de qué versión
 var indice_version: Int = -1
 var ultimo_cambio: Int = 0         # cuándo se escribió por última vez (time_ms)
@@ -1545,6 +1546,16 @@ func ayuda_evento(ev: Int)
             return
         end
         if ev == EV_AYUDA_BUSCAR
+            mui_set_text(va.buscar, "")
+            mui_set_active(va.window, va.buscar)
+            # (con MUI 3.8, al activarse la ventana pierde el campo: se le vuelve a dar entonces)
+            ayuda_al_campo = true
+        end
+        return
+    end
+    if ev == EV_AY_ACTIVADA
+        if ayuda_al_campo
+            ayuda_al_campo = false
             mui_set_active(va.window, va.buscar)
         end
         return
@@ -3677,7 +3688,7 @@ end
 func atender(ev: Int)
     if ev >= EV_EXT_MENU and ev < EV_EXT_MENU + EXT_TOTAL
         ext_menu(ev - EV_EXT_MENU)
-    elif ev >= EV_AYUDA and ev <= EV_AY_TEXTO
+    elif ev >= EV_AYUDA and ev <= EV_AY_ACTIVADA
         ayuda_evento(ev)
     elif ev == EV_ERROR_SIGUIENTE or ev == EV_ERROR_ANTERIOR
         ir_a_error(ev == EV_ERROR_SIGUIENTE)
@@ -3855,6 +3866,7 @@ Main
         mui_canvas_on_input(v.salida, EV_SALIDA)
         mui_canvas_on_draw(va.texto, dibujar_ayuda)
         mui_canvas_on_input(va.texto, EV_AY_TEXTO)
+        mui_on_activate(va.window, EV_AY_ACTIVADA)
         mui_canvas_on_drag(v.salida, EV_ARRASTRE_SALIDA)
         mui_canvas_take_tab(v.editor, true)
         # las teclas, al editor aunque el puntero no esté encima (F5, F10... al depurar: lo contó David Martínez)

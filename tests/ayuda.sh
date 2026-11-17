@@ -41,6 +41,6 @@ cp -r "$dash/lib" "$tmp/sys/Dash/lib"
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-400} $maquina --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/Prueba" || true
 if [ -n "$capturas" ]; then
   mkdir -p "$capturas"
-  for f in ayuda-ficha ayuda-probar ayuda-buscar ayuda-grupo errores; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
+  for f in ayuda-ficha ayuda-probar ayuda-buscar ayuda-grupo errores buscar-fallo-0 buscar-fallo-1; do cp "$tmp/disco/Prueba/$f.png" "$capturas/" 2>/dev/null || true; done
 fi
 iconv -f latin1 -t utf-8 "$tmp/disco/Prueba/ayuda.txt" 2>/dev/null || echo "FALLO: no hay registro"

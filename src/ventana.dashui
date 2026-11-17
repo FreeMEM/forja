@@ -274,7 +274,6 @@
       "id": 21,
       "size": [90, 85],
       "close": 119,
-      "background": [20, 20, 24],
       "root": {
         "type": "vgroup",
         "children": [
@@ -286,7 +285,7 @@
               { "type": "button", "name": "adelante", "tr": 702, "label": "A_delante >", "event": 113, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "button", "name": "indice", "tr": 703, "label": "Í_ndice", "event": 114, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "button", "name": "probar", "tr": 704, "label": "_Probar", "event": 115, "weight": 0, "background": [44, 44, 52], "color": [220, 220, 210] },
-              { "type": "label", "tr": 705, "text": "Buscar:", "color": [220, 220, 210], "weight": 0 },
+              { "type": "label", "tr": 705, "text": "Buscar:", "weight": 0 },
               { "type": "string", "name": "buscar", "text": "", "max": 100, "ack": 116, "weight": 100 }
             ]
           },
