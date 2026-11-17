@@ -723,3 +723,15 @@ VS Code.
     sugerencia de dos líneas (`tests/guiones_copiloto/encargo_completar.json`). `ENV:FORJA_PANELES` va en una sola línea
     (separada con el carácter 30): `env_get` lee una línea, y la prueba hacía clic en (0, 9), el botón de cerrar de la
     ventana.
+  - **Contra un modelo de verdad**: el copiloto con Inferencia y qwen3-coder:30b (Ollama en la red de casa) en el
+    emulador. Pedida como "el cursor está al final de la línea 14", el modelo repetía la línea ("Print sal"); ahora la
+    sugerencia se pide con el código y una marca `<<CURSOR>>` donde va (como un "rellenar en medio"), y da `udo("Amiga")`
+    en unos 9,5 s. La prueba con el servidor falso sigue dando las dos líneas de su guion.
+  - **Con Dash PR #193** (llegó durante esta rama): `SALIR` de una extensión llega con `mui_post_event` (antes, por el
+    reloj, y se perdía el tic); la raya de encima de las opciones sueltas de Extensiones es de `mui_menu_separator` y se
+    va con ellas; `tests/ventana.sh` va otra vez (Forja compila por `--gcc`). Los de demos (`music_seek`, `beam_line`,
+    `vblank_count`, `video_pal`, `copper_set`...) los enchufa en Demos otra tarea de esta rama (ver abajo).
+  - `tests/proyecto.dash` fallaba igual en `main` (la pestaña cambiaba tarde con la comprobación en marcha): espera
+    hasta 1,5 s. `tests/proyecto_base.dash` no compilaba en `main` (usaba `pl_icono_hex`, que se fue con `icon_save`).
+  - Instalar un `.lha` borraba su cajón temporal con `C:Delete`, que el sistema de pruebas no tiene: ahora lo borra Forja.
+
