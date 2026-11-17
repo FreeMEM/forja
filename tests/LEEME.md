@@ -263,11 +263,13 @@ Proyectos, plantillas, depurar más y perfil (pasos 3.1, 3.2, 4.1 y 4.2 de `docs
 - `tests/depurar_mas.sh <worktree de Dash> <cajón con dashc.amiga> [capturas/]`: `tests/depurar_mas.dash` sobre
   `tests/prueba/depurar2` (con su `.forja`): un punto con condición `i == 3` (en la pregunta de Depurar > Condición),
   vigilar `total * 2` y `naves`, los registros y la memoria en `a7`; para con i = 3; el valor de `total` bajo el ratón
-  (`ENV:FORJA_VALOR` con la sonda); un punto con contador `% 2`; Ctrl F10 hasta la línea 19; y lo guardado en el
-  `.forja`. Capturas `depurar-vigilar.png` y `depurar-valor.png`.
+  (`ENV:FORJA_VALOR` con la sonda); un punto con contador `% 2`; Ctrl F10 hasta la línea 19; lo guardado en el
+  `.forja`; y una línea nueva arriba: el punto baja con su condición y así queda en el `.forja` al guardar. Capturas
+  `depurar-vigilar.png` y `depurar-valor.png`.
 - `tests/perfil.sh <worktree de Dash> <cajón con dashc.amiga> [capturas/]`: `tests/perfil.dash` ejecuta
   `tests/prueba/perfil` con perfil (`ENV:FORJA_PERFIL`: "orden función:llamadas..."), ordena por llamadas con un clic
   en su título y va a `lenta` con un clic en su fila; y `tests/prueba/memoria` con memcheck: el aviso del campo de nil
-  con su sitio, y un clic lleva a la línea 7. Capturas `perfil-tabla.png` y `memcheck.png`.
+  con su sitio, y un clic lleva a la línea 7. Capturas `perfil-tabla.png` y `memcheck.png`. Con Dash 2.14 la parte del
+  perfil falla: dash copia en línea `lenta` y `rapida` también con `--profile` y la tabla solo tiene Main.
 
 Las tres con ventana van también con MUI 3.8: `SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`.
