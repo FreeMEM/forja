@@ -442,7 +442,7 @@ VS Code.
     bien.
   - Las de antes, en esta rama (MUI 5, A1200 con 3.1), TODO BIEN: teclas, ficheros, completar, buscar, errores,
     compilar, depurar, ayuda, editor, editor_base, extensiones, extensiones_base, git_panel, proyecto, botones, sprites,
-    mapas_base y mapas_forja. `git_panel` y `copiloto` elegían su menú por su sitio en la barra (`input_menu`), y el
+    mapas_base, mapas_forja y copiloto (con su servidor falso, bajo `flock`). `git_panel` y `copiloto` elegían su menú por su sitio en la barra (`input_menu`), y el
     menú Depurar los corre uno. `editor` falló una vez con el emulador muy cargado (Ctrl T) y pasó al repetirla.
   - Memoria (`tests/memoria.sh`): Forja quieta 2,7 MB de fast (antes 2,5) y compilando 4,6 (antes 4,4). Los 0,2 MB
     son el proyecto, las plantillas y el depurador nuevo.
