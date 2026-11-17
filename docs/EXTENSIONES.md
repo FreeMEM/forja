@@ -8,7 +8,8 @@ Forja sigue en pie.
 Se escriben en Dash con `lib/forja.dash`, pero valen en cualquier lenguaje que hable ARexx (también un script).
 
 La de ejemplo es `extensiones/Contar`: cuenta las líneas y las palabras del fichero, lo pone en la barra y mete la
-fecha en el cursor con Ctrl Alt D. `extensiones/Git` (git con dashgit) usa casi todo lo demás.
+fecha en el cursor con Ctrl Alt D. `extensiones/Git` (git con dashgit) usa casi todo lo demás. `extensiones/Inferencia`
+(el copiloto, que habla con Inferencia) usa las vistas para enseñar un cambio antes de aceptarlo y `SUGERENCIA`.
 
 ## Dónde van
 
@@ -146,7 +147,7 @@ Las de "el fichero activo" valen solo con un fichero de texto delante (no con un
 
 | Orden | Respuesta |
 |-------|-----------|
-| `HOLA nombre` | La versión de la API y la de Forja: `2 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...). |
+| `HOLA nombre` | La versión de la API y la de Forja: `3 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA). |
 | `SUCESOS nombre` | Sus sucesos, uno por línea, y la cola queda vacía. |
 | `ADIOS nombre` | Se va. Forja quita sus marcas y su texto. |
 | `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 10 en cada menú propio). |
@@ -169,11 +170,12 @@ Las de "el fichero activo" valen solo con un fichero de texto delante (no con un
 | `CAMBIADOS` | Las rutas de los ficheros abiertos con cambios sin guardar, una por línea. |
 | `PROYECTO` | El cajón del panel del proyecto en la primera línea; después, lo que enseña (los cajones acaban en `/`). |
 | `ESTADO` | `libre`, `compilando`, `ejecutando` o `depurando`. |
-| `ERRORES` | Las líneas de error de la última compilación. |
+| `ERRORES` | Las líneas de error de la última compilación; si no hay, las de los errores marcados al guardar o al escribir (`dash --check`), con la ruta en minúsculas. |
 | `SALIDA` | El texto de la salida. |
 | `BARRA` | Lo que enseña la barra. |
 | `ZONA` | Las zonas de la barra de botones, una por línea: `extensión\|texto\|detalle`. |
 | `RAYAS fichero` | Las rayas de ese fichero: `línea:bits` separadas por espacios (1 añadida, 2 cambiada, 4 quitadas encima, 8 quitadas debajo). |
+| `SUGERENCIA` | La sugerencia que se ve: `línea columna texto` (vacía si ninguna). |
 
 ### Escribir
 
@@ -201,7 +203,8 @@ Todo con deshacer, como si lo hubiera escrito el usuario.
 | `MARCASPROYECTO nombre`, y una por línea: `letras ruta` | Sus letras junto a los ficheros y cajones del panel del proyecto (rutas enteras; un cajón, sin `/` al final), a la derecha. Sustituyen las suyas. El color sale de la última letra: `A` verde; `D`, `U` y `!` rojo; `?` gris; las demás, azul. |
 | `RAYAS nombre fichero [versión]`, y una por línea: `línea símbolos` | Sus rayas en el margen de ese fichero, pegadas al texto: `+` añadida (raya llena, verde), `~` cambiada (raya a trozos, azul), `-` se quitaron líneas justo encima (un triángulo rojo arriba), `_` se quitaron justo debajo (abajo; para lo quitado tras la última). Se juntan: `~-`. Sustituyen las suyas; sin líneas, las quita. Con versión (la de `VERSION`), solo si el texto sigue en esa: si no, RC 5 y nada cambia. |
 | `ZONA nombre icono\|texto\|detalle\|corto` | Su zona en la barra de botones, a la izquierda de Inferencia: un icono (uno de Forja, como `rama`, o uno propio: 12 filas de 12 separadas por `/`, con `#` los píxeles), un texto y un detalle en otro color. Si no cabe el detalle, va el corto; si tampoco, solo el texto; si tampoco, no se ve. Un clic da `ZONA`. Sin texto ni detalle, la quita. |
-| `VISTA nombre "título"`, y una por línea: el color (un carácter) y el texto | Una pestaña de solo lectura, delante; si ya tiene una con ese título, la vuelve a llenar. El color de cada línea: `+` verde, `-` rojo, `@` azul, `#` gris, `!` amarillo; otro (un espacio), el del texto. Sus teclas llegan con `TECLA`; el cursor se mueve con `CURSOR`. No se guarda ni se escribe en ella. |
+| `VISTA nombre "título"`, y una por línea: el color (un carácter) y el texto | Una pestaña de solo lectura, delante; si ya tiene una con ese título, la vuelve a llenar. El color de cada línea: `+` verde, `-` rojo, `@` azul, `#` gris, `!` amarillo; otro (un espacio), el del texto. Sus teclas llegan con `TECLA`; el cursor se mueve con `CURSOR`. No se guarda ni se escribe en ella. Sin ninguna línea detrás, cierra esa pestaña suya (RC 5 si no la hay). |
+| `SUGERENCIA nombre línea columna versión`, y el texto en la línea siguiente | Una sugerencia en gris tras el cursor del fichero activo, como la de un copiloto: Tab la mete (con deshacer), Esc la quita y se va sola al escribir o al mover el cursor. Solo si el cursor está en esa línea y columna, al final de la línea, sin nada elegido, y el texto sigue en esa versión (`VERSION`): si no, RC 5 y no sale. Una línea. Si a la vez está la lista para completar, Tab es de la lista. `SUGERENCIA nombre` sin más quita la suya. |
 
 Las marcas del margen van en una columna entre los números y el texto, que solo aparece si el fichero tiene alguna.
 Se distinguen por el símbolo, también con los 4 colores del Workbench. El color sale del símbolo: `+` verde
@@ -257,6 +260,8 @@ Para leer el fichero entero, `TEXTO` de una vez es mucho más rápido que línea
 | `forja_vista(nombre, líneas, colores)` | Una pestaña de solo lectura con un color por línea (`colores`: un carácter por línea). |
 | `forja_rayas(ruta, líneas, símbolos, versión)` | Sus rayas en el margen (versión -1: sin mirarla). |
 | `forja_texto_disco(ruta)`, `forja_version_texto(ruta)` | `TEXTODISCO` y `VERSION`. |
+| `forja_cerrar_vista(nombre)` | Cierra su pestaña de solo lectura. |
+| `forja_sugerencia(línea, columna, versión, texto)` | `SUGERENCIA` (texto `""`: la quita). |
 
 El `import "lib/forja.dash"` lo encuentra `./dash` subiendo de cajón en cajón desde el fichero que importa: una
 extensión en `extensiones/X/` del repositorio de Forja (o en `Forja/Extensiones/X/`, con `Forja/lib/forja.dash`)

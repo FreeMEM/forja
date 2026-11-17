@@ -1,0 +1,3 @@
+[
+  {"texto": "```dash\n# Prueba de saludo\nfunc saludo(nombre: String) -> String\n    return \"Hola, \" + nombre\nend\n\nMain\n    if saludo(\"Ana\") == \"Hola, Ana\"\n        Print \"bien: saludo\"\n    else\n        Print \"FALLO: saludo\"\n    end\nend\n```"}
+]

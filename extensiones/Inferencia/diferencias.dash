@@ -1,0 +1,224 @@
+# El copiloto de Forja: lo que no habla con nadie. Sacar el código de una respuesta, las diferencias entre lo que hay
+# y lo que propone el modelo (para la vista), y dónde empieza y acaba la función del cursor.
+
+const DIF_MAX_LINEAS = 300      # con más, la vista enseña lo quitado entero y lo puesto entero
+
+# El código de una respuesta: el del primer bloque ``` (sin la línea de las comillas); si no hay bloque, la respuesta
+# entera. Sin líneas en blanco al principio ni al final.
+func cp_codigo(r: String) -> String
+    r = str_replace(r, "\r\n", "\n")
+    p = str_find(r, "```")
+    t = r
+    if p >= 0
+        ini = str_find_from(r, "\n", p)
+        if ini < 0
+            return ""
+        end
+        fin = str_find_from(r, "```", ini + 1)
+        if fin < 0
+            fin = r.length
+        end
+        t = r[ini + 1:fin]
+    end
+    var ls: [String] = str_split(t, "\n")
+    while ls.length > 0 and str_trim(ls[0]) == ""
+        ls.remove(0)
+    end
+    while ls.length > 0 and str_trim(ls[ls.length - 1]) == ""
+        ls.remove(ls.length - 1)
+    end
+    return unir(ls, "\n")
+end
+
+func unir(ls: [String], sep: String) -> String
+    t = ""
+    i = 0
+    for l in ls
+        if i > 0
+            t = t + sep
+        end
+        t = t + l
+        i = i + 1
+    end
+    return t
+end
+
+# Lo que dice la respuesta fuera del bloque de código (como mucho n líneas no vacías)
+func cp_fuera(r: String, n: Int) -> [String]
+    var out: [String] = []
+    dentro = false
+    for l in str_split(str_replace(r, "\r\n", "\n"), "\n")
+        if str_starts(str_trim(l), "```")
+            dentro = not dentro
+            continue
+        end
+        if not dentro and str_trim(l) != "" and out.length < n
+            out.push(str_trim(l))
+        end
+    end
+    return out
+end
+
+var dif_lineas: [String] = []    # las líneas de la vista ("+ ...", "- ...", "  ...")
+var dif_colores: String = ""     # su color, un carácter por línea
+var dif_cambios: Int = 0         # cuántas líneas se quitan o se ponen
+
+func _dif(c: String, t: String)
+    dif_lineas.push(c + " " + t)
+    if c == " "
+        dif_colores = dif_colores + " "
+    else
+        dif_colores = dif_colores + c
+        dif_cambios = dif_cambios + 1
+    end
+end
+
+# Las diferencias entre viejas y nuevas, línea a línea (la subsecuencia común más larga), en dif_lineas y dif_colores
+func cp_diferencias(viejas: [String], nuevas: [String])
+    dif_lineas = []
+    dif_colores = ""
+    dif_cambios = 0
+    n = viejas.length
+    m = nuevas.length
+    if n > DIF_MAX_LINEAS or m > DIF_MAX_LINEAS
+        for l in viejas
+            _dif("-", l)
+        end
+        for l in nuevas
+            _dif("+", l)
+        end
+        return
+    end
+    # largo[i * (m + 1) + j]: lo común más largo de viejas[i:] y nuevas[j:]
+    ancho = m + 1
+    var largo: [Int] = []
+    k = 0
+    while k < (n + 1) * ancho
+        largo.push(0)
+        k = k + 1
+    end
+    i = n - 1
+    while i >= 0
+        j = m - 1
+        while j >= 0
+            if viejas[i] == nuevas[j]
+                largo[i * ancho + j] = largo[(i + 1) * ancho + j + 1] + 1
+            elif largo[(i + 1) * ancho + j] >= largo[i * ancho + j + 1]
+                largo[i * ancho + j] = largo[(i + 1) * ancho + j]
+            else
+                largo[i * ancho + j] = largo[i * ancho + j + 1]
+            end
+            j = j - 1
+        end
+        i = i - 1
+    end
+    i = 0
+    j = 0
+    while i < n and j < m
+        if viejas[i] == nuevas[j]
+            _dif(" ", viejas[i])
+            i = i + 1
+            j = j + 1
+        elif largo[(i + 1) * ancho + j] >= largo[i * ancho + j + 1]
+            _dif("-", viejas[i])
+            i = i + 1
+        else
+            _dif("+", nuevas[j])
+            j = j + 1
+        end
+    end
+    while i < n
+        _dif("-", viejas[i])
+        i = i + 1
+    end
+    while j < m
+        _dif("+", nuevas[j])
+        j = j + 1
+    end
+end
+
+func espacios_delante(s: String) -> Int
+    n = 0
+    while n < s.length and (s[n:n + 1] == " " or s[n:n + 1] == "\t")
+        n = n + 1
+    end
+    return n
+end
+
+func _abre_funcion(t: String) -> Bool
+    return str_starts(t, "func ") or t == "Main" or str_starts(t, "Main ") or str_starts(t, "Main#")
+end
+
+var cp_desde: Int = 0     # lo que encontró cp_bloque (desde 1; 0 si nada)
+var cp_hasta: Int = 0
+
+# La función (o Main) donde está la línea n (desde 1) de lineas: de su "func" a su "end", en cp_desde y cp_hasta.
+# Con notas: también las líneas de comentario que tiene justo encima. false si n no está dentro de ninguna.
+func cp_bloque(lineas: [String], n: Int, notas: Bool) -> Bool
+    cp_desde = 0
+    cp_hasta = 0
+    i = n - 1
+    if i >= lineas.length
+        i = lineas.length - 1
+    end
+    while i >= 0
+        t = str_trim(lineas[i])
+        if _abre_funcion(t)
+            sangria = espacios_delante(lineas[i])
+            j = i + 1
+            while j < lineas.length and not (str_trim(lineas[j]) == "end" and espacios_delante(lineas[j]) == sangria)
+                j = j + 1
+            end
+            if j >= lineas.length or j < n - 1
+                return false
+            end
+            cp_desde = i + 1
+            cp_hasta = j + 1
+            if notas
+                while cp_desde > 1 and str_starts(str_trim(lineas[cp_desde - 2]), "#")
+                    cp_desde = cp_desde - 1
+                end
+            end
+            return true
+        end
+        if t == "end" and espacios_delante(lineas[i]) == 0 and i < n - 1
+            # el end de otra cosa de arriba del todo: n está fuera de cualquier función
+            return false
+        end
+        i = i - 1
+    end
+    return false
+end
+
+# El nombre de la función que empieza en la línea l ("doble"; "Main")
+func cp_nombre_funcion(l: String) -> String
+    t = str_trim(l)
+    if str_starts(t, "Main")
+        return "Main"
+    end
+    t = str_trim(t[5:])
+    fin = 0
+    while fin < t.length and t[fin:fin + 1] != "(" and t[fin:fin + 1] != " "
+        fin = fin + 1
+    end
+    return t[0:fin]
+end
+
+# ¿Parece UTF-8? (un fichero de un PC: se pasa a Latin-1, como hace Forja al abrirlo)
+func cp_es_utf8(t: String) -> Bool
+    i = 0
+    hay = false
+    while i < t.length
+        c = str_code(t, i)
+        if c >= 128
+            if c >= 194 and c <= 223 and i + 1 < t.length and str_code(t, i + 1) >= 128 and str_code(t, i + 1) <= 191
+                hay = true
+                i = i + 2
+                continue
+            end
+            return false
+        end
+        i = i + 1
+    end
+    return hay
+end

@@ -1,0 +1,14 @@
+# Prueba del copiloto
+
+func doble(x: Int) -> Int
+    return x * 2
+end
+
+func saludo(nombre: String) -> String
+    return "Hola, " + nombre
+end
+
+Main
+    Print doble(21)
+    Print saludo("Amiga")
+end

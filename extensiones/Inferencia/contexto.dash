@@ -1,0 +1,163 @@
+# El copiloto de Forja: el contexto que va con cada encargo a Inferencia. El fichero (entero si cabe; si no, lo de
+# alrededor), lo que importa y la lista de ficheros del proyecto, todo con un tope de caracteres pensado para el
+# Amiga (ENV:Forja/inferencia_tope, 16000 si no se dice): cada carácter va por la red y el modelo lo cobra.
+
+import "lib/forja.dash"
+import "diferencias.dash"
+
+const CTX_TOPE = 16000
+const CTX_ALREDEDOR = 60       # sin sitio para todo el fichero: estas líneas antes y después de lo que se cambia
+
+func ctx_tope() -> Int
+    t = Int(env_get("Forja/inferencia_tope"))
+    if t < 2000
+        return CTX_TOPE
+    end
+    return t
+end
+
+func cajon_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/" or c == ":"
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
+
+func nombre_de(ruta: String) -> String
+    return ruta[cajon_de(ruta).length:]
+end
+
+# El texto de un fichero: el de Forja si lo tiene abierto (sin guardar, en Latin-1), si no el del disco ("" si no
+# se puede leer)
+func ctx_leer(ruta: String) -> String
+    if forja_orden("ABIERTO \"" + ruta + "\"") == "1"
+        t = forja_texto(ruta)
+        if forja_rc == 0
+            return t
+        end
+    end
+    dos_requesters(false)
+    t = file_read_text(ruta)
+    dos_requesters(true)
+    if t == nil
+        return ""
+    end
+    if cp_es_utf8(t)
+        t = utf8_to_latin1(t)
+    end
+    return t
+end
+
+# "Proyecto: Work:juego (ficheros: main.dash, red.dash, lib/)"
+func ctx_proyecto() -> String
+    p = forja_proyecto()
+    if p.length == 0 or p[0] == ""
+        return ""
+    end
+    t = "Proyecto: " + p[0] + " (ficheros:"
+    i = 1
+    while i < p.length and i < 80
+        if i > 1
+            t = t + ","
+        end
+        t = t + " " + p[i]
+        i = i + 1
+    end
+    return t + ")\n"
+end
+
+# Las rutas que importa el texto (import "x.dash"), desde el cajón del fichero
+func ctx_importados(ruta: String, texto: String) -> [String]
+    var r: [String] = []
+    cajon = cajon_de(ruta)
+    for l in str_split(texto, "\n")
+        t = str_trim(l)
+        if str_starts(t, "import \"")
+            fin = str_find_from(t, "\"", 8)
+            if fin > 8
+                nombre = t[8:fin]
+                if not str_starts(nombre, "lib/") or file_exists(cajon + nombre)
+                    r.push(cajon + nombre)
+                end
+            end
+        end
+    end
+    return r
+end
+
+func _bloque(titulo: String, texto: String) -> String
+    return titulo + ":\n```dash\n" + texto + "\n```\n\n"
+end
+
+# El contexto de un encargo sobre las líneas desde..hasta de ruta (texto: el que tiene ahora)
+func ctx_contexto(ruta: String, texto: String, desde: Int, hasta: Int) -> String
+    tope = ctx_tope()
+    r = ctx_proyecto()
+    if r != ""
+        r = r + "\n"
+    end
+    if texto.length <= tope * 2 / 3
+        r = r + _bloque("El fichero " + ruta + " entero", texto)
+    else
+        ls = str_split(texto, "\n")
+        a = desde - CTX_ALREDEDOR
+        if a < 1
+            a = 1
+        end
+        b = hasta + CTX_ALREDEDOR
+        if b > ls.length
+            b = ls.length
+        end
+        trozo = ""
+        n = a
+        while n <= b
+            trozo = trozo + ls[n - 1] + "\n"
+            n = n + 1
+        end
+        r = r + _bloque("Las líneas #{a} a #{b} del fichero " + ruta + " (tiene #{ls.length}; lo demás no cabe)", trozo)
+    end
+    for imp in ctx_importados(ruta, texto)
+        t = ctx_leer(imp)
+        if t != "" and r.length + t.length < tope
+            r = r + _bloque("Lo que importa, " + imp, t)
+        elif t != ""
+            r = r + "(" + imp + " no cabe: si lo necesitas, léelo con la herramienta leer)\n"
+        end
+    end
+    return r
+end
+
+# Las líneas desde..hasta del texto, juntas ("" si desde > hasta)
+func ctx_lineas(texto: String, desde: Int, hasta: Int) -> String
+    ls = str_split(texto, "\n")
+    t = ""
+    n = desde
+    while n <= hasta and n <= ls.length
+        if n > desde
+            t = t + "\n"
+        end
+        t = t + ls[n - 1]
+        n = n + 1
+    end
+    return t
+end
+
+# Las líneas desde..hasta con su número delante, para que el modelo sepa dónde está
+func ctx_numeradas(texto: String, desde: Int, hasta: Int) -> String
+    ls = str_split(texto, "\n")
+    t = ""
+    n = desde
+    if n < 1
+        n = 1
+    end
+    while n <= hasta and n <= ls.length
+        t = t + "#{n}: " + ls[n - 1] + "\n"
+        n = n + 1
+    end
+    return t
+end

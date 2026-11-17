@@ -61,7 +61,7 @@ VS Code.
 - 1.4 [G][F] Git como extensión: las salidas para máquinas de dashgit, la rama en la barra, marcas, panel de
   cambios y diferencias. Ya está empezado, en módulos que luego pasan a la extensión.
 - 1.5 [F] Editores de sprites y de mapas como extensiones.
-- 1.6 [I][F] Inferencia como copiloto:
+- 1.6 [I][F] Inferencia como copiloto (hecho en la rama `copiloto`, ver la bitácora):
   - pregunta sobre la selección o el fichero;
   - escribe o cambia código en el editor, con vista previa y "aceptar";
   - lee los ficheros del proyecto;
@@ -220,3 +220,49 @@ VS Code.
     de su grupo (45, como los `sprite_*`: hoy sin Probar); añadir muchas líneas a una lista de MUI de una vez (llenarla
     de una en una cuesta unos 10 ms por línea en un A1200); y el directo acepta una función con el nombre de una
     variable global (`--gcc` da el error).
+- 2026-11-17, rama `copiloto` (y `copiloto` de Inferencia): **1.6 hecho, Inferencia como copiloto**
+  (`extensiones/Inferencia`, MIT).
+  - **Decisión**: la extensión es un programa pequeño (Copiloto, 113 KB) que habla con Inferencia por ARexx, como Git
+    con dashgit; no Inferencia en un "modo extensión". Así hay una sola Inferencia (su ventana, su clave, sus
+    preferencias, su conversación, su gasto), el copiloto se carga con Forja sin cargar la red, y si Inferencia se
+    cuelga, el copiloto no (le habla con `rexx_send_wait`, 5 s como mucho; Forja no espera a ninguno de los dos). Si
+    Inferencia no está, la arranca (`ENV:Forja/inferencia`), con su ventana detrás (argumento `DETRAS`).
+  - **Acciones**, en su menú Inferencia: preguntar sobre esto (Ctrl Alt I), explicar la selección, cambiar el código
+    (Ctrl Alt C, una ventanita MUI para decir qué), documentar la función, escribir la prueba (un `prueba_x.dash`
+    nuevo), explicar el error (Ctrl Alt E) y arreglarlo (Ctrl Alt F; si no hay errores de antes, compila primero),
+    aceptar (Ctrl Alt Y), rechazar (Ctrl Alt N) y sugerencias al escribir. Las que cambian código son un `ENCARGO` de
+    Inferencia (aparte de la conversación, solo puede leer: ficheros y la ayuda de Dash) y salen en una VISTA con las
+    diferencias (subsecuencia común más larga, en Dash); `a` acepta con `CAMBIAR` (deshacer de Forja), `r` rechaza.
+    Antes de aplicar, mira que las líneas sigan ahí; si se movieron, las busca. La zona Copiloto de la barra dice
+    "pensando", "a / r" o "1 error"; su clic cancela, vuelve al cambio o lo arregla.
+  - **Contexto**: el fichero (entero si cabe; si no, 60 líneas alrededor), lo que importa y la lista del proyecto,
+    con tope de 16000 caracteres (`ENV:Forja/inferencia_tope`). Por `TEXTO` si está abierto (sin guardar, Latin-1),
+    si no del disco (UTF-8 a Latin-1). `TEXTODISCO` no hace falta: Inferencia quiere Latin-1.
+  - **Sugerencias al escribir**: apagadas al empezar (`ENVARC:Forja/inferencia_sugerencias`). Tras `CAMBIADO` (pausa
+    de 900 ms) con el cursor al final de una línea, un `ENCARGO completar` (80 tokens, sin herramientas); Forja la
+    enseña en gris y Tab la mete. Contra el servidor falso (HTTP, en el PC), de la última tecla a verla: 3,7 s en el
+    A1200 emulado a toda velocidad (con la pausa de 0,9 s y el flujo SSE en trozos), 1,6 s en el 68040 de MUI 3.8 y 5 s
+    con la CPU de un A1200 (`REAL=1`, contando que esa vez arrancaba Inferencia). Contra un
+    modelo de verdad por HTTPS en un 68020 no sirve (el saludo de TLS ya tarda más de un minuto): por eso apagadas;
+    con Ollama en la red local, o un Amiga rápido, puede valer.
+  - **La API, versión 3**: `SUGERENCIA` (texto en gris tras el cursor; Tab lo mete; se va al escribir, al mover el
+    cursor o con Esc; si la lista para completar está abierta, Tab es de la lista) y `VISTA` sin líneas cierra la
+    pestaña. `forja_sugerencia` y `forja_cerrar_vista` en `lib/forja.dash`.
+  - **MUI 3.8**: el copiloto solo usa una ventanita con un campo de una línea (va en 3.8). Inferencia, en 3.8, salía
+    sin cuadro para escribir (Textinput no viene con MUI 3.8): ahora, sin Textinput, su ventana va con una línea.
+  - **Pruebas** en FS-UAE: `tests/copiloto.sh` (Forja, el copiloto, la Inferencia de verdad, el servidor falso de
+    Inferencia con `tests/guiones_copiloto`, la ayuda de Dash y dashc): TODO BIEN en MUI 5 (A1200, 3.1, dos veces) y en
+    MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`, Inferencia con su ventana de una línea). Tras unir main (rama
+    `ayuda`) siguen en TODO BIEN: extensiones_base, extensiones (MUI 5 y 3.8), git_panel, teclas, ficheros, rexx y ayuda
+    (esta con un dashc.amiga que sabe `--check`); en Inferencia, encargo (nueva), clics, arexx, flujo, juntos (con la
+    Forja de la rama) y sistema.
+  - Tras unir main: `ERRORES` da también los errores marcados por `dash --check` si no hay de compilar (la ruta en
+    minúsculas), así "Explicar el error" y "Arreglar el error" no tienen que compilar si Forja ya los marcó.
+  - **Falta**: el botón Inferencia de Forja (Amiga-I) sigue dentro de Forja, aparte del copiloto (hace lo de
+    "Preguntar sobre esto"; se podría pasar a la extensión, como pasó con git); los textos del copiloto, sin catálogo
+    inglés (como Git); la sugerencia es de una línea y solo al final de la línea; "Escribir la prueba" no compila ni
+    ejecuta la prueba; probar contra un modelo de verdad (la prueba usa el servidor falso) y en un Amiga de verdad.
+  - **Falta en Dash** (apuntado, sin rodeos): `str_join` (unir una lista de textos; la extensión lleva su `unir`);
+    que `mui_text_editor` sin Textinput (MUI 3.8) dé un campo de una línea en vez de nada (Inferencia elige la ventana
+    ella misma); una petición de texto sencilla (como `mui_request` pero con un campo), para no hacer una ventana
+    para una línea.

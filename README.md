@@ -150,6 +150,33 @@ cada vez. Si ese dashgit no tiene servidor, o deja de contestar, cada orden va e
 
 El cajón `.git` no se ve en el panel del proyecto.
 
+### El copiloto: Inferencia
+
+Inferencia, la IA del Amiga, es también una extensión (`Extensiones/Inferencia`): un programa pequeño, el copiloto,
+que lee el código y el proyecto en Forja y se lo pasa a [Inferencia](https://github.com/FreeMEM/inferencia) por
+ARexx. Inferencia pone el modelo, la clave y la red (sus preferencias son las de siempre); si no está abierta, el
+copiloto la arranca (`ENV:Forja/inferencia`). Su menú, Inferencia, en la barra de menús:
+
+- **Preguntar sobre esto** (Ctrl Alt I): las líneas elegidas, o el fichero, y la lista del proyecto van a la
+  conversación de Inferencia; escribes allí la pregunta.
+- **Explicar la selección**: lo elegido, o la función del cursor; la explicación sale en Inferencia.
+- **Cambiar el código...** (Ctrl Alt C): dices qué cambiar en lo elegido (o en la función del cursor).
+- **Documentar la función**: un comentario encima de la función del cursor.
+- **Escribir la prueba**: un programa de prueba para la función del cursor, en un fichero nuevo `prueba_x.dash`.
+- **Explicar el error** (Ctrl Alt E) y **Arreglar el error** (Ctrl Alt F): el primer error de la última compilación;
+  si no la hay, compila antes.
+- **Sugerencias al escribir**: apagadas al empezar. Encendidas, al parar al final de una línea Inferencia propone
+  cómo sigue, en gris; Tab la mete. Cada una es una petición por la red: con un 68020 y un servidor lejano (o el
+  saludo de TLS) tardan segundos, así que son más útiles con un modelo en tu red (Ollama) o un Amiga rápido.
+
+Lo que cambia código no toca nada al llegar: la respuesta sale en una pestaña de solo lectura con las diferencias
+(en verde lo que pone, en rojo lo que quita). `a` (o Aceptar el cambio, Ctrl Alt Y) lo aplica, y Amiga-Z lo
+deshace; `r` (o Rechazar, Ctrl Alt N) lo descarta. Mientras Inferencia piensa o hay un cambio por aceptar, la barra
+de botones lo dice (Copiloto); un clic cancela lo que se está pidiendo o vuelve a enseñar el cambio. Para estos
+encargos, Inferencia lee el fichero, lo que importa y la lista del proyecto, con un tope de 16000 caracteres
+(`ENV:Forja/inferencia_tope`), y puede leer otros ficheros y buscar en la ayuda de Dash (`DASH:Ayuda/Dash.ayuda`)
+para no inventarse funciones.
+
 ### ARexx
 
 Puerto `FORJA.1`: `ABRIR fichero [línea]`, `ABIERTO fichero`, `TEXTO fichero`, `SELECCION`,
@@ -163,7 +190,7 @@ hay más (el cursor, lo elegido, insertar, marcas, rayas, la barra, pestañas pr
 
 Programas aparte en el cajón `Extensiones`, junto a Forja, que añaden opciones al menú Extensiones (o un menú suyo en
 la barra), teclas, marcas y rayas en el margen, letras en el proyecto, una zona en la barra de botones, un texto en la
-barra, pestañas de solo lectura o un editor para un tipo de fichero. Git es una de ellas. Hablan con Forja por ARexx;
+barra, pestañas de solo lectura o un editor para un tipo de fichero. Git y el copiloto de Inferencia son dos de ellas. Hablan con Forja por ARexx;
 si una cae o se cuelga, Forja sigue. Extensiones > Gestor de extensiones... las enseña, las activa o las desactiva y
 las instala desde un cajón o un `.lha`. La de ejemplo, Contar, cuenta las líneas y las palabras del fichero y mete
 la fecha con Ctrl Alt D. Cómo escribir una, con `lib/forja.dash`: [docs/EXTENSIONES.md](docs/EXTENSIONES.md).

@@ -2424,6 +2424,9 @@ func en_editor() -> Int
         if completar_activo and completar_tecla(d, codigo, teclas)
             return 0
         end
+        if sugerencia_tecla(d, codigo, teclas)
+            return 0
+        end
         # escribir dentro de una línea solo redibuja esa línea (y la lista o la ayuda, si están)
         antes_lineas = d.lineas.length
         antes_cl = d.cl
@@ -3419,6 +3422,22 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
             mui_canvas_redraw(v.botones)
         end
         return ""
+    elif orden == "VISTA" and p.length >= 3 and str_find(linea, "\n") < 0
+        # VISTA extensión "nombre" sin líneas: cierra esa pestaña suya (RC 5 si no la hay)
+        cab = _partes(linea, 99)
+        i = 0
+        while i < documentos.length
+            d = documentos[i]
+            if d.vista != 0 and d.vista_ext == cab[1] and d.nombre == cab[2]
+                ed_cerrar(i)
+                ajustar_paneles()
+                redibujar()
+                return ""
+            end
+            i = i + 1
+        end
+        _rexx_falla(5)
+        return ""
     elif orden == "VISTA" and p.length >= 3
         # VISTA extensión "nombre", y en cada línea siguiente el color (un carácter) y el texto: una pestaña de solo
         # lectura, delante (si ya tiene una con ese nombre, la vuelve a llenar)
@@ -3442,6 +3461,8 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         ajustar_paneles()
         redibujar()
         return ""
+    elif orden == "SUGERENCIA"
+        return orden_sugerencia(linea)
     elif orden == "TEXTODISCO"
         # el texto como se guardaría (en UTF-8 si el fichero lo estaba)
         d = _doc_texto(p, 1)
@@ -3475,6 +3496,73 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
     end
     _rexx_falla(10)
     return ""
+end
+
+# SUGERENCIA: la que se ve, "línea columna texto" ("" si ninguna). SUGERENCIA extensión línea columna versión, y el
+# texto en la línea siguiente: un texto en gris tras el cursor del fichero activo, que Tab mete (con deshacer); solo si
+# el cursor está en esa línea y columna, al final de la línea, y el texto en esa versión (si no, RC 5). Se va al
+# escribir, al mover el cursor o con Esc. SUGERENCIA extensión, sin más: quita la suya.
+func orden_sugerencia(linea: String) -> String
+    ls = str_split(linea, "\n")
+    cab = _partes(ls[0], 99)
+    d = ed_actual()
+    if cab.length == 1
+        if d != nil and ed_sugerencia_vale(d)
+            return "#{ed_sug_l + 1} #{ed_sug_c + 1} " + ed_sug_texto
+        end
+        return ""
+    end
+    if cab.length < 5
+        if ed_sug_ext == cab[1] and ed_sug_texto != ""
+            ed_sug_texto = ""
+            redibujar()
+        end
+        return ""
+    end
+    t = ""
+    if ls.length > 1
+        t = str_replace(ls[1], "\t", "    ")
+    end
+    if d == nil or d.vista != 0 or d.sprite != nil or d.mapa != nil or d.diseno or t == ""
+        _rexx_falla(5)
+        return ""
+    end
+    l = Int(cab[2]) - 1
+    c = Int(cab[3]) - 1
+    if "#{d.version}" != cab[4] or d.cl != l or d.cc != c or ed_hay_seleccion(d) or d.cc != d.lineas[d.cl].length
+        _rexx_falla(5)
+        return ""
+    end
+    ed_sug_texto = t
+    ed_sug_ext = cab[1]
+    ed_sug_doc = d
+    ed_sug_version = d.version
+    ed_sug_l = l
+    ed_sug_c = c
+    redibujar()
+    return ""
+end
+
+# Tab mete la sugerencia que se ve (true); Esc la quita
+func sugerencia_tecla(d: Documento, codigo: Int, teclas: Int) -> Bool
+    if not ed_sugerencia_vale(d)
+        return false
+    end
+    if codigo == T_TAB and (teclas & (Q_MAYUS | Q_ALT | Q_CTRL)) == 0
+        t = ed_sug_texto
+        ed_sug_texto = ""
+        ed_escribir(d, t)
+        ed_seguir_cursor(d)
+        ultimo_cambio = time_ms()
+        ext_tras_escribir(d)
+        redibujar()
+        return true
+    end
+    if codigo == T_ESC
+        ed_sug_texto = ""
+        redibujar()
+    end
+    return false
 end
 
 # RAYAS extensión fichero [versión], y en cada línea siguiente "línea símbolos" (+ añadida, ~ cambiada, - quitadas
@@ -3671,6 +3759,14 @@ func orden_una(linea: String) -> String
         var nombres: [String] = ["libre", "compilando", "ejecutando", "depurando"]
         return nombres[tarea]
     elif orden == "ERRORES"
+        # los de la última compilación; si no hay, los marcados por la comprobación al guardar o al escribir
+        if errores_ultimos == ""
+            t = ""
+            for e in err_lista
+                t = t + e.ruta + ":#{e.linea}:#{e.col}: Error: " + e.texto + "\n"
+            end
+            return t
+        end
         return errores_ultimos
     elif orden == "SALIDA"
         return salida_texto(false)

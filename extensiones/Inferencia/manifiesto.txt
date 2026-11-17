@@ -1,0 +1,21 @@
+# Inferencia: el copiloto de Forja. Habla con Inferencia, la IA del Amiga (https://github.com/FreeMEM/inferencia)
+nombre = Inferencia
+version = 0.1
+autor = FreeMEM
+licencia = MIT
+descripcion = El copiloto: pregunta a Inferencia sobre el código, explica y arregla errores, documenta funciones, escribe pruebas y cambia código, siempre con una pestaña con el cambio para aceptarlo (a) o rechazarlo (r). Sugerencias al escribir, si se encienden. Necesita Inferencia.
+programa = Copiloto
+arranque = inicio
+sucesos = activo cambiado compilado
+pausa = 900
+submenu = Inferencia
+menu = Preguntar sobre esto | ctrl alt i | preguntar
+menu = Explicar la selección | | explicar
+menu = Cambiar el código... | ctrl alt c | cambiar
+menu = Documentar la función | | documentar
+menu = Escribir la prueba | | prueba
+menu = Explicar el error | ctrl alt e | explicar-error
+menu = Arreglar el error | ctrl alt f | arreglar
+menu = Aceptar el cambio | ctrl alt y | aceptar
+menu = Rechazar el cambio | ctrl alt n | rechazar
+menu = Sugerencias al escribir (sí/no) | | sugerencias

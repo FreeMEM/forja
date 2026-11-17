@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""El paquete de Forja: el cajón Forja con sus iconos y sus extensiones (Extensiones/Git), y el .lha. dashc
+"""El paquete de Forja: el cajón Forja con sus iconos y sus extensiones (Extensiones/Git, Extensiones/Inferencia), y el .lha. dashc
 y dashgit no van dentro: son de Dash.
 
     python3 tools/paquete.py 0.1 [DASH_DIR]   →  build/paquete/Forja/...  y  build/forja-0.1.lha
