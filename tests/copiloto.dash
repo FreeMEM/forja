@@ -2,7 +2,7 @@
 # de Inferencia (guiones en tests/guiones_copiloto), como un usuario (menús, teclas) y por ARexx:
 #   - Documentar la función: el encargo usa la ayuda de Dash; la pestaña con las diferencias; a la acepta; Amiga-Z lo
 #     deshace; la zona de la barra mientras espera;
-#   - Cambiar el código... (Ctrl Alt C): la ventana para decir qué; r rechaza;
+#   - Cambiar el código... (Ctrl Alt C): el panel Inferencia de Forja (abajo) para decir qué; r rechaza;
 #   - Explicar la selección y Preguntar sobre esto (Amiga-I): a la conversación de Inferencia, con el código;
 #   - Escribir la prueba: un fichero nuevo, que se escribe y se abre al aceptar (menú Aceptar);
 #   - con dashc: compilar un error (la zona lo dice), Explicar el error y Arreglar el error (Ctrl Alt Y acepta);
@@ -197,23 +197,31 @@ Main
         tecla(0x31, AMIGA)    # Amiga-Z
         ver("Amiga-Z lo deshace de una vez", rexx("LINEA 3") == "func doble(x: Int) -> Int", rexx("LINEAS 1 5"))
 
-        # --- Cambiar el código... (Ctrl Alt C): la ventana; r rechaza ---
+        # --- Cambiar el código... (Ctrl Alt C): el panel Inferencia, abajo en Forja; r rechaza ---
         rexx("CURSOR 4 5")
         tecla(0x33, CTRL + ALT)
-        if activar("Inferencia: cambiar")
-            ver("Ctrl Alt C abre la ventana", true, "")
+        n = 0
+        while n < 100 and not str_contains(rexx("PANELES"), "Inferencia|Inferencia|abajo|1|")
+            time_delay(5)
+            n = n + 1
+        end
+        if str_contains(rexx("PANELES"), "Inferencia|Inferencia|abajo|1|")
+            ver("Ctrl Alt C abre el panel, con la entrada lista", str_contains(env_get("FORJA_PANELES"), "|entrada|"), env_get("FORJA_PANELES"))
+            time_delay(10)
+            screen_save_png("DH0:Prueba/copiloto-panel.png")
             input_text("multiplica por 3")
             input_key(0x44, 0)
             ver("el cambio llega", esperar("cambio", 300), estado())
             v = rexx("TEXTO")
             ver("la vista: quita x * 2 y pone x * 3", str_contains(v, "\n-     return x * 2") and str_contains(v, "\n+     return x * 3"), v)
             ver("la vista: lo que dijo el modelo", str_contains(v, "\nAhora multiplica por 3."), v)
+            ver("el panel ofrece Aceptar y Rechazar", str_contains(rexx("PANELES"), "Inferencia|Inferencia|abajo|1|0|1|"), rexx("PANELES"))
             tecla(0x13, 0)    # r
             ver("r rechaza", esperar("libre", 100), estado())
             ver("el fichero sigue igual", rexx("LINEA 4 \"" + MAIN + "\"") == "    return x * 2", rexx("LINEA 4 \"" + MAIN + "\""))
             ver("la vista se cierra", not str_contains(rexx("ABIERTOS"), "(Inferencia)"), rexx("ABIERTOS"))
         else
-            ver("Ctrl Alt C abre la ventana", false, input_active_title())
+            ver("Ctrl Alt C abre el panel", false, rexx("PANELES"))
         end
 
         # --- Explicar la selección, a la conversación ---

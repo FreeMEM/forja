@@ -26,22 +26,17 @@ import "lib/forja.dash"
 import "lib/red/idioma.dash"
 import "diferencias.dash"
 import "contexto.dash"
-import "copiloto.dashui"
 
 const PUERTO_INF = "INFERENCIA.1"
 const ESPERA_INF = 5000            # ms como mucho para cada orden a Inferencia
 const ARRANQUE_MS = 30000          # lo que se espera a que aparezca su puerto
 const ENCARGO_MAX_MS = 300000
 const EV_TIC = 1
-const EV_PEDIR = 10
-const EV_CANCELAR = 11
-const EV_CERRAR = 12
 const TIC_MS = 300
 const ICONO = ".....##...../.....##...../....####..../...######.../.##########./############/.##########./...######.../....####..../.....##...../.....##...../............"
 
 var app: Int = 0
-var pet: Peticion = nil
-var pet_abierta: Bool = false
+var pet_abierta: Bool = false      # el panel Inferencia (abajo, en Forja) está puesto
 var sonda: Bool = false
 var tic_armado: Bool = false
 var inf_rc: Int = 0
@@ -406,29 +401,46 @@ func documentar()
     encargo("documentar", hueco(tr(31, "Documentar %1: "), nombre) + a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"), t)
 end
 
+# --- El panel Inferencia (abajo, en la ventana de Forja: API 6) ---
+# Cambiar el código... lo abre con la pregunta y una entrada para decir qué; mientras Inferencia trabaja, lo dice; cuando
+# llega el cambio, Aceptar y Rechazar (además de a y r en su pestaña).
+
+func titulo_copiloto() -> String
+    return tr(86, "Inferencia")
+end
+
+func panel_copiloto(lineas: [String], colores: String, botones: [String])
+    forja_panel(titulo_copiloto(), "abajo", lineas, colores)
+    forja_panel_botones(titulo_copiloto(), botones)
+    pet_abierta = true
+end
+
+# Lo que dice el panel, si está puesto (sin entrada)
+func panel_copiloto_dice(linea: String, color: String, botones: [String])
+    if not pet_abierta
+        return
+    end
+    panel_copiloto([linea], color, botones)
+    forja_panel_entrada(titulo_copiloto(), "")
+end
+
 func cambiar_abrir()
     if not leer_activo()
         return
     end
-    if pet == nil
-        aviso_error(tr(32, "no se puede abrir la ventana de MUI."))
-        return
-    end
     elegir_lineas(false)
-    mui_set_text(pet.que, hueco(tr(33, "¿Qué cambio en %1?"), a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}")))
-    mui_window_open(pet.window)
-    mui_set_active(pet.window, pet.orden)
-    pet_abierta = true
+    que = hueco(tr(33, "¿Qué cambio en %1?"), a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"))
+    panel_copiloto([que, tr(87, "Escríbelo abajo y pulsa Return (Esc vuelve al editor).")], "@#", [tr(75, "Pedir") + "|pedir", tr(85, "Cerrar") + "|cerrar"])
+    forja_panel_entrada(titulo_copiloto(), tr(88, "Pide:"))
+    forja_panel_ver(titulo_copiloto(), true)
 end
 
-func cambiar_pedir()
-    orden = str_trim(mui_get_text(pet.orden))
-    mui_window_close(pet.window)
-    pet_abierta = false
+func cambiar_pedir(texto: String)
+    orden = str_trim(texto)
     if orden == ""
         return
     end
-    # (lo de delante pudo cambiar con la ventana abierta)
+    # (lo de delante pudo cambiar con el panel abierto)
     d = p_desde
     h = p_hasta
     if not leer_activo()
@@ -436,9 +448,40 @@ func cambiar_pedir()
     end
     p_desde = d
     p_hasta = h
-    mui_set_text(pet.orden, "")
     t = str_replace(hueco2(tr(66, "Cambia este código de Dash (líneas %1 a %2 de %3) así: "), "#{p_desde}", "#{p_hasta}"), "%3", a_ruta) + orden + "\n" + tr(67, "Devuelve esas líneas ya cambiadas, enteras, en un solo bloque ```dash (puedes añadir o quitar líneas). Antes del bloque, una línea que diga qué cambiaste.") + "\n\n```dash\n" + ctx_lineas(a_texto, p_desde, p_hasta) + "\n```\n\n" + ctx_contexto(a_ruta, a_texto, p_desde, p_hasta)
     encargo("cambiar", tr(34, "Cambiar: ") + a_nombre + hueco2(tr(18, ", líneas %1 a %2"), "#{p_desde}", "#{p_hasta}"), t)
+    if pedido == "cambiar"
+        panel_copiloto([tr(89, "Pedido: ") + orden, tr(90, "Inferencia está con ello...")], "@#", [tr(76, "Cancelar") + "|cancelar"])
+        forja_panel_entrada_texto(titulo_copiloto(), "", "")
+    end
+end
+
+# PANELTEXTO y PANELBOTON del panel Inferencia
+func panel_copiloto_suceso()
+    if forja_tipo == "PANELTEXTO"
+        cambiar_pedir(forja_campo(1))
+        return
+    end
+    o = forja_campo(1)
+    if o == "pedir"
+        e = forja_panel_estado(titulo_copiloto())
+        if e.length >= 7
+            cambiar_pedir(e[6])
+        end
+    elif o == "cancelar"
+        if pedido != "" and pedido != "completar"
+            cancelar()
+        end
+        forja_panel_cerrar(titulo_copiloto())
+        pet_abierta = false
+    elif o == "aceptar"
+        aceptar()
+    elif o == "rechazar"
+        rechazar()
+    elif o == "cerrar"
+        forja_panel_cerrar(titulo_copiloto())
+        pet_abierta = false
+    end
 end
 
 func base_de(nombre: String) -> String
@@ -542,6 +585,7 @@ func al_llegar(tipo: String, r: String)
     c_colores = c_colores + dif_colores
     ver_vista()
     aviso(hueco(tr(42, "el cambio está en la pestaña %1: a lo acepta, r lo rechaza."), c_vista))
+    panel_copiloto_dice(hueco(tr(42, "el cambio está en la pestaña %1: a lo acepta, r lo rechaza."), c_vista), "+", [tr(91, "Aceptar") + "|aceptar", tr(92, "Rechazar") + "|rechazar", tr(85, "Cerrar") + "|cerrar"])
 end
 
 func ver_vista()
@@ -628,6 +672,7 @@ func aceptar()
     end
     forja_abrir(c_ruta, desde)
     forja_aviso_tipo(tr(6, "Inferencia: ") + hueco(tr(49, "cambiado %1 (Amiga-Z lo deshace)."), nombre_de(c_ruta)), 2)
+    panel_copiloto_dice(hueco(tr(49, "cambiado %1 (Amiga-Z lo deshace)."), nombre_de(c_ruta)), "+", [tr(85, "Cerrar") + "|cerrar"])
     zona_al_dia()
 end
 
@@ -641,6 +686,7 @@ func rechazar()
         forja_abrir(c_ruta, c_desde)
     end
     aviso(tr(51, "cambio rechazado."))
+    panel_copiloto_dice(tr(51, "cambio rechazado."), "#", [tr(85, "Cerrar") + "|cerrar"])
     zona_al_dia()
 end
 
@@ -731,6 +777,10 @@ end
 var prueba_ultima: String = ""
 
 func panel_suceso()
+    if forja_campo(0) == titulo_copiloto()
+        panel_copiloto_suceso()
+        return
+    end
     if forja_campo(0) != titulo_prueba() or forja_tipo != "PANELBOTON"
         return
     end
@@ -931,6 +981,9 @@ func tic()
         if tipo != "completar"
             aviso_error(tr(59, "el modelo dio un error: ") + r[6:])
         end
+        if tipo == "cambiar"
+            panel_copiloto_dice(tr(59, "el modelo dio un error: ") + r[6:], "-", [tr(85, "Cerrar") + "|cerrar"])
+        end
     end
     zona_al_dia()
 end
@@ -939,6 +992,7 @@ func cancelar()
     inf("CANCELAR")
     pedido = ""
     aviso(tr(60, "encargo cancelado."))
+    panel_copiloto_dice(tr(60, "encargo cancelado."), "#", [tr(85, "Cerrar") + "|cerrar"])
     zona_al_dia()
 end
 
@@ -1010,7 +1064,7 @@ func suceso()
         zona_al_dia()
     elif t == "TECLA"
         tecla(d)
-    elif t == "PANELBOTON"
+    elif t == "PANELBOTON" or t == "PANELTEXTO"
         panel_suceso()
     elif t == "ZONA"
         if pedido != "" and pedido != "completar"
@@ -1058,7 +1112,6 @@ Main
         if app == 0
             forja_aviso_tipo(tr(62, "Inferencia: no se puede abrir MUI; el copiloto no arranca."), 1)
         else
-            pet = Peticion_create()
             zona_al_dia()
             salir = false
             while not salir
@@ -1066,11 +1119,6 @@ Main
                 if ev == EV_TIC
                     tic_armado = false
                     tic()
-                elif ev == EV_PEDIR
-                    cambiar_pedir()
-                elif ev == EV_CANCELAR or ev == EV_CERRAR
-                    mui_window_close(pet.window)
-                    pet_abierta = false
                 end
                 # (ev -1: MUI pide salir; la extensión sigue mientras Forja esté)
                 atender_rexx()
