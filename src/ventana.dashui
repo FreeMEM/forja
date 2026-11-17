@@ -147,7 +147,9 @@
               { "type": "label", "tr": 336, "text": "Cambiar por:", "color": [220, 220, 210] },
               { "type": "string", "name": "cambio", "text": "", "max": 200 },
               { "type": "label", "tr": 337, "text": "Mayúsculas:", "color": [220, 220, 210] },
-              { "type": "checkbox", "name": "mayus", "checked": false }
+              { "type": "checkbox", "name": "mayus", "checked": false },
+              { "type": "label", "tr": 830, "text": "Expresión regular:", "color": [220, 220, 210] },
+              { "type": "checkbox", "name": "regex", "checked": false }
             ]
           },
           {
@@ -157,6 +159,13 @@
               { "type": "button", "name": "anterior", "tr": 339, "label": "_Anterior", "event": 51, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "button", "name": "cambiar", "tr": 340, "label": "_Cambiar", "event": 52, "background": [44, 44, 52], "color": [220, 220, 210] },
               { "type": "button", "name": "todo", "tr": 341, "label": "_Todo", "event": 53, "background": [44, 44, 52], "color": [220, 220, 210] }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "en_proyecto", "tr": 831, "label": "Buscar en el _proyecto", "event": 162, "background": [44, 44, 52], "color": [220, 220, 210] },
+              { "type": "button", "name": "cambiar_proyecto", "tr": 832, "label": "Cambiar en el p_royecto...", "event": 163, "background": [44, 44, 52], "color": [220, 220, 210] }
             ]
           }
         ]

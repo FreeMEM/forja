@@ -1011,103 +1011,103 @@ MSG_464
 This tab is read-only.
 ; Esta pestaña es de solo lectura.
 MSG_600
-
+its program is missing
 ; no está su programa
 MSG_601
-
+Cannot start the extension %1.
 ; No se puede arrancar la extensión %1.
 MSG_602
-
+The extension %1 did not get to start.
 ; La extensión %1 no ha llegado a empezar.
 MSG_603
-
+The extension %1 has closed.
 ; La extensión %1 se ha cerrado.
 MSG_604
-
+The extension %1 does not collect its notices: the oldest are lost.
 ; La extensión %1 no recoge sus avisos: se pierden los más viejos.
 MSG_605
-
+No room for more items in the Extensions menu (%1).
 ; No caben más opciones en el menú Extensiones (%1).
 MSG_606
-
+(off)
 ; (apagada)
 MSG_607
-
+(running)
 ; (en marcha)
 MSG_608
-
+Author: 
 ; Autor: 
 MSG_609
-
+License: 
 ; Licencia: 
 MSG_610
-
+Starts: with its menu.
 ; Arranca: con su menú.
 MSG_611
-
+Starts: when Forja opens.
 ; Arranca: al abrir Forja.
 MSG_612
-
+Starts: with its menu or when opening 
 ; Arranca: con su menú o al abrir 
 MSG_613
-
+The name of the extension is unknown.
 ; No se sabe el nombre de la extensión.
 MSG_614
-
+Could not copy to %1.
 ; No se pudo copiar a %1.
 MSG_615
-
+It has no manifiesto.txt.
 ; No tiene manifiesto.txt.
 MSG_616
-
+An .lha needs C:LhA.
 ; Para un .lha hace falta C:LhA.
 MSG_617
-
+The .lha has no extension in it (manifiesto.txt is missing).
 ; El .lha no trae una extensión (falta manifiesto.txt).
 MSG_620
-
+Extensions
 ; Extensiones
 MSG_621
-
+Extension manager...
 ; Gestor de extensiones...
 MSG_622
-
+Forja extensions
 ; Extensiones de Forja
 MSG_623
-
+_Enable
 ; _Activar
 MSG_624
-
+_Install...
 ; _Instalar...
 MSG_625
-
+_Close
 ; _Cerrar
 MSG_626
-
+There are no extensions. Install them with Install, or in %1.
 ; No hay extensiones. Se instalan con Instalar, o en %1.
 MSG_627
-
+Disable
 ; Desactivar
 MSG_628
-
+Enable
 ; Activar
 MSG_629
-
+Install an extension: its manifiesto.txt or an .lha
 ; Instalar una extensión: su manifiesto.txt o un .lha
 MSG_630
-
+, of 
 ; , de 
 MSG_631
-
+An extension is a program: it can do anything on your Amiga.\nInstall it only if you trust whoever made it.
 ; Una extensión es un programa: puede hacer cualquier cosa en tu Amiga.\nInstálala solo si te fías de quien la hizo.
 MSG_632
-
+Install an extension
 ; Instalar una extensión
 MSG_633
-
+Install and _enable|_Install|_Cancel
 ; Instalar y _activar|_Instalar|_Cancelar
 MSG_634
-
+Installed the extension %1.
 ; Instalada la extensión %1.
 MSG_700
 Dash help (Forja)
@@ -1187,3 +1187,174 @@ MSG_731
 MSG_732
 No errors marked.
 ; No hay errores marcados.
+MSG_733
+This dash command cannot check (--check): update Dash to see the errors when saving.
+; Esta orden dash no sabe comprobar (--check): actualiza Dash para ver los errores al guardar.
+MSG_800
+Editor
+; Editor
+MSG_801
+Nothing here makes a pair (a bracket, or the first word of a block).
+; Aquí no hay nada que haga pareja (un paréntesis, o la primera palabra de un bloque).
+MSG_802
+I do not understand these lines of the keys (ENVARC:Forja/teclas):
+; No entiendo estas líneas de las teclas (ENVARC:Forja/teclas):
+MSG_803
+Comment or uncomment
+; Comentar o descomentar
+MSG_804
+Duplicate the lines
+; Duplicar las líneas
+MSG_805
+Move the lines up
+; Subir las líneas
+MSG_806
+Move the lines down
+; Bajar las líneas
+MSG_807
+Delete the lines
+; Borrar las líneas
+MSG_808
+Go to the pair
+; Ir a la pareja
+MSG_809
+Set or clear bookmark
+; Poner o quitar marcador
+MSG_810
+Next bookmark
+; Siguiente marcador
+MSG_811
+Previous bookmark
+; Marcador anterior
+MSG_812
+Outline of the file...
+; Esquema del fichero...
+MSG_813
+Open a file by its name...
+; Abrir un fichero por su nombre...
+MSG_814
+Go to a name of the project...
+; Ir a un nombre del proyecto...
+MSG_815
+Find in the project...
+; Buscar en el proyecto...
+MSG_816
+Replace in the project...
+; Cambiar en el proyecto...
+MSG_817
+Rename...
+; Renombrar...
+MSG_818
+Fold or unfold the block
+; Plegar o desplegar el bloque
+MSG_819
+Unfold all
+; Desplegar todo
+MSG_820
+Close brackets and quotes by themselves
+; Cerrar solos paréntesis y comillas
+MSG_821
+Add the end when opening a block
+; Poner el end al abrir un bloque
+MSG_822
+That command is not done yet.
+; Esa orden aún no está hecha.
+MSG_830
+Regular expression:
+; Expresión regular:
+MSG_831
+Find in the _project
+; Buscar en el _proyecto
+MSG_832
+Replace in the p_roject...
+; Cambiar en el p_royecto...
+MSG_833
+The regular expression is wrong: %1
+; La expresión regular está mal: %1
+MSG_834
+\"%1\" is not in the project (%2 files).
+; \"%1\" no está en el proyecto (%2 ficheros).
+MSG_835
+Find \"
+; Buscar \"
+MSG_836
+%1 times in %2 files (click one to go there).
+; %1 veces en %2 ficheros (clic en una para ir).
+MSG_837
+... and %1 more.
+; ... y %1 más.
+MSG_838
+Replace \"%1\" with \"%2\"
+; Cambiar \"%1\" por \"%2\"
+MSG_839
+Replaced %1 times in %2 files.
+; Cambiado %1 veces en %2 ficheros.
+MSG_840
+%1 times in %2 files
+; %1 veces en %2 ficheros
+MSG_841
+Changes
+; Cambios
+MSG_842
+Replace in the project
+; Cambiar en el proyecto
+MSG_843
+Shall I make these %1 changes in %2 files?\n\nThe open files change in the editor (not saved; they can be undone).\nThe others are saved to disk.
+; ¿Hago estos %1 cambios en %2 ficheros?\n\nLos ficheros abiertos cambian en el editor (sin guardar; se pueden deshacer).\nLos demás se guardan en el disco.
+MSG_844
+_Change|C_ancel
+; _Cambiar|C_ancelar
+MSG_845
+I could not write %1.
+; No he podido escribir %1.
+MSG_850
+(nothing)
+; (nada)
+MSG_851
+%1 of %2
+; %1 de %2
+MSG_852
+Outline of %1
+; Esquema de %1
+MSG_853
+There is no project: open a file first.
+; No hay proyecto: abre antes un fichero.
+MSG_854
+Open
+; Abrir
+MSG_855
+Go to
+; Ir a
+MSG_856
+Return: accept  Esc: cancel
+; Return: aceptar  Esc: cancelar
+MSG_857
+There are no bookmarks in %1 (%2 sets or clears one).
+; No hay marcadores en %1 (%2 pone o quita uno).
+MSG_858
+Rename %1 to
+; Renombrar %1 a
+MSG_859
+%1 places; before changing anything, the list of changes.
+; %1 sitios; antes de cambiar nada, la lista de cambios.
+MSG_860
+\"%1\" is not a valid name.
+; \"%1\" no vale como nombre.
+MSG_861
+There is already a %1 in the project: not renaming, they would get mixed.
+; Ya hay un %1 en el proyecto: no renombro, se mezclarían.
+MSG_862
+Rename %1 to %2
+; Renombrar %1 a %2
+MSG_863
+Renamed %1 in %2 places.
+; Renombrado %1 en %2 sitios.
+MSG_864
+The cursor is not in a block (func, if, while, struct...).
+; El cursor no está en un bloque (func, if, while, struct...).
+MSG_870
+not fixed width
+; no es de ancho fijo
+MSG_871
+I do not understand these lines of the theme (ENVARC:Forja/tema):
+; No entiendo estas líneas del tema (ENVARC:Forja/tema):

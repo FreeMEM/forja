@@ -266,3 +266,73 @@ VS Code.
     que `mui_text_editor` sin Textinput (MUI 3.8) dé un campo de una línea en vez de nada (Inferencia elige la ventana
     ella misma); una petición de texto sencilla (como `mui_request` pero con un campo), para no hacer una ventana
     para una línea.
+- 2026-11-17, rama `editor`: **fase 2 hecha, el editor cómodo** (2.1 a 2.8; lo pidió el usuario: "un editor potente y
+  cómodo").
+  - **2.1 Colores de la gramática**: `tools/sintaxis.py` escribe `src/sintaxis_datos.dash` desde Dash: las palabras de
+    `compiler/grammar.py` con la clase que les da `tools/gen_tmgrammar.py` (los colores de VS Code; si la gramática
+    trae una palabra nueva sin clase, para), los tipos del analizador y las instrucciones de `compiler/asm68k.py`.
+    `--comprobar` dice si está al día. Nuevos colores: directivas (`@native`...), y en los bloques `asm ... end`
+    instrucción (solo las que conoce el ensamblador), registro y etiqueta; la cabecera (`asm in d0 = a out r = d0 uses
+    d2`) con `in`/`out`/`uses` y sus registros; `Close`, `Key`... solo tras `On`. Para saber si una línea está dentro
+    de un bloque asm se mira hacia arriba solo hasta una línea que lo diga (300 como mucho), sin leer el fichero.
+  - **2.2 Comodidades**: menú **Editor** nuevo (hecho en marcha, con las teclas que tenga cada orden): comentar
+    (Ctrl /; en asm con `;`), duplicar (Ctrl D), subir y bajar (Ctrl Alt flechas: Alt solo ya es página), borrar
+    líneas (Ctrl Mayús K), ir a la pareja (Ctrl M). La pareja (paréntesis, corchete, llave; y `func`/`if`/`while`/
+    `asm`.../`end`, `elif`/`else` con su `if`) se ve en un recuadro con el cursor encima; sin pareja, en rojo.
+    Cerrar solos `( [ { "` (solo con nada detrás, o algo que cierra; el que cierra pasa por encima; Retroceso entre
+    los dos los quita; con selección, la rodea) y el `end` solo al pulsar Return tras abrir un bloque que no lo tiene
+    (como `endwise.js` de la extensión de VS Code: un solo paso de deshacer). Las dos se apagan en el menú Editor
+    (`ENV:Forja/cerrar_solo`, `ENV:Forja/auto_end`). `tests/teclas.dash` ya no escribe el `end` (lo pone Forja).
+  - **Repintar menos**: el cursor que pasa a otra línea sin mover la vista repinta solo esas dos (antes, todo): 21 ms
+    frente a 45 del dibujo entero (A1200 emulado con `REAL=1`, MUI 5). Con la pareja, también sus líneas.
+  - **2.3 Buscar**: casilla "Expresión regular" (`regex_find` de Dash; `$1`-`$9` en lo que cambia; lo vacío no se
+    queda dando vueltas); "Buscar en el proyecto" (Ctrl Mayús F, con lo del cursor) en todos los `.dash` y `.dashui`
+    del cajón y los de dentro, con el texto sin guardar de los abiertos, a la salida con clic; "Cambiar en el
+    proyecto" (Ctrl Mayús H): una pestaña con cada línea antes y después y una pregunta; los abiertos cambian en el
+    editor (un paso de deshacer por fichero), los demás en el disco (en UTF-8 si lo estaban). `src/buscar.dash`.
+  - **2.4 Lista rápida** (`src/rapido.dash`): una lista encima del editor que se filtra escribiendo (empieza por, lo
+    tiene, sus letras en orden): esquema del fichero (Ctrl O, elegido lo de antes del cursor), abrir un fichero del
+    proyecto (Ctrl P) e ir a un nombre de todo el proyecto (Ctrl T). Dibujada en el lienzo, no una ventana de MUI:
+    igual en MUI 3.8 y 5.
+  - **2.5 Marcadores**: Ctrl F3 pone o quita, F3 y Mayús F3 siguiente y anterior (dan la vuelta); una cinta en el
+    margen, también junto a un punto de parada. Siguen a su texto al escribir (también deshacer); comentar o cambiar
+    las mismas líneas no los mueve; subir o bajar líneas se los lleva. F8 sigue siendo el error. No se guardan al cerrar.
+  - **2.6 Renombrar** (F2): con "dónde se usa" de `codigo.dash` (las locales, solo en su función), pide el nombre
+    nuevo en la lista rápida y enseña los cambios como "cambiar en el proyecto". No deja un nombre que no vale, una
+    palabra de Dash o uno que ya existe.
+  - **2.7 Plegado** (F4 el bloque del cursor, Mayús F4 todo): el bloque enseña su primera línea con " ... end";
+    las flechas, la rueda y los clics se saltan lo plegado; ir a una línea oculta la despliega; un clic en " ... end"
+    también. Sin nada plegado, el dibujo hace las cuentas de siempre (ninguna más). Con un bloque plegado, el dibujo
+    entero 66 ms frente a 64 sin él (A1200 emulado con `REAL=1`).
+  - **2.8 Configurable**: `ENVARC:Forja/teclas` (ENV: primero): `orden = teclas` (`duplicar = alt d`,
+    `comentar = nada`; letras por su sitio en un teclado inglés, signos por su carácter); `ENVARC:Forja/tema`: los
+    colores (`comentario = 255 80 80`) y la fuente del código (`fuente = xen.font 8`, de ancho fijo). Lo que no se
+    entiende se dice en la salida. **El teclado va al editor** también con el puntero en el proyecto, la salida o la
+    barra de botones (antes esos lienzos se quedaban la tecla).
+  - Pruebas: `tests/editor_base.sh` (sin ventana) y `tests/editor.sh` (como un usuario, con capturas): TODO BIEN en
+    A1200 con MUI 5 (normal y `REAL=1`), RTG con MUI 5 y MUI 3.8 (`SISTEMA=~/.cache/dash-emu/sys32rtg38 RTG=1`).
+    Siguen en TODO BIEN: teclas, ficheros, completar, buscar, errores, compilar, rexx, extensiones (MUI 5 y 3.8),
+    extensiones_base, git_panel y ayuda (con el `dashc.amiga` de Dash PR #184). `tests/proyecto.sh` falla igual en
+    `main` (a219701) con el Dash de hoy: el clic en el error de `fisica.dash` (cajón "Mi juego", con espacio) no lleva a
+    su línea, y lo que sigue cae detrás. No es de esta rama; queda por mirar.
+  - Tiempos (A1200 emulado con la CPU de un A1200, `REAL=1`, MUI 5): dibujo entero 45 ms (64 con el bloque asm a la
+    vista, 66 con un bloque plegado); flecha abajo, 21 ms (dos líneas); Ctrl Mayús F hasta ver lo encontrado 0,96 s
+    (con abrir la ventana de buscar; la búsqueda en `tests/prueba/editor`, 45 ms); el esquema 19 ms; la pareja de una
+    función de 500 líneas 140 ms; partir una línea para los colores, como antes (un 5 % más). Con MUI 3.8 y en RTG
+    (68040 JIT), todo por debajo de 10 ms salvo Ctrl Mayús F (0,2 s).
+  - **Falta en Forja**: los marcadores y lo plegado no se guardan con la sesión; deshacer un cambio de varias líneas puede juntar sus marcadores en
+    la primera; renombrar no cambia en pestañas sin nombre; cambiar en el disco pasa los tabuladores de las líneas
+    cambiadas a espacios; la barra del editor no cuenta lo plegado; la lista de cambios es una pestaña que se cierra
+    al contestar (no se puede mirar entera antes); las etiquetas del menú Editor salen con las teclas al empezar (si
+    se cambia el fichero, hasta la próxima vez); `--gcc` no compila Forja (también en `main`: un `e->activa` sobre un
+    entero en `extensiones.dash`, error de Dash), así que `tests/ventana.sh` no va.
+  - **Falta en Dash** (apuntado, sin rodeos): **fallo del directo**: en `func color(nombre: String, r: Int, g: Int,
+    b: Int) -> Int` que hace `r = Int(p[0])`, `g = ...`, `b = ...` dentro de un `if`, `./dash` deja `b` con su valor
+    de antes (con `--gcc`, bien): `color("x", 120, 120, 136)` con "255 80 80" da 255, 80, 136 (la prueba, en
+    `tests/editor.sh` con RTG: el color del tema no cambiaba). Forja lo evita sin cambiar los parámetros. `.has` de las listas en el directo ("aún no está"); una función que se
+    llame `asm` pasa el análisis y rompe el C con `--gcc` (palabra reservada de C); `C:Copy` no está en el sistema de
+    las pruebas (`sys31muisslweb`), la prueba escribe los ficheros ella misma.
+  - De Dash PR #184 (llegó a la vez): `mui_request_text` serviría para el nombre nuevo de renombrar, pero la lista
+    rápida ya va en MUI 3.8 y 5 sin ventana; `mui_list_add_lines`, para la lista de la ayuda (aquí no hay listas de
+    MUI); `--check` con todos los errores, módulos sin Main y `--texto`: para la fase 3.5 (errores en cualquier
+    fichero del proyecto); `str_join`, para quitar los "unir" a mano. Quedan para después.

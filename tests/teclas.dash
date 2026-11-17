@@ -13,6 +13,7 @@ const TAB = 0x42
 const RETROCESO = 0x41
 const IZQUIERDA = 0x4F
 const ARRIBA = 0x4C
+const ABAJO = 0x4D
 
 var fallos: Int = 0
 var registro: String = ""
@@ -93,15 +94,15 @@ end
 Main
     if preparar()
         programa = "Main\n    Print \"hola\"\nend"
-        # (la sangría sigue los bloques: Return tras Main entra un nivel; end, al escribirlo, vuelve)
+        # (la sangría sigue los bloques: Return tras Main entra un nivel y pone el end debajo; la comilla se cierra
+        # sola y la segunda pasa por encima)
         input_text("Main")
         input_key(RETURN, 0)
         input_text("Print \"hola\"")
-        input_key(RETURN, 0)
-        input_text("end")
         comprobar("escribir con sangría", programa)
 
-        # "end" seleccionado con Mayúsculas + Alt + izquierda, y cortado
+        # "end" seleccionado con Mayúsculas + Alt + izquierda (desde el final del texto), y cortado
+        input_key(ABAJO, CTRL)
         input_key(IZQUIERDA, MAYUS + ALT)
         input_key(0x32, AMIGA)
         comprobar("cortar", "Main\n    Print \"hola\"\n")

@@ -1,0 +1,404 @@
+# Prueba de src/editor.dash y src/sintaxis.dash sin ventana (fase 2 de docs/FORJA_LOOP.md): los colores sacados de
+# la gramática (también los bloques asm), comentar, duplicar, mover y borrar líneas, cerrar solos paréntesis y
+# comillas, el end solo, la pareja de un paréntesis y de un bloque; y lo que tarda cada cosa.
+# tests/editor_base.sh la ejecuta.
+
+import "../src/editor.dash"
+import "../src/teclas.dash"
+import "../src/buscar.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso
+        fallos = fallos + 1
+    end
+end
+
+func igual(paso: String, visto: String, esperado: String)
+    if visto == esperado
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso + ": [" + visto + "] en vez de [" + esperado + "]"
+        fallos = fallos + 1
+    end
+end
+
+# Los trozos de la última línea partida, "tipo:texto tipo:texto..." (sin los blancos sueltos)
+func trozos(s: String) -> String
+    r = ""
+    k = 0
+    while k < sx_desde.length
+        a = sx_desde[k]
+        b = s.length
+        if k + 1 < sx_desde.length
+            b = sx_desde[k + 1]
+        end
+        t = str_trim(s[a:b])
+        if t != ""
+            if r != ""
+                r = r + " "
+            end
+            r = r + "#{sx_tipo[k]}:" + t
+        end
+        k = k + 1
+    end
+    return r
+end
+
+func dash(s: String) -> String
+    sx_partir(s)
+    return trozos(s)
+end
+
+func ensam(s: String) -> String
+    sx_partir_asm(s)
+    return trozos(s)
+end
+
+func doc(texto: String) -> Documento
+    documentos.clear()
+    ed_abrir_texto("prueba.dash", "RAM:prueba.dash", texto)
+    return ed_actual()
+end
+
+func letra(d: Documento, l: String)
+    ed_tecla(0x7F, 0, l)
+end
+
+func teclear(d: Documento, t: String)
+    i = 0
+    while i < t.length
+        letra(d, t[i:i + 1])
+        i = i + 1
+    end
+end
+
+Main
+    # --- 2.1 colores ---
+    igual("palabras clave y tipos", dash("func f(x: Int) -> Int"), "1:func 6:f 0:(x: 2:Int 0:) -> 2:Int")
+    igual("directiva", dash("@native func peek(a: Pointer) -> Int"), "8:@native 1:func 6:peek 0:(a: 2:Pointer 0:) -> 2:Int")
+    igual("On Close", dash("    On Close"), "1:On 1:Close")
+    igual("Close sin On es un nombre", dash("x = Close"), "0:x = Close")
+    igual("interface, weak, borrow, self", dash("interface weak borrow self"), "1:interface 1:weak 1:borrow 1:self")
+    igual("true y nil", dash("a = true or nil"), "0:a = 4:true 1:or 4:nil")
+    igual("cabecera asm", dash("    asm in d0 = a, d1 = b out r = d0 uses d2-d7/a0  # x"), "1:asm 1:in 10:d0 0:= a, 10:d1 0:= b 1:out 0:r = 10:d0 1:uses 10:d2 0:- 10:d7 0:/ 10:a0 5:# x")
+    igual("asm no es cabecera en una expresión", dash("asm = 3"), "0:asm = 4:3")
+    igual("instrucción con etiqueta", ensam("        .linea: move.b  6(a0),d0   ; VHPOSR"), "11:.linea: 9:move.b 4:6 0:( 10:a0 0:), 10:d0 5:; VHPOSR")
+    igual("inmediato con constante", ensam("            add.w   #ARRIBA+8,d5"), "9:add.w 4:# 7:ARRIBA 0:+ 4:8 0:, 10:d5")
+    igual("hexadecimal y binario", ensam("    lea $dff000,a0"), "9:lea 4:$dff000 0:, 10:a0")
+    igual("salto a etiqueta", ensam("    bne.s   .linea"), "9:bne.s 11:.linea")
+    igual("equ", ensam("X equ 5"), "11:X 9:equ 4:5")
+    igual("comentario con *", ensam("* todo comentario"), "5:* todo comentario")
+    igual("instrucción desconocida", ensam("    patata d0"), "0:patata 10:d0")
+    igual("etiqueta sola en la columna 0", ensam("bucle:"), "11:bucle:")
+    d = doc("func f()\n    x = 1\n    asm in d0 = x\n        moveq #1,d0\nbucle:\n        nop\n    end\n    y = 2\nend")
+    ver("dentro de asm", ed_en_asm(d, 3) and ed_en_asm(d, 4) and ed_en_asm(d, 5) and ed_en_asm(d, 6))
+    ver("fuera de asm", not ed_en_asm(d, 1) and not ed_en_asm(d, 2) and not ed_en_asm(d, 7) and not ed_en_asm(d, 8))
+    # lo que cuesta partir una línea corriente
+    t0 = time_ms()
+    k = 0
+    while k < 200
+        sx_partir("    if fila >= 0 and ed_fila_y(d, fila) < alto  # un comentario")
+        k = k + 1
+    end
+    Print "partir una línea: #{(time_ms() - t0) * 5} µs"
+
+    # --- 2.2 comentar ---
+    d = doc("func f()\n    x = 1\n\n    y = 2\nend")
+    d.cl = 1
+    d.cc = 6
+    ed_comentar(d)
+    igual("comentar una línea", ed_texto(d), "func f()\n    # x = 1\n\n    y = 2\nend")
+    ver("el cursor sigue a su texto", d.cl == 1 and d.cc == 8)
+    ed_comentar(d)
+    igual("descomentar", ed_texto(d), "func f()\n    x = 1\n\n    y = 2\nend")
+    ed_elegir(d, 2, 1, 4, 3)
+    ed_comentar(d)
+    igual("comentar la selección", ed_texto(d), "func f()\n    # x = 1\n\n    # y = 2\nend")
+    ed_deshacer(d)
+    igual("deshacer comentar (un paso)", ed_texto(d), "func f()\n    x = 1\n\n    y = 2\nend")
+    d = doc("    asm\n        nop\n    end")
+    d.cl = 1
+    ed_comentar(d)
+    igual("en asm, con ;", ed_texto(d), "    asm\n        ; nop\n    end")
+
+    # duplicar, mover, borrar
+    d = doc("a\nb\nc")
+    d.cl = 1
+    d.cc = 1
+    ed_duplicar(d)
+    igual("duplicar", ed_texto(d), "a\nb\nb\nc")
+    ver("el cursor en la copia", d.cl == 2 and d.cc == 1)
+    ed_deshacer(d)
+    igual("deshacer duplicar", ed_texto(d), "a\nb\nc")
+    d.cl = 1
+    ed_mover_lineas(d, true)
+    igual("subir", ed_texto(d), "b\na\nc")
+    ver("el cursor sube", d.cl == 0)
+    ed_mover_lineas(d, true)
+    igual("subir la primera no hace nada", ed_texto(d), "b\na\nc")
+    ed_mover_lineas(d, false)
+    ed_mover_lineas(d, false)
+    igual("bajar dos", ed_texto(d), "a\nc\nb")
+    ed_elegir(d, 1, 1, 2, 2)
+    ed_mover_lineas(d, false)
+    igual("bajar la selección", ed_texto(d), "b\na\nc")
+    ver("la selección baja", d.al == 1 and d.cl == 2)
+    d.al = -1
+    d.cl = 1
+    ed_borrar_lineas(d)
+    igual("borrar línea", ed_texto(d), "b\nc")
+    d.cl = 1
+    ed_borrar_lineas(d)
+    igual("borrar la última", ed_texto(d), "b")
+    ed_deshacer(d)
+    ed_deshacer(d)
+    igual("deshacer borrar", ed_texto(d), "b\na\nc")
+
+    # cerrar solos
+    d = doc("")
+    teclear(d, "Print f(")
+    igual("( mete ()", ed_texto(d), "Print f()")
+    ver("el cursor dentro", d.cc == 8)
+    teclear(d, "\"hola")
+    igual("comilla", ed_texto(d), "Print f(\"hola\")")
+    teclear(d, "\")")
+    igual("pasar por encima", ed_texto(d), "Print f(\"hola\")")
+    ver("el cursor al final", d.cc == 15)
+    d = doc("x = ab")
+    d.cc = 4
+    teclear(d, "(")
+    igual("delante de una letra no cierra", ed_texto(d), "x = (ab")
+    d = doc("    y = 1")
+    teclear(d, "x(")
+    igual("delante de un texto (aunque haya un blanco) tampoco", ed_texto(d), "x(    y = 1")
+    d = doc("")
+    teclear(d, "a[")
+    ed_tecla(T_RETROCESO, 0, "")
+    igual("retroceso quita los dos", ed_texto(d), "a")
+    d = doc("x = abc")
+    ed_elegir(d, 1, 5, 1, 8)
+    teclear(d, "(")
+    igual("rodear la selección", ed_texto(d), "x = (abc)")
+    d = doc("")
+    teclear(d, "Print \"a(b\"")
+    igual("dentro de un texto no cierra", ed_texto(d), "Print \"a(b\"")
+
+    # el end solo
+    d = doc("")
+    teclear(d, "func f()")
+    ed_tecla(T_RETURN, 0, "")
+    igual("end solo", ed_texto(d), "func f()\n    \nend")
+    ver("el cursor dentro del bloque", d.cl == 1 and d.cc == 4)
+    teclear(d, "if x")
+    ed_tecla(T_RETURN, 0, "")
+    igual("end en un bloque de dentro", ed_texto(d), "func f()\n    if x\n        \n    end\nend")
+    ed_deshacer(d)
+    igual("deshacer el end (un paso)", ed_texto(d), "func f()\n    if x\nend")
+    d = doc("func f()\n    x = 1\nend")
+    d.cl = 0
+    d.cc = 8
+    ed_tecla(T_RETURN, 0, "")
+    igual("con end no pone otro", ed_texto(d), "func f()\n    \n    x = 1\nend")
+    d = doc("@extern(\"x.library\")\nfunc f()")
+    d.cl = 1
+    d.cc = 8
+    ed_tecla(T_RETURN, 0, "")
+    igual("tras @extern no", ed_texto(d), "@extern(\"x.library\")\nfunc f()\n    ")
+
+    # la pareja
+    d = doc("x = f(a, (b + c))\nlista = [1,\n    2]")
+    d.cc = 5
+    ed_pareja_calcular(d)
+    ver("paréntesis", ed_par_l1 == 0 and ed_par_c1 == 5 and ed_par_l2 == 0 and ed_par_c2 == 16)
+    d.cc = 17
+    ed_pareja_calcular(d)
+    ver("paréntesis de cierre", ed_par_c1 == 16 and ed_par_c2 == 5)
+    d.cl = 2
+    d.cc = 6
+    ed_pareja_calcular(d)
+    ver("corchete en otra línea", ed_par_l1 == 2 and ed_par_l2 == 1 and ed_par_c2 == 8)
+    d = doc("func f()\n    if x\n        y = 1\n    elif z\n        asm\n            nop\n        end\n    end\nend")
+    d.cl = 0
+    d.cc = 2
+    ed_pareja_calcular(d)
+    ver("func y su end", ed_par_l1 == 0 and ed_par_l2 == 8 and ed_par_n1 == 4)
+    d.cl = 7
+    d.cc = 4
+    ed_pareja_calcular(d)
+    ver("end y su if", ed_par_l1 == 7 and ed_par_l2 == 1 and ed_par_n2 == 2)
+    d.cl = 4
+    d.cc = 8
+    ed_pareja_calcular(d)
+    ver("asm y su end", ed_par_l2 == 6)
+    ed_ir_pareja(d)
+    ver("ir a la pareja", d.cl == 6)
+    d = doc("x = (a")
+    d.cc = 5
+    ed_pareja_calcular(d)
+    ver("sin pareja", ed_par_l1 == 0 and ed_par_l2 == -2)
+    # lo que cuesta buscar el end de una función larga (500 líneas)
+    t = "func larga()\n"
+    k = 0
+    while k < 100
+        t = t + "    if a\n        b = 1\n    else\n        c = 2\n    end\n"
+        k = k + 1
+    end
+    d = doc(t + "end")
+    t0 = time_ms()
+    d.cc = 1
+    ed_pareja_calcular(d)
+    Print "pareja de una función de #{d.lineas.length} líneas: #{time_ms() - t0} ms"
+    ver("el end de la función larga", ed_par_l2 == d.lineas.length - 1)
+
+
+    # --- 2.3 buscar con expresiones regulares ---
+    d = doc("x = 10\ny = x * 25\nz = \"x\"")
+    ed_regex = true
+    ver("buscar \\d+", ed_buscar(d, "[0-9]+", false, true) and ed_seleccion(d) == "10")
+    ver("el siguiente", ed_buscar(d, "[0-9]+", false, true) and ed_seleccion(d) == "25")
+    ver("hacia atrás", ed_buscar(d, "[0-9]+", false, false) and ed_seleccion(d) == "10")
+    ver("patrón malo", ed_patron_malo("(abc") != "")
+    n = ed_cambiar_todo(d, "([a-z]) = ", "$1 := ", true)
+    igual("cambiar con grupos", ed_texto(d), "x := 10\ny := x * 25\nz := \"x\"")
+    ver("cuántas", n == 3)
+    igual("lo vacío no se queda dando vueltas", ed_cambiar_en("abc", "x*", "-", true), "-a-b-c-")
+    ed_regex = false
+    igual("sin regex, el punto es un punto", ed_cambiar_en("a.b", ".", ",", true), "a,b")
+
+    # --- buscar y cambiar en el proyecto (DH0:Prueba/editor: main.dash abierto y cambiado sin guardar, util.dash no) ---
+    documentos.clear()
+    ed_abrir_texto("main.dash", "DH0:Prueba/editor/main.dash", file_read_text("DH0:Prueba/editor/main.dash"))
+    d = ed_actual()
+    ed_cambiar_lineas(d, 26, 26, "    tabla = doble(256)")
+    n = bp_buscar("DH0:Prueba/editor", "doble", true, BP_MAX)
+    ver("en el proyecto: los dos ficheros", n == 3 and bp_ficheros == 2 and bp_mirados >= 2)
+    ver("el del editor, sin guardar", bp_rutas.length == 3 and str_ends(bp_rutas[0], "main.dash") and bp_lineas[0] == 26 and bp_cols[0] == 13 and bp_lineas[1] == 28)
+    ver("el del disco", bp_rutas.length == 3 and str_ends(bp_rutas[2], "util.dash") and bp_lineas[2] == 2 and bp_cols[2] == 6)
+    Print "buscar en el proyecto: #{bp_ms} ms"
+    ed_regex = true
+    n = bp_buscar("DH0:Prueba/editor", "x \\* [0-9]", true, BP_MAX)
+    ed_regex = false
+    ver("en el proyecto con regex", n == 2 and bp_lineas[0] == 3 and bp_lineas[1] == 7)
+    n = bp_cambios("DH0:Prueba/editor", "doble", "dos_veces", true)
+    ver("los cambios, antes de hacerlos", n == 3 and bp_c_rutas.length == 2 and bp_c_lineas[0] == "26 28" and bp_c_despues[1] == "func dos_veces(x: Int) -> Int")
+    ver("aún sin cambiar", str_contains(file_read_text("DH0:Prueba/editor/util.dash"), "func doble"))
+    hechos = bp_aplicar()
+    ver("cambiados", hechos == 2)
+    ver("en el disco", str_contains(file_read_text("DH0:Prueba/editor/util.dash"), "func dos_veces(x: Int)"))
+    igual("en el editor", d.lineas[25], "    tabla = dos_veces(256)")
+    ver("el abierto, sin guardar", str_contains(file_read_text("DH0:Prueba/editor/main.dash"), "amiga_alloc(256)"))
+    ed_deshacer(d)
+    igual("deshacer en el editor", d.lineas[25], "    tabla = doble(256)")
+
+
+    # --- 2.5 marcadores: siguen a su texto ---
+    d = doc("a\nb\nc\nd\ne")
+    d.cl = 1
+    ed_marcador(d)
+    d.cl = 3
+    ed_marcador(d)
+    ver("dos marcadores", d.marcadores.length == 2 and ed_tiene_marcador(d, 1) and ed_tiene_marcador(d, 3))
+    d.cl = 0
+    d.cc = 1
+    ed_tecla(T_RETURN, 0, "")
+    ver("una línea antes: bajan", ed_tiene_marcador(d, 2) and ed_tiene_marcador(d, 4))
+    d.cl = 2
+    d.cc = 0
+    ed_tecla(T_RETURN, 0, "")
+    ver("Return al principio de su línea: baja con ella", ed_tiene_marcador(d, 3))
+    ed_deshacer(d)
+    ed_deshacer(d)
+    ver("deshacer: vuelven", ed_tiene_marcador(d, 1) and ed_tiene_marcador(d, 3))
+    d.cl = 0
+    ed_ir_marcador(d, true)
+    ver("siguiente", d.cl == 1)
+    ed_ir_marcador(d, true)
+    ver("siguiente otra vez", d.cl == 3)
+    ed_ir_marcador(d, true)
+    ver("da la vuelta", d.cl == 1)
+    ed_ir_marcador(d, false)
+    ver("anterior (da la vuelta)", d.cl == 3)
+    d.cl = 1
+    ed_borrar_lineas(d)
+    ver("borrar su línea: pasa a la de arriba o se queda", d.marcadores.length >= 1 and ed_tiene_marcador(d, 2))
+    d.cl = 0
+    ed_elegir(d, 1, 1, 4, 1)
+    ed_comentar(d)
+    ver("comentar no los mueve", ed_tiene_marcador(d, 2))
+    d.al = -1
+    d.cl = 1
+    ed_marcador(d)
+    d.cl = 2
+    ed_mover_lineas(d, true)
+    ver("subir la línea se lleva su marcador", ed_tiene_marcador(d, 1) and not ed_tiene_marcador(d, 2))
+    d.cl = 1
+    ed_marcador(d)
+    ver("quitar", not ed_tiene_marcador(d, 1))
+
+    # --- 2.7 plegado ---
+    ed_visibles = 20
+    d = doc("func f()\n    if x\n        a = 1\n    end\n    b = 2\nend\nfunc g()\n    c = 3\nend")
+    d.cl = 2
+    ver("plegar el bloque del cursor", ed_plegar_cursor(d) and d.cl == 1)
+    ver("ocultas", ed_oculta(d, 2) and ed_oculta(d, 3) and not ed_oculta(d, 1) and not ed_oculta(d, 4))
+    ver("la fila de después", ed_fila_y(d, 4) == ed_fila_y(d, 1) + ed_alto_fila)
+    ver("bajar se salta lo plegado", ed_filas_desde(d, 1, 1) == 4)
+    ver("subir también", ed_filas_desde(d, 4, -1) == 1)
+    d.cl = 0
+    ed_plegar_cursor(d)
+    ver("plegar el de fuera", ed_oculta(d, 4) and ed_oculta(d, 5) and ed_filas_desde(d, 0, 1) == 6)
+    ed_desplegar(d, 0)
+    ver("desplegar el de fuera; el de dentro sigue", not ed_oculta(d, 4) and ed_oculta(d, 2))
+    d.cl = 0
+    d.cc = 0
+    ed_tecla(T_RETURN, 0, "")
+    ver("escribir arriba: lo plegado baja", ed_oculta(d, 3) and ed_oculta(d, 4) and not ed_oculta(d, 2))
+    ed_deshacer(d)
+    d.cl = 2
+    ed_ir_a(3, 1)
+    ver("ir a una línea oculta la despliega", not ed_oculta(d, 2))
+    d.cl = 7
+    ed_plegar_cursor(d)
+    ed_desplegar_todo(d)
+    ver("desplegar todo", not ed_oculta(d, 7))
+    # lo que cuesta dibujar con algo plegado: las cuentas de una fila (fichero de 500 líneas, 50 bloques plegados)
+    t = ""
+    k = 0
+    while k < 100
+        t = t + "func f#{k}()\n    a = 1\n    b = 2\nend\n\n"
+        k = k + 1
+    end
+    d = doc(t)
+    k = 0
+    while k < 100
+        ed_plegar(d, k * 10)
+        k = k + 1
+    end
+    t0 = time_ms()
+    k = 0
+    while k < 25
+        ed_fila_y(d, ed_filas_desde(d, 0, k))
+        k = k + 1
+    end
+    Print "las cuentas de 25 filas con 50 bloques plegados: #{time_ms() - t0} ms"
+
+    # --- las teclas ---
+    ver("Ctrl D es duplicar", tc_orden(0x22, 2, "") == TC_DUPLICAR)
+    ver("Ctrl / por el carácter", tc_orden(0x3A, 2, "/") == TC_COMENTAR)
+    ver("Ctrl Mayús 7 que da / también", tc_orden(0x07, 3, "/") == TC_COMENTAR)
+    ver("Ctrl Alt arriba", tc_orden(0x4C, 6, "") == TC_SUBIR)
+    malas = tc_leer("# mis teclas\nduplicar = alt d\ncomentar = nada\npatata = ctrl x\nsubir = ctrl ñañá\n")
+    ver("cambiar una tecla", tc_orden(0x22, 4, "") == TC_DUPLICAR and tc_orden(0x22, 2, "") == 0)
+    ver("quitar una tecla", tc_orden(0x3A, 2, "/") == 0 and tc_texto(TC_COMENTAR) == "")
+    igual("lo que no se entiende", malas, "patata = ctrl x\nsubir = ctrl ñañá\n")
+    igual("cómo se escribe", tc_texto(TC_BAJAR), "Ctrl Alt Abajo")
+
+    if fallos == 0
+        Print "TODO BIEN"
+    end
+end

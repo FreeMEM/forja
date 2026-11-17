@@ -1,0 +1,13 @@
+# Generado por tools/sintaxis.py desde Dash (compiler/grammar.py, las clases de tools/gen_tmgrammar.py, los
+# tipos del analizador y las instrucciones de compiler/asm68k.py). No editar a mano.
+# Cada constante: las palabras de una clase, separadas por espacios.
+
+const SXD_LARGO = 17          # la palabra más larga
+const SXD_CLAVES = "EventLoop Main On Print Stop Wait Window and borrow break const continue elif else end enum fn for func if import in interface not or return self step struct var weak while"
+const SXD_TIPOS = "Array Bool Double Fixed Float Func Int Pointer Ptr String Void"
+const SXD_VALORES = "false nil true"
+const SXD_EVENTOS = "Click Close Gadget Inactive Key Menu RightClick Timer"
+const SXD_DIRECTIVAS = "@amiga @c @catalog @export @extern @header @link @native @stack @version @workbench_output"
+const SXD_ASM_CABECERA = "in out uses"
+const SXD_ASM = "abcd add adda addi addq addx and andi asl asr bcc bchg bclr bcs beq bfchg bfclr bfexts bfextu bfffo bfins bfset bftst bge bgt bhi bhs ble blo bls blt bmi bne bpl bra bset bsr btst bvc bvs chk clr cmp cmpa cmpi cmpm dbcc dbcs dbeq dbf dbge dbgt dbhi dbhs dble dblo dbls dblt dbmi dbne dbpl dbra dbt dbvc dbvs dc divs divsl divu divul ds eor eori equ even exg ext extb illegal incbin jmp jsr lea link lsl lsr move movea movem movep moveq muls mulu nbcd neg negx nop not or ori pea reset rol ror roxl roxr rtd rte rtr rts sbcd scc scs seq sf sge sgt shi shs sle slo sls slt smi sne spl st stop sub suba subi subq subx svc svs swap tas trap trapv tst unlk"
+const SXD_ASM_TOTAL = 141

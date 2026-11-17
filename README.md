@@ -36,14 +36,48 @@ García), por ejemplo `RAM:` (`ENV:Forja/ejecutables`); si no existe, Forja lo c
 así que encuentra sus ficheros con ruta relativa (`"jugador.iff"`) aunque el ejecutable esté en otro cajón. Lo que
 busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del ejecutable.
 
-- **Editor**: el teclado va al editor con el puntero encima. Flechas; con Mayúsculas eligen; Alt: principio y final
-  de línea, página arriba y abajo; Ctrl: de palabra en palabra, principio y final del texto. Tab y Mayúsculas+Tab
-  sangran; al pulsar Return tras `func`, `if`, `while` y demás, la línea nueva entra un nivel, y `end`, `else` y
-  `elif` vuelven solos a su sitio, como en la extensión de VS Code. Deshacer (Amiga-Z), rehacer (Amiga-R), cortar,
-  copiar y pegar con el portapapeles del sistema.
+- **Editor**: el teclado va al editor aunque el puntero esté en el proyecto, la salida o la barra de botones.
+  Flechas; con Mayúsculas eligen; Alt: principio y final de línea, página arriba y abajo; Ctrl: de palabra en palabra,
+  principio y final del texto. Tab y Mayúsculas+Tab sangran; al pulsar Return tras `func`, `if`, `while` y demás, la
+  línea nueva entra un nivel y, si el bloque no tiene su `end`, lo pone debajo; `end`, `else` y `elif` vuelven solos a
+  su sitio, como en la extensión de VS Code. Paréntesis, corchetes, llaves y comillas se cierran solos (escribir el
+  que cierra pasa por encima; Retroceso entre los dos los quita). Las dos cosas se apagan en el menú Editor.
+  Deshacer (Amiga-Z), rehacer (Amiga-R), cortar, copiar y pegar con el portapapeles del sistema.
+- **Colores**: los de la gramática de Dash (las palabras salen de Dash con `tools/sintaxis.py`, no se escriben a
+  mano), también las directivas (`@native`...) y los bloques `asm ... end` con los suyos: instrucciones, registros y
+  etiquetas.
+- **Menú Editor** (las teclas, por defecto; se cambian en `ENVARC:Forja/teclas`):
+
+  | Orden | Tecla |
+  |---|---|
+  | Comentar o descomentar (la línea o la selección; en un bloque asm, con `;`) | Ctrl / |
+  | Duplicar, subir, bajar y borrar las líneas | Ctrl D, Ctrl Alt arriba, Ctrl Alt abajo, Ctrl Mayús K |
+  | Ir a la pareja (el paréntesis, o el `end` de un `func`, `if`, `asm`...; con el cursor encima, los dos se ven en un recuadro) | Ctrl M |
+  | Poner o quitar marcador, siguiente, anterior | Ctrl F3, F3, Mayús F3 |
+  | Esquema del fichero (funciones, structs, constantes...: se filtra escribiendo) | Ctrl O |
+  | Abrir un fichero del proyecto por su nombre | Ctrl P |
+  | Ir a un nombre de todo el proyecto | Ctrl T |
+  | Buscar en el proyecto (lo del cursor; resultados con clic en la salida) | Ctrl Mayús F |
+  | Cambiar en el proyecto (antes, la lista de cambios) | Ctrl Mayús H |
+  | Renombrar en todo el proyecto (antes, la lista de cambios) | F2 |
+  | Plegar o desplegar el bloque del cursor; desplegar todo | F4; Mayús F4 |
+
+  F8 sigue siendo el siguiente error. `ENVARC:Forja/teclas` lleva una orden por línea, `orden = teclas`: por ejemplo
+  `duplicar = alt d` o `comentar = nada`. Las órdenes: comentar, duplicar, subir, bajar, borrar_linea, pareja,
+  marcador, marcador_siguiente, marcador_anterior, esquema, abrir_fichero, abrir_simbolo, buscar_proyecto,
+  cambiar_proyecto, renombrar, plegar, desplegar_todo. Las letras van por su sitio en un teclado inglés (como las de
+  las extensiones); un signo (`/`) va por el carácter. Lo que no se entiende se dice en la salida al empezar.
+- **Tema**: `ENVARC:Forja/tema` cambia los colores (`comentario = 120 120 136`: fondo, texto, tenue, acento, error,
+  seleccion, cursor..., y los de la sintaxis: clave, tipo, cadena, numero, comentario, llamada, constante, directiva,
+  asm_instruccion, asm_registro, asm_etiqueta) y la fuente del código (`fuente = xen.font 8`, de letras igual de
+  anchas).
 - **Ficheros**: pestañas; Amiga-N, Amiga-O, Amiga-S, Amiga-W. El panel de la izquierda abre los ficheros del cajón
   con un clic, carpetas primero y en orden; la rueda y su barra lo mueven. Al cerrar con cambios, pregunta.
-- **Buscar y cambiar** (Amiga-F) e **ir a la línea** (Amiga-L).
+- **Buscar y cambiar** (Amiga-F) e **ir a la línea** (Amiga-L). Con "Expresión regular", lo buscado es una
+  expresión regular (las de `regex_find` de Dash), y en "Cambiar por", `$1` a `$9` son sus grupos. "Buscar en el
+  proyecto" y "Cambiar en el proyecto" lo hacen en todos los `.dash` y `.dashui` del cajón del proyecto y los de
+  dentro (con el texto sin guardar de los abiertos); antes de cambiar, una pestaña con cada línea como está y como
+  quedará, y una pregunta. Los ficheros abiertos cambian en el editor (se deshace con Amiga-Z); los demás, en el disco.
 - **Completar**: a partir de dos letras sale una lista bajo el cursor con las palabras de Dash, sus builtins y los
   nombres del proyecto (funciones, structs, constantes, variables globales y las locales de la función; también los
   de lo que importa el fichero). Tras un punto, los campos y métodos del struct, o lo que tienen las listas y los

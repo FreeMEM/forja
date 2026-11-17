@@ -1,0 +1,209 @@
+# Las teclas de las órdenes del editor (fase 2 de docs/FORJA_LOOP.md), cambiables en ENVARC:Forja/teclas: una por
+# línea, "orden = teclas", por ejemplo "duplicar = ctrl d" o "comentar = ctrl /". Las teclas: calificadores (ctrl,
+# alt, shift o mayus, amiga) y una tecla: una letra o cifra (por su sitio en un teclado inglés, como las de las
+# extensiones), f1 a f10, arriba, abajo, izquierda, derecha, return, tab, esc, espacio, retroceso, supr, help; o un
+# signo ("/", ",", "."), que se mira por el carácter que da el mapa de teclado (sin contar Mayúsculas: en un teclado
+# castellano "/" es Mayúsculas+7). "nada" quita la tecla de una orden.
+#
+#   tc_leer(texto)                    # el fichero de las teclas (lo que no dice, como viene)
+#   tc_orden(codigo, teclas, letra)   # la orden (TC_*) de una tecla pulsada; 0 si no es de ninguna
+#   tc_texto(orden)                   # cómo se escribe su tecla en el menú: "Ctrl D"
+
+const TC_COMENTAR = 1
+const TC_DUPLICAR = 2
+const TC_SUBIR = 3
+const TC_BAJAR = 4
+const TC_BORRAR_LINEA = 5
+const TC_PAREJA = 6
+const TC_MARCADOR = 7
+const TC_MARCADOR_SIGUIENTE = 8
+const TC_MARCADOR_ANTERIOR = 9
+const TC_ESQUEMA = 10
+const TC_ABRIR_FICHERO = 11
+const TC_ABRIR_SIMBOLO = 12
+const TC_BUSCAR_PROYECTO = 13
+const TC_CAMBIAR_PROYECTO = 14
+const TC_RENOMBRAR = 15
+const TC_PLEGAR = 16
+const TC_DESPLEGAR_TODO = 17
+const TC_TOTAL = 18
+
+var _tc_nombres: [String] = ["", "comentar", "duplicar", "subir", "bajar", "borrar_linea", "pareja", "marcador", "marcador_siguiente", "marcador_anterior", "esquema", "abrir_fichero", "abrir_simbolo", "buscar_proyecto", "cambiar_proyecto", "renombrar", "plegar", "desplegar_todo"]
+var _tc_defecto: [String] = ["", "ctrl /", "ctrl d", "ctrl alt arriba", "ctrl alt abajo", "ctrl shift k", "ctrl m", "ctrl f3", "f3", "shift f3", "ctrl o", "ctrl p", "ctrl t", "ctrl shift f", "ctrl shift h", "f2", "f4", "shift f4"]
+var _tc_teclas: [String] = []     # lo que dice cada orden ("ctrl d")
+var _tc_codigo: [Int] = []        # la tecla en bruto (-1: un signo, o ninguna)
+var _tc_letra: [String] = []      # el signo ("" si va por la tecla en bruto)
+var _tc_q: [Int] = []             # los calificadores (1 Mayúsculas, 2 Ctrl, 4 Alt, 8 Amiga)
+
+func _tc_q_de(t: String) -> Int
+    q = 0
+    for p in str_split(t, " ")
+        if p == "shift" or p == "mayus" or p == "mayús"
+            q = q | 1
+        elif p == "ctrl"
+            q = q | 2
+        elif p == "alt"
+            q = q | 4
+        elif p == "amiga"
+            q = q | 8
+        end
+    end
+    return q
+end
+
+# La tecla en bruto de un nombre (-1 si no es ninguno)
+func tc_codigo_de(k: String) -> Int
+    filas = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]
+    inicios = [0x01, 0x10, 0x20, 0x31]
+    if k.length == 1
+        f = 0
+        while f < filas.length
+            p = str_find(filas[f], k)
+            if p >= 0
+                return inicios[f] + p
+            end
+            f = f + 1
+        end
+        return -1
+    end
+    if str_starts(k, "f") and k.length <= 3
+        n = Int(k[1:])
+        if n >= 1 and n <= 10
+            return 0x50 + n - 1
+        end
+    end
+    var nombres: [String] = ["arriba", "up", "abajo", "down", "derecha", "right", "izquierda", "left", "return", "enter", "tab", "esc", "espacio", "space", "retroceso", "backspace", "supr", "del", "help"]
+    var codigos: [Int] = [0x4C, 0x4C, 0x4D, 0x4D, 0x4E, 0x4E, 0x4F, 0x4F, 0x44, 0x43, 0x42, 0x45, 0x40, 0x40, 0x41, 0x41, 0x46, 0x46, 0x5F]
+    i = 0
+    while i < nombres.length
+        if nombres[i] == k
+            return codigos[i]
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+func _tc_poner(o: Int, t: String)
+    t = str_lower(str_trim(t))
+    _tc_teclas[o] = t
+    _tc_codigo[o] = -1
+    _tc_letra[o] = ""
+    _tc_q[o] = 0
+    if t == "" or t == "nada" or t == "none"
+        _tc_teclas[o] = ""
+        return
+    end
+    partes = str_split(t, " ")
+    k = partes[partes.length - 1]
+    _tc_q[o] = _tc_q_de(t)
+    c = tc_codigo_de(k)
+    if c >= 0
+        _tc_codigo[o] = c
+    elif k.length == 1
+        _tc_letra[o] = k
+    else
+        _tc_teclas[o] = ""
+    end
+end
+
+func _tc_preparar()
+    if _tc_teclas.length > 0
+        return
+    end
+    o = 0
+    while o < TC_TOTAL
+        _tc_teclas.push("")
+        _tc_codigo.push(-1)
+        _tc_letra.push("")
+        _tc_q.push(0)
+        if o > 0
+            _tc_poner(o, _tc_defecto[o])
+        end
+        o = o + 1
+    end
+end
+
+# El número de una orden por su nombre (0 si no es ninguna)
+func tc_numero(nombre: String) -> Int
+    o = 1
+    while o < TC_TOTAL
+        if _tc_nombres[o] == nombre
+            return o
+        end
+        o = o + 1
+    end
+    return 0
+end
+
+# Lee el fichero de las teclas ("orden = teclas" por línea; "#" empieza un comentario). Lo que no entiende, lo
+# devuelve (una línea por cada cosa), para decirlo
+func tc_leer(texto: String) -> String
+    _tc_preparar()
+    malas = ""
+    if texto == nil
+        return ""
+    end
+    for linea in str_split(texto, "\n")
+        l = str_trim(linea)
+        if l != "" and not str_starts(l, "#")
+            p = str_find(l, "=")
+            o = 0
+            if p > 0
+                o = tc_numero(str_lower(str_trim(l[0:p])))
+            end
+            if o == 0
+                malas = malas + l + "\n"
+            else
+                _tc_poner(o, l[p + 1:])
+                if _tc_teclas[o] == "" and str_lower(str_trim(l[p + 1:])) != "nada"
+                    malas = malas + l + "\n"
+                end
+            end
+        end
+    end
+    return malas
+end
+
+# La orden de una tecla pulsada (0: ninguna)
+func tc_orden(codigo: Int, teclas: Int, letra: String) -> Int
+    _tc_preparar()
+    q = teclas & 15
+    o = 1
+    while o < TC_TOTAL
+        if _tc_codigo[o] >= 0
+            if _tc_codigo[o] == codigo and _tc_q[o] == q
+                return o
+            end
+        elif _tc_letra[o] != ""
+            # un signo: por el carácter; Mayúsculas no cuenta (en otros teclados hace falta para el signo)
+            if letra == _tc_letra[o] and (_tc_q[o] | 1) == (q | 1)
+                return o
+            end
+        end
+        o = o + 1
+    end
+    return 0
+end
+
+# Cómo se escribe la tecla de una orden en el menú ("Ctrl Alt Arriba"); "" si no tiene
+func tc_texto(o: Int) -> String
+    _tc_preparar()
+    r = ""
+    for p in str_split(_tc_teclas[o], " ")
+        if p != ""
+            if r != ""
+                r = r + " "
+            end
+            if p == "shift"
+                p = "mayús"
+            end
+            r = r + str_upper(p[0:1]) + p[1:]
+        end
+    end
+    return r
+end
+
+func tc_nombre(o: Int) -> String
+    return _tc_nombres[o]
+end

@@ -831,6 +831,23 @@ func _cx_del_disco(ruta: String) -> FicheroCx
     return f
 end
 
+# Los símbolos de un fichero, en su orden (el esquema, ir a un nombre del proyecto): de sus líneas si está abierto en
+# el editor (lineas no nil, con su versión), si no del disco
+func cx_simbolos_de(ruta: String, lineas: [String], version: Int) -> [Simbolo]
+    var f: FicheroCx = nil
+    if lineas != nil
+        cx_fichero(ruta, lineas, version)
+        f = _cx_buscar(ruta)
+    else
+        f = _cx_del_disco(ruta)
+    end
+    if f == nil
+        var nada: [Simbolo] = []
+        return nada
+    end
+    return f.simbolos
+end
+
 # Empieza una ronda: los ficheros que el editor no dé en ella se volverán a leer del disco
 func cx_empezar()
     cx_ronda = cx_ronda + 1

@@ -1,0 +1,8 @@
+# Un módulo del proyecto de prueba del editor
+func doble(x: Int) -> Int
+    return x * 2
+end
+
+func triple(x: Int) -> Int
+    return x * 3
+end

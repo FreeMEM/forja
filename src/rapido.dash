@@ -1,0 +1,340 @@
+# La lista rápida (paso 2.4 de docs/FORJA_LOOP.md): una lista encima del editor, arriba, que se filtra escribiendo.
+# Sirve para el esquema del fichero (funciones, structs, constantes...), abrir un fichero del proyecto por su nombre
+# e ir a un nombre de todo el proyecto. Flechas para elegir, Return o un clic para ir, Esc para cerrarla.
+#
+#   lr_abrir(LR_ESQUEMA, "Esquema de main.dash")
+#   lr_anadir(texto, clase, ruta, linea, col, detalle)   # una entrada (clase: la de codigo.dash, o LR_FICHERO)
+#   lr_filtrar()                                         # tras añadirlas (y tras cada letra)
+#   lr_tecla(codigo, teclas, letra)                      # LR_ELEGIDA, LR_CERRADA, o 0 (la usó o no era suya)
+#   lr_dibujar(x, y, ancho, alto)                        # desde la función de dibujo del editor, la última
+
+import "editor.dash"
+
+const LR_ESQUEMA = 1
+const LR_FICHEROS = 2
+const LR_NOMBRES = 3
+const LR_PREGUNTA = 4         # sin lista: solo lo escrito (el nombre nuevo al renombrar); Return lo acepta
+const LR_FICHERO = -1        # la clase de una entrada que es un fichero
+const LR_FILAS = 12
+const LR_MAX = 400           # las que se enseñan como mucho
+const LR_ELEGIDA = 1
+const LR_CERRADA = 2
+
+var lr_visible: Bool = false
+var lr_tipo: Int = 0
+var lr_titulo: String = ""
+var lr_filtro: String = ""
+var lr_textos: [String] = []
+var _lr_claves: [String] = []
+var lr_clases: [Int] = []
+var lr_rutas: [String] = []
+var lr_lineas: [Int] = []
+var lr_cols: [Int] = []
+var lr_detalles: [String] = []
+var lr_vistos: [Int] = []          # las que pasan el filtro, en orden (su número en lr_textos)
+var lr_elegido: Int = 0            # en lr_vistos
+var lr_primera: Int = 0
+var lr_ms: Int = 0                 # lo que tardó en llenarse y filtrarse
+var lr_ayuda: String = ""          # en una pregunta, lo que se dice debajo
+# Dónde se dibujó (desde la esquina de la zona del editor): para los clics
+var lr_x: Int = 0
+var lr_y: Int = 0
+var lr_ancho: Int = 0
+var lr_alto: Int = 0
+var lr_y_filas: Int = 0
+var lr_filas: Int = 0
+
+func lr_abrir(tipo: Int, titulo: String)
+    lr_visible = true
+    lr_tipo = tipo
+    lr_titulo = titulo
+    lr_filtro = ""
+    lr_textos.clear()
+    _lr_claves.clear()
+    lr_clases.clear()
+    lr_rutas.clear()
+    lr_lineas.clear()
+    lr_cols.clear()
+    lr_detalles.clear()
+    lr_vistos.clear()
+    lr_elegido = 0
+    lr_primera = 0
+end
+
+func lr_cerrar()
+    lr_visible = false
+    lr_textos.clear()
+    _lr_claves.clear()
+    lr_clases.clear()
+    lr_rutas.clear()
+    lr_lineas.clear()
+    lr_cols.clear()
+    lr_detalles.clear()
+    lr_vistos.clear()
+end
+
+func lr_anadir(texto: String, clase: Int, ruta: String, linea: Int, col: Int, detalle: String)
+    lr_textos.push(texto)
+    _lr_claves.push(str_lower(str_trim(texto)))
+    lr_clases.push(clase)
+    lr_rutas.push(ruta)
+    lr_lineas.push(linea)
+    lr_cols.push(col)
+    lr_detalles.push(detalle)
+end
+
+# ¿Están las letras de f, en orden, en t? (con huecos: "edd" encaja con "ed_dibujar")
+func _lr_salteado(t: String, f: String) -> Bool
+    j = 0
+    i = 0
+    while i < t.length and j < f.length
+        if str_code(t, i) == str_code(f, j)
+            j = j + 1
+        end
+        i = i + 1
+    end
+    return j >= f.length
+end
+
+# Las que pasan el filtro: primero las que empiezan por él, luego las que lo tienen, luego las que tienen sus letras
+# en orden; cada grupo en el orden en que se añadieron
+func lr_filtrar()
+    t0 = time_ms()
+    lr_vistos.clear()
+    f = str_lower(lr_filtro)
+    if f == ""
+        i = 0
+        while i < lr_textos.length and i < LR_MAX
+            lr_vistos.push(i)
+            i = i + 1
+        end
+    else
+        var segundas: [Int] = []
+        var terceras: [Int] = []
+        i = 0
+        while i < _lr_claves.length
+            c = _lr_claves[i]
+            if str_starts(c, f)
+                lr_vistos.push(i)
+            elif str_contains(c, f)
+                segundas.push(i)
+            elif _lr_salteado(c, f)
+                terceras.push(i)
+            end
+            i = i + 1
+        end
+        for k in segundas
+            lr_vistos.push(k)
+        end
+        for k in terceras
+            lr_vistos.push(k)
+        end
+        while lr_vistos.length > LR_MAX
+            lr_vistos.pop()
+        end
+    end
+    if lr_elegido >= lr_vistos.length
+        lr_elegido = lr_vistos.length - 1
+    end
+    if lr_elegido < 0
+        lr_elegido = 0
+    end
+    if f != ""
+        lr_elegido = 0
+    end
+    _lr_seguir()
+    lr_ms = time_ms() - t0
+end
+
+func _lr_seguir()
+    if lr_elegido < lr_primera
+        lr_primera = lr_elegido
+    end
+    if lr_elegido >= lr_primera + LR_FILAS
+        lr_primera = lr_elegido - LR_FILAS + 1
+    end
+    if lr_primera < 0
+        lr_primera = 0
+    end
+end
+
+# Pone elegida la entrada n (su número en lr_textos), si se ve
+func lr_elegir(n: Int)
+    i = 0
+    while i < lr_vistos.length
+        if lr_vistos[i] == n
+            lr_elegido = i
+            lr_primera = i - LR_FILAS / 2
+            _lr_seguir()
+            return
+        end
+        i = i + 1
+    end
+end
+
+# La entrada elegida (su número en lr_textos); -1 si no hay ninguna
+func lr_la_elegida() -> Int
+    if lr_elegido < 0 or lr_elegido >= lr_vistos.length
+        return -1
+    end
+    return lr_vistos[lr_elegido]
+end
+
+func lr_tecla(codigo: Int, teclas: Int, letra: String) -> Int
+    if codigo == T_ESC
+        lr_cerrar()
+        return LR_CERRADA
+    elif codigo == T_RETURN or codigo == T_ENTER
+        if lr_la_elegida() >= 0 or lr_tipo == LR_PREGUNTA
+            return LR_ELEGIDA
+        end
+        return 0
+    elif codigo == T_ARRIBA or codigo == T_ABAJO
+        paso = 1
+        if (teclas & (Q_ALT | Q_MAYUS)) != 0
+            paso = LR_FILAS - 1
+        end
+        if codigo == T_ARRIBA
+            paso = -paso
+        end
+        lr_elegido = lr_elegido + paso
+        if lr_elegido >= lr_vistos.length
+            lr_elegido = lr_vistos.length - 1
+        end
+        if lr_elegido < 0
+            lr_elegido = 0
+        end
+        _lr_seguir()
+    elif codigo == T_RETROCESO
+        if lr_filtro != ""
+            lr_filtro = lr_filtro[0:lr_filtro.length - 1]
+            lr_filtrar()
+        end
+    elif letra != "" and str_code(letra, 0) >= 32 and str_code(letra, 0) != 127 and (teclas & (Q_CTRL | Q_AMIGA)) == 0
+        lr_filtro = lr_filtro + letra
+        lr_filtrar()
+    end
+    return 0
+end
+
+# Un clic en x, y (desde la esquina de la zona): true si cayó en una entrada (queda elegida)
+func lr_clic(x: Int, y: Int) -> Bool
+    if x < lr_x or x >= lr_x + lr_ancho or y < lr_y_filas or y >= lr_y_filas + lr_filas * ed_alto_fila
+        return false
+    end
+    i = lr_primera + (y - lr_y_filas) / ed_alto_fila
+    if i >= lr_vistos.length
+        return false
+    end
+    lr_elegido = i
+    return true
+end
+
+# ¿Cae el punto dentro de la lista?
+func lr_dentro(x: Int, y: Int) -> Bool
+    return lr_visible and x >= lr_x and x < lr_x + lr_ancho and y >= lr_y and y < lr_y + lr_alto
+end
+
+func lr_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    if not lr_visible
+        return
+    end
+    usar_codigo()
+    fila = ed_alto_fila
+    cols = (ancho - 40) / ancho_letra
+    if cols > 90
+        cols = 90
+    end
+    if cols < 20
+        cols = 20
+    end
+    lr_ancho = cols * ancho_letra + 12
+    if lr_ancho > ancho - 4
+        lr_ancho = ancho - 4
+    end
+    lr_x = (ancho - lr_ancho) / 2
+    lr_y = ALTO_PESTANAS + 2
+    filas = lr_vistos.length
+    if filas > LR_FILAS
+        filas = LR_FILAS
+    end
+    caben = (alto - lr_y - 3 * fila - 10) / fila
+    if filas > caben
+        filas = caben
+    end
+    if filas < 1
+        filas = 1
+    end
+    lr_filas = filas
+    lr_alto = (filas + 2) * fila + 10
+    lx = x + lr_x
+    ly = y + lr_y
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(lx, ly, lx + lr_ancho - 1, ly + lr_alto - 1)
+    gfx_pen(tema.acento)
+    gfx_box(lx, ly, lx + lr_ancho - 1, ly + lr_alto - 1)
+    # el título y lo escrito, con un cursor
+    base = ly + 3 + base_letra
+    gfx_pen(tema.tenue)
+    gfx_text_at(lx + 6, base, lr_titulo + ": ")
+    tx = lx + 6 + (lr_titulo.length + 2) * ancho_letra
+    gfx_pen(tema.texto)
+    gfx_text_at(tx, base, lr_filtro)
+    gfx_pen(tema.cursor)
+    cx = tx + lr_filtro.length * ancho_letra
+    gfx_rect(cx, ly + 3, cx + 1, ly + 3 + fila - 2)
+    gfx_pen(tema.borde)
+    gfx_line(lx + 2, ly + fila + 5, lx + lr_ancho - 3, ly + fila + 5)
+    lr_y_filas = lr_y + fila + 8
+    fy = ly + fila + 8
+    if lr_vistos.length == 0 and lr_tipo == LR_PREGUNTA
+        gfx_pen(tema.tenue)
+        gfx_text_at(lx + 6, fy + 1 + base_letra, lr_ayuda)
+    elif lr_vistos.length == 0
+        gfx_pen(tema.tenue)
+        gfx_text_at(lx + 6, fy + 1 + base_letra, tr(850, "(nada)"))
+    end
+    i = lr_primera
+    while i < lr_vistos.length and i < lr_primera + filas
+        k = lr_vistos[i]
+        if i == lr_elegido
+            gfx_pen(tema.seleccion)
+            gfx_rect(lx + 2, fy, lx + lr_ancho - 3, fy + fila - 1)
+        end
+        b = fy + 1 + base_letra
+        c = lr_clases[k]
+        if c == LR_FICHERO
+            gfx_pen(tema.acento)
+            gfx_text_at(lx + 6, b, "-")
+        else
+            gfx_pen(ed_color_clase(c))
+            gfx_text_at(lx + 6, b, ed_letra_clase(c))
+        end
+        gfx_pen(tema.texto)
+        t = lr_textos[k]
+        det = lr_detalles[k]
+        hueco = cols - 3 - det.length - 2
+        if t.length > hueco
+            t = t[0:hueco]
+        end
+        gfx_text_at(lx + 6 + 2 * ancho_letra, b, t)
+        gfx_pen(tema.tenue)
+        gfx_text_at(lx + lr_ancho - 6 - det.length * ancho_letra, b, det)
+        fy = fy + fila
+        i = i + 1
+    end
+    # la barra, si hay más de las que caben
+    if lr_vistos.length > filas
+        alto_barra = filas * fila
+        b1 = ly + lr_y_filas - lr_y + alto_barra * lr_primera / lr_vistos.length
+        b2 = ly + lr_y_filas - lr_y + alto_barra * (lr_primera + filas) / lr_vistos.length
+        gfx_pen(tema.tenue)
+        gfx_rect(lx + lr_ancho - 4, b1, lx + lr_ancho - 3, b2 - 1)
+    end
+    gfx_pen(tema.tenue)
+    pie = hueco2(tr(851, "%1 de %2"), "#{lr_vistos.length}", "#{lr_textos.length}")
+    if lr_tipo == LR_PREGUNTA
+        pie = tr(856, "Return: aceptar  Esc: cancelar")
+    end
+    gfx_text_at(lx + lr_ancho - 6 - pie.length * ancho_letra, ly + lr_alto - 4 - fila + 1 + base_letra, pie)
+end

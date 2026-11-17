@@ -1,9 +1,15 @@
 # Los colores de la sintaxis de Dash: parte una línea en trozos de un tipo (palabra clave, tipo, texto, número,
-# comentario, llamada, constante).
+# comentario, llamada, constante, directiva, y en los bloques asm: instrucción, registro y etiqueta).
 #
-#   sx_partir(linea)     # deja los trozos en sx_desde y sx_tipo (el último trozo acaba al final de la línea)
+#   sx_partir(linea)       # una línea de Dash: deja los trozos en sx_desde y sx_tipo (el último acaba al final)
+#   sx_partir_asm(linea)   # una línea de dentro de un bloque asm ... end (68000, sintaxis de Motorola)
+#   sx_clase_linea(linea)  # si una línea abre un bloque asm, lo cierra (end) o es de Dash seguro (para saber si
+#                          # otra está dentro de un bloque asm sin leer todo el fichero)
 #
+# Las palabras salen de Dash (sintaxis_datos.dash, de tools/sintaxis.py): no se escriben a mano.
 # Va carácter a carácter con str_code, sin crear textos, para que dibujar sea rápido en un 68020.
+
+import "sintaxis_datos.dash"
 
 const S_NORMAL = 0
 const S_CLAVE = 1
@@ -13,23 +19,41 @@ const S_NUMERO = 4
 const S_COMENTARIO = 5
 const S_LLAMADA = 6
 const S_CONSTANTE = 7
+const S_DIRECTIVA = 8
+const S_ASM_INSTRUCCION = 9
+const S_ASM_REGISTRO = 10
+const S_ASM_ETIQUETA = 11
+const S_TOTAL = 12
+const _S_EVENTO = 100       # Close, Key...: palabra clave solo tras On
+
+# Lo que dice sx_clase_linea
+const SXL_NADA = 0         # no se sabe (una orden de Dash o una instrucción)
+const SXL_ASM = 1          # la cabecera de un bloque asm
+const SXL_END = 2          # una línea que solo dice end (con un comentario o sin él)
+const SXL_DASH = 3         # de Dash seguro: abre o sigue un bloque (func, if, else...), const, var, import...
 
 var sx_desde: [Int] = []
 var sx_tipo: [Int] = []
 var _sx_palabras: {String: Int} = {}
+var _sx_asm: {String: Int} = {}
+
+func _sx_poner(lista: String, tipo: Int)
+    for p in str_split(lista, " ")
+        _sx_palabras[p] = tipo
+    end
+end
 
 func _sx_preparar()
     if _sx_palabras.length > 0
         return
     end
-    for p in ["if", "elif", "else", "end", "while", "for", "in", "step", "func", "return", "break", "continue", "struct", "enum", "const", "var", "import", "Main", "and", "or", "not", "fn", "self", "Print", "Wait", "Stop", "Window", "EventLoop", "On"]
-        _sx_palabras[p] = S_CLAVE
-    end
-    for p in ["true", "false", "nil"]
-        _sx_palabras[p] = S_NUMERO
-    end
-    for p in ["Int", "String", "Bool", "Float", "Fixed", "Array", "Pointer", "Void", "Func"]
-        _sx_palabras[p] = S_TIPO
+    _sx_poner(SXD_CLAVES, S_CLAVE)
+    _sx_poner(SXD_TIPOS, S_TIPO)
+    _sx_poner(SXD_VALORES, S_NUMERO)
+    _sx_poner(SXD_EVENTOS, _S_EVENTO)
+    _sx_poner(SXD_DIRECTIVAS, S_DIRECTIVA)
+    for p in str_split(SXD_ASM, " ")
+        _sx_asm[p] = 1
     end
 end
 
@@ -50,12 +74,58 @@ func _sx_trozo(desde: Int, tipo: Int)
     sx_tipo.push(tipo)
 end
 
+# ¿Es la cabecera de un bloque asm? "asm" como primera palabra, y detrás nada, un comentario o in/out/uses
+# (como is_header de compiler/asm68k.py de Dash). i: dónde empieza la primera palabra
+func _sx_es_cabecera(s: String, i: Int) -> Bool
+    if str_code(s, i) != 97 or str_code(s, i + 1) != 115 or str_code(s, i + 2) != 109
+        return false
+    end
+    k = i + 3
+    if k >= s.length or str_code(s, k) == 35
+        return true
+    end
+    c = str_code(s, k)
+    if c != 32 and c != 9
+        return false
+    end
+    while k < s.length and (str_code(s, k) == 32 or str_code(s, k) == 9)
+        k = k + 1
+    end
+    if k >= s.length or str_code(s, k) == 35
+        return true
+    end
+    j = k
+    while j < s.length and _sx_letra(str_code(s, j))
+        j = j + 1
+    end
+    p = s[k:j]
+    return p == "in" or p == "out" or p == "uses"
+end
+
+func _sx_registro(p: String) -> Bool
+    if p.length == 2
+        a = str_code(p, 0) | 32
+        b = str_code(p, 1)
+        if (a == 100 or a == 97) and b >= 48 and b <= 55
+            return true
+        end
+    end
+    if p.length < 2 or p.length > 3
+        return false
+    end
+    l = str_lower(p)
+    return l == "sp" or l == "pc" or l == "sr" or l == "ccr" or l == "usp"
+end
+
 func sx_partir(s: String)
     _sx_preparar()
     sx_desde.clear()
     sx_tipo.clear()
     n = s.length
     i = 0
+    tras_on = false       # la palabra de antes era On: Close, Key... son de On
+    cabecera = false      # la cabecera de un bloque asm: in, out, uses y los registros
+    primera = true
     while i < n
         c = str_code(s, i)
         if c == 35 and str_code(s, i + 1) != 123
@@ -72,14 +142,22 @@ func sx_partir(s: String)
                 i = i + 1
             end
             i = i + 1
+            primera = false
         elif _sx_cifra(c)
             _sx_trozo(i, S_NUMERO)
             while i < n and (_sx_letra(str_code(s, i)) or _sx_cifra(str_code(s, i)) or str_code(s, i) == 46)
                 i = i + 1
             end
-        elif _sx_letra(c)
+            primera = false
+        elif _sx_letra(c) or (c == 64 and _sx_letra(str_code(s, i + 1)))
             desde = i
-            mayusculas = true
+            es_cabecera = primera and c == 97 and _sx_es_cabecera(s, i)
+            if es_cabecera
+                cabecera = true
+            end
+            primera = false
+            mayusculas = c < 97 or c > 122
+            i = i + 1
             while i < n and (_sx_letra(str_code(s, i)) or _sx_cifra(str_code(s, i)))
                 k = str_code(s, i)
                 if k >= 97 and k <= 122
@@ -88,11 +166,28 @@ func sx_partir(s: String)
                 i = i + 1
             end
             tipo = S_NORMAL
-            # la palabra clave más larga tiene 9 letras: las más largas no se buscan
-            if i - desde <= 9
+            # las más largas que la palabra clave más larga no se buscan
+            if i - desde <= SXD_LARGO
                 tipo = _sx_palabras.get(s[desde:i], S_NORMAL)
             end
-            if tipo == S_NORMAL
+            if tipo == _S_EVENTO
+                tipo = S_NORMAL
+                if tras_on
+                    tipo = S_CLAVE
+                end
+            end
+            tras_on = tipo == S_CLAVE and i - desde == 2 and c == 79 and str_code(s, desde + 1) == 110
+            if es_cabecera
+                tipo = S_CLAVE
+            elif cabecera and tipo == S_NORMAL
+                p = s[desde:i]
+                if p == "uses" or p == "out"
+                    tipo = S_CLAVE
+                elif _sx_registro(p)
+                    tipo = S_ASM_REGISTRO
+                end
+            end
+            if tipo == S_NORMAL and not (cabecera and str_code(s, i) == 45)
                 if str_code(s, i) == 40
                     tipo = S_LLAMADA
                 elif mayusculas and i - desde > 1
@@ -101,8 +196,184 @@ func sx_partir(s: String)
             end
             _sx_trozo(desde, tipo)
         else
+            if c != 32
+                primera = false
+            end
             _sx_trozo(i, S_NORMAL)
             i = i + 1
         end
     end
+end
+
+func _sx_id(c: Int) -> Bool
+    return _sx_letra(c) or _sx_cifra(c) or c == 46
+end
+
+func _sx_trozo_de(s: String, desde: Int, hasta: Int) -> String
+    if hasta > s.length
+        hasta = s.length
+    end
+    if desde >= hasta
+        return ""
+    end
+    return s[desde:hasta]
+end
+
+# Una línea de dentro de un bloque asm: etiqueta ("x:" o ".x:", o el nombre de "X equ 5"), instrucción (con su
+# tamaño, ".l"), registros, números ("#5", "$dff000", "%101"), textos y comentarios (";" o "*" al empezar)
+func sx_partir_asm(s: String)
+    _sx_preparar()
+    sx_desde.clear()
+    sx_tipo.clear()
+    n = s.length
+    i = 0
+    while i < n and (str_code(s, i) == 32 or str_code(s, i) == 9)
+        i = i + 1
+    end
+    _sx_trozo(0, S_NORMAL)
+    if i < n and str_code(s, i) == 42
+        _sx_trozo(i, S_COMENTARIO)
+        return
+    end
+    # la etiqueta: hasta ":"; o el nombre de "NOMBRE equ valor"
+    if i < n and (_sx_letra(str_code(s, i)) or str_code(s, i) == 46)
+        j = i + 1
+        while j < n and (_sx_letra(str_code(s, j)) or _sx_cifra(str_code(s, j)))
+            j = j + 1
+        end
+        if str_code(s, j) == 58
+            _sx_trozo(i, S_ASM_ETIQUETA)
+            i = j + 1
+        else
+            k = j
+            while k < n and (str_code(s, k) == 32 or str_code(s, k) == 9)
+                k = k + 1
+            end
+            if k > j and str_lower(_sx_trozo_de(s, k, k + 3)) == "equ" and not _sx_id(str_code(s, k + 3))
+                _sx_trozo(i, S_ASM_ETIQUETA)
+                _sx_trozo(j, S_NORMAL)
+                _sx_trozo(k, S_ASM_INSTRUCCION)
+                _sx_operandos(s, k + 3)
+                return
+            end
+        end
+    end
+    # la instrucción
+    desde = i
+    while i < n and (str_code(s, i) == 32 or str_code(s, i) == 9)
+        i = i + 1
+    end
+    if i > desde
+        _sx_trozo(desde, S_NORMAL)
+    end
+    if i < n and _sx_letra(str_code(s, i))
+        j = i
+        while j < n and (_sx_letra(str_code(s, j)) or _sx_cifra(str_code(s, j)))
+            j = j + 1
+        end
+        tipo = S_NORMAL
+        if j - i <= 7 and _sx_asm.get(str_lower(s[i:j]), 0) != 0
+            tipo = S_ASM_INSTRUCCION
+        end
+        # el tamaño: .b .w .l .s
+        if str_code(s, j) == 46 and _sx_letra(str_code(s, j + 1)) and not _sx_id(str_code(s, j + 2))
+            j = j + 2
+        end
+        _sx_trozo(i, tipo)
+        i = j
+    end
+    _sx_operandos(s, i)
+end
+
+func _sx_operandos(s: String, i: Int)
+    n = s.length
+    while i < n
+        c = str_code(s, i)
+        if c == 59
+            _sx_trozo(i, S_COMENTARIO)
+            return
+        elif c == 34 or c == 39
+            _sx_trozo(i, S_TEXTO)
+            i = i + 1
+            while i < n and str_code(s, i) != c
+                i = i + 1
+            end
+            i = i + 1
+        elif c == 35 or c == 36 or c == 37 or _sx_cifra(c)
+            # #5, $dff000, %0101, 12; tras "#" puede ir un nombre (una constante)
+            _sx_trozo(i, S_NUMERO)
+            i = i + 1
+            if c != 35 or (i < n and (_sx_cifra(str_code(s, i)) or str_code(s, i) == 36 or str_code(s, i) == 37))
+                if c == 35
+                    i = i + 1
+                end
+                while i < n and (_sx_letra(str_code(s, i)) or _sx_cifra(str_code(s, i)))
+                    i = i + 1
+                end
+            end
+        elif _sx_letra(c) or c == 46
+            desde = i
+            i = i + 1
+            mayusculas = c < 97 or c > 122
+            while i < n and (_sx_letra(str_code(s, i)) or _sx_cifra(str_code(s, i)))
+                k = str_code(s, i)
+                if k >= 97 and k <= 122
+                    mayusculas = false
+                end
+                i = i + 1
+            end
+            tipo = S_ASM_ETIQUETA
+            if _sx_registro(s[desde:i])
+                tipo = S_ASM_REGISTRO
+            elif mayusculas and i - desde > 1 and c != 46
+                tipo = S_CONSTANTE
+            end
+            _sx_trozo(desde, tipo)
+        else
+            _sx_trozo(i, S_NORMAL)
+            i = i + 1
+        end
+    end
+end
+
+# Qué es una línea para saber si otra está dentro de un bloque asm (SXL_*): se mira solo su primera palabra
+func sx_clase_linea(s: String) -> Int
+    n = s.length
+    i = 0
+    while i < n and (str_code(s, i) == 32 or str_code(s, i) == 9)
+        i = i + 1
+    end
+    if i >= n
+        return SXL_NADA
+    end
+    c = str_code(s, i)
+    if c == 97 and _sx_es_cabecera(s, i)
+        return SXL_ASM
+    end
+    if c == 64
+        return SXL_DASH
+    end
+    j = i
+    while j < n and _sx_letra(str_code(s, j))
+        j = j + 1
+    end
+    largo = j - i
+    if largo < 2 or largo > 9 or str_code(s, j) == 58
+        return SXL_NADA
+    end
+    p = s[i:j]
+    if p == "end"
+        k = j
+        while k < n and str_code(s, k) == 32
+            k = k + 1
+        end
+        if k >= n or str_code(s, k) == 35 or str_code(s, k) == 59
+            return SXL_END
+        end
+        return SXL_DASH
+    end
+    if p == "func" or p == "if" or p == "elif" or p == "else" or p == "while" or p == "for" or p == "Main" or p == "struct" or p == "enum" or p == "EventLoop" or p == "return" or p == "const" or p == "var" or p == "import" or p == "Window" or p == "interface"
+        return SXL_DASH
+    end
+    return SXL_NADA
 end
