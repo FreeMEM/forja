@@ -214,10 +214,16 @@ Main
         end
         time_delay(30)
         ver("deshacer deja el texto de antes", texto() == original, "")
-        # rehacer (Amiga-R)
+        anotar("  pilas tras deshacer: " + env_get("FORJA_PILAS"))
+        # rehacer (Amiga-R): las Amiga-Z de más no hacen nada (ni repintan), así que llega enseguida
         input_key(0x13, AMIGA)
-        time_delay(20)
-        ver("rehacer (Amiga-R) vuelve a poner algo", texto() != original, "")
+        n = 0
+        rehecho = false
+        while n < 10 and not rehecho
+            rehecho = texto() != original
+            n = n + 1
+        end
+        ver("rehacer (Amiga-R) vuelve a poner algo (#{n} vueltas)", rehecho, env_get("FORJA_PILAS"))
     end
     if fallos == 0
         anotar("TODO BIEN")

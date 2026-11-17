@@ -31,6 +31,7 @@ const EV_DESHACER = 20
 const EV_REHACER = 21
 const EV_TILESET = 22
 const EV_FORJA = 25          # Ventana > Forja: la ventana de Forja delante
+const EV_SALIR_FORJA = 26    # Amiga-Q: sale de Forja (como en su ventana)
 const ALTO_PESTANAS = 18
 const Q_AMIGA = 8
 
@@ -123,6 +124,8 @@ func hacer_ventana()
     mui_menu_item(tr(8, "Ejecutar el programa"), "E", EV_EJECUTAR)
     mui_menu_separator()
     mui_menu_item(tr(9, "Cerrar pestaña"), "W", EV_CERRAR)
+    mui_menu_separator()
+    mui_menu_item(tr(222, "Salir de Forja"), "Q", EV_SALIR_FORJA)
     mui_menu_end()
     mui_menu_begin(tr(10, "Editar"))
     mui_menu_item(tr(11, "Deshacer"), "Z", EV_DESHACER)
@@ -418,6 +421,23 @@ func compilar(ejecutar: Bool)
     end
 end
 
+# EDITANDO: los que tienen ruta (Forja los guarda en su sesión y los vuelve a abrir la próxima vez)
+var abiertos_dicho: String = ""
+func decir_abiertos()
+    t = ""
+    var rs: [String] = []
+    for h in hojas
+        if h.ruta != ""
+            t = t + "\n" + h.ruta
+            rs.push(h.ruta)
+        end
+    end
+    if t != abiertos_dicho
+        abiertos_dicho = t
+        forja_editando(rs)
+    end
+end
+
 # SINGUARDAR: los que tienen cambios (Forja pregunta por ellos al salir)
 func decir_sin_guardar()
     t = ""
@@ -499,6 +519,9 @@ func evento(ev: Int) -> Bool
         compilar(ev == EV_EJECUTAR)
     elif ev >= EV_DESHACER and ev <= EV_TILESET
         editar_evento(ev)
+    elif ev == EV_SALIR_FORJA
+        # (Forja pregunta por lo que haya sin guardar, también lo de aquí, y manda SALIR)
+        forja_salir()
     elif ev == EV_FORJA
         forja_delante()
     end
@@ -590,6 +613,7 @@ Main
                     break
                 end
                 decir_sin_guardar()
+                decir_abiertos()
                 if sonda
                     publicar_sonda()
                 end
@@ -598,6 +622,8 @@ Main
                     ev = EV_VENTANA
                 end
             end
+            # (al cerrar la última: ya no tiene ninguno; si acaba porque Forja se cierra, no cambia)
+            decir_abiertos()
             if sonda
                 file_write_text("RAM:forja-mapas-sonda.txt", "0 0 \n")
             end

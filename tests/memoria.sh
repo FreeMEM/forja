@@ -11,6 +11,8 @@
 #
 # Con "git", el proyecto (tests/prueba/juego) es un repositorio de git con un commit, y Git usa el servidor de
 # dashgit. Con "todas": Git, Inferencia (el copiloto; sin Inferencia, que no arranca hasta usarla), Sprites y Mapas.
+# En el A1200 (sin RTG) hay topes de memoria fast (tests/memoria.dash: quieta, compilando y con un sprite y un mapa) y
+# lo que queda tras salir no crece de una vez a la otra: acaba con "TODO BIEN".
 set -e
 dash=$1
 dashc=${2:-}
@@ -60,6 +62,7 @@ fi
   echo "C:MakeDir >NIL: ENV:Forja"
   echo "SetEnv Forja/extensiones DH0:Prueba/Extensiones"
   echo "SetEnv MEMORIA $que"
+  [ -n "$RTG" ] && echo "SetEnv MEMORIA_TOPE no"
   echo "SetEnv FORJA_PRUEBA DH0:Prueba/juego/main.dash"
 } >> "$tmp/sys/S/Startup-Extra"
 cd "$dash" && python3 tools/emu_run.py --timeout ${TIEMPO:-600} $maquina --system "$tmp/sys" ${REAL:+--set uae_cpu_speed=real} --keep "$tmp/disco" "$tmp/Memoria" > /dev/null 2>&1 || true

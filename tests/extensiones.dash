@@ -362,6 +362,31 @@ Main
         activar("Extensiones de Forja")
         input_key(0x20, 0)
         ver("activarla: arranca otra vez", barra_dice("palabras", 300) and env_get("Forja/extensiones_apagadas") == "", rexx("BARRA"))
+        ver("el menú Extensiones lleva sus opciones (mui_menu_extend)", str_contains(env_get("FORJA_MENU_EXT"), ":Contar las palabras") and str_contains(env_get("FORJA_MENU_EXT"), ":Eco"), env_get("FORJA_MENU_EXT"))
+        # instalar desde un cajón con el gestor (la ruta, sin la petición de ASL: ENV:FORJA_INSTALAR con la sonda)
+        env_set("FORJA_INSTALAR", "DH0:Fuera/Saludo/manifiesto.txt", false)
+        activar("Extensiones de Forja")
+        input_key(0x17, 0)
+        n = 0
+        while n < 40 and not activar("Instalar una extensión")
+            time_delay(10)
+            n = n + 1
+        end
+        pregunta = activar("Instalar una extensión")
+        ver("Instalar pregunta qué es", pregunta, input_active_title())
+        if pregunta
+            time_delay(20)
+            input_key(0x20, 0)
+            time_delay(50)
+            ver("y la instala en el cajón de las extensiones", file_exists("DH0:Prueba/Extensiones/Saludo/manifiesto.txt") and file_exists("DH0:Prueba/Extensiones/Saludo/Saludo"), "")
+            n = 0
+            while n < 30 and not str_contains(env_get("FORJA_MENU_EXT"), ":Saludar")
+                time_delay(10)
+                n = n + 1
+            end
+            ver("activa: su opción sale en el menú Extensiones", str_contains(env_get("FORJA_MENU_EXT"), ":Saludar"), env_get("FORJA_MENU_EXT"))
+            ver("y lo dice", str_contains(rexx("SALIDA"), "Instalada la extensión Saludo"), "")
+        end
         activar("Extensiones de Forja")
         input_key(0x33, 0)
         time_delay(25)

@@ -45,7 +45,7 @@ func mod_leer(ruta: String) -> Bool
     mod_error = ""
     f = file_open(ruta, 1005)
     if f == 0
-        mod_error = "No se puede leer " + ruta
+        mod_error = tr(90, "No se puede leer ") + ruta
         return false
     end
     cab = buffer_alloc(1084)
@@ -57,7 +57,7 @@ func mod_leer(ruta: String) -> Bool
     if tipo != "M.K." and tipo != "M!K!" and tipo != "FLT4" and tipo != "4CHN"
         file_close(f)
         buffer_free(cab)
-        mod_error = "No es un MOD de 4 canales y 31 instrumentos: " + ruta
+        mod_error = tr(91, "No es un MOD de 4 canales y 31 instrumentos: ") + ruta
         return false
     end
     mod_soltar()
@@ -84,7 +84,7 @@ func mod_leer(ruta: String) -> Bool
     file_close(f)
     if n < mod_patrones * 1024
         mod_soltar()
-        mod_error = "El MOD está cortado: " + ruta
+        mod_error = tr(92, "El MOD está cortado: ") + ruta
         return false
     end
     mod_ruta = ruta

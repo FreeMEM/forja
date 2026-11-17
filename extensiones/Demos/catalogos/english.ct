@@ -1,0 +1,286 @@
+## version $VER: Demos.catalog 1.0 (17.11.2026)
+## language english
+## codeset 0
+;
+MSG_1
+Project
+; Proyecto
+MSG_2
+Open...
+; Abrir...
+MSG_3
+Save the tracks
+; Guardar las pistas
+MSG_4
+Save the tracks as...
+; Guardar las pistas como...
+MSG_5
+Export the tracks (pistas_datos.dash)
+; Exportar las pistas (pistas_datos.dash)
+MSG_6
+Compile the program
+; Compilar el programa
+MSG_7
+Run the program
+; Ejecutar el programa
+MSG_8
+Close
+; Cerrar
+MSG_9
+View
+; Ver
+MSG_10
+Copper
+; Copper
+MSG_11
+Music
+; Música
+MSG_12
+Sync
+; Sincronía
+MSG_13
+Meter
+; Medidor
+MSG_14
+Tracks
+; Pistas
+MSG_15
+Undo
+; Deshacer
+MSG_16
+Redo
+; Rehacer
+MSG_17
+New track (n)
+; Pista nueva (n)
+MSG_18
+Rename (r)
+; Cambiar el nombre (r)
+MSG_19
+Remove the track (Shift Del)
+; Quitar la pista (Mayús Supr)
+MSG_20
+Move left (Alt left)
+; Mover a la izquierda (Alt izquierda)
+MSG_21
+Move right (Alt right)
+; Mover a la derecha (Alt derecha)
+MSG_22
+Copper
+; Copper
+MSG_23
+Into the code
+; Al código
+MSG_24
+Read from the code
+; Leer del código
+MSG_25
+Try it on a screen
+; Probar en una pantalla
+MSG_26
+Window
+; Ventana
+MSG_27
+arrows stop  Shift/Alt+arrows line  r g b (Shift: -)  n new  Del  d mode  t code  c colour  Return into code  l read  p try
+; flechas parada  May/Alt+flechas línea  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  p probar
+MSG_28
+Space play/stop  left/right position  up/down row  Return puts the row in the code  s to sync
+; Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía
+MSG_29
+arrows (Shift: 16 rows)  digits and Return key  Del removes  i type  n track  Space pause  g go  v demo front/back
+; flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás
+MSG_30
+The raster lines of each frame of the demo (sync_fotograma and sync_fin)
+; Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)
+MSG_31
+no demo
+; sin demo
+MSG_32
+ (paused)
+;  (pausa)
+MSG_33
+gradient
+; degradado
+MSG_34
+hard changes
+; cambios secos
+MSG_35
+copper_* calls
+; llamadas a copper_*
+MSG_36
+table for asm
+; tabla para asm
+MSG_37
+Open in Forja the .dash where the copper goes.
+; Abre en Forja el .dash donde va el copper.
+MSG_38
+There is no file in front in Forja.
+; No hay un fichero delante en Forja.
+MSG_39
+There is no \"# copper:\" block with its \"# paradas:\" line in the file.
+; No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero.
+MSG_40
+The screen cannot be opened.
+; No se puede abrir la pantalla.
+MSG_41
+Open a .mod (Amiga-O, or from the project panel of Forja).
+; Abre un .mod (Amiga-O, o desde el panel del proyecto de Forja).
+MSG_42
+stopped
+; parada
+MSG_43
+the demo's
+; la de la demo
+MSG_44
+playing
+; suena
+MSG_45
+New track (no spaces; Return makes it, Esc does not): 
+; Nueva pista (sin espacios; Return la hace, Esc no): 
+MSG_46
+No tracks: n makes one (zoom, fade, scene...).
+; Sin pistas: n hace una (zoom, fundido, escena...).
+MSG_47
+(no file)
+; (sin fichero)
+MSG_48
+Save the tracks first (Amiga-S): pistas_datos.dash goes next to them.
+; Guarda antes las pistas (Amiga-S): pistas_datos.dash va a su lado.
+MSG_49
+No demo. Run one that uses sync.dash with VIVO = true (Amiga-E in Forja).
+; Sin demo. Ejecuta una que use sync.dash con VIVO = true (Amiga-E en Forja).
+MSG_50
+Demos: the demo has finished.
+; Demos: la demo ha acabado.
+MSG_51
+Demos: MUI cannot be opened.
+; Demos: no se puede abrir MUI.
+MSG_52
+Demos is an extension of Forja: Forja starts it.
+; Demos es una extensión de Forja: la arranca Forja.
+MSG_53
+Copper
+; Copper
+MSG_54
+Music
+; Música
+MSG_55
+Sync
+; Sincronía
+MSG_56
+Meter
+; Medidor
+MSG_57
+demo: row %1, %2 lines
+; demo: fila %1, %2 líneas
+MSG_58
+demo: row %1, %2 lines
+; demo: fila %1, %2 líneas
+MSG_59
+Code: %1, %2 instructions
+; Código: %1, %2 instrucciones
+MSG_60
+line %1
+; línea %1
+MSG_61
+%1 changed in %2.
+; %1 cambiado en %2.
+MSG_62
+%1 put at the cursor of %2.
+; %1 metido en el cursor de %2.
+MSG_63
+Read %1 (%2 stops).
+; Leído %1 (%2 paradas).
+MSG_64
+%1: a click goes back
+; %1: un clic vuelve
+MSG_65
+position %1  pattern %2  row %3  -> sync %4
+; posición %1  patrón %2  fila %3  -> sincronía %4
+MSG_66
+music_load cannot load %1
+; music_load no puede con %1
+MSG_67
+Row %1 put in the code (position and row: %2).
+; Fila %1 metida en el código (posición y fila: %2).
+MSG_68
+New name of %1 (Return changes it, Esc does not): 
+; Nombre nuevo de %1 (Return lo cambia, Esc no): 
+MSG_69
+row %1 playing
+; suena la fila %1
+MSG_70
+cursor: row %1 (position %2)
+; cursor: fila %1 (posición %2)
+MSG_71
+The demo does not answer (%1).
+; La demo no contesta (%1).
+MSG_72
+Not a number: 
+; No es un número: 
+MSG_73
+Key type: 
+; Tipo de la clave: 
+MSG_74
+Nothing to redo.
+; Nada que rehacer.
+MSG_75
+Nothing to undo.
+; Nada que deshacer.
+MSG_76
+There is already a track %1.
+; Ya hay una pista %1.
+MSG_77
+There is already a track %1.
+; Ya hay una pista %1.
+MSG_78
+Track %1 is now %2: change it in the code too (sync_valor).
+; La pista %1 ahora es %2: cámbiala también en el código (sync_valor).
+MSG_79
+Track %1 removed (Amiga-Z brings it back).
+; Pista %1 quitada (Amiga-Z la devuelve).
+MSG_80
+Cannot read 
+; No se puede leer 
+MSG_81
+Saved: 
+; Guardado: 
+MSG_82
+%1 tracks exported to %2.
+; Exportadas %1 pistas a %2.
+MSG_83
+Last frame: %1 lines (%2 %)   average %3   maximum %4
+; Última imagen: %1 líneas (%2 %)   media %3   máximo %4
+MSG_84
+lost %1
+; perdidas %1
+MSG_85
+Demos: the demo is connected (%1).
+; Demos: la demo está conectada (%1).
+MSG_86
+Forja cannot find the program of %1.
+; Forja no encuentra el programa de %1.
+MSG_87
+Cannot write 
+; No se puede escribir 
+MSG_88
+The tracks of %1 have unsaved changes.
+; Las pistas de %1 tienen cambios sin guardar.
+MSG_89
+_Save|_Discard|_Cancel
+; _Guardar|_Descartar|_Cancelar
+MSG_90
+Cannot read 
+; No se puede leer 
+MSG_91
+Not a MOD of 4 channels and 31 instruments: 
+; No es un MOD de 4 canales y 31 instrumentos: 
+MSG_92
+The MOD is cut short: 
+; El MOD está cortado: 
+MSG_94
+Quit Forja
+; Salir de Forja
+MSG_870
+is not fixed-width
+; no es de ancho fijo

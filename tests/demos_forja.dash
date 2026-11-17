@@ -7,6 +7,7 @@
 
 const AMIGA = 8
 const MAYUS = 1
+const ALT = 4
 
 var fallos: Int = 0
 var registro: String = ""
@@ -157,6 +158,7 @@ end
 
 # Una captura de la pantalla de Forja (la de la demo, detrás)
 func captura(nombre: String)
+    anotar("  (" + nombre + ": " + linea("dibujo") + ")")
     rexx_send_wait("DEMOSYNC", "DETRAS", 2000)
     time_delay(25)
     screen_save_png("DH0:Prueba/" + nombre + ".png")
@@ -183,6 +185,30 @@ func sincronia()
     ver("Mayúsculas+arriba sube 16 (hasta la 0)", str_contains(linea("sync"), "cursor 0 0"), linea("sync"))
     escribir("2.5")
     tecla(0x44, 0)
+    time_delay(10)
+    anotar("  (sin demo: " + linea("dibujo") + ")")
+    # deshacer y rehacer en las pistas; cambiar el nombre, mover y quitar una pista (y deshacerlo)
+    ver("la clave de la fila 0", esperar("pista velocidad claves 3 aqui 2.5 lineal", 5), linea("pista"))
+    tecla(0x31, AMIGA)
+    ver("Amiga-Z la deshace", esperar("pista velocidad claves 3 aqui 2 lineal", 5), linea("pista"))
+    tecla(0x13, AMIGA)
+    ver("Amiga-R la rehace", esperar("pista velocidad claves 3 aqui 2.5 lineal", 5), linea("pista"))
+    tecla(0x13, 0)
+    escribir("2")
+    time_delay(10)
+    ver("r pide el nombre nuevo, con el de ahora", esperar("nombre [velocidad2]", 5), linea("sync"))
+    tecla(0x44, 0)
+    ver("Return le cambia el nombre", esperar("pista velocidad2 claves 3", 5), linea("pista"))
+    tecla(0x4E, ALT)
+    ver("Alt+derecha la mueve a la derecha", esperar("cursor 0 1 ", 5) and str_starts(linea("pista"), "pista velocidad2"), linea("sync"))
+    tecla(0x46, MAYUS)
+    ver("Mayúsculas+Supr la quita", esperar("pistas 1 ", 5) and str_starts(linea("pista"), "pista subida"), linea("sync"))
+    tecla(0x31, AMIGA)
+    tecla(0x31, AMIGA)
+    tecla(0x31, AMIGA)
+    ver("Amiga-Z tres veces: como estaban (el cursor sigue en subida)", esperar("pistas 2 cursor 0 1 ", 5) and str_starts(linea("pista"), "pista subida"), linea("sync") + " / " + linea("pista"))
+    tecla(0x4F, 0)
+    ver("y velocidad, con su nombre y su clave", esperar("pista velocidad claves 3 aqui 2.5", 5), linea("sync") + " / " + linea("pista"))
 end
 
 func con_demo()

@@ -401,6 +401,18 @@ Main
     s = leer("RAM:forja-salida.txt")
     ver("las teclas que no se entienden se dicen", str_contains(s, "patata = ctrl x"), s)
     ver("los colores que no se entienden se dicen", str_contains(s, "verdura = 1 2") and not str_contains(s, "comentario = 255"), s)
+    # cambiar el fichero de teclas con Forja abierta: las lee otra vez, y el menú Editor enseña las nuevas
+    file_write_text("ENV:Forja/teclas", "desplegar_todo = ctrl j\n")
+    ver("cambiar el fichero de teclas: Forja las lee otra vez", esperar_salida("Teclas del editor le"), leer("RAM:forja-salida.txt"))
+    m = env_get("FORJA_MENU_EDITOR")
+    ver("el menú Editor enseña la tecla nueva", str_contains(m, "Desplegar todo  (Ctrl J)") or str_contains(m, "(Ctrl J)"), m)
+    rexx("CURSOR 14 3")
+    al_editor()
+    input_key(0x53, 0)
+    esperar_cursor("12 3")
+    input_key(0x26, CTRL)
+    input_key(ABAJO, 0)
+    ver("Ctrl J (la nueva) lo despliega todo", esperar_cursor("13 3") == "13 3", rexx("CURSOR"))
 
     # --- lo que tarda repintar al mover el cursor ---
     rexx("CURSOR 3 1")

@@ -25,7 +25,8 @@ castellano o en inglés, según el idioma de las Preferencias de Locale (el cat�
 ## Uso
 
 `Forja [fichero]`, o un doble clic en su icono. Sin fichero, abre lo de la última vez (se puede quitar en
-Preferencias).
+Preferencias): los ficheros con su cursor, sus marcadores y lo plegado, el de delante, y los sprites, mapas y pistas
+que tenían abiertos las extensiones.
 
 En Preferencias también se puede pedir que Forja arranque en su propia pantalla: una copia de la del Workbench,
 pública, llamada `FORJA`. Mientras Forja está abierto, es la pantalla pública por defecto, así que los programas que
@@ -66,7 +67,8 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   `duplicar = alt d` o `comentar = nada`. Las órdenes: comentar, duplicar, subir, bajar, borrar_linea, pareja,
   marcador, marcador_siguiente, marcador_anterior, esquema, abrir_fichero, abrir_simbolo, buscar_proyecto,
   cambiar_proyecto, renombrar, plegar, desplegar_todo. Las letras van por su sitio en un teclado inglés (como las de
-  las extensiones); un signo (`/`) va por el carácter. Lo que no se entiende se dice en la salida al empezar.
+  las extensiones); un signo (`/`) va por el carácter. Lo que no se entiende se dice en la salida. Si el fichero
+  cambia con Forja abierta, lo lee otra vez y el menú Editor enseña las teclas nuevas.
 - **Tema**: `ENVARC:Forja/tema` cambia los colores (`comentario = 120 120 136`: fondo, texto, tenue, acento, error,
   seleccion, cursor..., y los de la sintaxis: clave, tipo, cadena, numero, comentario, llamada, constante, directiva,
   asm_instruccion, asm_registro, asm_etiqueta) y la fuente del código (`fuente = xen.font 8`, de letras igual de
@@ -187,8 +189,9 @@ Los editores de sprites y de mapas son dos extensiones (`Extensiones/Sprites` y 
 programa no los carga. Arrancan al abrir uno de sus ficheros (desde el panel del proyecto, Abrir o la sesión) o al
 pedir uno nuevo con Amiga-B, cada una con su ventana y una pestaña por fichero, y acaban al cerrar la última. En su
 ventana, Amiga-S guarda (la salida de Forja lo dice y el panel del proyecto lo ve), Amiga-K y Amiga-E compilan y
-ejecutan el programa del cajón del sprite (`main.dash`), y Ventana > Forja vuelve a Forja. Al salir de Forja, los
-que tienen cambios sin guardar cuentan en su pregunta.
+ejecutan el programa del cajón del sprite (`main.dash`), Ventana > Forja vuelve a Forja y Amiga-Q sale de Forja,
+como en su ventana. Al salir de Forja, los que tienen cambios sin guardar cuentan en su pregunta, y los abiertos se
+vuelven a abrir la próxima vez con la sesión.
 
 - **Sprites y BOBs** (la extensión Sprites): las imágenes IFF ILBM (también los pinceles de DPaint) se abren en su
   ventana, y Amiga-B (en Forja o en esa ventana) crea un sprite de hardware (16 de ancho, 3 colores y el transparente)
@@ -232,7 +235,9 @@ trae `sync.dash` (está también en `Forja/lib`), unas pistas en `demo.sync` y s
 - **Pistas de sincronía**, como Rocket: valores que cambian con la música ("velocidad", "fundido", "escena"), con
   claves en filas de la música (posición × 64 + fila) y, de una a la siguiente, escalón, lineal, suave o rampa. Una
   tabla con una columna por pista: las flechas mueven el cursor (con Mayúsculas, de 16 en 16), las cifras y Return
-  ponen una clave, Supr la quita, `i` cambia su tipo y `n` hace una pista. Amiga-S las guarda en el `.sync`.
+  ponen una clave, Supr la quita, `i` cambia su tipo y `n` hace una pista; `r` le cambia el nombre, Mayúsculas+Supr la
+  quita y Alt+flechas la mueven (también en el menú Pistas). Amiga-Z y Amiga-R deshacen y rehacen. Amiga-S las guarda
+  en el `.sync`. La tabla va de página en página, como un tracker: con la demo en marcha solo se repinta lo que cambia.
   - Con la demo en marcha (la que usa `sync.dash` con `VIVO = true`), la extensión se conecta sola: la fila que suena
     se ve en la tabla y en la barra de Forja, Espacio la para y la deja seguir, `g` la lleva a la fila del cursor, `v`
     pone su pantalla delante o detrás de la de Forja, y

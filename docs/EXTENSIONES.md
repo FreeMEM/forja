@@ -160,7 +160,7 @@ en su ventana y Forja no los ve).
 
 | Orden | Respuesta |
 |-------|-----------|
-| `HOLA nombre` | La versión de la API y la de Forja: `4 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA; la 4, `nuevo`, `NUEVO`, `GUARDAR`, `GUARDADO`, `SINGUARDAR`, `DELANTE` y `COMPILAR fichero`). |
+| `HOLA nombre` | La versión de la API y la de Forja: `5 0.6.5` (la 2 trae ZONA, VISTA, RAYAS, menú propio, pausa...; la 3, SUGERENCIA y cerrar una VISTA; la 4, `nuevo`, `NUEVO`, `GUARDAR`, `GUARDADO`, `SINGUARDAR`, `DELANTE` y `COMPILAR fichero`; la 5, `EDITANDO` y `SALIR`). |
 | `SUCESOS nombre` | Sus sucesos, uno por línea, y la cola queda vacía. |
 | `ADIOS nombre` | Se va. Forja quita sus marcas y su texto. |
 | `MENU nombre título\|tecla\|orden` | Una opción más en su menú (el propio, si tiene `submenu`; si no, suelta en Extensiones), mientras Forja siga abierto. Su número; RC 5 si no caben (12 sueltas entre todas, y 10 en cada menú propio). |
@@ -215,6 +215,8 @@ Para las que abren sus propios tipos de fichero (`tipos`, `nuevo`) en una ventan
 | `GUARDADO nombre fichero` | Guardó un fichero suyo: Forja dice "Guardado: fichero" en la salida, lo cuenta a las extensiones que piden `guardado` y, si es del cajón del proyecto, lee otra vez el panel (sale el fichero nuevo). |
 | `SINGUARDAR nombre`, y un fichero por línea | Sus ficheros con cambios sin guardar (los nombres; sin líneas, ninguno). Sustituye la lista de antes. Al salir, Forja los cuenta con los suyos en "Cambios sin guardar": con Guardar le manda `GUARDAR` y espera (20 s como mucho) a que la lista quede vacía; si no, Forja sigue abierta. Con Descartar, se pierden. |
 | `DELANTE` | La ventana de Forja, delante y activa (Ventana > Forja en la de la extensión). |
+| `EDITANDO nombre`, y una ruta entera por línea | Los ficheros suyos que tiene abiertos (sin líneas, ninguno). Sustituye la lista de antes. Al salir, Forja los guarda en su sesión y la próxima vez los vuelve a abrir (con `EDITAR`, como al abrirlos desde Forja). |
+| `SALIR` | Que Forja se cierre, como con Amiga-Q en su ventana (para Amiga-Q en la de la extensión): pregunta por lo que haya sin guardar, también lo de las extensiones, y manda `SALIR` a todas. |
 
 ### La ventana
 
@@ -305,6 +307,8 @@ Así van `extensiones/Sprites` y `extensiones/Mapas`:
 | `forja_sin_guardar(nombres)` | `SINGUARDAR`: los suyos con cambios sin guardar (`[]`: ninguno). |
 | `forja_compilar(ruta, ejecutar)` | `COMPILAR` o `EJECUTAR` el programa de ese fichero (ruta `""`: el de delante en Forja). |
 | `forja_delante()` | `DELANTE`. |
+| `forja_editando(rutas)` | `EDITANDO`: los suyos abiertos, para la sesión (`[]`: ninguno). |
+| `forja_salir()` | `SALIR`: Forja se cierra (Amiga-Q en su ventana). |
 
 El `import "lib/forja.dash"` lo encuentra `./dash` subiendo de cajón en cajón desde el fichero que importa: una
 extensión en `extensiones/X/` del repositorio de Forja (o en `Forja/Extensiones/X/`, con `Forja/lib/forja.dash`)
@@ -335,10 +339,9 @@ Las que se copian a mano en `Extensiones/` están activas al arrancar Forja.
 ## Lo que falta
 
 - Teclas de las extensiones fuera del editor (con el puntero en el proyecto o la salida).
-- Las 12 opciones sueltas de Extensiones son fijas: las libres quedan vacías y apagadas. Los menús propios ya se
-  hacen en marcha (`mui_menu_add`, Dash PR #182); las sueltas podrían ir igual (`mui_menu_extend`). Con MUI 3.8,
-  añadir o quitar un menú con la ventana abierta la cierra y la abre (los del arranque se hacen antes de abrirla).
+- Con MUI 3.8, añadir o quitar un menú propio con la ventana abierta la cierra y la abre (los del arranque se hacen
+  antes de abrirla). Las opciones sueltas de Extensiones se ponen y se quitan con `mui_menu_extend` y
+  `mui_menu_remove` (12 como mucho, solo las que hay); la raya de encima se queda (`mui_menu_separator` de Dash no da
+  un objeto que se pueda quitar).
 - Paneles propios dentro de la ventana de Forja: hoy cada extensión pinta sus ventanas.
 - Probar la instalación desde un `.lha` en el emulador (no tiene `C:LhA`).
-- Los ficheros que tiene abiertos una extensión (un sprite, un mapa) no se guardan en la sesión de Forja: al volver a
-  abrir Forja no se abren solos.

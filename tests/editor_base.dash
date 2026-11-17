@@ -298,6 +298,11 @@ Main
     ver("el abierto, sin guardar", str_contains(file_read_text("DH0:Prueba/editor/main.dash"), "amiga_alloc(256)"))
     ed_deshacer(d)
     igual("deshacer en el editor", d.lineas[25], "    tabla = doble(256)")
+    # en el disco, las líneas con tabuladores se cambian sin pasarlos a espacios
+    igual("tabuladores: sangría", bp_con_tabs("\tx = doble(1)\t# c", "    x = doble(1)    # c", "    x = dos_veces(1)    # c"), "\tx = dos_veces(1)\t# c")
+    igual("tabuladores: en lo cambiado", bp_con_tabs("a\tb", "a    b", "a    c"), "a\tc")
+    igual("tabuladores: a medio tabulador", bp_con_tabs("\t\tz", "        z", "      z"), "\t  z")
+    igual("tabuladores: otra línea", bp_con_tabs("\tz", "  z", "  y"), "  y")
 
 
     # --- 2.5 marcadores: siguen a su texto ---
@@ -370,6 +375,27 @@ Main
     d.cl = 1
     ed_marcador(d)
     ver("quitar", not ed_tiene_marcador(d, 1))
+    # deshacer un cambio de varias líneas los deja en sus líneas (antes se juntaban en la primera)
+    d = doc("a\nb\nc\nd\ne")
+    for m in [1, 2, 3]
+        d.cl = m
+        ed_marcador(d)
+    end
+    d.cl = 0
+    ed_elegir(d, 1, 1, 4, 1)
+    ed_comentar(d)
+    ed_deshacer(d)
+    ver("deshacer comentar: cada marcador en su línea", d.marcadores.length == 3 and ed_tiene_marcador(d, 1) and ed_tiene_marcador(d, 2) and ed_tiene_marcador(d, 3))
+    ed_rehacer(d)
+    ver("y rehacer", d.marcadores.length == 3 and ed_tiene_marcador(d, 1) and ed_tiene_marcador(d, 3))
+    d.al = -1
+    d.cl = 1
+    ed_borrar_lineas(d)
+    d.cl = 1
+    ed_borrar_lineas(d)
+    ed_deshacer(d)
+    ed_deshacer(d)
+    ver("deshacer borrar líneas: vuelven", d.marcadores.length == 3 and ed_tiene_marcador(d, 1) and ed_tiene_marcador(d, 2) and ed_tiene_marcador(d, 3))
 
     # --- 2.7 plegado ---
     ed_visibles = 20

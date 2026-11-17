@@ -25,7 +25,8 @@ English or Spanish, following the Locale preferences (the English catalog is in 
 ## Use
 
 `Forja [file]`, or double-click its icon. Without a file, it opens what was open last time (this can be turned off
-in the preferences).
+in the preferences): the files with their cursor, bookmarks and folds, the one in front, and the sprites, maps and
+tracks the extensions had open.
 
 The preferences can also make Forja start on a screen of its own: a public copy of the Workbench's, named `FORJA`.
 While Forja is open it is the default public screen, so the programs it runs open there. On quitting, the old
@@ -65,7 +66,8 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   `duplicar = alt d` or `comentar = nada`. The commands: comentar, duplicar, subir, bajar, borrar_linea, pareja,
   marcador, marcador_siguiente, marcador_anterior, esquema, abrir_fichero, abrir_simbolo, buscar_proyecto,
   cambiar_proyecto, renombrar, plegar, desplegar_todo. Letters go by their place on an English keyboard (like those of
-  the extensions); a sign (`/`) goes by the character. Whatever is not understood is reported in the output at start.
+  the extensions); a sign (`/`) goes by the character. Whatever is not understood is reported in the output. If the
+  file changes while Forja is open, it is read again and the Editor menu shows the new keys.
 - **Theme**: `ENVARC:Forja/tema` changes the colours (`comentario = 120 120 136`: fondo, texto, tenue, acento, error,
   seleccion, cursor..., and the syntax ones: clave, tipo, cadena, numero, comentario, llamada, constante, directiva,
   asm_instruccion, asm_registro, asm_etiqueta) and the font of the code (`fuente = xen.font 8`, fixed width).
@@ -162,8 +164,9 @@ The sprite and map editors are two extensions (`Extensiones/Sprites` and `Extens
 they are not loaded. They start when one of their files is opened (from the project panel, Open or the session) or a
 new one is asked for with Amiga-B, each with its own window and a tab per file, and they end when the last tab is
 closed. In their window, Amiga-S saves (Forja's output says so and the project panel sees it), Amiga-K and Amiga-E
-build and run the program of the sprite's drawer (`main.dash`), and Window > Forja goes back to Forja. When Forja
-quits, their unsaved files count in its question.
+build and run the program of the sprite's drawer (`main.dash`), Window > Forja goes back to Forja and Amiga-Q quits
+Forja, as in its own window. When Forja quits, their unsaved files count in its question, and the open ones open
+again next time with the session.
 
 - **Sprites and BOBs** (the Sprites extension): IFF ILBM pictures (DPaint brushes too) open in its window, and
   Amiga-B (in Forja or in that window) makes a hardware sprite (16 wide, 3 colours and the transparent one) or a BOB (any size and colours). They are saved as

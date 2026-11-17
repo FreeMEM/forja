@@ -175,6 +175,7 @@ const EV_PREF_GUARDAR = 57
 const EV_PREF_USAR = 58
 const EV_PREF_CANCELAR = 59
 const EV_SALIR = 99
+const EV_SALIR_EXT = 98     # SALIR de una extensión (llega por el reloj: el de los tics se pierde, y se vuelve a armar)
 const EV_NADA = 9999           # un evento ya atendido
 const EV_NUEVO_PROYECTO = 250   # Proyecto > Nuevo proyecto... (paso 3.2) y su ventana
 const EV_ABRIR_PROYECTO = 251
@@ -364,7 +365,8 @@ func abrir_nuevo(ruta: String) -> Bool
     end
     ed_abrir_texto(nombre_de(ruta), ruta, texto)
     # sus puntos de parada (los del proyecto, con su condición)
-    ed_actual().puntos = pr_lineas_de(ruta)
+    d = ed_actual()
+    d.puntos = pr_lineas_de(ruta)
     return true
 end
 
@@ -373,11 +375,21 @@ func guardar_en(d: Documento, ruta: String) -> Bool
         avisar(tr(2, "No se puede escribir ") + ruta, 1)
         return false
     end
+    # los puntos de parada que se movieron al escribir, al .forja (con el fichero ya como dicen)
+    puntos_seguir()
+    if str_lower(d.ruta) != str_lower(ruta)
+        # Guardar como: los puntos (con su condición) pasan a la ruta nueva, también en el .forja
+        pr_puntos_mover(d.ruta, ruta, d.puntos)
+        puntos_raros_al_dia()
+        puntos_por_guardar = true
+        if proy != nil and d.ruta != "" and pr_dentro(proy, d.ruta)
+            # (salen del proyecto: el .forja sin ellos aunque la ruta nueva sea de fuera)
+            proyecto_guardar()
+        end
+    end
     d.ruta = ruta
     d.nombre = nombre_de(ruta)
     d.cambiado = false
-    # los puntos de parada que se movieron al escribir, al .forja (con el fichero ya como dicen)
-    puntos_seguir()
     pr_puntos_guardados(ruta)
     if puntos_por_guardar and proyecto_de(ruta) != nil
         puntos_por_guardar = false
@@ -853,8 +865,14 @@ func armar_tic(ms: Int, ev: Int)
     mui_timer(ms, ev)
 end
 
+var ayuda_campo_luego: Bool = false
+
 func tic()
     tic_armado = false
+    if ayuda_campo_luego
+        ayuda_campo_luego = false
+        mui_set_active(va.window, va.buscar)
+    end
     comprobar_tic()
     ext_reposo()
     actualizar_tic()
@@ -1305,6 +1323,10 @@ func en_proyecto()
     mui_canvas_redraw(v.proyecto)
 end
 
+func es_flecha(k: Int) -> Bool
+    return k == T_ARRIBA or k == T_ABAJO or k == T_IZQUIERDA or k == T_DERECHA
+end
+
 # Al depurar, el panel enseña la pila y las variables: un clic despliega o pliega una lista o un struct (idea de
 # David Martínez); la rueda y las flechas lo mueven (con Mayúsculas, la rueda va a lo ancho y las flechas de página
 # en página). Un clic ahí no es en la lista de ficheros que tapan (abría el de esa fila, lo contó David Martínez).
@@ -1422,15 +1444,18 @@ func ajustar_barra()
     if d == nil
         return
     end
-    if d.lineas.length != barra_total or ed_visibles != barra_visibles
-        barra_total = d.lineas.length
+    # (en filas de las que se ven: lo plegado no cuenta)
+    total = ed_filas_entre(d, 0, d.lineas.length)
+    if total != barra_total or ed_visibles != barra_visibles
+        barra_total = total
         barra_visibles = ed_visibles
         mui_set_range(v.barra, barra_total, barra_visibles)
         barra_valor = -1
     end
-    if d.primera != barra_valor
-        barra_valor = d.primera
-        mui_set_value(v.barra, d.primera)
+    fila = ed_filas_entre(d, 0, d.primera)
+    if fila != barra_valor
+        barra_valor = fila
+        mui_set_value(v.barra, fila)
     end
 end
 
@@ -1662,12 +1687,66 @@ func teclas_leer()
     end
 end
 
-func _opcion_editor(texto: String, o: Int)
+# Las opciones del menú Editor, para cambiar su etiqueta si cambian las teclas: su objeto, su texto y su orden
+var _ed_items: [Int] = []
+var _ed_items_texto: [String] = []
+var _ed_items_orden: [Int] = []
+
+func _etiqueta_editor(texto: String, o: Int) -> String
     k = tc_texto(o)
     if k != ""
-        texto = texto + "  (" + k + ")"
+        return texto + "  (" + k + ")"
     end
-    mui_menu_item(texto, "", EV_ED + o)
+    return texto
+end
+
+func _opcion_editor(texto: String, o: Int)
+    _ed_items.push(mui_menu_item(_etiqueta_editor(texto, o), "", EV_ED + o))
+    _ed_items_texto.push(texto)
+    _ed_items_orden.push(o)
+end
+
+# ENV:Forja/teclas o ENVARC:Forja/teclas cambiaron (Forja los vigila): las teclas otra vez, y las etiquetas del menú
+# Editor con ellas, sin cerrar Forja
+var _teclas_vigia: [Int] = []
+func teclas_vigilar()
+    dos_requesters(false)
+    # (el cajón tiene que estar para vigilar un fichero que aún no está)
+    dir_create("ENV:Forja")
+    dir_create("ENVARC:Forja")
+    for f in ["ENV:Forja/teclas", "ENVARC:Forja/teclas"]
+        n = file_notify(f)
+        if n > 0
+            _teclas_vigia.push(n)
+        end
+    end
+    dos_requesters(true)
+end
+
+func teclas_mirar()
+    cambio = false
+    for n in _teclas_vigia
+        if file_changed(n)
+            cambio = true
+        end
+    end
+    if not cambio
+        return
+    end
+    tc_por_defecto()
+    teclas_leer()
+    t = ""
+    i = 0
+    while i < _ed_items.length
+        e = _etiqueta_editor(_ed_items_texto[i], _ed_items_orden[i])
+        mui_set_text(_ed_items[i], e)
+        t = t + e + "|"
+        i = i + 1
+    end
+    if sonda
+        env_set("FORJA_MENU_EDITOR", t, false)
+    end
+    salida_anadir(tr(1006, "Teclas del editor leídas otra vez (ENVARC:Forja/teclas)."), 2)
 end
 
 # El menú Editor: las órdenes del editor con su tecla (la de ENVARC:Forja/teclas, si se cambió)
@@ -1901,8 +1980,8 @@ func renombrar(nuevo: String)
     n = cx_ref_lineas.length
     while i < n
         ruta = cx_ref_rutas[i]
-        if str_starts(ruta, "*")
-            # (un fichero sin nombre: no se puede cambiar desde aquí)
+        # (un fichero sin nombre, "*nombre", es su pestaña: bp_lineas_de y bp_aplicar la encuentran)
+        if str_starts(ruta, "*") and bp_doc(ruta) < 0
             i = i + 1
         else
             lineas = bp_lineas_de(ruta)
@@ -2166,6 +2245,11 @@ func ayuda_evento(ev: Int)
         if ayuda_al_campo
             ayuda_al_campo = false
             mui_set_active(va.window, va.buscar)
+            # (con MUI 3.8 tampoco se queda: algo de MUI se lo quita justo después; otra vez un momento más tarde, en el
+            # tic, que no hace nada antes de tiempo)
+            ayuda_campo_luego = true
+            tic_armado = false
+            armar_tic(150, EV_TIC)
         end
         return
     end
@@ -2620,6 +2704,8 @@ func escribir_sonda()
             return
         end
         sonda_fichero("RAM:forja-sonda.txt", "#{d.cl} #{d.cc} " + d.nombre + "\n" + ed_texto(d))
+        env_set("FORJA_MARCAS", _lista_texto(d.marcadores) + "|" + _lista_texto(d.plegados), false)
+        env_set("FORJA_PILAS", "#{d.deshacer.length} #{d.rehacer.length}", false)
         env_set("FORJA_DIBUJOS", "#{ed_dibujos}", false)
         if ed_vistas != sonda_vistas
             sonda_vistas = ed_vistas
@@ -2696,10 +2782,18 @@ func edicion(ev: Int)
         if t != ""
             ed_escribir(d, str_replace(t, "\t", "    "))
         end
-    elif ev == EV_DESHACER
-        ed_deshacer(d)
-    elif ev == EV_REHACER
-        ed_rehacer(d)
+    elif ev == EV_DESHACER or ev == EV_REHACER
+        # (sin nada que deshacer, nada que dibujar: Amiga-Z pulsada varias veces de más repintaba todo cada vez, y en
+        # un fichero grande se quedaban en cola)
+        hecho = false
+        if ev == EV_DESHACER
+            hecho = ed_deshacer(d)
+        else
+            hecho = ed_rehacer(d)
+        end
+        if not hecho and not d.diseno
+            return
+        end
     elif ev == EV_TODO
         ed_seleccionar_todo(d)
     elif ev == EV_DISENO
@@ -3295,15 +3389,52 @@ func preferencias_aplicar(guardar: Bool)
     mui_window_close(vp.window)
 end
 
-# Al salir: el cajón del proyecto y los ficheros abiertos, para la próxima vez (ENVARC:Forja/sesion, con "|")
+# Al salir: el cajón del proyecto y los ficheros abiertos, para la próxima vez (ENVARC:Forja/sesion, con "|"), también
+# los de las extensiones (un sprite, un mapa: EDITANDO), que se abren otra vez con ellas. Y en ENVARC:Forja/sesion_estado
+# lo de cada fichero de Forja: la ruta, la primera línea que se ve, el cursor, los marcadores y lo plegado, separados
+# por tabuladores (las listas, con comas), y cada fichero tras el carácter 30 (env_get lee una sola línea); lo primero,
+# "activo" y el fichero de delante.
 func sesion_guardar()
     t = proyecto_cajon
+    estado = "activo\t"
+    d = ed_actual()
+    if d != nil
+        estado = estado + d.ruta
+    end
     for d in documentos
-        if d.ruta != ""
+        if d.ruta != "" and d.vista == 0
             t = t + "|" + d.ruta
+            estado = estado + str_char(30) + d.ruta + "\t#{d.primera}\t#{d.cl}\t#{d.cc}\t" + _lista_texto(d.marcadores) + "\t" + _lista_texto(d.plegados)
         end
     end
+    for r in ext_abiertos()
+        t = t + "|" + r
+    end
     env_set("Forja/sesion", t, true)
+    env_set("Forja/sesion_estado", estado, true)
+end
+
+func _lista_texto(ls: [Int]) -> String
+    t = ""
+    if ls != nil
+        for n in ls
+            if t != ""
+                t = t + ","
+            end
+            t = t + "#{n}"
+        end
+    end
+    return t
+end
+
+func _lista_de(t: String) -> [Int]
+    var r: [Int] = []
+    if t != ""
+        for p in str_split(t, ",")
+            r.push(Int(p))
+        end
+    end
+    return r
 end
 
 # Al empezar sin fichero: lo de la última vez; false si no había nada
@@ -3329,12 +3460,68 @@ func sesion_abrir() -> Bool
         proyecto_leer(cajon_de(ed_actual().ruta))
     end
     dos_requesters(true)
+    sesion_estado()
     return abiertos > 0
+end
+
+# Lo de cada fichero de la sesión (ENVARC:Forja/sesion_estado): dónde estaba, sus marcadores y lo plegado. Si el
+# fichero cambió por fuera y una línea ya no está, esa se salta.
+func sesion_estado()
+    activo_antes = ""
+    for l in str_split(env_get("Forja/sesion_estado"), str_char(30))
+        c = str_split(l, "\t")
+        if c.length == 2 and c[0] == "activo"
+            activo_antes = c[1]
+        elif c.length >= 6
+            i = ed_buscar_ruta(c[0])
+            if i >= 0
+                d = documentos[i]
+                n = d.lineas.length
+                var ms: [Int] = []
+                for m in _lista_de(c[4])
+                    if m >= 0 and m < n
+                        ms.push(m)
+                    end
+                end
+                d.marcadores = ms
+                for pl in _lista_de(c[5])
+                    if pl >= 0 and pl < n
+                        ed_plegar(d, pl)
+                    end
+                end
+                cl = Int(c[2])
+                if cl >= 0 and cl < n
+                    d.cl = cl
+                    d.cc = Int(c[3])
+                    if d.cc > d.lineas[cl].length
+                        d.cc = d.lineas[cl].length
+                    end
+                    if d.cc < 0
+                        d.cc = 0
+                    end
+                    d.primera = Int(c[1])
+                    if d.primera < 0 or d.primera > cl
+                        d.primera = cl
+                    end
+                    ed_destapar(d, cl)
+                end
+            end
+        end
+    end
+    if activo_antes != ""
+        i = ed_buscar_ruta(activo_antes)
+        if i >= 0
+            activo = i
+        end
+    end
 end
 
 var compilar_desde: String = ""    # COMPILAR fichero (una extensión): compilar el programa de ese fichero
 var abrir_delegado: Bool = false   # el último abrir() lo mandó a una extensión (EDITAR)
-var ext_items: [Int] = []          # las opciones sueltas del menú Extensiones (ext_m0...)
+# Las opciones sueltas del menú Extensiones (las ranuras 0 a 11): se ponen en marcha con mui_menu_extend, solo las
+# que hay (antes, 12 opciones vacías y apagadas fijas en ventana.dashui); su objeto (0: ninguna) y de qué está hecho
+var ext_items: [Int] = []
+var ext_items_firma: String = ""
 # Los menús propios de las extensiones (submenu = título), en la barra de menús tras Extensiones: su objeto (0 si no
 # hay) y de qué está hecho (título y opciones), para no rehacerlo si no cambió (con MUI 3.8 rehacerlo cierra y abre la
 # ventana)
@@ -3388,17 +3575,6 @@ func ext_tras_evento()
     end
     if ext_ranuras_cambiadas
         ext_ranuras_cambiadas = false
-        i = 0
-        while i < ext_items.length
-            if i < ext_ranura_ext.length and ext_ranura_ext[i] >= 0
-                mui_set_text(ext_items[i], ext_ranura_titulo[i])
-                mui_set_enabled(ext_items[i], true)
-            else
-                mui_set_text(ext_items[i], "")
-                mui_set_enabled(ext_items[i], false)
-            end
-            i = i + 1
-        end
         ext_menus_al_dia()
     end
     if ext_dibujar and abierta
@@ -3409,8 +3585,39 @@ func ext_tras_evento()
     end
 end
 
-# Los menús propios de las extensiones: los que cambiaron se quitan y se vuelven a hacer (mui_menu_add)
+# Los menús propios de las extensiones: los que cambiaron se quitan y se vuelven a hacer (mui_menu_add); y las
+# opciones sueltas del menú Extensiones (mui_menu_extend)
 func ext_menus_al_dia()
+    firma = ""
+    r = 0
+    while r < EXT_RANURAS and r < ext_ranura_ext.length
+        if ext_ranura_ext[r] >= 0
+            firma = firma + "|#{r}:" + ext_ranura_titulo[r]
+        end
+        r = r + 1
+    end
+    if firma != ext_items_firma
+        ext_items_firma = firma
+        for o in ext_items
+            mui_menu_remove(o)
+        end
+        ext_items.clear()
+        if firma != ""
+            # (tras la raya de ventana.dashui: mui_menu_separator no da un objeto que se pueda quitar luego)
+            mui_menu_extend(v.menu_extensiones)
+            r = 0
+            while r < EXT_RANURAS and r < ext_ranura_ext.length
+                if ext_ranura_ext[r] >= 0
+                    ext_items.push(mui_menu_item(ext_ranura_titulo[r], "", EV_EXT_MENU + r))
+                end
+                r = r + 1
+            end
+            mui_menu_end()
+        end
+    end
+    if sonda
+        env_set("FORJA_MENU_EXT", firma, false)
+    end
     s = 0
     while s < EXT_SUBMENUS
         firma = ""
@@ -3664,10 +3871,17 @@ end
 
 # Instalar desde un cajón (se elige su manifiesto.txt) o un .lha: enseña qué es y pregunta antes de copiar
 func gestor_instalar()
-    if not file_open_dialog(tr(629, "Instalar una extensión: su manifiesto.txt o un .lha"), "(manifiesto.txt|#?.lha)")
+    # (para las pruebas, con la sonda: ENV:FORJA_INSTALAR en vez de la petición de ASL, que no se puede manejar sola)
+    ruta = ""
+    if sonda and env_get("FORJA_INSTALAR") != ""
+        ruta = env_get("FORJA_INSTALAR")
+        env_set("FORJA_INSTALAR", "", false)
+    elif file_open_dialog(tr(629, "Instalar una extensión: su manifiesto.txt o un .lha"), "(manifiesto.txt|#?.lha)")
+        ruta = file_fullpath()
+    end
+    if ruta == ""
         return
     end
-    ruta = file_fullpath()
     dir = cajon_de(ruta)
     if str_ends(str_lower(ruta), ".lha")
         dir = ext_sacar_lha(ruta)
@@ -3866,6 +4080,23 @@ func orden_extension(orden: String, p: [String], linea: String) -> String
         ls.remove(0)
         if cab.length < 2 or not ext_poner_sin_guardar(cab[1], ls)
             _rexx_falla(10)
+        end
+        return ""
+    elif orden == "EDITANDO" and p.length >= 2
+        # EDITANDO extensión, y en cada línea siguiente la ruta entera de un fichero suyo abierto: van en la sesión
+        ls = str_split(linea, "\n")
+        cab = _partes(ls[0], 99)
+        ls.remove(0)
+        if cab.length < 2 or not ext_poner_abiertos(cab[1], ls)
+            _rexx_falla(10)
+        end
+        return ""
+    elif orden == "SALIR"
+        # una extensión pide que Forja se cierre (Amiga-Q en su ventana): como Amiga-Q aquí, en cuanto acabe esta
+        # orden (el bucle de eventos lo recibe por el reloj)
+        if abierta
+            mui_window_activate(v.window)
+            mui_timer(1, EV_SALIR_EXT)
         end
         return ""
     elif orden == "DELANTE"
@@ -5856,9 +6087,10 @@ func atender(ev: Int)
         end
     elif ev == EV_BARRA
         d = ed_actual()
-        if d != nil and mui_get_value(v.barra) != d.primera
-            d.primera = mui_get_value(v.barra)
-            barra_valor = d.primera
+        if d != nil and mui_get_value(v.barra) != barra_valor
+            # (la barra va en filas de las que se ven: con algo plegado, no es la línea)
+            barra_valor = mui_get_value(v.barra)
+            d.primera = ed_filas_desde(d, 0, barra_valor)
             mui_canvas_redraw(v.editor)
         end
     end
@@ -5879,7 +6111,6 @@ Main
         vq = PropProyecto_create()
         dep_vigilar = vigilar_sueltas
         ayf_ventana(va.window, va.lista, va.texto, va.barra, va.buscar, va.atras, va.adelante, va.probar)
-        ext_items = [v.ext_m0, v.ext_m1, v.ext_m2, v.ext_m3, v.ext_m4, v.ext_m5, v.ext_m6, v.ext_m7, v.ext_m8, v.ext_m9, v.ext_m10, v.ext_m11]
         # en su propia pantalla (preferencia): un clon público del Workbench, que pasa a ser la pública por defecto
         # para que los programas que ejecuta salgan en ella
         if env_get("Forja/pantalla") == "si" and screen_clone_wb(PANTALLA)
@@ -5932,6 +6163,7 @@ Main
         ed_auto_end = env_get("Forja/auto_end") != "no"
         teclas_leer()
         menu_editor()
+        teclas_vigilar()
         ruta = env_get("FORJA_PRUEBA")
         if ruta == "" and arg_count() > 0
             ruta = arg(0)
@@ -5972,7 +6204,7 @@ Main
             env_set("FORJA_ESTADO", "libre", false)
         end
         while true
-            ev = mui_wait_event_signals(dbg_signal())
+            ev = mui_wait_event_signals(dbg_signal() | file_notify_signal())
             if sonda
                 sonda_eventos = sonda_eventos + "#{ev}@#{(time_ms() / 100) % 10000}"
                 if ev == EV_EDITOR
@@ -5985,6 +6217,7 @@ Main
             end
             if ev == 0
                 mirar_depuracion()
+                teclas_mirar()
             end
             # el puntero sobre el editor solo importa parado en el depurador (el valor bajo el ratón): sin nada más
             if ev == EV_EDITOR_MOVER and ed_valor_texto == "" and (tarea != DEPURANDO or dbg_state() != 3)
@@ -6019,6 +6252,10 @@ Main
                 ev = tecla_depurador(mui_canvas_key(v.proyecto))
             elif ev == EV_SALIDA and mui_canvas_key(v.salida) >= 0 and tecla_depurador(mui_canvas_key(v.salida)) != 0
                 ev = tecla_depurador(mui_canvas_key(v.salida))
+            elif ev == EV_PROYECTO and depuracion.length > 0 and es_flecha(mui_canvas_key(v.proyecto))
+                # depurando, las flechas sobre el panel mueven la pila y las variables (como antes de que el teclado
+                # fuera al editor con el puntero en el panel; idea de David Martínez): se queda en EV_PROYECTO
+                ev = EV_PROYECTO
             elif (ev == EV_PROYECTO or ev == EV_SALIDA) and ed_actual() != nil
                 # una tecla con el puntero sobre el proyecto o la salida: es del editor (el teclado va al editor
                 # aunque el puntero no esté encima)
@@ -6037,6 +6274,11 @@ Main
                 end
             end
             if ev == -1
+                ev = EV_SALIR
+            end
+            if ev == EV_SALIR_EXT
+                tic_armado = false
+                armar_tic(REPOSO_MS, EV_TIC)
                 ev = EV_SALIR
             end
             if ev == EV_SALIR or (ev >= EV_NUEVO and ev <= EV_CERRAR) or ev == EV_NUEVO_EXT

@@ -260,6 +260,9 @@ its colours, the file's (on a screen of the program's own)
 MSG_145
 its colours, the file's, in the screen's palette (colour 0, the transparent one, is the background)
 ; sus colores, los del fichero, en la paleta de la pantalla (el 0, el transparente, es el fondo)
+MSG_146
+Quit Forja
+; Salir de Forja
 MSG_870
 not fixed width
 ; no es de ancho fijo

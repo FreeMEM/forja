@@ -485,6 +485,15 @@ func atender_rexx()
             if salida_ocupada
                 rexx_reply(5, "")
             else
+                # el proyecto de ahora: el suceso PROYECTO llega por la cola y esta orden por el puerto, y un guion que
+                # abre un proyecto y manda GIT enseguida iba al de antes (lo vio tests/coffin.sh)
+                pr = forja_proyecto()
+                if pr.length > 0 and pr[0] != "" and pr[0] != proyecto
+                    proyecto = pr[0]
+                    if git_mirar_cajon(proyecto)
+                        al_dia()
+                    end
+                end
                 a_la_salida(resto)
                 rexx_reply(0, "")
             end

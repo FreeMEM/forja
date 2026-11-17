@@ -124,6 +124,15 @@ func _tc_preparar()
     end
 end
 
+# Vuelve a las teclas por defecto (antes de leer otra vez el fichero, si cambió)
+func tc_por_defecto()
+    _tc_teclas.clear()
+    _tc_codigo.clear()
+    _tc_letra.clear()
+    _tc_q.clear()
+    _tc_preparar()
+end
+
 # El número de una orden por su nombre (0 si no es ninguna)
 func tc_numero(nombre: String) -> Int
     o = 1

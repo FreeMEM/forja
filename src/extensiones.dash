@@ -28,7 +28,7 @@ const EXT_SUBMENUS = 3          # los submenús propios (ventana.dashui: ext_s0 
 const EXT_SUB_OPCIONES = 10     # ... con 10 opciones cada uno (ext_s0_0 a ext_s0_9): las ranuras 12 a 41
 const EXT_TOTAL = 42            # todas las ranuras (eventos EV_EXT_MENU + ranura)
 const EXT_PAUSA = 1200          # sin escribir este tiempo, CAMBIADO (la extensión puede pedir otro: pausa)
-const EXT_API = "4"             # la versión de la API (HOLA la da): la 2 trae ZONA, VISTA, RAYAS, submenu, pausa; la 3, SUGERENCIA y cerrar una VISTA; la 4, nuevo, NUEVO, GUARDADO, SINGUARDAR, GUARDAR, DELANTE y COMPILAR fichero
+const EXT_API = "5"             # la versión de la API (HOLA la da): la 2 trae ZONA, VISTA, RAYAS, submenu, pausa; la 3, SUGERENCIA y cerrar una VISTA; la 4, nuevo, NUEVO, GUARDADO, SINGUARDAR, GUARDAR, DELANTE y COMPILAR fichero; la 5, EDITANDO
 const EXT_AVISOS = "ENV:Forja/Avisos"
 
 struct Extension
@@ -56,6 +56,7 @@ struct Extension
     cambio_visto: Int = 0 # el último cambio del que se le dio CAMBIADO (ext_cambio_n)
     nuevos: [String] = nil      # lo que hace nuevo (nuevo = en el manifiesto): "título|orden|descripción"
     sin_guardar: [String] = nil # sus ficheros con cambios sin guardar (SINGUARDAR): Forja pregunta al salir
+    abiertos: [String] = nil    # sus ficheros abiertos (EDITANDO, la ruta entera): van en la sesión
 end
 
 var extensiones: [Extension] = []
@@ -111,6 +112,8 @@ func ext_leer_manifiesto(cajon: String, id: String) -> Extension
     var sin_guardar: [String] = []
     e.nuevos = nuevos
     e.sin_guardar = sin_guardar
+    var abiertos: [String] = []
+    e.abiertos = abiertos
     idioma = str_lower(catalog_language())
     var menus_idioma: [String] = []
     var nuevos_idioma: [String] = []
@@ -435,6 +438,7 @@ func ext_parada(i: Int)
     e = extensiones[i]
     e.estado = EXT_PARADA
     e.sin_guardar.clear()
+    e.abiertos.clear()
     e.cola.clear()
     e.esperando = 0
     marcas_quitar_ext(e.id)
@@ -454,6 +458,7 @@ func ext_despedir(i: Int)
     end
     e.estado = EXT_PARADA
     e.sin_guardar.clear()
+    e.abiertos.clear()
     e.esperando = 0
     marcas_quitar_ext(e.id)
     bb_zona_quitar(e.id)
@@ -823,6 +828,35 @@ func ext_poner_sin_guardar(id: String, nombres: [String]) -> Bool
         end
     end
     return true
+end
+
+# EDITANDO: los ficheros que tiene abiertos una extensión, con su ruta entera (sustituye la lista de antes)
+func ext_poner_abiertos(id: String, rutas: [String]) -> Bool
+    i = ext_buscar(id)
+    if i < 0
+        return false
+    end
+    e = extensiones[i]
+    e.abiertos.clear()
+    for r in rutas
+        if r != ""
+            e.abiertos.push(r)
+        end
+    end
+    return true
+end
+
+# Los de todas las que están en marcha (para la sesión)
+func ext_abiertos() -> [String]
+    var r: [String] = []
+    for e in extensiones
+        if e.estado != EXT_PARADA
+            for n in e.abiertos
+                r.push(n)
+            end
+        end
+    end
+    return r
 end
 
 # Los de todas las que están en marcha

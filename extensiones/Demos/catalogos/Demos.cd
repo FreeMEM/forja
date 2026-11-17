@@ -1,0 +1,190 @@
+; Texts of /home/freemem/Projects/forja/.worktrees/pulido/extensiones/Demos/demos.dash (tools/catalogo.py)
+;
+MSG_1 (1//)
+Proyecto
+MSG_2 (2//)
+Abrir...
+MSG_3 (3//)
+Guardar las pistas
+MSG_4 (4//)
+Guardar las pistas como...
+MSG_5 (5//)
+Exportar las pistas (pistas_datos.dash)
+MSG_6 (6//)
+Compilar el programa
+MSG_7 (7//)
+Ejecutar el programa
+MSG_8 (8//)
+Cerrar
+MSG_9 (9//)
+Ver
+MSG_10 (10//)
+Copper
+MSG_11 (11//)
+Música
+MSG_12 (12//)
+Sincronía
+MSG_13 (13//)
+Medidor
+MSG_14 (14//)
+Pistas
+MSG_15 (15//)
+Deshacer
+MSG_16 (16//)
+Rehacer
+MSG_17 (17//)
+Pista nueva (n)
+MSG_18 (18//)
+Cambiar el nombre (r)
+MSG_19 (19//)
+Quitar la pista (Mayús Supr)
+MSG_20 (20//)
+Mover a la izquierda (Alt izquierda)
+MSG_21 (21//)
+Mover a la derecha (Alt derecha)
+MSG_22 (22//)
+Copper
+MSG_23 (23//)
+Al código
+MSG_24 (24//)
+Leer del código
+MSG_25 (25//)
+Probar en una pantalla
+MSG_26 (26//)
+Ventana
+MSG_27 (27//)
+flechas parada  May/Alt+flechas línea  r g b (May: -)  n nueva  Supr  d modo  t código  c color  Return al código  l leer  p probar
+MSG_28 (28//)
+Espacio toca/para  izq/der posición  arriba/abajo fila  Return mete la fila en el código  s a la sincronía
+MSG_29 (29//)
+flechas (May: 16 filas)  cifras y Return clave  Supr quita  i tipo  n pista  Espacio pausa  g ir  v la demo delante/detrás
+MSG_30 (30//)
+Las líneas de raster de cada imagen de la demo (sync_fotograma y sync_fin)
+MSG_31 (31//)
+sin demo
+MSG_32 (32//)
+ (pausa)
+MSG_33 (33//)
+degradado
+MSG_34 (34//)
+cambios secos
+MSG_35 (35//)
+llamadas a copper_*
+MSG_36 (36//)
+tabla para asm
+MSG_37 (37//)
+Abre en Forja el .dash donde va el copper.
+MSG_38 (38//)
+No hay un fichero delante en Forja.
+MSG_39 (39//)
+No hay un bloque \"# copper:\" con su línea \"# paradas:\" en el fichero.
+MSG_40 (40//)
+No se puede abrir la pantalla.
+MSG_41 (41//)
+Abre un .mod (Amiga-O, o desde el panel del proyecto de Forja).
+MSG_42 (42//)
+parada
+MSG_43 (43//)
+la de la demo
+MSG_44 (44//)
+suena
+MSG_45 (45//)
+Nueva pista (sin espacios; Return la hace, Esc no): 
+MSG_46 (46//)
+Sin pistas: n hace una (zoom, fundido, escena...).
+MSG_47 (47//)
+(sin fichero)
+MSG_48 (48//)
+Guarda antes las pistas (Amiga-S): pistas_datos.dash va a su lado.
+MSG_49 (49//)
+Sin demo. Ejecuta una que use sync.dash con VIVO = true (Amiga-E en Forja).
+MSG_50 (50//)
+Demos: la demo ha acabado.
+MSG_51 (51//)
+Demos: no se puede abrir MUI.
+MSG_52 (52//)
+Demos es una extensión de Forja: la arranca Forja.
+MSG_53 (53//)
+Copper
+MSG_54 (54//)
+Música
+MSG_55 (55//)
+Sincronía
+MSG_56 (56//)
+Medidor
+MSG_57 (57//)
+demo: fila %1, %2 líneas
+MSG_58 (58//)
+demo: fila %1, %2 líneas
+MSG_59 (59//)
+Código: %1, %2 instrucciones
+MSG_60 (60//)
+línea %1
+MSG_61 (61//)
+%1 cambiado en %2.
+MSG_62 (62//)
+%1 metido en el cursor de %2.
+MSG_63 (63//)
+Leído %1 (%2 paradas).
+MSG_64 (64//)
+%1: un clic vuelve
+MSG_65 (65//)
+posición %1  patrón %2  fila %3  -> sincronía %4
+MSG_66 (66//)
+music_load no puede con %1
+MSG_67 (67//)
+Fila %1 metida en el código (posición y fila: %2).
+MSG_68 (68//)
+Nombre nuevo de %1 (Return lo cambia, Esc no): 
+MSG_69 (69//)
+suena la fila %1
+MSG_70 (70//)
+cursor: fila %1 (posición %2)
+MSG_71 (71//)
+La demo no contesta (%1).
+MSG_72 (72//)
+No es un número: 
+MSG_73 (73//)
+Tipo de la clave: 
+MSG_74 (74//)
+Nada que rehacer.
+MSG_75 (75//)
+Nada que deshacer.
+MSG_76 (76//)
+Ya hay una pista %1.
+MSG_77 (77//)
+Ya hay una pista %1.
+MSG_78 (78//)
+La pista %1 ahora es %2: cámbiala también en el código (sync_valor).
+MSG_79 (79//)
+Pista %1 quitada (Amiga-Z la devuelve).
+MSG_80 (80//)
+No se puede leer 
+MSG_81 (81//)
+Guardado: 
+MSG_82 (82//)
+Exportadas %1 pistas a %2.
+MSG_83 (83//)
+Última imagen: %1 líneas (%2 %)   media %3   máximo %4
+MSG_84 (84//)
+perdidas %1
+MSG_85 (85//)
+Demos: la demo está conectada (%1).
+MSG_86 (86//)
+Forja no encuentra el programa de %1.
+MSG_87 (87//)
+No se puede escribir 
+MSG_88 (88//)
+Las pistas de %1 tienen cambios sin guardar.
+MSG_89 (89//)
+_Guardar|_Descartar|_Cancelar
+MSG_90 (90//)
+No se puede leer 
+MSG_91 (91//)
+No es un MOD de 4 canales y 31 instrumentos: 
+MSG_92 (92//)
+El MOD está cortado: 
+MSG_94 (94//)
+Salir de Forja
+MSG_870 (870//)
+no es de ancho fijo

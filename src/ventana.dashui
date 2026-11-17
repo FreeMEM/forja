@@ -89,22 +89,10 @@
           ]
         },
         {
-          "tr": 620, "title": "Extensiones",
+          "tr": 620, "title": "Extensiones", "name": "menu_extensiones",
           "items": [
             { "tr": 621, "label": "Gestor de extensiones...", "event": 180 },
-            { "separator": true },
-            { "name": "ext_m0", "label": "", "event": 200, "disabled": true },
-            { "name": "ext_m1", "label": "", "event": 201, "disabled": true },
-            { "name": "ext_m2", "label": "", "event": 202, "disabled": true },
-            { "name": "ext_m3", "label": "", "event": 203, "disabled": true },
-            { "name": "ext_m4", "label": "", "event": 204, "disabled": true },
-            { "name": "ext_m5", "label": "", "event": 205, "disabled": true },
-            { "name": "ext_m6", "label": "", "event": 206, "disabled": true },
-            { "name": "ext_m7", "label": "", "event": 207, "disabled": true },
-            { "name": "ext_m8", "label": "", "event": 208, "disabled": true },
-            { "name": "ext_m9", "label": "", "event": 209, "disabled": true },
-            { "name": "ext_m10", "label": "", "event": 210, "disabled": true },
-            { "name": "ext_m11", "label": "", "event": 211, "disabled": true }
+            { "separator": true }
           ]
         }
       ],

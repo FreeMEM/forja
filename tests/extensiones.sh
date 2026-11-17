@@ -33,6 +33,10 @@ echo "un dibujo" > "$tmp/sys/Prueba/dibujo.eco"
 cp "$aqui/extensiones/Contar/manifiesto.txt" "$tmp/sys/Prueba/Extensiones/Contar/"
 "$dash/dash" "$aqui/extensiones/Contar/contar.dash" -o "$tmp/sys/Prueba/Extensiones/Contar/Contar"
 cp "$aqui/tests/extensiones/Eco/manifiesto.txt" "$tmp/sys/Prueba/Extensiones/Eco/"
+# una extensión para instalar desde un cajón con el gestor (su programa no se arranca: el de Contar, con otro nombre)
+mkdir -p "$tmp/sys/Fuera/Saludo"
+printf 'nombre = Saludo\nversion = 1.0\nautor = Prueba\ndescripcion = Para probar el gestor.\nprograma = Saludo\narranque = menu\nmenu = Saludar | | saludo\n' > "$tmp/sys/Fuera/Saludo/manifiesto.txt"
+cp "$tmp/sys/Prueba/Extensiones/Contar/Contar" "$tmp/sys/Fuera/Saludo/Saludo"
 "$dash/dash" "$aqui/tests/extensiones/Eco/eco.dash" -o "$tmp/sys/Prueba/Extensiones/Eco/Eco"
 if [ -n "$dashc" ]; then
   mkdir -p "$tmp/sys/Dash"

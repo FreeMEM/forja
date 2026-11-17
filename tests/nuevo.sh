@@ -22,6 +22,8 @@ cp "$dashc"/dashc_*.drt "$tmp/sys/Dash/"
 {
   echo "C:MakeDir ENV:Forja"
   echo "SetEnv Forja/dashc DH0:Dash/dashc"
+  # (la prueba escribe los end ella misma: sin el end solo de la fase 2)
+  echo "SetEnv Forja/auto_end no"
   echo "SetEnv FORJA_SONDA 1"
   echo "Run >NIL: DH0:Prueba/UsuarioNuevo"
 } >> "$tmp/sys/S/Startup-Extra"
