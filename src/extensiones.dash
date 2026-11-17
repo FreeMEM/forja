@@ -1105,9 +1105,9 @@ func ext_sacar_lha(archivo: String) -> String
             nombre = nombre[0:nombre.length - 4]
         end
         ext_copiar_cajon(EXT_TMP, "T:ForjaInstalar-" + nombre)
-        run_capture("C:Delete \"" + EXT_TMP + "\" ALL QUIET FORCE", 60000)
+        ext_borrar_cajon(EXT_TMP)
         ext_copiar_cajon("T:ForjaInstalar-" + nombre, ruta_unir(EXT_TMP, nombre))
-        run_capture("C:Delete \"T:ForjaInstalar-" + nombre + "\" ALL QUIET FORCE", 60000)
+        ext_borrar_cajon("T:ForjaInstalar-" + nombre)
         dir = ruta_unir(EXT_TMP, nombre)
     end
     return dir
@@ -1115,8 +1115,34 @@ end
 
 func ext_limpiar_lha()
     if file_exists(EXT_TMP)
-        run_capture("C:Delete \"" + EXT_TMP + "\" ALL QUIET FORCE", 60000)
+        ext_borrar_cajon(EXT_TMP)
     end
+end
+
+# Borra un cajón con todo lo que tiene (sin C:Delete, que no todos los sistemas tienen en C:)
+func ext_borrar_cajon(dir: String)
+    n = dir_read(dir)
+    if n > 0
+        var nombres: [String] = []
+        var cajones: [Bool] = []
+        i = 0
+        while i < n
+            nombres.push(dir_entry_name(i))
+            cajones.push(dir_entry_is_dir(i))
+            i = i + 1
+        end
+        i = 0
+        while i < nombres.length
+            r = ruta_unir(dir, nombres[i])
+            if cajones[i]
+                ext_borrar_cajon(r)
+            else
+                file_delete(r)
+            end
+            i = i + 1
+        end
+    end
+    file_delete(dir)
 end
 
 # El último nombre de una ruta ("Work:a/Contar/" -> "Contar")

@@ -762,13 +762,13 @@ func mirar_prueba()
     end
     ls.insert(0, cuenta)
     colores = color + colores
-    forja_panel(titulo_prueba(), "abajo", ls, colores)
-    forja_panel_botones(titulo_prueba(), [tr(83, "Otra vez") + "|otra", tr(84, "Abrir la prueba") + "|abrir", tr(85, "Cerrar") + "|cerrar"])
-    forja_panel_ver(titulo_prueba(), false)
     forja_aviso_tipo(tr(6, "Inferencia: ") + cuenta, tipo)
     if sonda
         env_set("FORJA_COPILOTO_PRUEBA", "#{bien} #{mal}", false)
     end
+    forja_panel(titulo_prueba(), "abajo", ls, colores)
+    forja_panel_botones(titulo_prueba(), [tr(83, "Otra vez") + "|otra", tr(84, "Abrir la prueba") + "|abrir", tr(85, "Cerrar") + "|cerrar"])
+    forja_panel_ver(titulo_prueba(), false)
     prueba_ultima = prueba_ruta
     prueba_ruta = ""
 end
