@@ -16,6 +16,7 @@
 
 import "lib/dashui.dash"
 import "tema.dash"
+import "lienzo.dash"
 
 const DV_MARGEN = 8
 const DV_SANGRIA = 14
@@ -49,6 +50,7 @@ var dv_mensaje: String = ""      # un error de la última propiedad
 var dv_vista: Int = 0            # la ventana de la vista previa (0: ninguna)
 # La geometría del último dibujo (desde la esquina de la zona)
 var dv_y0: Int = 0
+var dv_arriba: Int = 0           # dónde empieza la zona en el lienzo de Forja (debajo de las pestañas)
 var dv_fila_alto: Int = 12
 var dv_corte: Int = 200          # la x donde empiezan las propiedades
 var dv_columna_valor: Int = 100
@@ -59,6 +61,26 @@ var dv_tipo: Int = 0
 var _dv_buscar: Json = nil        # el nodo que debe quedar elegido al rehacer las filas
 
 var _dv_tipos: {String: String} = {}
+
+# El lienzo (lo pidió Jose): la ventana dibujada, con la paleta de objetos encima. Tab cambia entre la ventana y
+# el árbol.
+var dv_ver_arbol: Bool = false
+var dv_paleta_alto: Int = 0       # lo que ocupa la paleta, desde arriba de la zona
+var _dv_chips_x: [Int] = []       # los botones de la paleta: dónde está cada uno (el último, Ventana/Árbol)
+var _dv_chips_y: [Int] = []
+var _dv_chips_w: [Int] = []
+var _dv_vx0: Int = 0              # dónde se dibujó la ventana y la paleta (para la sonda de las pruebas)
+var _dv_vy0: Int = 0
+var _dv_px0: Int = 0
+var _dv_py0: Int = 0
+var dv_encima: Int = -1          # el botón de la paleta con el puntero encima (-1: ninguno)
+var dv_herramienta: String = ""   # el tipo elegido en la paleta: un clic en la ventana lo pone ahí
+var dv_arr_tipo: String = ""      # lo que se arrastra: uno nuevo de la paleta...
+var dv_arr_nodo: Json = nil       # ...o un objeto de la ventana
+var dv_arrastrando: Bool = false
+var _dv_clic_ms: Int = -10000     # el último clic en la ventana, para el doble clic
+var _dv_clic_nodo: Json = nil
+const DV_DOBLE_MS = 500
 
 func _dv_preparar()
     if _dv_tipos.length > 0
@@ -88,6 +110,20 @@ func _dv_preparar()
     _dv_tipos["combo"] = "text|options|ack|change"
     _dv_tipos["space"] = ""
     _dv_tipos["balance"] = ""
+end
+
+# El nombre de un tipo en la paleta
+func dv_nombre_tipo(tipo: String) -> String
+    tipos = str_split(TIPOS, "|")
+    var nombres: [String] = str_split(tr(1101, "Botón|Texto|Etiqueta|Campo|Casilla|Ciclo|Deslizador|Medidor|Lista|Lienzo|Barra|Imagen|Combo|Espacio|Separador|Grupo H|Grupo V|Marco|Tabla|Pestañas|Desplazable"), "|")
+    i = 0
+    while i < tipos.length
+        if tipos[i] == tipo and i < nombres.length
+            return nombres[i]
+        end
+        i = i + 1
+    end
+    return tipo
 end
 
 func _dv_numerica(p: String) -> Bool
@@ -545,6 +581,16 @@ func dv_tecla(codigo: Int, teclas: Int, letra: String) -> Bool
         end
         return false
     end
+    if codigo == 0x42 and (teclas & 7) == 0
+        # Tab: la ventana o el árbol
+        dv_ver_arbol = not dv_ver_arbol
+        dv_herramienta = ""
+        return false
+    end
+    if codigo == 0x45 and dv_herramienta != ""
+        dv_herramienta = ""
+        return false
+    end
     if dv_prop < 0
         if letra == "+"
             return _dv_anadir()
@@ -599,14 +645,150 @@ func _dv_empezar_edicion()
     dv_editando = true
 end
 
-# Un clic en la zona: elige una fila del árbol, o una propiedad (y empieza a editarla)
-func dv_clic(x: Int, y: Int)
-    if y < dv_y0
-        return
+# Elige en el árbol la fila de ese nodo
+func _dv_elegir_nodo(n: Json)
+    i = 0
+    while i < dv_filas.length
+        if dv_filas[i].nodo == n
+            if dv_sel != i
+                dv_prop = -1
+            end
+            dv_sel = i
+            _dv_listar_props()
+            return
+        end
+        i = i + 1
     end
-    i = (y - dv_y0) / dv_fila_alto
+end
+
+# El botón de la paleta en ese punto (desde la esquina de la zona): su número, o -1
+func _dv_chip_en(x: Int, y: Int) -> Int
+    i = 0
+    while i < _dv_chips_x.length
+        if x >= _dv_chips_x[i] and x < _dv_chips_x[i] + _dv_chips_w[i] and y >= _dv_chips_y[i] and y < _dv_chips_y[i] + dv_fila_alto
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Pone lo arrastrado (uno nuevo de tipo, o el nodo movido) donde dijo lz_destino; true si cambió
+func _dv_soltar(tipo: String, movido: Json) -> Bool
+    lista = lz_dest_lista
+    if lista == nil
+        return false
+    end
+    i = lz_dest_indice
+    var n: Json = nil
+    if movido != nil
+        # se quita de su lista (si es la misma y estaba antes, el sitio de destino corre uno)
+        var f: Fila = nil
+        for fi in dv_filas
+            if fi.nodo == movido
+                f = fi
+            end
+        end
+        if f == nil or f.padre == nil
+            return false
+        end
+        k = _dv_posicion(f.padre, movido)
+        if f.padre == lista and (k == i or k == i - 1)
+            return false
+        end
+        f.padre.items.remove(k)
+        if f.padre == lista and k < i
+            i = i - 1
+        end
+        n = movido
+    else
+        n = _dv_nuevo(tipo)
+    end
+    _dv_meter(lista, i, n)
+    _dv_buscar = n
+    _dv_hacer_filas()
+    return true
+end
+
+# Un clic en la zona (desde la esquina del lienzo de Forja; la zona empieza en dv_arriba). Da 0 si solo cambió lo
+# que se ve, 1 si cambió el fichero (dv_texto() es el nuevo) y 2 si fue un doble clic en un objeto de la ventana
+# (Forja va a su manejador: dv_evento_elegido).
+func dv_clic(x: Int, y: Int) -> Int
     dv_editando = false
     dv_mensaje = ""
+    dv_arr_tipo = ""
+    dv_arr_nodo = nil
+    dv_arrastrando = false
+    zy = y - dv_arriba
+    if zy < 0
+        return 0
+    end
+    if zy < dv_paleta_alto
+        k = _dv_chip_en(x, zy)
+        if k < 0
+            return 0
+        end
+        if k == _dv_chips_x.length - 1
+            dv_ver_arbol = not dv_ver_arbol
+            dv_herramienta = ""
+            return 0
+        end
+        tipo = str_split(TIPOS, "|")[k]
+        if dv_ver_arbol
+            # sin la ventana a la vista: como "+" con ese tipo
+            if dv_filas[dv_sel].clase == F_OBJETO
+                return _dv_resultado(_dv_anadir_tipo(tipo))
+            end
+            return 0
+        end
+        # se elige (otro clic en él lo suelta); arrastrándolo, se pone donde se suelte
+        if dv_herramienta == tipo
+            dv_herramienta = ""
+        else
+            dv_herramienta = tipo
+        end
+        dv_arr_tipo = tipo
+        return 0
+    end
+    if y < dv_y0
+        return 0
+    end
+    i = (y - dv_y0) / dv_fila_alto
+    if x < dv_corte and not dv_ver_arbol
+        lx = x
+        ly = zy - dv_paleta_alto
+        c = lz_en(lx, ly)
+        if dv_herramienta != ""
+            # con un tipo elegido en la paleta: uno nuevo donde se pulsó
+            tipo = dv_herramienta
+            dv_herramienta = ""
+            lz_destino(lx, ly, nil)
+            return _dv_resultado(_dv_soltar(tipo, nil))
+        end
+        if c == nil
+            return 0
+        end
+        n = c.nodo
+        if lz_en_titulo(lx, ly)
+            n = dv_ventana
+        end
+        p = lz_pestana_en(c, lx, ly)
+        if p >= 0
+            lz_poner_pagina(c.nodo, p)
+        end
+        _dv_elegir_nodo(n)
+        ahora = time_ms()
+        if n == _dv_clic_nodo and ahora - _dv_clic_ms < DV_DOBLE_MS
+            _dv_clic_nodo = nil
+            return 2
+        end
+        _dv_clic_nodo = n
+        _dv_clic_ms = ahora
+        if c.padre != nil and n != dv_ventana
+            dv_arr_nodo = n
+        end
+        return 0
+    end
     if x < dv_corte
         i = i + dv_primera
         if i < dv_filas.length
@@ -618,6 +800,309 @@ func dv_clic(x: Int, y: Int)
         dv_prop = i
         _dv_empezar_edicion()
     end
+    return 0
+end
+
+func _dv_resultado(cambio: Bool) -> Int
+    if cambio
+        return 1
+    end
+    return 0
+end
+
+# Arrastrando con el ratón (estado 1: moviendo, 2: soltado), desde un botón de la paleta o un objeto de la
+# ventana; true si cambió el fichero
+func dv_arrastre(x: Int, y: Int, estado: Int) -> Bool
+    if dv_arr_tipo == "" and dv_arr_nodo == nil
+        return false
+    end
+    lx = x
+    ly = y - dv_arriba - dv_paleta_alto
+    dentro = not dv_ver_arbol and x >= 0 and x < dv_corte and ly >= 0
+    if estado == 1
+        dv_arrastrando = true
+        if dentro
+            lz_destino(lx, ly, dv_arr_nodo)
+        else
+            lz_dest_lista = nil
+        end
+        return false
+    end
+    tipo = dv_arr_tipo
+    movido = dv_arr_nodo
+    dv_arr_tipo = ""
+    dv_arr_nodo = nil
+    dv_arrastrando = false
+    if not dentro
+        lz_dest_lista = nil
+        return false
+    end
+    dv_herramienta = ""
+    lz_destino(lx, ly, movido)
+    r = _dv_soltar(tipo, movido)
+    lz_dest_lista = nil
+    return r
+end
+
+# Para las pruebas: dónde se ve cada cosa, desde la esquina de la ventana de Forja ("tipo:x,y,ancho,alto" de cada
+# botón de la paleta, "nombre:x,y,ancho,alto" de cada objeto con nombre de la ventana, "titulo:..." de su barra y
+# "props:..." de la primera fila de las propiedades, separados por espacios)
+func dv_sonda() -> String
+    r = ""
+    tipos = str_split(TIPOS, "|")
+    i = 0
+    while i < _dv_chips_x.length
+        t = "vista"
+        if i < tipos.length
+            t = tipos[i]
+        end
+        r = r + "#{t}:#{_dv_px0 + _dv_chips_x[i]},#{_dv_py0 + _dv_chips_y[i]},#{_dv_chips_w[i]},#{dv_fila_alto} "
+        i = i + 1
+    end
+    if not dv_ver_arbol
+        # (los que no tienen nombre, como "_tipoN": el N-ésimo sin nombre de ese tipo, en el orden del dibujo)
+        var vistos: {String: Int} = {}
+        for c in lz_cajas
+            nombre = json_get_str(c.nodo, "name")
+            if nombre == ""
+                k = vistos.get(c.tipo, 0) + 1
+                vistos[c.tipo] = k
+                nombre = "_" + c.tipo + "#{k}"
+            end
+            r = r + "#{nombre}:#{_dv_vx0 + c.x},#{_dv_vy0 + c.y},#{c.w},#{c.h} "
+        end
+        r = r + "titulo:#{_dv_vx0 + lz_vx},#{_dv_vy0 + lz_vy},#{lz_vw},#{lz_titulo_alto} "
+    end
+    # la primera fila de las propiedades (las demás van debajo, de dv_fila_alto en dv_fila_alto)
+    r = r + "props:#{_dv_props_px},#{_dv_props_y},#{_dv_props_derecha - _dv_props_px},#{dv_fila_alto}"
+    return r
+end
+
+# --- El evento del elegido (el doble clic; lo pidió Jose) ---
+
+var dv_ev_clave: String = ""      # la propiedad del evento ("event", "change", "ack", "double", "close")
+var dv_ev_objeto: String = ""     # el nombre del objeto (para la constante del código)
+var dv_ev_cambio: Bool = false    # se le puso número o nombre: el fichero cambió (dv_texto())
+
+# La propiedad del evento de un nodo, según su tipo ("" si no da eventos)
+func _dv_clave_evento(f: Fila) -> String
+    n = f.nodo
+    if f.clase == F_VENTANA
+        return "close"
+    end
+    if f.clase == F_MENU
+        return ""
+    end
+    if f.clase == F_ELEMENTO
+        if json_get_bool(n, "separator") or json_has(n, "submenu")
+            return ""
+        end
+        return "event"
+    end
+    tipo = json_get_str(n, "type")
+    if tipo == "button" or tipo == "image_button"
+        return "event"
+    end
+    if tipo == "checkbox" or tipo == "cycle" or tipo == "slider" or tipo == "scrollbar" or tipo == "tabs" or tipo == "image_toggle"
+        return "change"
+    end
+    if tipo == "list"
+        if json_has(n, "double") and not json_has(n, "change")
+            return "double"
+        end
+        return "change"
+    end
+    if tipo == "string" or tipo == "combo" or tipo == "text_editor"
+        if json_has(n, "change") and not json_has(n, "ack")
+            return "change"
+        end
+        return "ack"
+    end
+    # otro tipo con un evento puesto a mano
+    for p in ["event", "change", "ack", "double"]
+        if json_has(n, p)
+            return p
+        end
+    end
+    return ""
+end
+
+# Los números de evento del fichero (de todos los objetos, menús y ventanas)
+func _dv_numeros(n: Json, r: [Int])
+    if n == nil
+        return
+    end
+    if n.kind == JSON_OBJECT
+        for p in ["event", "change", "ack", "double", "close"]
+            v = json_get(n, p)
+            if v != nil and v.kind == JSON_NUMBER
+                r.push(json_num(v))
+            end
+        end
+        i = 0
+        while i < json_length(n)
+            _dv_numeros(json_value_at(n, i), r)
+            i = i + 1
+        end
+    elif n.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(n)
+            _dv_numeros(json_at(n, i), r)
+            i = i + 1
+        end
+    end
+end
+
+# Los nombres que ya hay en la ventana
+func _dv_nombres(n: Json, r: [String])
+    if n == nil
+        return
+    end
+    if n.kind == JSON_OBJECT
+        if json_has(n, "name")
+            r.push(json_get_str(n, "name"))
+        end
+        i = 0
+        while i < json_length(n)
+            _dv_nombres(json_value_at(n, i), r)
+            i = i + 1
+        end
+    elif n.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(n)
+            _dv_nombres(json_at(n, i), r)
+            i = i + 1
+        end
+    end
+end
+
+# las palabras del lenguaje (las de compiler/dashui.py reserved() de Dash) y window, el campo de la ventana
+const DV_RESERVADAS = "EventLoop|Main|Print|Ptr|Stop|Wait|Window|and|borrow|break|const|continue|elif|else|end|enum|false|fn|for|func|if|import|in|interface|nil|not|or|return|self|step|struct|true|var|weak|while|window"
+
+# Un nombre de campo sacado de un texto ("_Saludar" -> "saludar"), o "" si no sale uno que valga
+func dv_nombre_de(texto: String) -> String
+    t = str_lower(texto)
+    de = "áéíóúàèìòùäëïöüâêîôûñç"
+    a = "aeiouaeiouaeiouaeiounc"
+    r = ""
+    i = 0
+    while i < t.length
+        c = t[i:i + 1]
+        k = str_find(de, c)
+        if k >= 0
+            c = a[k:k + 1]
+        end
+        o = str_code(c, 0)
+        if (o >= 97 and o <= 122) or (o >= 48 and o <= 57)
+            r = r + c
+        elif (o == 32 or o == 45 or o == 46) and r != "" and not str_ends(r, "_")
+            r = r + "_"
+        end
+        i = i + 1
+    end
+    while str_ends(r, "_")
+        r = r[0:r.length - 1]
+    end
+    while r != "" and str_code(r, 0) >= 48 and str_code(r, 0) <= 57
+        r = r[1:]
+    end
+    if r.length > 24
+        r = r[0:24]
+    end
+    for p in str_split(DV_RESERVADAS, "|")
+        if r == str_lower(p)
+            return ""
+        end
+    end
+    return r
+end
+
+# El evento del elegido para ir a su código: su número (0 si no da eventos: dv_mensaje dice por qué). Si no tenía
+# número, le pone el menor libre (que no esté en el fichero ni en ocupados, los const del .dash); si no tenía
+# nombre, uno de su texto o de su tipo (dv_ev_cambio). dv_ev_objeto: su nombre.
+func dv_evento(ocupados: [Int]) -> Int
+    dv_ev_cambio = false
+    dv_mensaje = ""
+    f = dv_filas[dv_sel]
+    clave = _dv_clave_evento(f)
+    dv_ev_clave = clave
+    if clave == ""
+        if f.clase == F_OBJETO
+            dv_mensaje = hueco(tr(1107, "Un objeto %1 no da eventos."), dv_nombre_tipo(json_get_str(f.nodo, "type")))
+        else
+            dv_mensaje = tr(1108, "Esto no da eventos.")
+        end
+        return 0
+    end
+    n = f.nodo
+    # el nombre: el que tenga, o uno nuevo (la ventana siempre lo tiene)
+    nombre = json_get_str(n, "name")
+    if nombre == "" and f.clase != F_VENTANA
+        var usados: [String] = []
+        _dv_nombres(dv_ventana, usados)
+        base = ""
+        for p in ["label", "text", "title"]
+            if base == "" and json_has(n, p)
+                base = dv_nombre_de(lz_texto(json_get_str(n, p)))
+            end
+        end
+        if base == ""
+            if f.clase == F_ELEMENTO
+                base = dv_nombre_de(tr(1109, "opcion"))
+            else
+                base = dv_nombre_de(dv_nombre_tipo(json_get_str(n, "type")))
+            end
+        end
+        nombre = base
+        k = 1
+        while true
+            repetido = false
+            for u in usados
+                if u == nombre
+                    repetido = true
+                end
+            end
+            if not repetido
+                break
+            end
+            nombre = base + "#{k}"
+            k = k + 1
+        end
+        json_set_str(n, "name", nombre)
+        dv_ev_cambio = true
+    end
+    dv_ev_objeto = nombre
+    v = json_get(n, clave)
+    if v != nil and v.kind == JSON_NUMBER and json_num(v) > 0
+        if dv_ev_cambio
+            _dv_buscar = n
+            _dv_hacer_filas()
+        end
+        return json_num(v)
+    end
+    var hay: [Int] = []
+    _dv_numeros(dv_raiz, hay)
+    for o in ocupados
+        hay.push(o)
+    end
+    libre = 1
+    while true
+        esta = false
+        for h in hay
+            if h == libre
+                esta = true
+            end
+        end
+        if not esta
+            break
+        end
+        libre = libre + 1
+    end
+    json_set_int(n, clave, libre)
+    dv_ev_cambio = true
+    _dv_buscar = n
+    _dv_hacer_filas()
+    return libre
 end
 
 # --- Vista previa ---
@@ -713,6 +1198,8 @@ func dv_dibujar(x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
     gfx_rect(x, y, x + ancho - 1, y + alto - 1)
     usar_panel(0)
     dv_fila_alto = font_height() + 3
+    dv_arriba = arriba
+    dv_paleta_alto = 0
     dv_y0 = arriba + 4
     if dv_error_carga != ""
         gfx_pen(tema.error)
@@ -721,8 +1208,290 @@ func dv_dibujar(x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
         gfx_text_at(x + DV_MARGEN, y + 4 + dv_fila_alto + font_baseline(), tr(76, "Amiga-D enseña el fichero como texto."))
         return
     end
+    # la paleta, arriba, de lado a lado; debajo, la ventana o el árbol, y las propiedades
+    dv_paleta_alto = _dv_dibujar_paleta(x, y, ancho)
+    y = y + dv_paleta_alto
+    alto = alto - dv_paleta_alto
+    dv_y0 = arriba + dv_paleta_alto + 4
     dv_corte = ancho * 45 / 100
-    # el árbol, desde la fila que deja ver la elegida
+    if not dv_ver_arbol
+        dv_corte = ancho * 62 / 100
+        _dv_dibujar_ventana(x, y, dv_corte - 4, alto)
+        if lz_vy < 0
+            # la ventana bajada tapa la paleta: otra vez encima
+            _dv_dibujar_paleta(x, y - dv_paleta_alto, ancho)
+        end
+    else
+        _dv_dibujar_arbol(x, y, alto)
+    end
+    _dv_dibujar_props(x, y, ancho, alto)
+end
+
+# Un icono de la paleta, de 12 x 9 desde (x, y)
+func _dv_icono(tipo: String, x: Int, y: Int)
+    x2 = x + 11
+    y2 = y + 8
+    gfx_pen(tema.texto)
+    if tipo == "button"
+        gfx_box(x, y + 1, x2, y2 - 1)
+        gfx_pen(tema.tenue)
+        gfx_line(x + 1, y2, x2 + 1, y2)
+        gfx_line(x2 + 1, y + 2, x2 + 1, y2)
+    elif tipo == "text"
+        gfx_line(x, y + 1, x2, y + 1)
+        gfx_line(x, y + 4, x2 - 2, y + 4)
+        gfx_line(x, y + 7, x2 - 4, y + 7)
+    elif tipo == "label"
+        gfx_line(x + 3, y + 4, x2 - 1, y + 4)
+        gfx_rect(x2, y + 2, x2, y + 2)
+        gfx_rect(x2, y + 6, x2, y + 6)
+    elif tipo == "string"
+        gfx_box(x, y + 1, x2, y2 - 1)
+        gfx_line(x + 3, y + 3, x + 3, y2 - 3)
+    elif tipo == "checkbox"
+        gfx_box(x + 2, y, x + 10, y2)
+        gfx_line(x + 4, y + 4, x + 6, y + 6)
+        gfx_line(x + 6, y + 6, x + 9, y + 2)
+    elif tipo == "cycle"
+        gfx_box(x, y + 1, x2, y2 - 1)
+        gfx_line(x + 4, y + 1, x + 4, y2 - 1)
+        gfx_line(x + 1, y + 3, x + 3, y + 3)
+    elif tipo == "slider"
+        gfx_line(x, y + 4, x2, y + 4)
+        gfx_rect(x + 4, y + 1, x + 6, y2 - 1)
+    elif tipo == "gauge"
+        gfx_box(x, y + 2, x2, y2 - 2)
+        gfx_rect(x + 1, y + 3, x + 6, y2 - 3)
+    elif tipo == "list"
+        gfx_box(x, y, x2, y2)
+        gfx_line(x + 2, y + 2, x2 - 2, y + 2)
+        gfx_line(x + 2, y + 4, x2 - 2, y + 4)
+        gfx_line(x + 2, y + 6, x2 - 4, y + 6)
+    elif tipo == "canvas"
+        gfx_box(x, y, x2, y2)
+        gfx_line(x, y, x2, y2)
+        gfx_line(x, y2, x2, y)
+    elif tipo == "scrollbar"
+        gfx_box(x + 3, y, x + 8, y2)
+        gfx_rect(x + 4, y + 2, x + 7, y + 4)
+    elif tipo == "image"
+        gfx_box(x, y, x2, y2)
+        gfx_line(x + 1, y2 - 1, x + 5, y + 3)
+        gfx_line(x + 5, y + 3, x + 8, y + 6)
+        gfx_rect(x + 8, y + 2, x + 9, y + 3)
+    elif tipo == "combo"
+        gfx_box(x, y + 1, x + 7, y2 - 1)
+        gfx_line(x + 8, y + 3, x2, y + 3)
+        gfx_line(x + 9, y + 4, x2 - 1, y + 4)
+        gfx_rect(x + 10, y + 5, x + 10, y + 5)
+    elif tipo == "space"
+        gfx_pattern(0xAAAA)
+        gfx_box(x, y, x2, y2)
+        gfx_pattern(0xFFFF)
+    elif tipo == "balance"
+        gfx_line(x + 4, y, x + 4, y2)
+        gfx_line(x + 7, y, x + 7, y2)
+    elif tipo == "hgroup"
+        gfx_box(x, y + 2, x + 3, y2 - 2)
+        gfx_box(x + 4, y + 2, x + 7, y2 - 2)
+        gfx_box(x + 8, y + 2, x2, y2 - 2)
+    elif tipo == "vgroup"
+        gfx_box(x + 2, y, x2 - 2, y + 2)
+        gfx_box(x + 2, y + 3, x2 - 2, y + 5)
+        gfx_box(x + 2, y + 6, x2 - 2, y2)
+    elif tipo == "frame"
+        gfx_line(x, y + 2, x + 2, y + 2)
+        gfx_line(x + 9, y + 2, x2, y + 2)
+        gfx_line(x, y + 2, x, y2)
+        gfx_line(x2, y + 2, x2, y2)
+        gfx_line(x, y2, x2, y2)
+        gfx_line(x + 4, y + 1, x + 7, y + 1)
+    elif tipo == "columns"
+        gfx_box(x, y, x2, y2)
+        gfx_line(x + 6, y, x + 6, y2)
+        gfx_line(x, y + 4, x2, y + 4)
+    elif tipo == "tabs"
+        gfx_box(x, y + 3, x2, y2)
+        gfx_box(x, y, x + 5, y + 3)
+        gfx_line(x + 6, y + 1, x + 9, y + 1)
+        gfx_line(x + 9, y + 1, x + 9, y + 3)
+    elif tipo == "scroll"
+        gfx_box(x, y, x2, y2)
+        gfx_line(x2 - 3, y, x2 - 3, y2)
+        gfx_rect(x2 - 2, y + 2, x2 - 1, y + 4)
+    end
+end
+
+# La paleta: un icono por tipo y, al final, el botón que cambia entre la ventana y el árbol; a su derecha, el
+# nombre de lo que tiene el puntero encima. Da su alto.
+func _dv_dibujar_paleta(x: Int, y: Int, ancho: Int) -> Int
+    _dv_chips_x.clear()
+    _dv_chips_y.clear()
+    _dv_chips_w.clear()
+    tipos = str_split(TIPOS, "|")
+    cambio = tr(1103, "Árbol")
+    if dv_ver_arbol
+        cambio = tr(1102, "Ventana")
+    end
+    cx = DV_MARGEN / 2
+    cy = 2
+    i = 0
+    while i <= tipos.length
+        w = 17
+        if i == tipos.length
+            w = font_text_width(cambio) + 10
+            cx = cx + 4
+        end
+        if cx + w > ancho - 2 and cx > DV_MARGEN / 2
+            cx = DV_MARGEN / 2
+            cy = cy + dv_fila_alto + 1
+        end
+        _dv_chips_x.push(cx)
+        _dv_chips_y.push(cy)
+        _dv_chips_w.push(w)
+        cx = cx + w + 1
+        i = i + 1
+    end
+    h = cy + dv_fila_alto + 3
+    _dv_px0 = x
+    _dv_py0 = y
+    gfx_pen(tema.fondo_panel)
+    gfx_rect(x, y, x + ancho - 1, y + h - 1)
+    i = 0
+    while i <= tipos.length
+        bx = x + _dv_chips_x[i]
+        by = y + _dv_chips_y[i]
+        bx2 = bx + _dv_chips_w[i] - 1
+        by2 = by + dv_fila_alto - 1
+        if i < tipos.length
+            elegido = tipos[i] == dv_herramienta or (dv_arrastrando and tipos[i] == dv_arr_tipo)
+            if elegido
+                gfx_pen(tema.seleccion)
+                gfx_rect(bx, by, bx2, by2)
+            end
+            if i == dv_encima
+                gfx_pen(tema.borde)
+                gfx_box(bx, by, bx2, by2)
+            end
+            _dv_icono(tipos[i], bx + 2, by + (dv_fila_alto - 9) / 2)
+        else
+            gfx_pen(tema.acento)
+            gfx_box(bx, by, bx2, by2)
+            gfx_text_at(bx + 5, by + 1 + font_baseline(), cambio)
+        end
+        i = i + 1
+    end
+    # el nombre de lo que tiene el puntero encima (o del tipo elegido), detrás del último botón
+    nombre = ""
+    if dv_encima >= 0 and dv_encima < tipos.length
+        nombre = dv_nombre_tipo(tipos[dv_encima])
+    elif dv_herramienta != ""
+        nombre = dv_nombre_tipo(dv_herramienta)
+    end
+    k = tipos.length
+    nx = x + _dv_chips_x[k] + _dv_chips_w[k] + 8
+    if nombre != "" and nx + font_text_width(nombre) < x + ancho
+        gfx_pen(tema.tenue)
+        gfx_text_at(nx, y + _dv_chips_y[k] + 1 + font_baseline(), nombre)
+    end
+    gfx_pen(tema.borde)
+    gfx_line(x, y + h - 1, x + ancho - 1, y + h - 1)
+    return h
+end
+
+# El puntero se mueve sobre la zona (sin botón): true si hay que redibujar (cambió el icono de debajo)
+func dv_mover(x: Int, y: Int) -> Bool
+    k = -1
+    zy = y - dv_arriba
+    if zy >= 0 and zy < dv_paleta_alto
+        k = _dv_chip_en(x, zy)
+    end
+    if k == dv_encima
+        return false
+    end
+    dv_encima = k
+    return true
+end
+
+# La rueda sobre la ventana dibujada la sube o la baja (si no cabe)
+func dv_rueda(paso: Int)
+    lz_desplazado = lz_desplazado - paso * 12
+    if lz_desplazado < 0
+        lz_desplazado = 0
+    end
+end
+
+# Las pestañas que esconden a n enseñan su página
+func _dv_mostrar(raiz: Json, n: Json) -> Bool
+    if raiz == n
+        return true
+    end
+    hijos = json_get(raiz, "children")
+    if hijos == nil
+        return false
+    end
+    i = 0
+    while i < json_length(hijos)
+        if _dv_mostrar(json_at(hijos, i), n)
+            if json_get_str(raiz, "type") == "tabs"
+                lz_poner_pagina(raiz, i)
+            end
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+# La ventana dibujada, con lo elegido marcado y, si se arrastra algo, dónde caería
+func _dv_dibujar_ventana(x: Int, y: Int, ancho: Int, alto: Int)
+    elegido = dv_filas[dv_sel].nodo
+    if dv_filas[dv_sel].clase == F_OBJETO
+        raiz = json_get(dv_ventana, "root")
+        if raiz != nil
+            _dv_mostrar(raiz, elegido)
+        end
+    elif dv_filas[dv_sel].clase != F_VENTANA
+        elegido = nil
+    end
+    lz_disponer(dv_ventana, ancho, alto)
+    # que lo elegido se vea (y que no sobre hueco abajo si la ventana cabe)
+    maximo = lz_vh + 12 - alto + font_height() + 4
+    if maximo < 0
+        maximo = 0
+    end
+    if lz_desplazado > maximo
+        lz_desplazado = maximo
+        lz_disponer(dv_ventana, ancho, alto)
+    end
+    if elegido != nil and not dv_arrastrando
+        c = lz_caja_de(elegido)
+        if c != nil and (c.y < 0 or c.y + c.h > alto - font_height() - 6)
+            lz_desplazado = lz_desplazado + c.y - (alto - c.h) / 2
+            if lz_desplazado < 0
+                lz_desplazado = 0
+            end
+            lz_disponer(dv_ventana, ancho, alto)
+        end
+    end
+    _dv_vx0 = x
+    _dv_vy0 = y
+    lz_dibujar(x, y, elegido)
+    if dv_arrastrando
+        lz_dibujar_destino(x, y)
+    end
+    gfx_pen(tema.tenue)
+    ayuda = ""
+    if dv_herramienta != ""
+        ayuda = hueco(tr(1104, "Un clic en la ventana pone ahí: %1 (Esc, nada)."), dv_nombre_tipo(dv_herramienta))
+    else
+        ayuda = tr(1105, "Arrastra para mover. Doble clic: a su código.")
+    end
+    gfx_text_at(x + DV_MARGEN, y + alto - 4 - font_height() + font_baseline(), ayuda)
+end
+
+# El árbol, desde la fila que deja ver la elegida
+func _dv_dibujar_arbol(x: Int, y: Int, alto: Int)
     caben = (alto - 8) / dv_fila_alto
     if caben < 1
         caben = 1
@@ -761,7 +1530,38 @@ func dv_dibujar(x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
         fy = fy + dv_fila_alto
         i = i + 1
     end
-    # las propiedades (o la lista de tipos para el objeto nuevo)
+end
+
+# Las propiedades del elegido (o la lista de tipos para el objeto nuevo)
+var _dv_props_px: Int = 0
+var _dv_props_y: Int = 0
+var _dv_props_derecha: Int = 0
+var dv_solo_fila: Bool = false    # con mui_canvas_update: solo la propiedad que se escribe
+
+# Solo la propiedad que se está escribiendo (escribir no cambia nada más: no hace falta dibujarlo todo)
+func dv_dibujar_fila_editada()
+    if dv_prop < 0 or dv_prop >= dv_props.length
+        return
+    end
+    fy = _dv_props_y + dv_prop * dv_fila_alto
+    gfx_pen(tema.seleccion)
+    gfx_rect(_dv_props_px, fy, _dv_props_derecha, fy + dv_fila_alto - 1)
+    base = fy + 1 + font_baseline()
+    gfx_pen(tema.tenue)
+    gfx_text_at(_dv_props_px + DV_MARGEN, base, dv_props[dv_prop])
+    gfx_pen(tema.texto)
+    gfx_text_at(dv_columna_valor, base, dv_valor)
+    cx = dv_columna_valor + font_text_width(dv_valor[0:dv_cursor])
+    gfx_pen(tema.cursor)
+    gfx_rect(cx, fy, cx + 1, fy + dv_fila_alto - 1)
+end
+
+# Dónde está esa fila en el lienzo de Forja: [x, y, ancho, alto]
+func dv_zona_fila_editada(ancho: Int) -> [Int]
+    return [dv_corte, dv_y0 + dv_prop * dv_fila_alto, ancho - dv_corte, dv_fila_alto]
+end
+
+func _dv_dibujar_props(x: Int, y: Int, ancho: Int, alto: Int)
     px = x + dv_corte
     gfx_pen(tema.fondo_panel)
     gfx_rect(px, y, x + ancho - 1, y + alto - 1)
@@ -778,6 +1578,9 @@ func dv_dibujar(x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
         end
     end
     dv_columna_valor = px + DV_MARGEN + dv_columna_valor + 12
+    _dv_props_px = px
+    _dv_props_y = y + 4
+    _dv_props_derecha = x + ancho - 1
     fy = y + 4
     i = 0
     for p in dv_props

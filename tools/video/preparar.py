@@ -128,7 +128,7 @@ def hay_agente():
         return False
 
 
-PAQUETE = "dash-2.17.0-amiga.lha"
+PAQUETE = os.environ.get("VIDEO_PAQUETE", "dash-2.17.0-amiga.lha")
 
 
 def traspaso(lengua):
@@ -145,6 +145,12 @@ def traspaso(lengua):
         shutil.copy(os.path.join(V, "agente", f), TRASP)
     shutil.copy(os.path.expanduser("~/.cache/dash-emu/minigl/minigl.library"), TRASP)   # solo a esta copia
     shutil.copytree(os.path.join(V, "ficheros08"), os.path.join(TRASP, "ficheros"))     # suma.dash, musica.mod, Inferencia
+    # el robot A de Titan Force (modelo de SantiDarkG) para el capítulo del Taller 3D
+    robot = os.path.expanduser("~/Projects/titanforce/src/robot_A_tex.tft")
+    if os.path.exists(robot):
+        shutil.copy(robot, TRASP)
+        open(os.path.join(TRASP, "Titan.forja"), "w").write(
+            '{\n  "forja": 1,\n  "nombre": "Titan",\n  "tipo": "juego",\n  "principal": "main.dash",\n  "ejecutable": "Titan"\n}\n')
     open(os.path.join(TRASP, "screenmode.prefs"), "wb").write(SCREENMODE)
     if lengua in ("es", "en"):
         shutil.copy(os.path.join(V, "descargas", f"locale_{'english' if lengua == 'en' else 'espanol'}.prefs"),

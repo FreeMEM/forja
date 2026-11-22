@@ -1,5 +1,6 @@
 """Pasos sueltos del vídeo de Forja, medidos en Coffin R65 (RTG a 1280x1024). Los usa guion.py; también se pueden
 probar sueltos (python3 -c "import pasos; pasos.instalar()")."""
+import os
 import time
 
 import agente
@@ -10,7 +11,7 @@ from amiberry import orden
 RAMIGA, LAMIGA, CTRL, LALT, MAYUS = 0x80, 0x40, 0x08, 0x10, 0x01
 K_RETURN, K_X = 0x44, 0x32
 RAM_DISK, TRASPASO, PROGRAMS = (27, 45), (38, 250), (27, 115)
-PAQUETE = "dash-2.17.0-amiga.lha"
+PAQUETE = os.environ.get("VIDEO_PAQUETE", "dash-2.17.0-amiga.lha")
 
 
 def esperar_ventana(titulo, tope=20):
@@ -169,11 +170,12 @@ def env(nombre):
     f = os.path.expanduser("~/.cache/video-forja/traspaso/env.txt")
     if os.path.exists(f):
         os.remove(f)
-    agente.lanzar(f"C:GetEnv {nombre} >Traspaso:env.txt")
+    # (Copy y no GetEnv, que corta las largas, como FORJA_LIENZO)
+    agente.lanzar(f"C:Copy ENV:{nombre} Traspaso:env.txt QUIET")
     t = time.time()
     while time.time() - t < 5:
         if os.path.exists(f):
-            time.sleep(0.2)
+            time.sleep(0.3)
             return open(f, encoding="latin-1").read().strip()
         time.sleep(0.1)
     return ""

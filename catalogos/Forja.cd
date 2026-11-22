@@ -844,3 +844,31 @@ MSG_1024 (1024//)
 %1 vale ahora %2.
 MSG_1025 (1025//)
 Cambiar valor...
+MSG_1100 (1100//)
+vacío
+MSG_1101 (1101//)
+Botón|Texto|Etiqueta|Campo|Casilla|Ciclo|Deslizador|Medidor|Lista|Lienzo|Barra|Imagen|Combo|Espacio|Separador|Grupo H|Grupo V|Marco|Tabla|Pestañas|Desplazable
+MSG_1102 (1102//)
+Ventana
+MSG_1103 (1103//)
+Árbol
+MSG_1104 (1104//)
+Un clic en la ventana pone ahí: %1 (Esc, nada).
+MSG_1105 (1105//)
+Arrastra para mover. Doble clic: a su código.
+MSG_1107 (1107//)
+Un objeto %1 no da eventos.
+MSG_1108 (1108//)
+Esto no da eventos.
+MSG_1109 (1109//)
+opcion
+MSG_1110 (1110//)
+Guarda antes el .dashui: su código va en el .dash que lo importa.
+MSG_1111 (1111//)
+Ningún .dash de %1 importa %2: pon import \"%2\" en el programa.
+MSG_1112 (1112//)
+El evento %1 (%2), en su código.
+MSG_1113 (1113//)
+Añadida la constante %1: no hay un bucle de mui_wait_event donde poner su código.
+MSG_1114 (1114//)
+Creado el código del evento %1 (%2).

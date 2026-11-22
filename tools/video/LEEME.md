@@ -45,3 +45,14 @@ Mismas herramientas, con estas diferencias (todo en `*08*` o con un interruptor)
   eran de `mui_app_field_colors` con MUI 3.8 (ya no se pone ahí); Ctrl / con el mapa castellano (Mayúsculas+6) y
   Arreglar el error en Ctrl Alt G (Ctrl Alt F se la queda una commodity, como Ctrl Alt T, A, flechas y Espacio); los
   sprites sueltos tras Break; el paquete rehace Inferencia.
+
+## El vídeo con todo (09: el de la 0.8 y el diseñador de ventanas)
+
+- `guion09.py`, `locuciones09_*.json`, `textos09.py`: el guion de la 0.8 con el capítulo "ventanas" (el diseñador,
+  que pidió Jose) y sin copiar Inferencia aparte (el paquete la trae al día). Dash 2.20 hecho con la Forja de la rama
+  (`FORJA=... python3 tools/paquete_amiga.py` en un worktree de Dash). `VIDEO_PAQUETE=dash-2.20.0-amiga.lha` para
+  `preparar.py` y `guion09.py`; `VIDEO_VERSION` (por defecto 0.9, provisional) para los rótulos.
+- Música nueva (JaviTecH pidió no repetirla; la eligió el usuario): Overload, de Mantronix y Tip (Phenomena), con
+  `VIDEO_MUSICA=~/.cache/video-trasfondo2/musica/overload.wav` para `montar.py`.
+- `pasos.env` lee con `Copy` (GetEnv corta las variables largas, como `FORJA_LIENZO`).
+- El primer arranque de `preparar.py` (en AGA) a veces no lanza el agente y el Workbench se cae: se repite.

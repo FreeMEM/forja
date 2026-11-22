@@ -1,0 +1,240 @@
+# Hace de usuario del diseñador visual de ventanas de Forja (lo pidió Jose): abre DH0:Prueba/ventana/ventana.dashui
+# (la plantilla MUI), elige un botón con un clic en la ventana dibujada, lo arrastra delante del otro, arrastra una
+# casilla desde la paleta, pone un botón con la paleta y un clic, cambia al árbol con Tab y vuelve, y hace doble
+# clic en un botón para ir a su código en main.dash. Comprueba el texto con la sonda. Sale con Amiga-Q.
+# Lo arranca tests/disenador.sh; anota en DH0:Prueba/disenador.txt. ENV:DISENADOR_PASO dice por dónde va (para las
+# capturas).
+
+const AMIGA = 8
+const TAB = 0x42
+const FICHERO = "DH0:Prueba/ventana/ventana.dashui"
+# lo que se para en cada paso (en cincuentavos de segundo; ENV:DISENADOR_ESPERA), para que las capturas lo cojan
+var ESPERA: Int = 0
+
+var fallos: Int = 0
+var registro: String = ""
+
+func anotar(texto: String)
+    registro = registro + texto + "\n"
+    file_write_text("DH0:Prueba/disenador.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func paso(n: Int)
+    time_delay(ESPERA)
+    env_set("DISENADOR_PASO", "#{n}", false)
+    anotar("-- paso #{n} a los #{time_ms() / 1000} s")
+end
+
+func activar() -> Bool
+    if input_active_title() != "Forja"
+        w = window_find("Forja")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return input_active_title() == "Forja"
+end
+
+func texto() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    n = 0
+    while t == nil and n < 10
+        time_delay(5)
+        t = file_read_text("RAM:forja-sonda.txt")
+        n = n + 1
+    end
+    if t == nil
+        return ""
+    end
+    return t[str_find(t, "\n") + 1:]
+end
+
+func espera_cambio(antes: String) -> String
+    t = texto()
+    n = 0
+    while n < 25 and t == antes
+        time_delay(10)
+        t = texto()
+        n = n + 1
+    end
+    return t
+end
+
+# Dónde se ve algo del lienzo (un tipo de la paleta o el nombre de un objeto): [x, y, ancho, alto]; [] si no está
+func sitio(nombre: String) -> [Int]
+    for trozo in str_split(env_get("FORJA_LIENZO"), " ")
+        p = str_find(trozo, ":")
+        if p > 0 and trozo[0:p] == nombre
+            var r: [Int] = []
+            for n in str_split(trozo[p + 1:], ",")
+                r.push(Int(n))
+            end
+            return r
+        end
+    end
+    var nada: [Int] = []
+    return nada
+end
+
+# Espera a que el lienzo enseñe algo con ese nombre
+func espera_sitio(nombre: String) -> [Int]
+    n = 0
+    s = sitio(nombre)
+    while n < 50 and s.length == 0
+        time_delay(10)
+        s = sitio(nombre)
+        n = n + 1
+    end
+    return s
+end
+
+# La primera línea de la sonda: "línea columna nombre" del documento activo
+func cabecera() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return ""
+    end
+    return t[0:str_find(t, "\n")]
+end
+
+func doble_clic(x: Int, y: Int)
+    input_click(x, y, 0)
+    input_click(x, y, 0)
+end
+
+# Vuelve a la pestaña de ese nombre (ENV:FORJA_PESTANAS y FORJA_PESTANAS_NOMBRES)
+func a_pestana(nombre: String)
+    nombres = str_split(env_get("FORJA_PESTANAS_NOMBRES"), "|")
+    centros = str_split(env_get("FORJA_PESTANAS"), " ")
+    i = 0
+    while i < nombres.length and i < centros.length
+        if nombres[i] == nombre
+            xy = str_split(centros[i], ",")
+            input_click(Int(xy[0]), Int(xy[1]), 0)
+            time_delay(50)
+            return
+        end
+        i = i + 1
+    end
+    anotar("no encuentro la pestaña " + nombre + ": " + env_get("FORJA_PESTANAS_NOMBRES") + " / " + env_get("FORJA_PESTANAS"))
+end
+
+func fila_elegida() -> Int
+    return Int(str_split(env_get("FORJA_DISENO"), " ")[0])
+end
+
+Main
+    if env_get("DISENADOR_ESPERA") != ""
+        ESPERA = Int(env_get("DISENADOR_ESPERA"))
+    end
+    n = 0
+    while n < 600 and not (env_get("FORJA_EDITOR") != "" and activar())
+        time_delay(5)
+        n = n + 1
+    end
+    if n >= 600
+        ver("la ventana de Forja", false, "")
+    else
+        paso(1)
+        s = espera_sitio("limpiar")
+        ver("la ventana dibujada, con el botón limpiar", s.length == 4, env_get("FORJA_LIENZO"))
+        time_delay(150)
+        # un clic en limpiar lo elige (filas: 0 ventana, 1 vgroup, 2 saludo, 3 hgroup, 4 label, 5 nombre, 6 hgroup,
+        # 7 saludar, 8 limpiar)
+        input_click(s[0] + s[2] / 2, s[1] + s[3] / 2, 0)
+        time_delay(40)
+        ver("un clic elige limpiar", fila_elegida() == 8, env_get("FORJA_DISENO"))
+        antes = texto()
+        # arrastrarlo a la mitad izquierda de saludar: queda delante
+        b = sitio("saludar")
+        time_delay(80)
+        input_drag(s[0] + s[2] / 2, s[1] + s[3] / 2, b[0] + 6, b[1] + b[3] / 2)
+        t = espera_cambio(antes)
+        ver("arrastrar limpiar delante de saludar", str_find(t, "\"limpiar\"") > 0 and str_find(t, "\"limpiar\"") < str_find(t, "\"saludar\""), t)
+        paso(2)
+        time_delay(150)
+        # una casilla de la paleta, soltada en la mitad derecha del campo nombre: detrás de él, en su fila
+        c = espera_sitio("checkbox")
+        f = sitio("nombre")
+        antes = t
+        input_drag(c[0] + c[2] / 2, c[1] + c[3] / 2, f[0] + f[2] - 6, f[1] + f[3] / 2)
+        t = espera_cambio(antes)
+        ver("una casilla de la paleta, detrás del campo", str_find(t, "\"checkbox\"") > str_find(t, "\"nombre\"") and str_find(t, "\"checkbox\"") < str_find(t, "\"limpiar\""), t)
+        paso(3)
+        time_delay(150)
+        # un botón: un clic en la paleta y otro en la mitad de arriba del texto saludo (delante de él)
+        c = sitio("button")
+        input_click(c[0] + c[2] / 2, c[1] + c[3] / 2, 0)
+        time_delay(60)
+        f = sitio("saludo")
+        antes = t
+        input_click(f[0] + 10, f[1] + 2, 0)
+        t = espera_cambio(antes)
+        ver("un botón con la paleta y un clic, delante del texto", str_find(t, "\"Bot") > 0 and str_find(t, "\"Bot") < str_find(t, "\"saludo\""), t)
+        paso(4)
+        time_delay(150)
+        # Tab: el árbol; otra vez, la ventana
+        input_key(TAB, 0)
+        time_delay(60)
+        ver("Tab enseña el árbol", sitio("saludo").length == 0 and sitio("button").length == 4, env_get("FORJA_LIENZO"))
+        paso(5)
+        time_delay(150)
+        input_key(TAB, 0)
+        s = espera_sitio("saludar")
+        ver("y otra vez la ventana", s.length == 4, env_get("FORJA_LIENZO"))
+        paso(6)
+        time_delay(100)
+        # doble clic en saludar: a su código en main.dash (elif ev == EV_SALUDAR, la línea 29)
+        doble_clic(s[0] + s[2] / 2, s[1] + s[3] / 2)
+        time_delay(100)
+        cab = cabecera()
+        t = texto()
+        lineas = str_split(t, "\n")
+        l = Int(str_split(cab, " ")[0])
+        ver("doble clic en saludar: a elif ev == EV_SALUDAR de main.dash", str_contains(cab, "main.dash") and l < lineas.length and str_contains(lineas[l], "ev == EV_SALUDAR"), cab)
+        paso(7)
+        # el botón nuevo (sin nombre ni evento, el primero de la ventana): doble clic le pone nombre y evento, y crea
+        # su código
+        a_pestana("ventana.dashui")
+        w = espera_sitio("titulo")
+        antes = t
+        doble_clic(w[0] + w[2] / 2, w[1] + w[3] + 4 + 5)
+        t = espera_cambio(antes)
+        cab = cabecera()
+        lineas = str_split(t, "\n")
+        l = Int(str_split(cab, " ")[0])
+        ver("doble clic en el botón nuevo: su constante y su if en main.dash", str_contains(cab, "main.dash") and str_contains(t, "const ID_BOTON = 3") and str_contains(t, "if ev == ID_BOTON"), t)
+        ver("el cursor, en el comentario de su if", l < lineas.length and str_contains(lineas[l], "# boton"), cab)
+        paso(8)
+        a_pestana("ventana.dashui")
+        t = texto()
+        ver("el botón tiene nombre y evento", str_contains(t, "\"name\": \"boton\"") and str_contains(t, "\"event\": 3"), t)
+        paso(9)
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+    activar()
+    input_key(0x10, AMIGA)
+    n = 0
+    while n < 40 and input_active_title() != "Cambios sin guardar"
+        time_delay(5)
+        n = n + 1
+    end
+    if input_active_title() == "Cambios sin guardar"
+        time_delay(25)
+        input_key(0x22, 0)
+    end
+end

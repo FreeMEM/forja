@@ -29,7 +29,7 @@ W, H, FPS = 1920, 1080, 25
 V = os.path.expanduser("~/.cache/video-forja")
 TOPAZ = os.path.expanduser("~/.cache/video-trasfondo/fuentes/TopazPlus_a1200_v1.0.ttf")
 ICONO = os.path.expanduser("~/Projects/webs-freemem/sitios/forja/public/icono.png")
-MUSICA = os.path.expanduser("~/.cache/video-inferencia/musica/space_debris.wav")
+MUSICA = os.path.expanduser(os.environ.get("VIDEO_MUSICA", "~/.cache/video-inferencia/musica/space_debris.wav"))
 VOCES = os.path.join(V, "voz")
 
 AZUL_WB = (0, 85, 170)

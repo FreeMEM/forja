@@ -3416,7 +3416,16 @@ func ed_dibujar(x: Int, y: Int, ancho: Int, alto: Int)
         ed_zona_ancho = ancho
         ed_zona_alto = alto
         ed_cargar_diseno(d, false)
+        if mui_canvas_updating() and dv_solo_fila
+            usar_panel(0)
+            dv_dibujar_fila_editada()
+            return
+        end
         dv_dibujar(x, y + ALTO_PESTANAS, ancho, alto - ALTO_PESTANAS, ALTO_PESTANAS)
+        if not mui_canvas_updating() and lz_vy < 0 and not dv_ver_arbol
+            # (la ventana dibujada, bajada con la rueda, puede pasar por encima)
+            _dibujar_pestanas(x, y, ancho)
+        end
         return
     end
     if mui_canvas_updating() and ed_solo_linea >= 0 and d != nil

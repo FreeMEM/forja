@@ -1,0 +1,62 @@
+# Prueba de src/eventos_ui.dash sin ventana: buscar y crear el código de un evento de un .dashui en el main.dash de
+# la plantilla MUI (DH0:Prueba/ventana). tests/emu_prueba.sh la ejecuta.
+
+import "../src/eventos_ui.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso + " [" + detalle + "]"
+        fallos = fallos + 1
+    end
+end
+
+func buscar(lineas: [String], esto: String) -> Int
+    i = 0
+    while i < lineas.length
+        if str_contains(lineas[i], esto)
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+Main
+    lineas = str_split(file_read_text("DH0:Prueba/ventana/main.dash"), "\n")
+    ver("main.dash importa ventana.dashui", eu_importa(lineas, "ventana.dashui") and eu_importa(lineas, "VENTANA.dashui") and not eu_importa(lineas, "otra.dashui"), "")
+    v = eu_valores(lineas)
+    ver("los valores de sus const", v.length == 4 and v[0] == 1 and v[3] == 99, "#{v.length}")
+    l = eu_manejador(lineas, 1)
+    ver("el evento 1: elif ev == EV_SALUDAR", l >= 0 and str_contains(lineas[l], "EV_SALUDAR") and not str_contains(lineas[l], "const"), "#{l}")
+    l = eu_manejador(lineas, 99)
+    ver("el 99: ev == -1 or ev == EV_SALIR", l >= 0 and str_contains(lineas[l], "EV_SALIR"), "#{l}")
+    ver("el 3: nadie", eu_manejador(lineas, 3) == -1, "")
+    # con el número a pelo
+    var otro: [String] = ["Main", "    while true", "        e = mui_wait_event()", "        if 7 == e", "        end", "        if e == 8 # ocho", "        end", "        x = \"e == 9\"", "    end", "end"]
+    ver("7 == e", eu_manejador(otro, 7) == 3, "")
+    ver("e == 8", eu_manejador(otro, 8) == 5 and eu_col == 11, "#{eu_col}")
+    ver("e == 9 dentro de un texto no cuenta", eu_manejador(otro, 9) == -1, "")
+    # crear el 3 del botón "boton"
+    r = eu_crear(lineas, 3, "boton")
+    c = buscar(r, "const ID_BOTON = 3")
+    s = buscar(r, "const EV_SALIR = 99")
+    ver("la constante, tras las otras", c == s + 1, "#{c} #{s}")
+    w = buscar(r, "ev = mui_wait_event()")
+    ver("el if, tras mui_wait_event", r[w + 1] == "        if ev == ID_BOTON" and r[w + 2] == "            # boton" and r[w + 3] == "        end", r[w + 1])
+    ver("el cursor en el comentario", eu_linea == w + 2 and eu_col == 12 and not eu_sin_bucle, "#{eu_linea} #{eu_col}")
+    ver("y ahora lo encuentra", eu_manejador(r, 3) == w + 1, "")
+    ver("un nombre que ya está lleva un número", eu_nombre_constante(r, 4, "boton") == "ID_BOTON_2", eu_nombre_constante(r, 4, "boton"))
+    # sin bucle: solo la constante; tras un import, una línea en blanco
+    var corto: [String] = ["@version \"x 1\"", "import \"ventana.dashui\"", "Main", "end"]
+    r = eu_crear(corto, 5, "")
+    ver("sin bucle: la constante tras el import", r[2] == "const EVENTO_5 = 5" and r[3] == "" and eu_sin_bucle and eu_linea == 2, r[2])
+    if fallos == 0
+        Print "TODO BIEN"
+    else
+        Print "#{fallos} FALLOS"
+    end
+end

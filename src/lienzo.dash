@@ -1,0 +1,1092 @@
+# El lienzo del editor de ventanas: la ventana de un .dashui dibujada como la haría MUI (aproximada), para elegir
+# y mover sus objetos con el ratón (como el formulario de Visual Basic o de Delphi). Lo pidió Jose.
+#
+#   lz_disponer(ventana, ancho, alto)  # calcula dónde va cada objeto, en una zona de ese tamaño (desde 0, 0)
+#   lz_dibujar(x, y, elegido)          # la dibuja (lz_disponer antes), con el objeto elegido marcado
+#   lz_en(x, y)                        # la caja de lo que hay en ese punto (nil: nada), desde la esquina de la zona
+#   lz_destino(x, y, movido)           # dónde caería lo arrastrado: lz_dest_lista y lz_dest_indice (nil: en ningún sitio)
+#
+# Las medidas salen de la fuente actual (font_text_width y font_height), o, si lz_letra > 0, de una fuente fija de
+# lz_letra x lz_alto (las pruebas sin pantalla). Los textos del fichero van en UTF-8.
+
+import "lib/json.dash"
+import "tema.dash"
+
+const LZ_ESPACIO = 4          # entre los objetos de un grupo
+const LZ_BORDE = 4            # de la ventana a su grupo raíz
+const LZ_MARCO = 4            # del borde de un marco a lo de dentro
+
+struct Caja
+    nodo: Json
+    padre: Json               # la lista donde está (nil: el grupo raíz)
+    tipo: String
+    nivel: Int
+    hijos: [Caja] = nil
+    grupo: Bool = false
+    horizontal: Bool = false  # un grupo que pone a sus hijos en fila
+    # el tamaño mínimo y si crece a lo ancho o a lo alto
+    mw: Int = 0
+    mh: Int = 0
+    ex: Bool = false
+    ey: Bool = false
+    peso: Int = 100
+    # dónde quedó
+    x: Int = 0
+    y: Int = 0
+    w: Int = 0
+    h: Int = 0
+    # dentro de un marco o de unas pestañas: dónde empiezan sus hijos
+    dx: Int = 0
+    dy: Int = 0
+    pagina: Int = 0           # unas pestañas: la página que se ve
+end
+
+var lz_letra: Int = 0
+var lz_alto: Int = 8
+var lz_raiz: Caja = nil
+var lz_cajas: [Caja] = []    # en el orden del dibujo: cada grupo antes que sus hijos
+var lz_ventana: Json = nil
+var lz_titulo_alto: Int = 11
+# la ventana dibujada (desde la esquina de la zona)
+var lz_vx: Int = 0
+var lz_vy: Int = 0
+var lz_vw: Int = 0
+var lz_vh: Int = 0
+var lz_desplazado: Int = 0   # cuánto se ha bajado la vista (ventanas más altas que la zona)
+# la página que se ve de cada grupo de pestañas, por su sitio en el orden de las cajas
+var lz_paginas: [Json] = []
+var lz_paginas_n: [Int] = []
+# dónde caería lo arrastrado, y la raya o el marco que lo enseña
+var lz_dest_lista: Json = nil
+var lz_dest_indice: Int = 0
+var lz_dest_x1: Int = 0
+var lz_dest_y1: Int = 0
+var lz_dest_x2: Int = 0
+var lz_dest_y2: Int = 0
+var lz_dest_dentro: Bool = false
+
+func _lz_max(a: Int, b: Int) -> Int
+    if a > b
+        return a
+    end
+    return b
+end
+
+func _lz_ancho(t: String) -> Int
+    if lz_letra > 0
+        return t.length * lz_letra
+    end
+    return font_text_width(t)
+end
+
+func _lz_fh() -> Int
+    if lz_letra > 0
+        return lz_alto
+    end
+    return font_height()
+end
+
+# Un texto del fichero como se ve: en Latin-1, sin los códigos de MUI (Esc y una letra: \33c centra, \33b negrita...)
+# ni el _ de la tecla
+func lz_texto(s: String) -> String
+    t = utf8_to_latin1(s)
+    if str_contains(t, str_char(27))
+        r = ""
+        i = 0
+        while i < t.length
+            if str_code(t, i) == 27
+                i = i + 2
+            else
+                r = r + t[i:i + 1]
+                i = i + 1
+            end
+        end
+        t = r
+    end
+    return str_replace(t, "_", "")
+end
+
+func _lz_es_grupo(tipo: String) -> Bool
+    return tipo == "vgroup" or tipo == "hgroup" or tipo == "frame" or tipo == "columns" or tipo == "tabs" or tipo == "scroll"
+end
+
+# La página que se ve de unas pestañas (la recuerda aunque se rehagan las cajas)
+func _lz_pagina(n: Json) -> Int
+    i = 0
+    while i < lz_paginas.length
+        if lz_paginas[i] == n
+            return lz_paginas_n[i]
+        end
+        i = i + 1
+    end
+    return 0
+end
+
+func lz_poner_pagina(n: Json, p: Int)
+    i = 0
+    while i < lz_paginas.length
+        if lz_paginas[i] == n
+            lz_paginas_n[i] = p
+            return
+        end
+        i = i + 1
+    end
+    lz_paginas.push(n)
+    lz_paginas_n.push(p)
+end
+
+# --- Medir ---
+
+func _lz_texto_de(n: Json, tipo: String) -> String
+    for p in ["label", "text", "title"]
+        if json_has(n, p)
+            return lz_texto(json_get_str(n, p))
+        end
+    end
+    return ""
+end
+
+func _lz_hacer(n: Json, padre: Json, nivel: Int, en_fila: Bool) -> Caja
+    tipo = json_get_str(n, "type")
+    c = Caja(n, padre, tipo, nivel)
+    c.hijos = []
+    if json_has(n, "weight")
+        c.peso = json_get_int(n, "weight")
+    end
+    fh = _lz_fh()
+    alto = fh + 6
+    if _lz_es_grupo(tipo)
+        c.grupo = true
+        c.horizontal = tipo == "hgroup" or (tipo == "frame" and json_get_bool(n, "horizontal"))
+        if tipo == "tabs"
+            c.pagina = _lz_pagina(n)
+        end
+        hijos = json_get(n, "children")
+        if hijos != nil
+            i = 0
+            while i < json_length(hijos)
+                c.hijos.push(_lz_hacer(json_at(hijos, i), hijos, nivel + 1, c.horizontal))
+                i = i + 1
+            end
+        end
+        _lz_medir_grupo(c)
+        return c
+    end
+    t = _lz_texto_de(n, tipo)
+    if tipo == "button"
+        c.mw = _lz_ancho(t) + 16
+        c.mh = alto
+        c.ex = true
+    elif tipo == "string" or tipo == "combo"
+        c.mw = 64
+        c.mh = alto
+        c.ex = true
+    elif tipo == "text"
+        lineas = str_split(t, "\n")
+        w = 0
+        for l in lineas
+            w = _lz_max(w, _lz_ancho(l))
+        end
+        c.mw = w + 4
+        c.mh = lineas.length * fh + 4
+        c.ex = true
+    elif tipo == "label"
+        c.mw = _lz_ancho(t) + 4
+        c.mh = alto
+    elif tipo == "checkbox"
+        c.mw = alto + 4
+        c.mh = alto
+    elif tipo == "cycle"
+        w = 0
+        for o in str_split(lz_texto(json_get_str(n, "options")), "|")
+            w = _lz_max(w, _lz_ancho(o))
+        end
+        c.mw = w + 28
+        c.mh = alto
+        c.ex = true
+    elif tipo == "slider"
+        c.mw = 64
+        c.mh = alto
+        c.ex = true
+    elif tipo == "gauge"
+        c.mw = 48
+        c.mh = fh + 4
+        c.ex = true
+    elif tipo == "list"
+        c.mw = 80
+        c.mh = fh * 4 + 8
+        c.ex = true
+        c.ey = true
+    elif tipo == "text_editor"
+        lineas = 4
+        if json_has(n, "lines")
+            lineas = json_get_int(n, "lines")
+        end
+        c.mw = 120
+        c.mh = lineas * fh + 8
+        c.ex = true
+        c.ey = true
+    elif tipo == "canvas"
+        c.mw = 64
+        c.mh = 32
+        if json_has(n, "min_width")
+            c.mw = json_get_int(n, "min_width")
+        end
+        if json_has(n, "min_height")
+            c.mh = json_get_int(n, "min_height")
+        end
+        c.ex = true
+        c.ey = true
+    elif tipo == "scrollbar"
+        if json_get_bool(n, "vertical")
+            c.mw = 14
+            c.mh = 40
+            c.ey = true
+        else
+            c.mw = 40
+            c.mh = 12
+            c.ex = true
+        end
+    elif tipo == "image" or tipo == "image_button" or tipo == "image_toggle"
+        c.mw = 32
+        c.mh = 24
+    elif tipo == "space"
+        c.mw = 4
+        c.mh = 4
+        c.ex = true
+        c.ey = true
+    elif tipo == "balance"
+        c.mw = 6
+        c.mh = 6
+        c.ey = en_fila
+        c.ex = not en_fila
+    else
+        # un tipo que no conoce el lienzo: una caja con su nombre
+        c.mw = _lz_ancho(tipo) + 8
+        c.mh = alto
+    end
+    if json_get_bool(n, "hidden")
+        c.mw = 0
+        c.mh = 0
+        c.ex = false
+        c.ey = false
+    end
+    return c
+end
+
+# Lo que se ve de un grupo: sus hijos (de unas pestañas, solo los de la página que se ve)
+func _lz_visibles(c: Caja) -> [Caja]
+    if c.tipo != "tabs"
+        return c.hijos
+    end
+    var r: [Caja] = []
+    if c.pagina >= 0 and c.pagina < c.hijos.length
+        r.push(c.hijos[c.pagina])
+    end
+    return r
+end
+
+func _lz_medir_grupo(c: Caja)
+    fh = _lz_fh()
+    vis = _lz_visibles(c)
+    w = 0
+    h = 0
+    if c.tipo == "columns"
+        cols = 2
+        if json_has(c.nodo, "columns")
+            cols = _lz_max(1, json_get_int(c.nodo, "columns"))
+        end
+        var anchos: [Int] = []
+        k = 0
+        while k < cols
+            anchos.push(0)
+            k = k + 1
+        end
+        fila_h = 0
+        i = 0
+        for h1 in vis
+            anchos[i % cols] = _lz_max(anchos[i % cols], h1.mw)
+            fila_h = _lz_max(fila_h, h1.mh)
+            if i % cols == cols - 1 or i == vis.length - 1
+                h = h + fila_h + LZ_ESPACIO
+                fila_h = 0
+            end
+            c.ex = c.ex or h1.ex
+            c.ey = c.ey or h1.ey
+            i = i + 1
+        end
+        for a in anchos
+            w = w + a + LZ_ESPACIO
+        end
+        w = w - LZ_ESPACIO
+        h = h - LZ_ESPACIO
+    else
+        for h1 in vis
+            if c.horizontal
+                w = w + h1.mw + LZ_ESPACIO
+                h = _lz_max(h, h1.mh)
+            else
+                h = h + h1.mh + LZ_ESPACIO
+                w = _lz_max(w, h1.mw)
+            end
+            c.ex = c.ex or h1.ex
+            c.ey = c.ey or h1.ey
+        end
+        if vis.length > 0
+            if c.horizontal
+                w = w - LZ_ESPACIO
+            else
+                h = h - LZ_ESPACIO
+            end
+        end
+    end
+    if vis.length == 0
+        # vacío: un hueco donde soltar
+        w = 48
+        h = fh + 6
+    end
+    c.dx = 0
+    c.dy = 0
+    if c.tipo == "frame"
+        c.dx = LZ_MARCO
+        c.dy = fh + 2
+        w = _lz_max(w, _lz_ancho(lz_texto(json_get_str(c.nodo, "title"))) + 16)
+        w = w + LZ_MARCO * 2
+        h = h + c.dy + LZ_MARCO
+    elif c.tipo == "tabs"
+        tw = 0
+        for t in str_split(lz_texto(json_get_str(c.nodo, "titles")), "|")
+            tw = tw + _lz_ancho(t) + 12
+        end
+        c.dx = LZ_MARCO
+        c.dy = fh + 6 + LZ_MARCO
+        w = _lz_max(w + LZ_MARCO * 2, tw)
+        h = h + c.dy + LZ_MARCO
+    elif c.tipo == "scroll"
+        c.dx = 2
+        c.dy = 2
+        w = w + 4 + 14
+        h = h + 4
+        c.ex = true
+        c.ey = true
+    end
+    c.mw = w
+    c.mh = h
+end
+
+# --- Colocar ---
+
+func _lz_colocar(c: Caja, x: Int, y: Int, w: Int, h: Int)
+    c.x = x
+    c.y = y
+    c.w = w
+    c.h = h
+    lz_cajas.push(c)
+    if not c.grupo
+        return
+    end
+    vis = _lz_visibles(c)
+    if vis.length == 0
+        return
+    end
+    ix = x + c.dx
+    iy = y + c.dy
+    iw = w - c.dx * 2
+    ih = h - c.dy - c.dx
+    if c.tipo == "scroll"
+        iw = w - 4 - 14
+        ih = h - 4
+    end
+    if c.tipo == "columns"
+        _lz_colocar_columnas(c, vis, ix, iy, iw, ih)
+        return
+    end
+    # el sobrante, entre los que crecen en esa dirección, por su peso
+    usado = 0
+    pesos = 0
+    for h1 in vis
+        if c.horizontal
+            usado = usado + h1.mw
+            if h1.ex
+                pesos = pesos + h1.peso
+            end
+        else
+            usado = usado + h1.mh
+            if h1.ey
+                pesos = pesos + h1.peso
+            end
+        end
+    end
+    usado = usado + LZ_ESPACIO * (vis.length - 1)
+    total = ih
+    if c.horizontal
+        total = iw
+    end
+    sobra = total - usado
+    if sobra < 0
+        sobra = 0
+    end
+    # sin nadie que crezca, quedan centrados
+    pos = 0
+    if pesos == 0
+        pos = sobra / 2
+    end
+    repartido = 0
+    for h1 in vis
+        crece = h1.ey
+        if c.horizontal
+            crece = h1.ex
+        end
+        extra = 0
+        if crece and pesos > 0
+            extra = sobra * h1.peso / pesos
+            repartido = repartido + extra
+        end
+        if c.horizontal
+            hh = h1.mh
+            yy = iy + (ih - hh) / 2
+            if h1.ey
+                hh = ih
+                yy = iy
+            end
+            _lz_colocar(h1, ix + pos, yy, h1.mw + extra, hh)
+            pos = pos + h1.mw + extra + LZ_ESPACIO
+        else
+            ww = h1.mw
+            xx = ix + (iw - ww) / 2
+            if h1.ex
+                ww = iw
+                xx = ix
+            end
+            _lz_colocar(h1, xx, iy + pos, ww, h1.mh + extra)
+            pos = pos + h1.mh + extra + LZ_ESPACIO
+        end
+    end
+end
+
+func _lz_colocar_columnas(c: Caja, vis: [Caja], ix: Int, iy: Int, iw: Int, ih: Int)
+    cols = 2
+    if json_has(c.nodo, "columns")
+        cols = _lz_max(1, json_get_int(c.nodo, "columns"))
+    end
+    var anchos: [Int] = []
+    k = 0
+    while k < cols
+        anchos.push(0)
+        k = k + 1
+    end
+    i = 0
+    for h1 in vis
+        anchos[i % cols] = _lz_max(anchos[i % cols], h1.mw)
+        i = i + 1
+    end
+    # lo que sobra a lo ancho, a la última columna
+    suma = LZ_ESPACIO * (cols - 1)
+    for a in anchos
+        suma = suma + a
+    end
+    if iw > suma
+        anchos[cols - 1] = anchos[cols - 1] + iw - suma
+    end
+    y = iy
+    i = 0
+    while i < vis.length
+        fila_h = 0
+        k = 0
+        while k < cols and i + k < vis.length
+            fila_h = _lz_max(fila_h, vis[i + k].mh)
+            k = k + 1
+        end
+        x = ix
+        k = 0
+        while k < cols and i + k < vis.length
+            _lz_colocar(vis[i + k], x, y, anchos[k], fila_h)
+            x = x + anchos[k] + LZ_ESPACIO
+            k = k + 1
+        end
+        y = y + fila_h + LZ_ESPACIO
+        i = i + cols
+    end
+end
+
+# Calcula dónde va todo, para una zona de ancho x alto
+func lz_disponer(ventana: Json, ancho: Int, alto: Int)
+    lz_ventana = ventana
+    lz_cajas.clear()
+    lz_raiz = nil
+    fh = _lz_fh()
+    lz_titulo_alto = fh + 3
+    raiz = json_get(ventana, "root")
+    if raiz == nil
+        return
+    end
+    lz_raiz = _lz_hacer(raiz, nil, 1, false)
+    # el tamaño de la ventana: el mínimo; lo que crece, hasta casi toda la zona (o el "size" de la ventana, en % de
+    # la zona)
+    w = lz_raiz.mw
+    h = lz_raiz.mh
+    tam = json_get(ventana, "size")
+    if tam != nil and json_length(tam) == 2
+        w = _lz_max(w, (ancho - 16) * json_num(json_at(tam, 0)) / 100 - LZ_BORDE * 2)
+        h = _lz_max(h, (alto - 16) * json_num(json_at(tam, 1)) / 100 - LZ_BORDE * 2 - lz_titulo_alto)
+    else
+        if lz_raiz.ex
+            w = _lz_max(w, (ancho - 16) * 85 / 100 - LZ_BORDE * 2)
+        end
+        if lz_raiz.ey
+            # (a lo alto, menos: MUI abre la ventana más baja que la pantalla)
+            h = _lz_max(h, (alto - 16) * 50 / 100 - LZ_BORDE * 2 - lz_titulo_alto)
+        end
+    end
+    lz_vw = w + LZ_BORDE * 2 + 4
+    lz_vh = h + LZ_BORDE * 2 + lz_titulo_alto + 2
+    lz_vx = (ancho - lz_vw) / 2
+    if lz_vx < 4
+        lz_vx = 4
+    end
+    lz_vy = 6 - lz_desplazado
+    _lz_colocar(lz_raiz, lz_vx + 2 + LZ_BORDE, lz_vy + lz_titulo_alto + LZ_BORDE, w, h)
+end
+
+# --- Buscar ---
+
+func _lz_dentro(c: Caja, x: Int, y: Int) -> Bool
+    return x >= c.x and x < c.x + c.w and y >= c.y and y < c.y + c.h
+end
+
+func _lz_contiene(n: Json, buscado: Json) -> Bool
+    if n == buscado
+        return true
+    end
+    hijos = json_get(n, "children")
+    if hijos != nil
+        i = 0
+        while i < json_length(hijos)
+            if _lz_contiene(json_at(hijos, i), buscado)
+                return true
+            end
+            i = i + 1
+        end
+    end
+    return false
+end
+
+# La caja más de dentro en ese punto (nil: fuera de la ventana; la de la raíz si está en la ventana pero fuera de
+# todo)
+func lz_en(x: Int, y: Int) -> Caja
+    var r: Caja = nil
+    for c in lz_cajas
+        if _lz_dentro(c, x, y)
+            r = c
+        end
+    end
+    if r == nil and lz_raiz != nil and x >= lz_vx and x < lz_vx + lz_vw and y >= lz_vy and y < lz_vy + lz_vh
+        r = lz_raiz
+    end
+    return r
+end
+
+# ¿Está el punto en la barra del título de la ventana?
+func lz_en_titulo(x: Int, y: Int) -> Bool
+    return x >= lz_vx and x < lz_vx + lz_vw and y >= lz_vy and y < lz_vy + lz_titulo_alto
+end
+
+func lz_caja_de(n: Json) -> Caja
+    for c in lz_cajas
+        if c.nodo == n
+            return c
+        end
+    end
+    return nil
+end
+
+# Unas pestañas: el título en ese punto (-1 si no hay)
+func lz_pestana_en(c: Caja, x: Int, y: Int) -> Int
+    if c.tipo != "tabs" or y < c.y or y >= c.y + _lz_fh() + 6
+        return -1
+    end
+    px = c.x + 2
+    i = 0
+    for t in str_split(lz_texto(json_get_str(c.nodo, "titles")), "|")
+        w = _lz_ancho(t) + 12
+        if x >= px and x < px + w
+            return i
+        end
+        px = px + w
+        i = i + 1
+    end
+    return -1
+end
+
+# Dónde caería lo arrastrado (movido: el nodo que se mueve, o nil si es uno nuevo de la paleta). Pone lz_dest_lista
+# (nil: en ningún sitio) y lz_dest_indice, y la raya o el marco que lo enseña.
+func lz_destino(x: Int, y: Int, movido: Json)
+    lz_dest_lista = nil
+    lz_dest_dentro = false
+    c = lz_en(x, y)
+    if c == nil
+        return
+    end
+    # sobre lo que se mueve (o dentro de ello): a su grupo, como si se soltara encima de él (no cambia nada)
+    if movido != nil and _lz_contiene(movido, c.nodo)
+        c = lz_caja_de(movido)
+        if c == nil or c.padre == nil
+            return
+        end
+    end
+    # junto al borde de un grupo (que no sea la raíz): delante o detrás de él, no dentro
+    borde = 3
+    al_borde = c.grupo and c.padre != nil and (x < c.x + borde or x >= c.x + c.w - borde or y < c.y + borde or y >= c.y + c.h - borde)
+    if c.grupo and not al_borde
+        hijos = json_get(c.nodo, "children")
+        if hijos == nil
+            return
+        end
+        if c.tipo == "tabs"
+            # en unas pestañas, una página más al final
+            lz_dest_lista = hijos
+            lz_dest_indice = json_length(hijos)
+            lz_dest_dentro = true
+            lz_dest_x1 = c.x
+            lz_dest_y1 = c.y
+            lz_dest_x2 = c.x + c.w - 1
+            lz_dest_y2 = c.y + c.h - 1
+            return
+        end
+        vis = _lz_visibles(c)
+        lz_dest_lista = hijos
+        if vis.length == 0
+            lz_dest_indice = 0
+            lz_dest_dentro = true
+            lz_dest_x1 = c.x + c.dx
+            lz_dest_y1 = c.y + c.dy
+            lz_dest_x2 = c.x + c.w - 1 - c.dx
+            lz_dest_y2 = c.y + c.h - 1 - c.dx
+            return
+        end
+        # delante del primer hijo cuyo centro queda después del punto
+        i = 0
+        for h1 in vis
+            if (c.horizontal and x < h1.x + h1.w / 2) or (not c.horizontal and y < h1.y + h1.h / 2)
+                break
+            end
+            i = i + 1
+        end
+        lz_dest_indice = i
+        _lz_raya(c, vis, i)
+        return
+    end
+    if c.padre == nil
+        return
+    end
+    # delante o detrás del objeto, según la mitad donde esté el punto (en la dirección de su grupo)
+    fila = false
+    g = _lz_grupo_de(c)
+    if g != nil
+        fila = g.horizontal
+    end
+    i = _lz_posicion(c.padre, c.nodo)
+    despues = (fila and x >= c.x + c.w / 2) or (not fila and y >= c.y + c.h / 2)
+    if despues
+        i = i + 1
+    end
+    lz_dest_lista = c.padre
+    lz_dest_indice = i
+    if g != nil
+        _lz_raya(g, _lz_visibles(g), _lz_visible_indice(g, i))
+    end
+end
+
+func _lz_posicion(a: Json, n: Json) -> Int
+    i = 0
+    while i < json_length(a)
+        if json_at(a, i) == n
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# El grupo cuya lista de hijos es la de c
+func _lz_grupo_de(c: Caja) -> Caja
+    for g in lz_cajas
+        if g.grupo and json_get(g.nodo, "children") == c.padre
+            return g
+        end
+    end
+    return nil
+end
+
+# El índice entre los visibles que corresponde al índice i de la lista (son los mismos salvo en las pestañas)
+func _lz_visible_indice(g: Caja, i: Int) -> Int
+    if g.tipo == "tabs"
+        return 0
+    end
+    return i
+end
+
+# La raya entre el hijo i - 1 y el i de un grupo
+func _lz_raya(g: Caja, vis: [Caja], i: Int)
+    if vis.length == 0
+        return
+    end
+    if g.horizontal
+        px = 0
+        if i < vis.length
+            px = vis[i].x - LZ_ESPACIO / 2 - 1
+        else
+            px = vis[vis.length - 1].x + vis[vis.length - 1].w + LZ_ESPACIO / 2 - 1
+        end
+        lz_dest_x1 = px
+        lz_dest_x2 = px + 1
+        lz_dest_y1 = g.y + g.dy
+        lz_dest_y2 = g.y + g.h - 1 - g.dx
+    else
+        py = 0
+        if i < vis.length
+            py = vis[i].y - LZ_ESPACIO / 2 - 1
+        else
+            py = vis[vis.length - 1].y + vis[vis.length - 1].h + LZ_ESPACIO / 2 - 1
+        end
+        lz_dest_y1 = py
+        lz_dest_y2 = py + 1
+        lz_dest_x1 = g.x + g.dx
+        lz_dest_x2 = g.x + g.w - 1 - g.dx
+    end
+end
+
+# --- Dibujar ---
+
+# Los colores de MUI (con los 4 del Workbench salen gris, blanco, negro y azul)
+var _lz_gris: Int = -1
+var _lz_brillo: Int = 0
+var _lz_sombra: Int = 0
+var _lz_azul: Int = 0
+var _lz_linea: Int = 0       # el contorno de los grupos, que en MUI no se ve
+
+func _lz_colores()
+    if _lz_gris >= 0
+        return
+    end
+    _lz_gris = color_pen(170, 170, 170)
+    _lz_brillo = color_pen(255, 255, 255)
+    _lz_sombra = color_pen(0, 0, 0)
+    _lz_azul = color_pen(102, 136, 187)
+    _lz_linea = color_pen(136, 136, 136)
+end
+
+# Un relieve: claro arriba y a la izquierda (hundido: al revés)
+func _lz_relieve(x1: Int, y1: Int, x2: Int, y2: Int, hundido: Bool)
+    a = _lz_brillo
+    b = _lz_sombra
+    if hundido
+        a = _lz_sombra
+        b = _lz_brillo
+    end
+    gfx_pen(a)
+    gfx_line(x1, y1, x2, y1)
+    gfx_line(x1, y1, x1, y2)
+    gfx_pen(b)
+    gfx_line(x2, y1 + 1, x2, y2)
+    gfx_line(x1 + 1, y2, x2, y2)
+end
+
+# Un texto centrado en una caja (cortado si no cabe)
+func _lz_texto_en(t: String, x: Int, y: Int, w: Int, h: Int, centrado: Bool)
+    s = t
+    while s.length > 0 and _lz_ancho(s) > w - 4
+        s = s[0:s.length - 1]
+    end
+    tx = x + 2
+    if centrado
+        tx = x + (w - _lz_ancho(s)) / 2
+    end
+    gfx_text_at(tx, y + (h - _lz_fh()) / 2 + font_baseline(), s)
+end
+
+func _lz_dibujar_caja(c: Caja)
+    n = c.nodo
+    x = c.x
+    y = c.y
+    x2 = c.x + c.w - 1
+    y2 = c.y + c.h - 1
+    if c.w <= 0 or c.h <= 0
+        return
+    end
+    fh = _lz_fh()
+    t = _lz_texto_de(n, c.tipo)
+    if json_has(n, "background")
+        fondo = json_get(n, "background")
+        if json_length(fondo) == 3
+            gfx_pen(color_pen(json_num(json_at(fondo, 0)), json_num(json_at(fondo, 1)), json_num(json_at(fondo, 2))))
+            gfx_rect(x, y, x2, y2)
+        end
+    end
+    if c.grupo
+        if c.tipo == "frame"
+            ty = y + fh / 2
+            _lz_relieve(x, ty, x2, y2, true)
+            _lz_relieve(x + 1, ty + 1, x2 - 1, y2 - 1, false)
+            if t != ""
+                tw = _lz_ancho(t) + 6
+                tx = x + (c.w - tw) / 2
+                gfx_pen(_lz_gris)
+                gfx_rect(tx, y, tx + tw, y + fh)
+                gfx_pen(_lz_sombra)
+                gfx_text_at(tx + 3, y + font_baseline(), t)
+            end
+        elif c.tipo == "tabs"
+            th = fh + 6
+            _lz_relieve(x, y + th, x2, y2, false)
+            px = x + 2
+            i = 0
+            for tt in str_split(lz_texto(json_get_str(n, "titles")), "|")
+                w = _lz_ancho(tt) + 12
+                arriba = y + 2
+                if i == c.pagina
+                    arriba = y
+                end
+                gfx_pen(_lz_brillo)
+                gfx_line(px, arriba, px + w - 2, arriba)
+                gfx_line(px, arriba, px, y + th)
+                gfx_pen(_lz_sombra)
+                gfx_line(px + w - 1, arriba, px + w - 1, y + th)
+                if i == c.pagina
+                    gfx_pen(_lz_gris)
+                    gfx_line(px + 1, y + th, px + w - 2, y + th)
+                end
+                gfx_pen(_lz_sombra)
+                gfx_text_at(px + 6, arriba + 3 + font_baseline(), tt)
+                px = px + w
+                i = i + 1
+            end
+        elif c.tipo == "scroll"
+            _lz_relieve(x, y, x2, y2, true)
+            gfx_pen(_lz_gris)
+            _lz_relieve(x2 - 14, y + 1, x2 - 1, y2 - 1, false)
+        else
+            # los grupos de MUI no se ven: una línea de puntos para saber dónde están
+            gfx_pen(_lz_linea)
+            gfx_pattern(0xAAAA)
+            gfx_box(x, y, x2, y2)
+            gfx_pattern(0xFFFF)
+        end
+        if _lz_visibles(c).length == 0
+            gfx_pen(_lz_linea)
+            _lz_texto_en(tr(1100, "vacío"), x + c.dx, y + c.dy, c.w - c.dx * 2, c.h - c.dy - c.dx, true)
+        end
+        return
+    end
+    gfx_pen(_lz_sombra)
+    if json_has(n, "color")
+        col = json_get(n, "color")
+        if json_length(col) == 3
+            gfx_pen(color_pen(json_num(json_at(col, 0)), json_num(json_at(col, 1)), json_num(json_at(col, 2))))
+        end
+    end
+    texto = _lz_gris
+    if c.tipo == "button"
+        _lz_relieve(x, y, x2, y2, false)
+        gfx_pen(_lz_sombra)
+        _lz_texto_en(t, x, y, c.w, c.h, true)
+    elif c.tipo == "string" or c.tipo == "combo" or c.tipo == "text_editor"
+        gfx_pen(_lz_brillo)
+        x3 = x2
+        if c.tipo == "combo"
+            x3 = x2 - 16
+            _lz_relieve(x3 + 1, y, x2, y2, false)
+            gfx_pen(_lz_sombra)
+            gfx_text_at(x3 + 5, y + (c.h - fh) / 2 + font_baseline(), "v")
+        end
+        _lz_relieve(x, y, x3, y2, true)
+        _lz_relieve(x + 1, y + 1, x3 - 1, y2 - 1, false)
+        gfx_pen(_lz_sombra)
+        if c.tipo == "text_editor"
+            _lz_texto_en(t, x + 2, y + 2, c.w - 4, fh + 2, false)
+        else
+            _lz_texto_en(t, x + 2, y, x3 - x - 2, c.h, false)
+        end
+    elif c.tipo == "text"
+        lineas = str_split(t, "\n")
+        centrado = str_starts(utf8_to_latin1(json_get_str(n, "text")), str_char(27) + "c")
+        ly = y + 2
+        for l in lineas
+            _lz_texto_en(l, x, ly, c.w, fh, centrado)
+            ly = ly + fh
+        end
+    elif c.tipo == "label"
+        # a la derecha, como las etiquetas de MUI
+        s = t
+        gfx_text_at(x2 - 2 - _lz_ancho(s), y + (c.h - fh) / 2 + font_baseline(), s)
+    elif c.tipo == "checkbox"
+        lado = c.h - 2
+        cx = x + (c.w - lado) / 2
+        _lz_relieve(cx, y + 1, cx + lado, y + lado, true)
+        if json_get_bool(n, "checked")
+            gfx_pen(_lz_sombra)
+            gfx_line(cx + 3, y + lado / 2, cx + lado / 2, y + lado - 3)
+            gfx_line(cx + lado / 2, y + lado - 3, cx + lado - 3, y + 4)
+        end
+    elif c.tipo == "cycle"
+        _lz_relieve(x, y, x2, y2, false)
+        gfx_pen(_lz_sombra)
+        gfx_line(x + 18, y + 2, x + 18, y2 - 2)
+        gfx_text_at(x + 5, y + (c.h - fh) / 2 + font_baseline(), "@")
+        op = str_split(lz_texto(json_get_str(n, "options")), "|")
+        _lz_texto_en(op[0], x + 20, y, c.w - 20, c.h, true)
+    elif c.tipo == "slider" or c.tipo == "scrollbar"
+        _lz_relieve(x, y, x2, y2, true)
+        if c.tipo == "scrollbar" and json_get_bool(n, "vertical")
+            _lz_relieve(x + 1, y + 1, x2 - 1, y + c.h / 3, false)
+        else
+            kw = 24
+            if c.tipo == "scrollbar"
+                kw = c.w / 3
+            end
+            kx = x + 1
+            if c.tipo == "slider"
+                mn = json_get_int(n, "min")
+                mx = 100
+                if json_has(n, "max")
+                    mx = json_get_int(n, "max")
+                end
+                vv = json_get_int(n, "value")
+                if mx > mn
+                    kx = x + 1 + (c.w - 2 - kw) * (vv - mn) / (mx - mn)
+                end
+            end
+            _lz_relieve(kx, y + 1, kx + kw, y2 - 1, false)
+            if c.tipo == "slider"
+                gfx_pen(_lz_sombra)
+                _lz_texto_en("#{json_get_int(n, "value")}", kx, y, kw, c.h, true)
+            end
+        end
+    elif c.tipo == "gauge"
+        _lz_relieve(x, y, x2, y2, true)
+        gfx_pen(_lz_azul)
+        gfx_rect(x + 1, y + 1, x + c.w / 3, y2 - 1)
+    elif c.tipo == "list"
+        _lz_relieve(x, y, x2, y2, true)
+        gfx_pen(_lz_linea)
+        ly = y + 3
+        k = 0
+        while k < 3 and ly + fh < y2
+            gfx_line(x + 4, ly + fh / 2, x + 4 + (c.w - 8) * (3 - k) / 4, ly + fh / 2)
+            ly = ly + fh + 1
+            k = k + 1
+        end
+    elif c.tipo == "canvas"
+        gfx_pen(_lz_linea)
+        gfx_pattern(0xCCCC)
+        gfx_box(x, y, x2, y2)
+        gfx_line(x, y, x2, y2)
+        gfx_line(x, y2, x2, y)
+        gfx_pattern(0xFFFF)
+        nombre = json_get_str(n, "name")
+        if nombre != ""
+            gfx_pen(_lz_sombra)
+            _lz_texto_en(nombre, x, y, c.w, c.h, true)
+        end
+    elif c.tipo == "image" or c.tipo == "image_button" or c.tipo == "image_toggle"
+        _lz_relieve(x, y, x2, y2, c.tipo == "image")
+        gfx_pen(_lz_azul)
+        gfx_rect(x + 6, y + c.h / 2, x2 - 6, y2 - 4)
+        gfx_pen(_lz_brillo)
+        gfx_rect(x + c.w - 12, y + 4, x + c.w - 8, y + 8)
+    elif c.tipo == "space"
+        # no se ve
+        texto = _lz_gris
+    elif c.tipo == "balance"
+        _lz_relieve(x, y, x2, y2, false)
+    else
+        _lz_relieve(x, y, x2, y2, false)
+        gfx_pen(_lz_sombra)
+        _lz_texto_en(c.tipo, x, y, c.w, c.h, true)
+    end
+    if json_get_bool(n, "disabled")
+        # en gris, como MUI (un velo de puntos)
+        gfx_pen(_lz_gris)
+        gfx_pattern(0xAAAA)
+        yy = y
+        while yy <= y2
+            gfx_line(x, yy, x2, yy)
+            yy = yy + 2
+        end
+        gfx_pattern(0xFFFF)
+    end
+end
+
+# La ventana entera, desde (x, y) la esquina de la zona; elegido: el nodo marcado (nil: ninguno)
+func lz_dibujar(x: Int, y: Int, elegido: Json)
+    _lz_colores()
+    if lz_raiz == nil
+        return
+    end
+    vx = x + lz_vx
+    vy = y + lz_vy
+    vx2 = vx + lz_vw - 1
+    vy2 = vy + lz_vh - 1
+    # la ventana: el borde, la barra del título (azul, como la activa) y su fondo
+    gfx_pen(_lz_gris)
+    gfx_rect(vx, vy, vx2, vy2)
+    _lz_relieve(vx, vy, vx2, vy2, false)
+    gfx_pen(_lz_azul)
+    gfx_rect(vx + 1, vy + 1, vx2 - 1, vy + lz_titulo_alto - 1)
+    # el botón de cerrar
+    gfx_pen(_lz_brillo)
+    gfx_box(vx + 4, vy + 3, vx + 4 + lz_titulo_alto - 7, vy + lz_titulo_alto - 4)
+    gfx_pen(_lz_sombra)
+    titulo = lz_texto(json_get_str(lz_ventana, "title"))
+    gfx_text_at(vx + lz_titulo_alto + 4, vy + 2 + font_baseline(), titulo)
+    if json_has(lz_ventana, "background")
+        fondo = json_get(lz_ventana, "background")
+        if json_length(fondo) == 3
+            gfx_pen(color_pen(json_num(json_at(fondo, 0)), json_num(json_at(fondo, 1)), json_num(json_at(fondo, 2))))
+            gfx_rect(vx + 1, vy + lz_titulo_alto, vx2 - 1, vy2 - 1)
+        end
+    end
+    # las cajas, movidas a la zona (están desde su esquina)
+    for c in lz_cajas
+        c.x = c.x + x
+        c.y = c.y + y
+        _lz_dibujar_caja(c)
+        c.x = c.x - x
+        c.y = c.y - y
+    end
+    # lo elegido: un marco del color del acento, con un cuadrito en cada esquina
+    if elegido != nil
+        c = lz_caja_de(elegido)
+        if c != nil and c.w > 0
+            gfx_pen(tema.acento)
+            x1 = x + c.x - 1
+            y1 = y + c.y - 1
+            x2 = x + c.x + c.w
+            y2 = y + c.y + c.h
+            gfx_box(x1, y1, x2, y2)
+            gfx_box(x1 - 1, y1 - 1, x2 + 1, y2 + 1)
+            # un cuadrito en cada esquina, como en los diseñadores de ventanas
+            gfx_pen(tema.cursor)
+            for p in [[x1, y1], [x2, y1], [x1, y2], [x2, y2]]
+                gfx_rect(p[0] - 2, p[1] - 2, p[0] + 2, p[1] + 2)
+            end
+        elif elegido == lz_ventana
+            gfx_pen(tema.acento)
+            gfx_box(vx - 1, vy - 1, vx2 + 1, vy2 + 1)
+        end
+    end
+end
+
+# La marca de dónde caería lo arrastrado (lz_destino antes)
+func lz_dibujar_destino(x: Int, y: Int)
+    if lz_dest_lista == nil
+        return
+    end
+    gfx_pen(tema.cursor)
+    if lz_dest_dentro
+        gfx_box(x + lz_dest_x1, y + lz_dest_y1, x + lz_dest_x2, y + lz_dest_y2)
+        gfx_box(x + lz_dest_x1 + 1, y + lz_dest_y1 + 1, x + lz_dest_x2 - 1, y + lz_dest_y2 - 1)
+    else
+        gfx_rect(x + lz_dest_x1, y + lz_dest_y1, x + lz_dest_x2, y + lz_dest_y2)
+    end
+end

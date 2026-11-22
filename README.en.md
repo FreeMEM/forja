@@ -136,9 +136,14 @@ What it looks for in `PROGDIR:` (its icon, its catalogs) it will look for in the
   David Martínez). When it stops, Forja comes to the front: the program's window takes the keyboard when it opens. If the
   stop line is already in view, the code does not move or repaint as a whole, nor jumps when clicking on it or on the variables (reported by
   David Martínez).
-- **`.dashui` windows** open in the window editor (Amiga-D switches to text). The object tree and its properties;
-  "+" adds, Del removes, Alt+arrows moves. Amiga-P opens the preview with real MUI. It saves the same way as the VS
-  Code extension.
+- **`.dashui` windows** open in the window designer (Amiga-D switches to text), as in Visual Basic or Delphi (Jose
+  asked for it). The window is drawn as MUI would lay it out, with a palette of objects above and their properties
+  beside. A click picks an object; dragging it moves it before, after or into a group; an object of the palette is
+  dragged to its place, or picked and put with a click. A **double click** on an object (or Amiga-J) goes to its code
+  in the `.dash` that imports the `.dashui`: with no event number or name it gets them, and if the program does not
+  handle the event, its constant and its `if` after `mui_wait_event` are made. A double click on the window's title
+  goes to the code that closes it. Tab switches to the object tree: "+" adds, Del removes, Alt+arrows moves.
+  Amiga-P opens the preview with real MUI. It saves the same way as the VS Code extension, which does the same.
 - **New Dash versions**: Project > Look for a new version of Dash looks on GitHub and, if there is one, asks whether
   to download it and install it in the Dash drawer (`DASH:`): the dash command, Forja, Inferencia, `lib/` and the
   examples. It checks everything before changing anything; if something arrives damaged, Dash stays as it was. At
