@@ -860,11 +860,16 @@ func dv_sonda() -> String
         i = i + 1
     end
     if not dv_ver_arbol
+        # (los que no tienen nombre, como "_tipoN": el N-ésimo sin nombre de ese tipo, en el orden del dibujo)
+        var vistos: {String: Int} = {}
         for c in lz_cajas
             nombre = json_get_str(c.nodo, "name")
-            if nombre != ""
-                r = r + "#{nombre}:#{_dv_vx0 + c.x},#{_dv_vy0 + c.y},#{c.w},#{c.h} "
+            if nombre == ""
+                k = vistos.get(c.tipo, 0) + 1
+                vistos[c.tipo] = k
+                nombre = "_" + c.tipo + "#{k}"
             end
+            r = r + "#{nombre}:#{_dv_vx0 + c.x},#{_dv_vy0 + c.y},#{c.w},#{c.h} "
         end
         r = r + "titulo:#{_dv_vx0 + lz_vx},#{_dv_vy0 + lz_vy},#{lz_vw},#{lz_titulo_alto} "
     end
