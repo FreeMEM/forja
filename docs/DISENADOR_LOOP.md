@@ -81,7 +81,7 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
   pruebas de la extensión; captura.
 - [x] T8. Documentación (ayuda de Forja, README, CHANGELOG, `docs/MUI_EDITOR.md` de Dash) con "(lo pidió Jose)".
 - [x] T9. Aviso a jefe-dash: commits, qué se probó, borrador para Jose.
-- [ ] T10. (Lo pidió el usuario, 22/11) Un vídeo demostrativo nuevo de Forja con todas sus características, el
+- [x] T10. (castellano; el inglés, pendiente) (Lo pidió el usuario, 22/11) Un vídeo demostrativo nuevo de Forja con todas sus características, el
   diseñador incluido. Con `tools/video` y lo de la memoria "Vídeo de Forja" (voz del usuario en pegaso). Sin
   publicarlo: se le manda al usuario.
 
@@ -120,3 +120,8 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
   diseñador a 900x720; saludos del scroller con Overload, Jose y JaviTecH; OCR sin datos privados). Recorte del
   capítulo mandado al usuario (el entero pasa del límite de 30 MB). Rodando y montando la versión inglesa (en09a).
   Pendiente: el número de versión de los rótulos (0.9 provisional), que decide el usuario.
+- 2026-11-22 T10, inglés: la toma en09a falla en editor, errores, git e Inferencia: desde la 0.8.1 la plantilla de
+  juego sale en inglés con el Locale inglés (draw_score, LEFT...), y guion09 busca los nombres en castellano
+  (pintar_marcador, saludar, IZQUIERDA) y escribe código en castellano; los guiones del copiloto
+  (~/.cache/video-forja/guiones) también son del código en castellano. Para hacerlo: tt() en esos nombres y en el
+  código que se escribe, y guiones del copiloto en inglés. Parado por la cuota (ámbar): no corre prisa.
