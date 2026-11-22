@@ -968,7 +968,8 @@ func _dv_nombres(n: Json, r: [String])
     end
 end
 
-const DV_RESERVADAS = "and|or|not|if|elif|else|end|while|for|in|func|return|break|continue|struct|enum|var|const|import|true|false|nil|window|match|case|Main|self"
+# las palabras del lenguaje (las de compiler/dashui.py reserved() de Dash) y window, el campo de la ventana
+const DV_RESERVADAS = "EventLoop|Main|Print|Ptr|Stop|Wait|Window|and|borrow|break|const|continue|elif|else|end|enum|false|fn|for|func|if|import|in|interface|nil|not|or|return|self|step|struct|true|var|weak|while|window"
 
 # Un nombre de campo sacado de un texto ("_Saludar" -> "saludar"), o "" si no sale uno que valga
 func dv_nombre_de(texto: String) -> String

@@ -77,7 +77,7 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - [x] T4. Doble clic: evento y nombre automáticos; buscar o crear el manejador en el `.dash` (abrirlo y saltar).
 - [x] T5. Prueba con usuario simulado en FS-UAE (`tests/disenador.sh`), capturas al usuario.
 - [x] T6. Lo que falte a Dash (si falta algo), en los dos caminos (`./dash` y `./dash --gcc`).
-- [ ] T7. VS Code: doble clic en la vista y en el árbol (número y nombre automáticos, `gotoEvent` sin preguntar);
+- [x] T7. VS Code: doble clic en la vista y en el árbol (número y nombre automáticos, `gotoEvent` sin preguntar);
   pruebas de la extensión; captura.
 - [ ] T8. Documentación (ayuda de Forja, README, CHANGELOG, `docs/MUI_EDITOR.md` de Dash) con "(lo pidió Jose)".
 - [ ] T9. Aviso a jefe-dash: commits, qué se probó, borrador para Jose.
@@ -104,3 +104,9 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - 2026-11-22 T5: capturas (RTG, ESPERA=300) mandadas al usuario: casilla arrastrada, paleta + botón, árbol y el
   código creado con doble clic.
 - 2026-11-22 T6: a Dash no le falta nada para esto. Forja compila con `./dash` y con `./dash --gcc` (22 s).
+- 2026-11-22 T7: VS Code, worktree `~/Projects/FreeMEMLang/.worktrees/disenador`, rama `disenador`, d567dc8: doble
+  clic en el árbol, la vista, el título o una opción de menú -> `dash.openEvent` (número y nombre como Forja, luego
+  `gotoEvent` sin preguntar). La constante ya no va al principio si hay `@version`. Pruebas: `node test/run.js`
+  (bien las nuevas; falla "new project" porque el worktree no tiene `dashc` compilado) y la de integración en VS Code
+  (`DASH_IT_FLAGS=--ozone-platform=headless sh test/integration/run.sh`: la nueva bien; fallan las de compilar,
+  depurar y DashOS por lo mismo). `node_modules` es un enlace al de la copia principal (en info/exclude).
