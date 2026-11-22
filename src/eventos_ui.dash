@@ -1,0 +1,365 @@
+# Del evento de un objeto de un .dashui a su código en el .dash que lo importa (el doble clic del diseñador de
+# ventanas; lo pidió Jose). Hace lo mismo que la extensión de VS Code (editor/vscode/dashuiLinks.js de Dash): el
+# código lo trata con una constante (const ID_ACEPTAR = 3 e if ev == ID_ACEPTAR) o con el número (ev == 3) en la
+# variable que recibe mui_wait_event; si no lo trata, se crea la constante (tras los import y const del principio)
+# y un if justo después de "ev = mui_wait_event(...)".
+#
+#   eu_importa(lineas, "ventana.dashui")        # ¿lo importa?
+#   eu_valores(lineas)                           # los números de sus const (para no repetir uno al crear un evento)
+#   eu_manejador(lineas, n)                      # la línea (desde 0) donde trata el evento n, o -1 (eu_col: la columna)
+#   eu_crear(lineas, n, "aceptar")               # las líneas con el código creado (eu_linea/eu_col: dónde escribir;
+#                                                # eu_nombre: la constante; eu_sin_bucle: no hay mui_wait_event)
+
+var eu_col: Int = 0
+var eu_linea: Int = 0
+var eu_nombre: String = ""
+var eu_sin_bucle: Bool = false
+
+func _eu_letra(c: Int) -> Bool
+    return (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95 or (c >= 48 and c <= 57)
+end
+
+# La línea sin lo que va entre comillas (cambiado por espacios) ni el comentario
+func _eu_codigo(l: String) -> String
+    r = ""
+    dentro = false
+    i = 0
+    while i < l.length
+        c = str_code(l, i)
+        if dentro
+            if c == 92 and i + 1 < l.length
+                r = r + "  "
+                i = i + 2
+                continue
+            end
+            if c == 34
+                dentro = false
+            end
+            r = r + " "
+        elif c == 34
+            dentro = true
+            r = r + " "
+        elif c == 35
+            return r
+        else
+            r = r + l[i:i + 1]
+        end
+        i = i + 1
+    end
+    return r
+end
+
+# La palabra (letras, cifras y _) que empieza en i
+func _eu_palabra(s: String, i: Int) -> String
+    j = i
+    while j < s.length and _eu_letra(str_code(s, j))
+        j = j + 1
+    end
+    return s[i:j]
+end
+
+func _eu_espacios(s: String, i: Int) -> Int
+    while i < s.length and (str_code(s, i) == 32 or str_code(s, i) == 9)
+        i = i + 1
+    end
+    return i
+end
+
+# ¿Lo de esta línea (ya sin espacios delante) es "const NOMBRE = valor"? eu_nombre y el valor como texto
+func _eu_const(l: String) -> String
+    t = str_trim(_eu_codigo(l))
+    if not str_starts(t, "const ")
+        return ""
+    end
+    p = str_find(t, "=")
+    if p < 0
+        return ""
+    end
+    eu_nombre = str_trim(t[6:p])
+    return str_trim(t[p + 1:])
+end
+
+func _eu_es_numero(s: String) -> Bool
+    if s == ""
+        return false
+    end
+    i = 0
+    if str_starts(s, "-")
+        i = 1
+    end
+    if i >= s.length
+        return false
+    end
+    while i < s.length
+        c = str_code(s, i)
+        if c < 48 or c > 57
+            return false
+        end
+        i = i + 1
+    end
+    return true
+end
+
+func eu_importa(lineas: [String], base: String) -> Bool
+    b = str_lower(base)
+    for l in lineas
+        t = str_trim(l)
+        if str_starts(t, "import ")
+            r = str_trim(t[7:])
+            if str_starts(r, "\"")
+                fin = str_find_from(r, "\"", 1)
+                if fin > 0
+                    ruta = str_lower(r[1:fin])
+                    k = ruta.length - 1
+                    while k >= 0 and ruta[k:k + 1] != "/" and ruta[k:k + 1] != ":"
+                        k = k - 1
+                    end
+                    if ruta[k + 1:] == b
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+func eu_valores(lineas: [String]) -> [Int]
+    var r: [Int] = []
+    for l in lineas
+        v = _eu_const(l)
+        if _eu_es_numero(v)
+            r.push(Int(v))
+        end
+    end
+    return r
+end
+
+# Las constantes con el valor n
+func _eu_constantes(lineas: [String], n: Int) -> [String]
+    var r: [String] = []
+    for l in lineas
+        v = _eu_const(l)
+        if v == "#{n}"
+            r.push(eu_nombre)
+        end
+    end
+    return r
+end
+
+# La línea de la constante con el valor n (-1 si no hay)
+func _eu_linea_const(lineas: [String], n: Int) -> Int
+    i = 0
+    while i < lineas.length
+        if _eu_const(lineas[i]) == "#{n}"
+            return i
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Las variables que reciben los eventos: "ev = mui_wait_event(" o mui_wait_event_signals
+func _eu_variables(lineas: [String]) -> [String]
+    var r: [String] = []
+    for l in lineas
+        c = _eu_codigo(l)
+        i = _eu_espacios(c, 0)
+        v = _eu_palabra(c, i)
+        if v != ""
+            j = _eu_espacios(c, i + v.length)
+            if j < c.length and c[j:j + 1] == "=" and c[j + 1:j + 2] != "="
+                k = _eu_espacios(c, j + 1)
+                if str_starts(c[k:], "mui_wait_event(") or str_starts(c[k:], "mui_wait_event_signals(") or str_starts(c[k:], "mui_wait_event (")
+                    found = false
+                    for x in r
+                        if x == v
+                            found = true
+                        end
+                    end
+                    if not found
+                        r.push(v)
+                    end
+                end
+            end
+        end
+    end
+    return r
+end
+
+# ¿Está == o != justo antes de i (saltando espacios)? ¿Y justo después de fin?
+func _eu_op_antes(c: String, i: Int) -> Bool
+    k = i - 1
+    while k >= 0 and (str_code(c, k) == 32 or str_code(c, k) == 9)
+        k = k - 1
+    end
+    return k >= 1 and (c[k - 1:k + 1] == "==" or c[k - 1:k + 1] == "!=")
+end
+
+func _eu_op_despues(c: String, fin: Int) -> Int
+    k = _eu_espacios(c, fin)
+    if k + 1 < c.length and (c[k:k + 2] == "==" or c[k:k + 2] == "!=")
+        return k + 2
+    end
+    return -1
+end
+
+# Las posiciones de la palabra a (entera) en c
+func _eu_sitios(c: String, a: String) -> [Int]
+    var r: [Int] = []
+    i = str_find(c, a)
+    while i >= 0
+        antes = i == 0 or not _eu_letra(str_code(c, i - 1))
+        despues = i + a.length >= c.length or not _eu_letra(str_code(c, i + a.length))
+        if antes and despues
+            r.push(i)
+        end
+        i = str_find_from(c, a, i + 1)
+    end
+    return r
+end
+
+# Dónde se trata el evento n: la primera línea que compara una de sus constantes, o la variable de los eventos con
+# n; -1 si en ninguna (eu_col, la columna)
+func eu_manejador(lineas: [String], n: Int) -> Int
+    consts = _eu_constantes(lineas, n)
+    vars = _eu_variables(lineas)
+    num = "#{n}"
+    i = 0
+    while i < lineas.length
+        c = _eu_codigo(lineas[i])
+        if not str_starts(str_trim(c), "const ")
+            for a in consts
+                for p in _eu_sitios(c, a)
+                    if _eu_op_antes(c, p) or _eu_op_despues(c, p + a.length) >= 0
+                        eu_col = p
+                        return i
+                    end
+                end
+            end
+            for v in vars
+                for p in _eu_sitios(c, v)
+                    k = _eu_op_despues(c, p + v.length)
+                    if k >= 0
+                        k = _eu_espacios(c, k)
+                        if _eu_palabra(c, k) == num
+                            eu_col = p
+                            return i
+                        end
+                    end
+                    if _eu_op_antes(c, p)
+                        # n == ev
+                        k = p - 1
+                        while k >= 0 and (str_code(c, k) == 32 or str_code(c, k) == 9)
+                            k = k - 1
+                        end
+                        k = k - 2
+                        while k >= 0 and (str_code(c, k) == 32 or str_code(c, k) == 9)
+                            k = k - 1
+                        end
+                        fin = k + 1
+                        while k >= 0 and _eu_letra(str_code(c, k))
+                            k = k - 1
+                        end
+                        if c[k + 1:fin] == num
+                            eu_col = k + 1
+                            return i
+                        end
+                    end
+                end
+            end
+        end
+        i = i + 1
+    end
+    return -1
+end
+
+# Un nombre de constante para el evento n de un objeto: ID_ y su nombre en mayúsculas (o EVENTO_n), sin repetir
+func eu_nombre_constante(lineas: [String], n: Int, objeto: String) -> String
+    base = "EVENTO_#{n}"
+    if objeto != ""
+        base = "ID_" + str_upper(objeto)
+    end
+    nombre = base
+    k = 2
+    while true
+        usado = false
+        for l in lineas
+            if _eu_sitios(l, nombre).length > 0
+                usado = true
+                break
+            end
+        end
+        if not usado
+            return nombre
+        end
+        nombre = base + "_#{k}"
+        k = k + 1
+    end
+    return nombre
+end
+
+# Las líneas con el código del evento n creado (la constante si no la hay y un if tras mui_wait_event). eu_linea y
+# eu_col: dónde se escribe su código (la línea del comentario del if; si no hay bucle, la de la constante, y
+# eu_sin_bucle)
+func eu_crear(lineas: [String], n: Int, objeto: String) -> [String]
+    var r: [String] = []
+    for l in lineas
+        r.push(l)
+    end
+    eu_sin_bucle = false
+    existe = _eu_linea_const(lineas, n)
+    nombre = ""
+    linea_const = existe
+    if existe >= 0
+        _eu_const(lineas[existe])
+        nombre = eu_nombre
+    else
+        nombre = eu_nombre_constante(lineas, n, objeto)
+        # tras el último import o const del principio (antes de func, struct, Main...), o al principio
+        en = 0
+        i = 0
+        while i < r.length
+            l = r[i]
+            p = _eu_palabra(l, 0)
+            if p == "func" or p == "struct" or p == "Main" or p == "enum" or p == "var" or p == "Window"
+                break
+            end
+            if p == "const" or p == "import"
+                en = i + 1
+            end
+            i = i + 1
+        end
+        r.insert(en, "const " + nombre + " = #{n}")
+        if en > 0 and _eu_palabra(r[en - 1], 0) == "import"
+            r.insert(en + 1, "")
+        end
+        linea_const = en
+    end
+    eu_nombre = nombre
+    # el bucle: "x = mui_wait_event(...)"; el if va justo detrás, con su sangría
+    vars = _eu_variables(r)
+    i = 0
+    while i < r.length and vars.length > 0
+        c = _eu_codigo(r[i])
+        k = _eu_espacios(c, 0)
+        if _eu_palabra(c, k) == vars[0] and str_contains(c, "mui_wait_event")
+            sangria = r[i][0:k]
+            r.insert(i + 1, sangria + "if " + vars[0] + " == " + nombre)
+            texto = objeto
+            if texto == ""
+                texto = "evento #{n}"
+            end
+            r.insert(i + 2, sangria + "    # " + texto)
+            r.insert(i + 3, sangria + "end")
+            eu_linea = i + 2
+            eu_col = k + 4
+            return r
+        end
+        i = i + 1
+    end
+    eu_sin_bucle = true
+    eu_linea = linea_const
+    eu_col = 0
+    return r
+end

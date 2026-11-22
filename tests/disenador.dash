@@ -99,6 +99,38 @@ func espera_sitio(nombre: String) -> [Int]
     return s
 end
 
+# La primera línea de la sonda: "línea columna nombre" del documento activo
+func cabecera() -> String
+    time_delay(25)
+    t = file_read_text("RAM:forja-sonda.txt")
+    if t == nil
+        return ""
+    end
+    return t[0:str_find(t, "\n")]
+end
+
+func doble_clic(x: Int, y: Int)
+    input_click(x, y, 0)
+    input_click(x, y, 0)
+end
+
+# Vuelve a la pestaña de ese nombre (ENV:FORJA_PESTANAS y FORJA_PESTANAS_NOMBRES)
+func a_pestana(nombre: String)
+    nombres = str_split(env_get("FORJA_PESTANAS_NOMBRES"), "|")
+    centros = str_split(env_get("FORJA_PESTANAS"), " ")
+    i = 0
+    while i < nombres.length and i < centros.length
+        if nombres[i] == nombre
+            xy = str_split(centros[i], ",")
+            input_click(Int(xy[0]), Int(xy[1]), 0)
+            time_delay(50)
+            return
+        end
+        i = i + 1
+    end
+    anotar("no encuentro la pestaña " + nombre + ": " + env_get("FORJA_PESTANAS_NOMBRES") + " / " + env_get("FORJA_PESTANAS"))
+end
+
 func fila_elegida() -> Int
     return Int(str_split(env_get("FORJA_DISENO"), " ")[0])
 end
@@ -164,6 +196,32 @@ Main
         ver("y otra vez la ventana", s.length == 4, env_get("FORJA_LIENZO"))
         paso(6)
         time_delay(100)
+        # doble clic en saludar: a su código en main.dash (elif ev == EV_SALUDAR, la línea 29)
+        doble_clic(s[0] + s[2] / 2, s[1] + s[3] / 2)
+        time_delay(100)
+        cab = cabecera()
+        t = texto()
+        lineas = str_split(t, "\n")
+        l = Int(str_split(cab, " ")[0])
+        ver("doble clic en saludar: a elif ev == EV_SALUDAR de main.dash", str_contains(cab, "main.dash") and l < lineas.length and str_contains(lineas[l], "ev == EV_SALUDAR"), cab)
+        paso(7)
+        # el botón nuevo (sin nombre ni evento, el primero de la ventana): doble clic le pone nombre y evento, y crea
+        # su código
+        a_pestana("ventana.dashui")
+        w = espera_sitio("titulo")
+        antes = t
+        doble_clic(w[0] + w[2] / 2, w[1] + w[3] + 4 + 5)
+        t = espera_cambio(antes)
+        cab = cabecera()
+        lineas = str_split(t, "\n")
+        l = Int(str_split(cab, " ")[0])
+        ver("doble clic en el botón nuevo: su constante y su if en main.dash", str_contains(cab, "main.dash") and str_contains(t, "const ID_BOTON = 3") and str_contains(t, "if ev == ID_BOTON"), t)
+        ver("el cursor, en el comentario de su if", l < lineas.length and str_contains(lineas[l], "# boton"), cab)
+        paso(8)
+        a_pestana("ventana.dashui")
+        t = texto()
+        ver("el botón tiene nombre y evento", str_contains(t, "\"name\": \"boton\"") and str_contains(t, "\"event\": 3"), t)
+        paso(9)
     end
     if fallos == 0
         anotar("TODO BIEN")

@@ -74,7 +74,7 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - [x] T1. Disposición: calcular el tamaño y el sitio de cada objeto (función pura, con prueba en el PC con dash).
 - [x] T2. Dibujo del lienzo con la ventana, la paleta arriba y Lienzo/Árbol; clic elige (sincroniza el árbol).
 - [x] T3. Arrastrar objetos (mover) y desde la paleta (crear), con la marca de dónde cae.
-- [ ] T4. Doble clic: evento y nombre automáticos; buscar o crear el manejador en el `.dash` (abrirlo y saltar).
+- [x] T4. Doble clic: evento y nombre automáticos; buscar o crear el manejador en el `.dash` (abrirlo y saltar).
 - [ ] T5. Prueba con usuario simulado en FS-UAE (`tests/disenador.sh`), capturas al usuario.
 - [ ] T6. Lo que falte a Dash (si falta algo), en los dos caminos (`./dash` y `./dash --gcc`).
 - [ ] T7. VS Code: doble clic en la vista y en el árbol (número y nombre automáticos, `gotoEvent` sin preguntar);
@@ -95,3 +95,9 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
   mueve, paleta + arrastre o paleta + clic crean; rueda sube y baja la ventana, lo elegido se sigue. Prueba
   `RTG=1 tests/disenador.sh` (TODO BIEN). En 640x256 (sin RTG) la zona del editor mide unos 85 px: la ventana no cabe
   y la prueba falla los clics; se baja con la rueda. ESPERA=300 para las capturas (cada paso para 6 s).
+- 2026-11-22 T4: doble clic (o Amiga-J en el editor de ventanas) va al código del evento: `src/eventos_ui.dash`
+  (como `dashuiLinks.js`, pero sin pararse en `@version`: VS Code pone la constante al principio del fichero si
+  hay un `@version` antes de los import) y `ir_evento_diseno` en `main.dash`. Número libre y nombre automáticos
+  (`dv_evento`). Pruebas: `tests/eventos_base.dash` (14 bien) y `RTG=1 tests/disenador.sh` (11 bien, TODO BIEN).
+  Al escribir en una propiedad solo se redibuja su fila. `tests/diseno.sh` (la vieja) falla 3 pasos (cambiar label,
+  vista previa, rehacer y guardar) igual en main fd952d0: no es de esta rama.

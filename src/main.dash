@@ -76,6 +76,7 @@ import "rapido.dash"
 import "proyecto.dash"
 import "expresion.dash"
 import "plantillas_datos.dash"
+import "eventos_ui.dash"
 import "ventana.dashui"
 
 const VERSION = "0.8.1"
@@ -2777,6 +2778,11 @@ end
 # Amiga-J o Ctrl + clic: a donde se define el nombre del cursor
 func ir_definicion()
     d = ed_actual()
+    if d != nil and d.diseno
+        # en el editor de ventanas: al código del evento del elegido
+        ir_evento_diseno(d)
+        return
+    end
     if not es_codigo(d)
         return
     end
@@ -3037,9 +3043,91 @@ func alternar_punto(d: Documento, n: Int)
     redibujar()
 end
 
-# Doble clic en un objeto del editor de ventanas: a su manejador en el .dash que importa el .dashui
+func _ev_antes(a: String, b: String) -> Int
+    return str_compare_locale(a, b, true)
+end
+
+# Doble clic en un objeto del editor de ventanas (o Amiga-J): a su manejador en el .dash que importa el .dashui;
+# si el objeto no tiene número de evento o nombre, se le ponen, y si el .dash no trata el evento, se crea su código
+# (src/eventos_ui.dash, como la extensión de VS Code). Lo pidió Jose.
 func ir_evento_diseno(d: Documento)
-    avisar(tr(1106, "Todavía no va al código del evento."), 1)
+    if d.ruta == ""
+        avisar(tr(1110, "Guarda antes el .dashui: su código va en el .dash que lo importa."), 1)
+        return
+    end
+    base = nombre_de(d.ruta)
+    cajon = cajon_de(d.ruta)
+    # los .dash de su cajón que lo importan (los abiertos, con lo que tienen en Forja)
+    var rutas: [String] = []
+    var textos: [String] = []
+    var todos: [String] = []
+    n = dir_read(cajon)
+    i = 0
+    while i < n
+        nombre = dir_entry_name(i)
+        if not dir_entry_is_dir(i) and str_ends(str_lower(nombre), ".dash")
+            todos.push(nombre)
+        end
+        i = i + 1
+    end
+    todos.sort(_ev_antes)
+    for nombre in todos
+        ruta = ruta_unir(cajon, nombre)
+        o = doc_de(ruta)
+        t = ""
+        if o != nil
+            t = ed_texto(o)
+        else
+            leido = file_read_text(ruta)
+            if leido != nil
+                t = str_replace(leido, "\r", "")
+            end
+        end
+        if eu_importa(str_split(t, "\n"), base)
+            rutas.push(ruta)
+            textos.push(t)
+        end
+    end
+    if rutas.length == 0
+        avisar(hueco2(tr(1111, "Ningún .dash de %1 importa %2: pon import \"%2\" en el programa."), cajon, base), 1)
+        return
+    end
+    num = dv_evento(eu_valores(str_split(textos[0], "\n")))
+    if num == 0
+        avisar(dv_mensaje, 1)
+        redibujar()
+        return
+    end
+    if dv_ev_cambio
+        ed_aplicar_diseno(d)
+        rehacer_vista()
+    end
+    # donde ya lo trata
+    i = 0
+    while i < rutas.length
+        l = eu_manejador(str_split(textos[i], "\n"), num)
+        if l >= 0
+            ir_a_sitio(rutas[i], l + 1, eu_col + 1)
+            avisar(hueco2(tr(1112, "El evento %1 (%2), en su código."), "#{num}", dv_ev_objeto), 2)
+            return
+        end
+        i = i + 1
+    end
+    # o se crea en el primero
+    if not abrir_sitio(rutas[0])
+        return
+    end
+    o = ed_actual()
+    nuevas = eu_crear(o.lineas, num, dv_ev_objeto)
+    ed_cambiar_lineas(o, 1, o.lineas.length, str_join(nuevas, "\n"))
+    ed_ir_a(eu_linea + 1, eu_col + 1)
+    if eu_sin_bucle
+        avisar(hueco(tr(1113, "Añadida la constante %1: no hay un bucle de mui_wait_event donde poner su código."), eu_nombre), 1)
+    else
+        avisar(hueco2(tr(1114, "Creado el código del evento %1 (%2)."), "#{num}", eu_nombre), 2)
+    end
+    cerrar_capas()
+    redibujar()
 end
 
 # Si la vista previa está abierta, se rehace con lo cambiado
@@ -3251,9 +3339,17 @@ func en_editor() -> Int
             return 0
         end
         if d.diseno
+            escribiendo = dv_editando
             if dv_tecla(codigo, teclas, letra)
                 ed_aplicar_diseno(d)
                 rehacer_vista()
+            elif escribiendo and dv_editando
+                # escribiendo en una propiedad: solo su fila
+                z = dv_zona_fila_editada(ed_zona_ancho)
+                dv_solo_fila = true
+                mui_canvas_update_area(v.editor, z[0], z[1], z[2], z[3])
+                dv_solo_fila = false
+                return 0
             end
             redibujar()
             return 0

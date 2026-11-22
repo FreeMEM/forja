@@ -870,6 +870,232 @@ func dv_sonda() -> String
     return r
 end
 
+# --- El evento del elegido (el doble clic; lo pidió Jose) ---
+
+var dv_ev_clave: String = ""      # la propiedad del evento ("event", "change", "ack", "double", "close")
+var dv_ev_objeto: String = ""     # el nombre del objeto (para la constante del código)
+var dv_ev_cambio: Bool = false    # se le puso número o nombre: el fichero cambió (dv_texto())
+
+# La propiedad del evento de un nodo, según su tipo ("" si no da eventos)
+func _dv_clave_evento(f: Fila) -> String
+    n = f.nodo
+    if f.clase == F_VENTANA
+        return "close"
+    end
+    if f.clase == F_MENU
+        return ""
+    end
+    if f.clase == F_ELEMENTO
+        if json_get_bool(n, "separator") or json_has(n, "submenu")
+            return ""
+        end
+        return "event"
+    end
+    tipo = json_get_str(n, "type")
+    if tipo == "button" or tipo == "image_button"
+        return "event"
+    end
+    if tipo == "checkbox" or tipo == "cycle" or tipo == "slider" or tipo == "scrollbar" or tipo == "tabs" or tipo == "image_toggle"
+        return "change"
+    end
+    if tipo == "list"
+        if json_has(n, "double") and not json_has(n, "change")
+            return "double"
+        end
+        return "change"
+    end
+    if tipo == "string" or tipo == "combo" or tipo == "text_editor"
+        if json_has(n, "change") and not json_has(n, "ack")
+            return "change"
+        end
+        return "ack"
+    end
+    # otro tipo con un evento puesto a mano
+    for p in ["event", "change", "ack", "double"]
+        if json_has(n, p)
+            return p
+        end
+    end
+    return ""
+end
+
+# Los números de evento del fichero (de todos los objetos, menús y ventanas)
+func _dv_numeros(n: Json, r: [Int])
+    if n == nil
+        return
+    end
+    if n.kind == JSON_OBJECT
+        for p in ["event", "change", "ack", "double", "close"]
+            v = json_get(n, p)
+            if v != nil and v.kind == JSON_NUMBER
+                r.push(json_num(v))
+            end
+        end
+        i = 0
+        while i < json_length(n)
+            _dv_numeros(json_value_at(n, i), r)
+            i = i + 1
+        end
+    elif n.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(n)
+            _dv_numeros(json_at(n, i), r)
+            i = i + 1
+        end
+    end
+end
+
+# Los nombres que ya hay en la ventana
+func _dv_nombres(n: Json, r: [String])
+    if n == nil
+        return
+    end
+    if n.kind == JSON_OBJECT
+        if json_has(n, "name")
+            r.push(json_get_str(n, "name"))
+        end
+        i = 0
+        while i < json_length(n)
+            _dv_nombres(json_value_at(n, i), r)
+            i = i + 1
+        end
+    elif n.kind == JSON_ARRAY
+        i = 0
+        while i < json_length(n)
+            _dv_nombres(json_at(n, i), r)
+            i = i + 1
+        end
+    end
+end
+
+const DV_RESERVADAS = "and|or|not|if|elif|else|end|while|for|in|func|return|break|continue|struct|enum|var|const|import|true|false|nil|window|match|case|Main|self"
+
+# Un nombre de campo sacado de un texto ("_Saludar" -> "saludar"), o "" si no sale uno que valga
+func dv_nombre_de(texto: String) -> String
+    t = str_lower(texto)
+    de = "áéíóúàèìòùäëïöüâêîôûñç"
+    a = "aeiouaeiouaeiouaeiounc"
+    r = ""
+    i = 0
+    while i < t.length
+        c = t[i:i + 1]
+        k = str_find(de, c)
+        if k >= 0
+            c = a[k:k + 1]
+        end
+        o = str_code(c, 0)
+        if (o >= 97 and o <= 122) or (o >= 48 and o <= 57)
+            r = r + c
+        elif (o == 32 or o == 45 or o == 46) and r != "" and not str_ends(r, "_")
+            r = r + "_"
+        end
+        i = i + 1
+    end
+    while str_ends(r, "_")
+        r = r[0:r.length - 1]
+    end
+    while r != "" and str_code(r, 0) >= 48 and str_code(r, 0) <= 57
+        r = r[1:]
+    end
+    if r.length > 24
+        r = r[0:24]
+    end
+    for p in str_split(DV_RESERVADAS, "|")
+        if r == str_lower(p)
+            return ""
+        end
+    end
+    return r
+end
+
+# El evento del elegido para ir a su código: su número (0 si no da eventos: dv_mensaje dice por qué). Si no tenía
+# número, le pone el menor libre (que no esté en el fichero ni en ocupados, los const del .dash); si no tenía
+# nombre, uno de su texto o de su tipo (dv_ev_cambio). dv_ev_objeto: su nombre.
+func dv_evento(ocupados: [Int]) -> Int
+    dv_ev_cambio = false
+    dv_mensaje = ""
+    f = dv_filas[dv_sel]
+    clave = _dv_clave_evento(f)
+    dv_ev_clave = clave
+    if clave == ""
+        if f.clase == F_OBJETO
+            dv_mensaje = hueco(tr(1107, "Un objeto %1 no da eventos."), dv_nombre_tipo(json_get_str(f.nodo, "type")))
+        else
+            dv_mensaje = tr(1108, "Esto no da eventos.")
+        end
+        return 0
+    end
+    n = f.nodo
+    # el nombre: el que tenga, o uno nuevo (la ventana siempre lo tiene)
+    nombre = json_get_str(n, "name")
+    if nombre == "" and f.clase != F_VENTANA
+        var usados: [String] = []
+        _dv_nombres(dv_ventana, usados)
+        base = ""
+        for p in ["label", "text", "title"]
+            if base == "" and json_has(n, p)
+                base = dv_nombre_de(lz_texto(json_get_str(n, p)))
+            end
+        end
+        if base == ""
+            if f.clase == F_ELEMENTO
+                base = dv_nombre_de(tr(1109, "opcion"))
+            else
+                base = dv_nombre_de(dv_nombre_tipo(json_get_str(n, "type")))
+            end
+        end
+        nombre = base
+        k = 1
+        while true
+            repetido = false
+            for u in usados
+                if u == nombre
+                    repetido = true
+                end
+            end
+            if not repetido
+                break
+            end
+            nombre = base + "#{k}"
+            k = k + 1
+        end
+        json_set_str(n, "name", nombre)
+        dv_ev_cambio = true
+    end
+    dv_ev_objeto = nombre
+    v = json_get(n, clave)
+    if v != nil and v.kind == JSON_NUMBER and json_num(v) > 0
+        if dv_ev_cambio
+            _dv_buscar = n
+            _dv_hacer_filas()
+        end
+        return json_num(v)
+    end
+    var hay: [Int] = []
+    _dv_numeros(dv_raiz, hay)
+    for o in ocupados
+        hay.push(o)
+    end
+    libre = 1
+    while true
+        esta = false
+        for h in hay
+            if h == libre
+                esta = true
+            end
+        end
+        if not esta
+            break
+        end
+        libre = libre + 1
+    end
+    json_set_int(n, clave, libre)
+    dv_ev_cambio = true
+    _dv_buscar = n
+    _dv_hacer_filas()
+    return libre
+end
+
 # --- Vista previa ---
 
 # Una copia sin eventos ni atajos (no deben llegar a Forja), y cerrar da evento_cerrar
@@ -982,8 +1208,10 @@ func dv_dibujar(x: Int, y: Int, ancho: Int, alto: Int, arriba: Int)
     if not dv_ver_arbol
         dv_corte = ancho * 62 / 100
         _dv_dibujar_ventana(x, y, dv_corte - 4, alto)
-        # la ventana bajada puede tapar la paleta: otra vez encima
-        _dv_dibujar_paleta(x, y - dv_paleta_alto, ancho)
+        if lz_vy < 0
+            # la ventana bajada tapa la paleta: otra vez encima
+            _dv_dibujar_paleta(x, y - dv_paleta_alto, ancho)
+        end
     else
         _dv_dibujar_arbol(x, y, alto)
     end
@@ -1296,6 +1524,34 @@ func _dv_dibujar_arbol(x: Int, y: Int, alto: Int)
 end
 
 # Las propiedades del elegido (o la lista de tipos para el objeto nuevo)
+var _dv_props_px: Int = 0
+var _dv_props_y: Int = 0
+var _dv_props_derecha: Int = 0
+var dv_solo_fila: Bool = false    # con mui_canvas_update: solo la propiedad que se escribe
+
+# Solo la propiedad que se está escribiendo (escribir no cambia nada más: no hace falta dibujarlo todo)
+func dv_dibujar_fila_editada()
+    if dv_prop < 0 or dv_prop >= dv_props.length
+        return
+    end
+    fy = _dv_props_y + dv_prop * dv_fila_alto
+    gfx_pen(tema.seleccion)
+    gfx_rect(_dv_props_px, fy, _dv_props_derecha, fy + dv_fila_alto - 1)
+    base = fy + 1 + font_baseline()
+    gfx_pen(tema.tenue)
+    gfx_text_at(_dv_props_px + DV_MARGEN, base, dv_props[dv_prop])
+    gfx_pen(tema.texto)
+    gfx_text_at(dv_columna_valor, base, dv_valor)
+    cx = dv_columna_valor + font_text_width(dv_valor[0:dv_cursor])
+    gfx_pen(tema.cursor)
+    gfx_rect(cx, fy, cx + 1, fy + dv_fila_alto - 1)
+end
+
+# Dónde está esa fila en el lienzo de Forja: [x, y, ancho, alto]
+func dv_zona_fila_editada(ancho: Int) -> [Int]
+    return [dv_corte, dv_y0 + dv_prop * dv_fila_alto, ancho - dv_corte, dv_fila_alto]
+end
+
 func _dv_dibujar_props(x: Int, y: Int, ancho: Int, alto: Int)
     px = x + dv_corte
     gfx_pen(tema.fondo_panel)
@@ -1313,6 +1569,9 @@ func _dv_dibujar_props(x: Int, y: Int, ancho: Int, alto: Int)
         end
     end
     dv_columna_valor = px + DV_MARGEN + dv_columna_valor + 12
+    _dv_props_px = px
+    _dv_props_y = y + 4
+    _dv_props_derecha = x + ancho - 1
     fy = y + 4
     i = 0
     for p in dv_props
