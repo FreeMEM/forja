@@ -80,7 +80,7 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - [x] T7. VS Code: doble clic en la vista y en el árbol (número y nombre automáticos, `gotoEvent` sin preguntar);
   pruebas de la extensión; captura.
 - [x] T8. Documentación (ayuda de Forja, README, CHANGELOG, `docs/MUI_EDITOR.md` de Dash) con "(lo pidió Jose)".
-- [ ] T9. Aviso a jefe-dash: commits, qué se probó, borrador para Jose.
+- [x] T9. Aviso a jefe-dash: commits, qué se probó, borrador para Jose.
 - [ ] T10. (Lo pidió el usuario, 22/11) Un vídeo demostrativo nuevo de Forja con todas sus características, el
   diseñador incluido. Con `tools/video` y lo de la memoria "Vídeo de Forja" (voz del usuario en pegaso). Sin
   publicarlo: se le manda al usuario.
@@ -112,3 +112,4 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
   depurar y DashOS por lo mismo). `node_modules` es un enlace al de la copia principal (en info/exclude).
 - 2026-11-22 T8: README (es/en) de Forja; CHANGELOG de la extensión y `docs/MUI_EDITOR.md` (es/en) de Dash, con
   Jose. La web ("Gracias") y las notas de la versión, al publicar (no se publica aquí).
+- 2026-11-22 T9: aviso a jefe-dash con commits, pruebas, avisos y el borrador para Jose. Siguiente: T10 (el vídeo).
