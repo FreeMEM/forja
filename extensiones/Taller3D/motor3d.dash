@@ -1,0 +1,1106 @@
+# motor3d.dash: el motor por software de Titan Force (~/Projects/titanforce/src/motor.dash), para el editor 3D de
+# Forja (Taller3D): el esqueleto de 17 huesos, la pose de andar, los modelos (.tft con textura, .tfs de colores) y el
+# relleno de triangulos en un bufer de lapices, que se vuelca con gfx_pens_draw_rgb (en el Workbench de 16 a 32 bits;
+# en uno de paleta, los colores mas parecidos). Es una copia del juego: lo que cambie en uno, en el otro.
+const HUESOS = 17
+const CUBETAS = 256
+const CERCA = 0.5
+
+# Matrices de 3x4: [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz]
+func m_mul(a: [Float], b: [Float]) -> [Float]
+    var r: [Float] = []
+    for i in (0..2)
+        for j in (0..3)
+            v = a[i * 4] * b[j] + a[i * 4 + 1] * b[4 + j] + a[i * 4 + 2] * b[8 + j]
+            if j == 3
+                v = v + a[i * 4 + 3]
+            end
+            r.push(v)
+        end
+    end
+    return r
+end
+
+func m_tras(x: Float, y: Float, z: Float) -> [Float]
+    return [1.0, 0.0, 0.0, x, 0.0, 1.0, 0.0, y, 0.0, 0.0, 1.0, z]
+end
+
+func m_rx(g: Float) -> [Float]
+    c = Float(cos(g * 0.0174533))
+    s = Float(sin(g * 0.0174533))
+    return [1.0, 0.0, 0.0, 0.0, 0.0, c, 0.0 - s, 0.0, 0.0, s, c, 0.0]
+end
+
+func m_ry(g: Float) -> [Float]
+    c = Float(cos(g * 0.0174533))
+    s = Float(sin(g * 0.0174533))
+    return [c, 0.0, s, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0 - s, 0.0, c, 0.0]
+end
+
+func m_rz(g: Float) -> [Float]
+    c = Float(cos(g * 0.0174533))
+    s = Float(sin(g * 0.0174533))
+    return [c, 0.0 - s, 0.0, 0.0, s, c, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+end
+
+# Suave entre dos valores (u de 0 a 1)
+func mezcla(a: Float, b: Float, u: Float) -> Float
+    if u <= 0.0
+        return a
+    end
+    if u >= 1.0
+        return b
+    end
+    v = u * u * (3.0 - 2.0 * u)
+    return a + (b - a) * v
+end
+
+struct Esqueleto
+    padre: [Int]
+    jx: [Float]
+    jy: [Float]
+    jz: [Float]
+    bw: [Float]
+    bh: [Float]
+    bd: [Float]
+    cx: [Float]
+    cy: [Float]
+    cz: [Float]
+    cr: [Float]
+    cg: [Float]
+    cb: [Float]
+    ax: [Float]
+    ay: [Float]
+    az: [Float]
+end
+
+func hueso(e: Esqueleto, padre: Int, j: [Float], caja: [Float], centro: [Float], color: [Float])
+    e.padre.push(padre)
+    e.jx.push(j[0])
+    e.jy.push(j[1])
+    e.jz.push(j[2])
+    e.bw.push(caja[0])
+    e.bh.push(caja[1])
+    e.bd.push(caja[2])
+    e.cx.push(centro[0])
+    e.cy.push(centro[1])
+    e.cz.push(centro[2])
+    e.cr.push(color[0])
+    e.cg.push(color[1])
+    e.cb.push(color[2])
+    e.ax.push(0.0)
+    e.ay.push(0.0)
+    e.az.push(0.0)
+end
+
+# Huesos: 0 pelvis, 1 torso, 2 cabeza; brazo izquierdo 3 hombro, 4 brazo, 5 antebrazo, 6 puno (7-10 el derecho);
+# pierna izquierda 11 muslo, 12 pierna, 13 pie (14-16 la derecha). El robot mira hacia +z.
+func montar(e: Esqueleto)
+    gris = [0.62, 0.64, 0.68]
+    oscuro = [0.3, 0.32, 0.36]
+    claro = [0.85, 0.85, 0.82]
+    naranja = [0.95, 0.55, 0.15]
+    hueso(e, -1, [0.0, 10.5, 0.0], [4.2, 1.6, 2.6], [0.0, 0.0, 0.0], oscuro)
+    hueso(e, 0, [0.0, 0.8, 0.0], [6.4, 5.4, 3.4], [0.0, 3.0, 0.0], gris)
+    hueso(e, 1, [0.0, 6.0, 0.0], [1.8, 2.2, 2.0], [0.0, 1.1, 0.1], claro)
+    for lado in (0..1)
+        sx = -1.0
+        if lado == 1
+            sx = 1.0
+        end
+        b = e.padre.length
+        hueso(e, 1, [sx * 3.9, 5.0, 0.0], [2.6, 2.2, 2.8], [sx * 0.4, 0.0, 0.0], naranja)
+        hueso(e, b, [0.0, -0.6, 0.0], [1.4, 3.6, 1.5], [0.0, -1.8, 0.0], oscuro)
+        hueso(e, b + 1, [0.0, -3.6, 0.0], [1.9, 3.4, 2.0], [0.0, -1.7, 0.0], gris)
+        hueso(e, b + 2, [0.0, -3.4, 0.0], [2.0, 1.8, 2.1], [0.0, -0.9, 0.0], oscuro)
+    end
+    for lado in (0..1)
+        sx = -1.0
+        if lado == 1
+            sx = 1.0
+        end
+        b = e.padre.length
+        hueso(e, 0, [sx * 1.5, -0.6, 0.0], [2.0, 4.4, 2.2], [0.0, -2.2, 0.0], oscuro)
+        hueso(e, b, [0.0, -4.4, 0.0], [2.4, 4.6, 2.6], [0.0, -2.3, 0.0], gris)
+        hueso(e, b + 1, [0.0, -4.6, 0.0], [2.6, 1.0, 4.0], [0.0, -0.5, 0.6], oscuro)
+    end
+end
+
+func reposo(e: Esqueleto)
+    for i in (0..HUESOS - 1)
+        e.ax[i] = 0.0
+        e.ay[i] = 0.0
+        e.az[i] = 0.0
+    end
+end
+
+# Pose del robot. fase: el ciclo de dos pasos (1.0 = los dos); zancada: lo que avanza cada paso; pierna: de la
+# cadera al tobillo; amp: 0 quieto, 1 andando; tg >= 0: segundos desde que empezo el punetazo.
+# El pie apoyado va hacia atras en linea recta a la velocidad del robot (no patina): el muslo sale de su posicion
+# (arcoseno); el otro pie pasa por delante con la rodilla levantada. Devuelve cuanto baja la pelvis.
+func pie(q: Float, zancada: Float) -> Float
+    if q < 0.5
+        return zancada / 2.0 - zancada * q * 2.0
+    end
+    u = (q - 0.5) * 2.0
+    return 0.0 - zancada / 2.0 + zancada * mezcla(0.0, 1.0, u)
+end
+
+func alzado(q: Float) -> Float
+    if q < 0.5
+        return 0.0
+    end
+    return Float(sin((q - 0.5) * 6.2832))
+end
+
+func pose(e: Esqueleto, t: Float, fase: Float, zancada: Float, pierna: Float, amp: Float, tg: Float) -> Float
+    for i in (0..HUESOS - 1)
+        e.ax[i] = 0.0
+        e.ay[i] = 0.0
+        e.az[i] = 0.0
+    end
+    r = Float(sin(t * 1.3))
+    qi = Float(fmod(fase, 1.0))
+    if qi < 0.0
+        qi = qi + 1.0
+    end
+    qd = qi + 0.5
+    if qd >= 1.0
+        qd = qd - 1.0
+    end
+    # muslos desde la posicion de cada pie (negativo: hacia delante)
+    oi = pie(qi, zancada) / pierna
+    od = pie(qd, zancada) / pierna
+    if oi > 0.95
+        oi = 0.95
+    end
+    if oi < -0.95
+        oi = -0.95
+    end
+    if od > 0.95
+        od = 0.95
+    end
+    if od < -0.95
+        od = -0.95
+    end
+    ai = 0.0 - Float(asin(oi)) * 57.2958
+    ad = 0.0 - Float(asin(od)) * 57.2958
+    li = alzado(qi)
+    ld = alzado(qd)
+    e.ax[11] = ai - 12.0 * li
+    e.ax[14] = ad - 12.0 * ld
+    e.ax[12] = 42.0 * li + 4.0 * amp
+    e.ax[15] = 42.0 * ld + 4.0 * amp
+    e.ax[13] = 0.0 - e.ax[11] - e.ax[12]
+    e.ax[16] = 0.0 - e.ax[14] - e.ax[15]
+    # la cadera baja lo que baja la pierna apoyada al abrirse
+    apoyo = ai
+    if qi >= 0.5
+        apoyo = ad
+    end
+    baja = 0.0 - pierna * (1.0 - Float(cos(apoyo * 0.0174533)))
+    baja = baja + 0.1 * r * (1.0 - amp)
+    e.ax[1] = 1.5 * r * (1.0 - amp) + 4.0 * amp
+    # (sin balanceo lateral de la pelvis: movia el pie apoyado de lado)
+    e.ay[1] = 0.25 * (ai - ad)
+    # brazos al contrario que las piernas
+    e.ax[4] = -0.6 * ad
+    e.ax[8] = -0.6 * ai
+    e.ax[5] = -12.0 - 6.0 * amp
+    e.ax[9] = -12.0 - 6.0 * amp
+    e.az[3] = -4.0
+    e.az[7] = 4.0
+    if tg >= 0.0
+        # preparar 0-0.7 s, golpe 0.7-0.95, aguantar hasta 1.3, volver hasta 2.1
+        giro = 0.0
+        hombro = 0.0
+        codo = -15.0
+        if tg < 0.7
+            k = tg / 0.7
+            giro = mezcla(0.0, -22.0, k)
+            hombro = mezcla(0.0, 35.0, k)
+            codo = mezcla(-15.0, -95.0, k)
+        else
+            if tg < 0.95
+                k = (tg - 0.7) / 0.25
+                giro = mezcla(-22.0, 26.0, k)
+                hombro = mezcla(35.0, -82.0, k)
+                codo = mezcla(-95.0, -4.0, k)
+            else
+                if tg < 1.3
+                    giro = 26.0
+                    hombro = -82.0
+                    codo = -4.0
+                else
+                    k = (tg - 1.3) / 0.8
+                    giro = mezcla(26.0, 0.0, k)
+                    hombro = mezcla(-82.0, 0.0, k)
+                    codo = mezcla(-4.0, -15.0, k)
+                end
+            end
+        end
+        e.ay[1] = e.ay[1] + giro
+        e.ax[8] = hombro
+        e.ax[9] = codo
+        e.ax[4] = 10.0
+        e.ax[5] = -60.0
+    end
+    return baja
+end
+
+# ---------------- modelo y mundo ----------------
+# Triangulos en el espacio de la camara: la misma lista para el robot y las casas
+struct Malla
+    vx: [Float]
+    vy: [Float]
+    vz: [Float]
+    vh: [Int]
+    ta: [Int]
+    tb: [Int]
+    tc: [Int]
+    tcol: [Int]
+    tt: [Int]
+    tuv: [Int]
+end
+
+# Las texturas del robot (TFRX): todas seguidas en buf desde base, de 2^lado de lado; tablas: 8 tablas de luz de 256
+# bytes (texel -> lapiz 32 + texel * 8 + tono)
+struct Texturas
+    buf: Int
+    base: Int
+    lado: Int
+    tablas: Int
+end
+
+# robot con textura (.tft, TFRX de herramientas/blender/texturizado.py): como cargar, con sus texturas
+func cargar_tex(e: Esqueleto, m: Malla, tx: Texturas, nombre: String, pal: Int) -> Int
+    tam = file_size(nombre)
+    if tam < 8
+        return -1
+    end
+    buf = buffer_alloc(tam)
+    if file_load(nombre, buf, tam) != tam or buffer_get_long(buf, 0) != 0x54465258
+        buffer_free(buf)
+        return -1
+    end
+    nc = buffer_get_word(buf, 4)
+    pos = 6
+    for i in (0..nc - 1)
+        tonos(pal, 32 + i * 8, buffer_get_byte(buf, pos), buffer_get_byte(buf, pos + 1), buffer_get_byte(buf, pos + 2))
+        pos = pos + 4
+    end
+    ntex = buffer_get_word(buf, pos)
+    lado = buffer_get_word(buf, pos + 2)
+    pos = pos + 4
+    tx.buf = buf
+    tx.base = buf + pos
+    tx.lado = lado
+    pos = pos + ntex * (1 << lado) * (1 << lado)
+    tx.tablas = buffer_alloc(8 * 256)
+    for t in (0..7)
+        for i in (0..255)
+            l = 32 + (i % nc) * 8 + t
+            buffer_set_byte(tx.tablas, t * 256 + i, l)
+        end
+    end
+    nh = buffer_get_word(buf, pos)
+    pos = pos + 2
+    var ax: [Float] = []
+    var ay: [Float] = []
+    var az: [Float] = []
+    for h in (0..nh - 1)
+        padre = palabra(buf, pos)
+        jx = Float(palabra(buf, pos + 2)) / 100.0
+        jy = Float(palabra(buf, pos + 4)) / 100.0
+        jz = Float(palabra(buf, pos + 6)) / 100.0
+        nv = buffer_get_word(buf, pos + 8)
+        nt = buffer_get_word(buf, pos + 10)
+        pos = pos + 12
+        ax.push(jx)
+        ay.push(jy)
+        az.push(jz)
+        if padre >= 0
+            e.jx[h] = jx - ax[padre]
+            e.jy[h] = jy - ay[padre]
+            e.jz[h] = jz - az[padre]
+        else
+            e.jx[h] = jx
+            e.jy[h] = jy
+            e.jz[h] = jz
+        end
+        base = m.vx.length
+        for i in (0..nv - 1)
+            m.vx.push(Float(palabra(buf, pos)) / 100.0)
+            m.vy.push(Float(palabra(buf, pos + 2)) / 100.0)
+            m.vz.push(Float(palabra(buf, pos + 4)) / 100.0)
+            m.vh.push(h)
+            pos = pos + 6
+        end
+        for i in (0..nt - 1)
+            m.ta.push(base + buffer_get_word(buf, pos))
+            m.tb.push(base + buffer_get_word(buf, pos + 2))
+            m.tc.push(base + buffer_get_word(buf, pos + 4))
+            m.tt.push(buffer_get_byte(buf, pos + 6))
+            m.tcol.push(0)
+            for j in (0..5)
+                m.tuv.push(palabra(buf, pos + 8 + j * 2))
+            end
+            pos = pos + 20
+        end
+    end
+    return nc
+end
+
+func palabra(buf: Int, pos: Int) -> Int
+    v = buffer_get_word(buf, pos)
+    if v > 32767
+        v = v - 65536
+    end
+    return v
+end
+
+# robot .tfs (TFRB de herramientas/blender/huesos.py): pone las articulaciones y los colores de la paleta (lapices
+# 32 + color * 8 + nivel de luz)
+func cargar(e: Esqueleto, m: Malla, nombre: String, pal: Int) -> Int
+    # (el ultimo color es el del chasis de las piezas: ver chasis_lapiz en Main)
+    tam = file_size(nombre)
+    if tam < 8
+        return -1
+    end
+    buf = buffer_alloc(tam)
+    if file_load(nombre, buf, tam) != tam or buffer_get_long(buf, 0) != 0x54465242
+        buffer_free(buf)
+        return -1
+    end
+    nc = buffer_get_word(buf, 4)
+    pos = 6
+    for i in (0..nc - 1)
+        r = buffer_get_byte(buf, pos)
+        g = buffer_get_byte(buf, pos + 1)
+        b = buffer_get_byte(buf, pos + 2)
+        tonos(pal, 32 + i * 8, r, g, b)
+        pos = pos + 4
+    end
+    nh = buffer_get_word(buf, pos)
+    pos = pos + 2
+    var ax: [Float] = []
+    var ay: [Float] = []
+    var az: [Float] = []
+    for h in (0..nh - 1)
+        padre = palabra(buf, pos)
+        jx = Float(palabra(buf, pos + 2)) / 100.0
+        jy = Float(palabra(buf, pos + 4)) / 100.0
+        jz = Float(palabra(buf, pos + 6)) / 100.0
+        nv = buffer_get_word(buf, pos + 8)
+        nt = buffer_get_word(buf, pos + 10)
+        pos = pos + 12
+        ax.push(jx)
+        ay.push(jy)
+        az.push(jz)
+        if padre >= 0
+            e.jx[h] = jx - ax[padre]
+            e.jy[h] = jy - ay[padre]
+            e.jz[h] = jz - az[padre]
+        else
+            e.jx[h] = jx
+            e.jy[h] = jy
+            e.jz[h] = jz
+        end
+        base = m.vx.length
+        for i in (0..nv - 1)
+            m.vx.push(Float(palabra(buf, pos)) / 100.0)
+            m.vy.push(Float(palabra(buf, pos + 2)) / 100.0)
+            m.vz.push(Float(palabra(buf, pos + 4)) / 100.0)
+            m.vh.push(h)
+            pos = pos + 6
+        end
+        for i in (0..nt - 1)
+            m.ta.push(base + buffer_get_word(buf, pos))
+            m.tb.push(base + buffer_get_word(buf, pos + 2))
+            m.tc.push(base + buffer_get_word(buf, pos + 4))
+            m.tcol.push(32 + buffer_get_byte(buf, pos + 6) * 8)
+            m.tt.push(-1)
+            for j in (0..5)
+                m.tuv.push(0)
+            end
+            pos = pos + 8
+        end
+    end
+    buffer_free(buf)
+    return nc
+end
+
+# Un color en la tabla pal (3 bytes por lapiz). Aqui no toca la paleta de la pantalla (el editor vive en el
+# Workbench): se vuelca con gfx_pens_draw_rgb y la tabla (lut)
+func color(pal: Int, i: Int, r: Int, g: Int, b: Int)
+    buffer_set_byte(pal, i * 3, r)
+    buffer_set_byte(pal, i * 3 + 1, g)
+    buffer_set_byte(pal, i * 3 + 2, b)
+end
+
+# Un numero escrito en decimal o en hexadecimal (0x29004, $29004)
+func numero(t: String) -> Int
+    hex = false
+    i = 0
+    if t.length > 2 and (t[0:2] == "0x" or t[0:2] == "0X")
+        hex = true
+        i = 2
+    end
+    if t.length > 1 and t[0:1] == "$"
+        hex = true
+        i = 1
+    end
+    if not hex
+        return Int(t)
+    end
+    v = 0
+    while i < t.length
+        c = Int(t[i])
+        d = -1
+        if c >= 48 and c <= 57
+            d = c - 48
+        end
+        if c >= 65 and c <= 70
+            d = c - 55
+        end
+        if c >= 97 and c <= 102
+            d = c - 87
+        end
+        if d < 0
+            return v
+        end
+        v = v * 16 + d
+        i = i + 1
+    end
+    return v
+end
+
+# 8 tonos de un color (de la sombra a la luz) desde el lapiz base; la paleta es de 4 bits por componente
+func tonos(pal: Int, base: Int, r: Int, g: Int, b: Int)
+    for k in (0..7)
+        f = 0.55 + 0.75 * Float(k) / 7.0
+        rr = Int(Float(r) * f)
+        gg = Int(Float(g) * f)
+        bb = Int(Float(b) * f)
+        if rr > 255
+            rr = 255
+        end
+        if gg > 255
+            gg = 255
+        end
+        if bb > 255
+            bb = 255
+        end
+        color(pal, base + k, rr, gg, bb)
+    end
+end
+
+# una caja de casa en el mundo (sin base): 8 esquinas compartidas, 2 triangulos por cara; hueso -1 (ya esta en el
+# mundo). En este motor el color va en el triangulo, asi que las caras pueden compartir esquinas.
+func caja_mundo(m: Malla, cx: Float, cy: Float, cz: Float, w: Float, h: Float, d: Float, lapiz: Int, tapa: Bool)
+    esq = [4, 5, 7, 6, 1, 0, 2, 3, 5, 1, 3, 7, 0, 4, 6, 2, 6, 7, 3, 2]
+    base = m.vx.length
+    for e in (0..7)
+        x = cx - w / 2.0
+        if e % 2 == 1
+            x = cx + w / 2.0
+        end
+        y = cy - h / 2.0
+        if (e / 2) % 2 == 1
+            y = cy + h / 2.0
+        end
+        z = cz - d / 2.0
+        if e / 4 == 1
+            z = cz + d / 2.0
+        end
+        m.vx.push(x)
+        m.vy.push(y)
+        m.vz.push(z)
+        m.vh.push(-1)
+    end
+    caras = 5
+    if not tapa
+        caras = 4
+    end
+    for f in (0..caras - 1)
+        m.ta.push(base + esq[f * 4])
+        m.tb.push(base + esq[f * 4 + 1])
+        m.tc.push(base + esq[f * 4 + 2])
+        m.tcol.push(lapiz)
+        m.ta.push(base + esq[f * 4])
+        m.tb.push(base + esq[f * 4 + 2])
+        m.tc.push(base + esq[f * 4 + 3])
+        m.tcol.push(lapiz)
+        for j in (0..13)
+            if j < 2
+                m.tt.push(-1)
+            else
+                m.tuv.push(0)
+            end
+        end
+    end
+end
+
+# ---------------- relleno ----------------
+# Un triangulo de color liso en el bufer de lapices (ANCHO x ALTO), linea a linea. Las esquinas van en dieciseisavos
+# de pixel; se pinta cada pixel cuyo centro cae dentro (filas y columnas desde ceil(borde - 0.5)): dos triangulos que
+# comparten un lado no dejan rendija entre ellos ni pisan el mismo pixel.
+func relleno(buf: Int, an: Int, al: Int, x0: Int, y0: Int, x1: Int, y1: Int, x2: Int, y2: Int, lapiz: Int)
+    if y1 < y0
+        t = x0
+        x0 = x1
+        x1 = t
+        t = y0
+        y0 = y1
+        y1 = t
+    end
+    if y2 < y0
+        t = x0
+        x0 = x2
+        x2 = t
+        t = y0
+        y0 = y2
+        y2 = t
+    end
+    if y2 < y1
+        t = x1
+        x1 = x2
+        x2 = t
+        t = y1
+        y1 = y2
+        y2 = t
+    end
+    if y2 <= y0
+        return
+    end
+    # primera y ultima fila cuyo centro (y * 16 + 8) queda dentro
+    ya = (y0 + 7) / 16
+    if y0 + 7 < 0
+        ya = 0 - ((7 - y0) / 16)
+    end
+    yb = (y2 + 7) / 16
+    if y2 + 7 < 0
+        yb = 0 - ((7 - y2) / 16)
+    end
+    if ya < 0
+        ya = 0
+    end
+    if yb > al
+        yb = al
+    end
+    if yb <= ya
+        return
+    end
+    dl = y2 - y0
+    for y in (ya..yb - 1)
+        cy = y * 16 + 8
+        xl = x0 + Int(Float(x2 - x0) * Float(cy - y0) / Float(dl))
+        xs = 0
+        if cy < y1
+            xs = x0 + Int(Float(x1 - x0) * Float(cy - y0) / Float(y1 - y0))
+        else
+            if y2 == y1
+                xs = x1
+            else
+                xs = x1 + Int(Float(x2 - x1) * Float(cy - y1) / Float(y2 - y1))
+            end
+        end
+        izq = xl
+        der = xs
+        if xs < xl
+            izq = xs
+            der = xl
+        end
+        # columnas cuyo centro (x * 16 + 8) cae en [izq, der)
+        a = (izq + 7) / 16
+        if izq + 7 < 0
+            a = 0
+        end
+        b = (der + 7) / 16
+        if der + 7 < 0
+            b = 0
+        end
+        if a < 0
+            a = 0
+        end
+        if b > an
+            b = an
+        end
+        if b > a
+            buffer_fill(buf, y * an + a, b - a, lapiz)
+        end
+    end
+end
+
+# Un triangulo con textura, como relleno pero con u, v en cada esquina (sesentaicuatroavos de texel), afin por linea
+# (como Quake sin la correccion de perspectiva): cada linea es una llamada a buffer_tex_span
+func relleno_tex(buf: Int, an: Int, al: Int, x0: Int, y0: Int, u0: Int, v0: Int, x1: Int, y1: Int, u1: Int, v1: Int, x2: Int, y2: Int,
+                 u2: Int, v2: Int, tex: Int, lado: Int, tabla: Int)
+    if y1 < y0
+        t = x0
+        x0 = x1
+        x1 = t
+        t = y0
+        y0 = y1
+        y1 = t
+        t = u0
+        u0 = u1
+        u1 = t
+        t = v0
+        v0 = v1
+        v1 = t
+    end
+    if y2 < y0
+        t = x0
+        x0 = x2
+        x2 = t
+        t = y0
+        y0 = y2
+        y2 = t
+        t = u0
+        u0 = u2
+        u2 = t
+        t = v0
+        v0 = v2
+        v2 = t
+    end
+    if y2 < y1
+        t = x1
+        x1 = x2
+        x2 = t
+        t = y1
+        y1 = y2
+        y2 = t
+        t = u1
+        u1 = u2
+        u2 = t
+        t = v1
+        v1 = v2
+        v2 = t
+    end
+    if y2 <= y0
+        return
+    end
+    ya = (y0 + 7) / 16
+    if y0 + 7 < 0
+        ya = 0 - ((7 - y0) / 16)
+    end
+    yb = (y2 + 7) / 16
+    if y2 + 7 < 0
+        yb = 0 - ((7 - y2) / 16)
+    end
+    if ya < 0
+        ya = 0
+    end
+    if yb > al
+        yb = al
+    end
+    if yb <= ya
+        return
+    end
+    dl = y2 - y0
+    for y in (ya..yb - 1)
+        cy = y * 16 + 8
+        xl = x0 + Int(Float(x2 - x0) * Float(cy - y0) / Float(dl))
+        ul = u0 + (u2 - u0) * (cy - y0) / dl
+        vl = v0 + (v2 - v0) * (cy - y0) / dl
+        xs = x1
+        us = u1
+        vs = v1
+        if cy < y1
+            xs = x0 + Int(Float(x1 - x0) * Float(cy - y0) / Float(y1 - y0))
+            us = u0 + (u1 - u0) * (cy - y0) / (y1 - y0)
+            vs = v0 + (v1 - v0) * (cy - y0) / (y1 - y0)
+        else
+            if y2 != y1
+                xs = x1 + Int(Float(x2 - x1) * Float(cy - y1) / Float(y2 - y1))
+                us = u1 + (u2 - u1) * (cy - y1) / (y2 - y1)
+                vs = v1 + (v2 - v1) * (cy - y1) / (y2 - y1)
+            end
+        end
+        if xs < xl
+            t = xs
+            xs = xl
+            xl = t
+            t = us
+            us = ul
+            ul = t
+            t = vs
+            vs = vl
+            vl = t
+        end
+        if xs > xl
+            a = (xl + 7) / 16
+            if xl + 7 < 0
+                a = 0 - ((7 - xl) / 16)
+            end
+            b = (xs + 7) / 16
+            if xs + 7 < 0
+                b = 0 - ((7 - xs) / 16)
+            end
+            # paso por pixel en 16.16: (u en 1/64 de texel) * 16 * 65536 / 64 / (x en 1/16 de pixel)
+            du = Int(Float(us - ul) * 16384.0 / Float(xs - xl))
+            dv = Int(Float(vs - vl) * 16384.0 / Float(xs - xl))
+            # u, v en el centro del primer pixel
+            ini = a * 16 + 8 - xl
+            uu = ul * 1024 + (du / 16) * ini
+            vv = vl * 1024 + (dv / 16) * ini
+            if a < 0
+                uu = uu - du * a
+                vv = vv - dv * a
+                a = 0
+            end
+            if b > an
+                b = an
+            end
+            if b > a
+                buffer_tex_span(buf, y * an + a, b - a, tex, lado, uu, vv, du, dv, tabla)
+            end
+        end
+    end
+end
+
+# Un triangulo del suelo (y = 0) en el mundo: a la camara, recortado con el plano cercano (el suelo pasa por debajo
+# de la camara) y relleno
+func suelo_tri(pant: Int, an: Int, al: Int, vista: [Float], foco: Float, x0: Float, z0: Float, x1: Float, z1: Float, x2: Float,
+               z2: Float, lapiz: Int)
+    wx = [x0, x1, x2]
+    wz = [z0, z1, z2]
+    var px: [Float] = []
+    var py: [Float] = []
+    var pz: [Float] = []
+    for j in (0..2)
+        px.push(vista[0] * wx[j] + vista[2] * wz[j] + vista[3])
+        py.push(vista[4] * wx[j] + vista[6] * wz[j] + vista[7])
+        pz.push(vista[8] * wx[j] + vista[10] * wz[j] + vista[11])
+    end
+    if pz[0] <= CERCA and pz[1] <= CERCA and pz[2] <= CERCA
+        return
+    end
+    var rx2: [Int] = []
+    var ry2: [Int] = []
+    for j in (0..2)
+        j2 = (j + 1) % 3
+        dentro = pz[j] > CERCA
+        if dentro
+            rx2.push(an * 8 + Int(16.0 * foco * px[j] / pz[j]))
+            ry2.push(al * 8 - Int(16.0 * foco * py[j] / pz[j]))
+        end
+        if dentro != (pz[j2] > CERCA)
+            u = (CERCA - pz[j]) / (pz[j2] - pz[j])
+            cx2 = px[j] + (px[j2] - px[j]) * u
+            cy2 = py[j] + (py[j2] - py[j]) * u
+            rx2.push(an * 8 + Int(16.0 * foco * cx2 / CERCA))
+            ry2.push(al * 8 - Int(16.0 * foco * cy2 / CERCA))
+        end
+    end
+    if rx2.length >= 3
+        for j in (1..rx2.length - 2)
+            relleno(pant, an, al, rx2[0], ry2[0], rx2[j], ry2[j], rx2[j + 1], ry2[j + 1], lapiz)
+        end
+    end
+end
+
+# Lista de triangulos de este fotograma, ya proyectados: esquinas en la pantalla, lapiz y cubeta por distancia
+struct Lista
+    x0: [Int]
+    y0: [Int]
+    x1: [Int]
+    y1: [Int]
+    x2: [Int]
+    y2: [Int]
+    lapiz: [Int]
+    tri: [Int]
+    n: Int
+end
+
+# tri: el triangulo de la malla (para su textura y sus u, v), o -1
+func anadir(l: Lista, x0: Int, y0: Int, x1: Int, y1: Int, x2: Int, y2: Int, lapiz: Int, tri: Int) -> Int
+    if l.n >= l.x0.length
+        l.x0.push(0)
+        l.y0.push(0)
+        l.x1.push(0)
+        l.y1.push(0)
+        l.x2.push(0)
+        l.y2.push(0)
+        l.lapiz.push(0)
+        l.tri.push(-1)
+    end
+    l.tri[l.n] = tri
+    k = l.n
+    l.x0[k] = x0
+    l.y0[k] = y0
+    l.x1[k] = x1
+    l.y1[k] = y1
+    l.x2[k] = x2
+    l.y2[k] = y2
+    l.lapiz[k] = lapiz
+    l.n = k + 1
+    return k
+end
+
+
+# ---------------- la vista del editor ----------------
+# Nombres de los huesos (los de montar)
+func nombre_hueso(h: Int) -> String
+    n = ["pelvis", "torso", "cabeza", "hombro izquierdo", "brazo izquierdo", "antebrazo izquierdo", "puño izquierdo",
+         "hombro derecho", "brazo derecho", "antebrazo derecho", "puño derecho", "muslo izquierdo", "pierna izquierda",
+         "pie izquierdo", "muslo derecho", "pierna derecha", "pie derecho"]
+    if h < 0 or h >= n.length
+        return ""
+    end
+    return n[h]
+end
+
+# Las matrices del mundo de cada hueso con la pose de e (angulos en grados), el robot en (rx, rz) mirando a rumbo
+func matrices(e: Esqueleto, mundo: [[Float]], rx: Float, baja: Float, rz: Float, rumbo: Float)
+    raiz = m_mul(m_tras(rx, baja, rz), m_ry(rumbo))
+    for i in (0..HUESOS - 1)
+        local = m_mul(m_mul(m_mul(m_tras(e.jx[i], e.jy[i], e.jz[i]), m_ry(e.ay[i])), m_rx(e.ax[i])), m_rz(e.az[i]))
+        if e.padre[i] < 0
+            mundo[i] = m_mul(raiz, local)
+        else
+            mundo[i] = m_mul(mundo[e.padre[i]], local)
+        end
+    end
+end
+
+# Una camara: la matriz de la vista (filas derecha, arriba, adelante) y el foco, mirando de (ex, ey, ez) a (mx, my, mz)
+struct Camara
+    vista: [Float]
+    foco: Float
+    upy: Float
+    ay: Float
+end
+
+func camara(ex: Float, ey: Float, ez: Float, mx: Float, my: Float, mz: Float, fov: Float, ancho: Int) -> Camara
+    ax = mx - ex
+    ay = my - ey
+    az = mz - ez
+    la = Float(sqrt(ax * ax + ay * ay + az * az))
+    ax = ax / la
+    ay = ay / la
+    az = az / la
+    rgx = 0.0 - az
+    rgz = ax
+    lr = Float(sqrt(rgx * rgx + rgz * rgz))
+    if lr < 0.0001
+        rgx = 1.0
+        rgz = 0.0
+        lr = 1.0
+    end
+    rgx = rgx / lr
+    rgz = rgz / lr
+    upx = 0.0 - rgz * ay
+    upy = rgz * ax - rgx * az
+    upz = rgx * ay
+    v = [rgx, 0.0, rgz, 0.0 - (rgx * ex + rgz * ez), upx, upy, upz, 0.0 - (upx * ex + upy * ey + upz * ez),
+         ax, ay, az, 0.0 - (ax * ex + ay * ey + az * ez)]
+    return Camara(v, Float(ancho / 2) / Float(tan(fov * 0.0087266)), upy, ay)
+end
+
+# Donde cae en la pantalla un punto del mundo (en pixeles); z <= CERCA: detras de la camara (devuelve -100000)
+func proyectar_x(c: Camara, x: Float, y: Float, z: Float, ancho: Int) -> Int
+    v = c.vista
+    qz = v[8] * x + v[9] * y + v[10] * z + v[11]
+    if qz <= CERCA
+        return -100000
+    end
+    return ancho / 2 + Int(c.foco * (v[0] * x + v[1] * y + v[2] * z + v[3]) / qz)
+end
+
+func proyectar_y(c: Camara, x: Float, y: Float, z: Float, alto: Int) -> Int
+    v = c.vista
+    qz = v[8] * x + v[9] * y + v[10] * z + v[11]
+    if qz <= CERCA
+        return -100000
+    end
+    return alto / 2 - Int(c.foco * (v[4] * x + v[5] * y + v[6] * z + v[7]) / qz)
+end
+
+# Lo que hace falta para pintar un robot: el modelo, sus texturas y los bufferes de cada fotograma
+struct Vista
+    m: Malla
+    tx: Texturas
+    con_textura: Bool
+    qx: [Float]
+    qy: [Float]
+    qz: [Float]
+    spx: [Int]
+    spy: [Int]
+    lista: Lista
+    cabeza: [Int]
+    siguiente: [Int]
+    cam: [[Float]]
+end
+
+func vista_nueva(m: Malla, tx: Texturas, con_textura: Bool) -> Vista
+    vi = Vista(m, tx, con_textura, [], [], [], [], [], Lista([], [], [], [], [], [], [], [], 0), [], [], [])
+    for i in (0..m.vx.length - 1)
+        vi.qx.push(0.0)
+        vi.qy.push(0.0)
+        vi.qz.push(0.0)
+        vi.spx.push(0)
+        vi.spy.push(0)
+    end
+    for i in (0..CUBETAS - 1)
+        vi.cabeza.push(-1)
+    end
+    for i in (0..HUESOS - 1)
+        vi.cam.push(m_tras(0.0, 0.0, 0.0))
+    end
+    return vi
+end
+
+# Pinta el robot (con la pose de mundo) en pant (ancho x alto lapices): cielo, suelo en damero de 5 m y el robot,
+# las caras de los dos lados, de lejos a cerca. Lapices: 1-16 cielo, 17-18 el damero, 32-255 el robot.
+func pintar_robot(vi: Vista, c: Camara, mundo: [[Float]], pant: Int, ancho: Int, alto: Int)
+    m = vi.m
+    v = c.vista
+    for i in (0..HUESOS - 1)
+        vi.cam[i] = m_mul(v, mundo[i])
+    end
+    for i in (0..m.vx.length - 1)
+        mm = vi.cam[m.vh[i]]
+        x = m.vx[i]
+        y = m.vy[i]
+        z = m.vz[i]
+        vi.qx[i] = mm[0] * x + mm[1] * y + mm[2] * z + mm[3]
+        vi.qy[i] = mm[4] * x + mm[5] * y + mm[6] * z + mm[7]
+        vi.qz[i] = mm[8] * x + mm[9] * y + mm[10] * z + mm[11]
+        if vi.qz[i] > CERCA
+            vi.spx[i] = ancho * 8 + Int(16.0 * c.foco * vi.qx[i] / vi.qz[i])
+            vi.spy[i] = alto * 8 - Int(16.0 * c.foco * vi.qy[i] / vi.qz[i])
+        end
+    end
+    # la luz del mundo vista desde la camara
+    lcx = v[0] * -0.42 + v[2] * 0.43
+    lcy = v[4] * -0.42 + v[5] * 0.8 + v[6] * 0.43
+    lcz = v[8] * -0.42 + v[9] * 0.8 + v[10] * 0.43
+    l = vi.lista
+    l.n = 0
+    for i in (0..CUBETAS - 1)
+        vi.cabeza[i] = -1
+    end
+    for k in (0..m.ta.length - 1)
+        a0 = m.ta[k]
+        a1 = m.tb[k]
+        a2 = m.tc[k]
+        z0 = vi.qz[a0]
+        z1 = vi.qz[a1]
+        z2 = vi.qz[a2]
+        if z0 > CERCA and z1 > CERCA and z2 > CERCA
+            ux = vi.qx[a1] - vi.qx[a0]
+            uy = vi.qy[a1] - vi.qy[a0]
+            uz = z1 - z0
+            wx = vi.qx[a2] - vi.qx[a0]
+            wy = vi.qy[a2] - vi.qy[a0]
+            wz = z2 - z0
+            nx = wy * uz - wz * uy
+            ny = wz * ux - wx * uz
+            nz = wx * uy - wy * ux
+            if nx * vi.qx[a0] + ny * vi.qy[a0] + nz * z0 >= 0.0
+                nx = 0.0 - nx
+                ny = 0.0 - ny
+                nz = 0.0 - nz
+            end
+            ln = Float(sqrt(nx * nx + ny * ny + nz * nz))
+            nivel = 1
+            if ln > 0.0
+                dl = (nx * lcx + ny * lcy + nz * lcz) / ln
+                if dl < 0.0
+                    dl = 0.0
+                end
+                dc = (nx * v[4] + ny * v[5] + nz * v[6]) / ln
+                if dc < 0.0
+                    dc = 0.0
+                end
+                luz = 0.3 + 0.55 * dl + 0.25 * dc
+                if luz > 1.0
+                    luz = 1.0
+                end
+                nivel = Int(luz * 7.4)
+                if nivel > 7
+                    nivel = 7
+                end
+            end
+            lap = m.tcol[k] + nivel
+            tri = -1
+            if vi.con_textura and m.tt[k] >= 0
+                lap = nivel
+                tri = k
+            end
+            q = anadir(l, vi.spx[a0], vi.spy[a0], vi.spx[a1], vi.spy[a1], vi.spx[a2], vi.spy[a2], lap, tri)
+            bk = Int((z0 + z1 + z2) / 3.0 * Float(CUBETAS) / 150.0)
+            if bk >= CUBETAS
+                bk = CUBETAS - 1
+            end
+            while vi.siguiente.length <= q
+                vi.siguiente.push(-1)
+            end
+            vi.siguiente[q] = vi.cabeza[bk]
+            vi.cabeza[bk] = q
+        end
+    end
+    # fondo: cielo en franjas y suelo
+    horizonte = alto / 2
+    if c.upy > 0.01
+        horizonte = alto / 2 + Int(c.foco * c.ay / c.upy)
+    end
+    for y in (0..alto - 1)
+        if y < horizonte
+            k = 16 - (horizonte - y) / 8
+            if k < 1
+                k = 1
+            end
+            buffer_fill(pant, y * ancho, ancho, k)
+        else
+            buffer_fill(pant, y * ancho, ancho, 17)
+        end
+    end
+    # damero de 5 m alrededor del origen (40 x 40 m)
+    for a in (-4..3)
+        for b in (-4..3)
+            if (a + b) % 2 == 0
+                x0 = Float(a) * 5.0
+                z0 = Float(b) * 5.0
+                suelo_tri(pant, ancho, alto, v, c.foco, x0, z0, x0, z0 + 5.0, x0 + 5.0, z0 + 5.0, 18)
+                suelo_tri(pant, ancho, alto, v, c.foco, x0, z0, x0 + 5.0, z0 + 5.0, x0 + 5.0, z0, 18)
+            end
+        end
+    end
+    tx = vi.tx
+    b = CUBETAS - 1
+    while b >= 0
+        q = vi.cabeza[b]
+        while q >= 0
+            tri = l.tri[q]
+            if tri < 0
+                relleno(pant, ancho, alto, l.x0[q], l.y0[q], l.x1[q], l.y1[q], l.x2[q], l.y2[q], l.lapiz[q])
+            else
+                tb = tri * 6
+                relleno_tex(pant, ancho, alto, l.x0[q], l.y0[q], m.tuv[tb], m.tuv[tb + 1], l.x1[q], l.y1[q],
+                            m.tuv[tb + 2], m.tuv[tb + 3], l.x2[q], l.y2[q], m.tuv[tb + 4], m.tuv[tb + 5],
+                            tx.base + m.tt[tri] * (1 << (tx.lado * 2)), tx.lado, tx.tablas + l.lapiz[q] * 256)
+            end
+            q = vi.siguiente[q]
+        end
+        b = b - 1
+    end
+end
+
+# Los colores del fondo del editor (cielo, damero) en pal
+func colores_fondo(pal: Int)
+    for k in (0..15)
+        color(pal, 1 + k, (3 + k / 3) * 17, (6 + k / 3) * 17, (11 + k / 5) * 17)
+    end
+    color(pal, 17, 92, 120, 84)
+    color(pal, 18, 110, 140, 100)
+end
+
+# pal (3 bytes por lapiz) a la tabla de gfx_pens_draw_rgb (un long 0xRRGGBB por lapiz)
+func tabla_rgb(pal: Int, lut: Int)
+    for i in (0..255)
+        buffer_set_long(lut, i * 4, buffer_get_byte(pal, i * 3) * 65536 + buffer_get_byte(pal, i * 3 + 1) * 256 + buffer_get_byte(pal, i * 3 + 2))
+    end
+end

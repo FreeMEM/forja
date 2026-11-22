@@ -11,7 +11,7 @@ Forja 0.7:
 - proyectos (un fichero `.forja`) y seis plantillas;
 - la ayuda de Dash entera, con ejemplos que se ejecutan;
 - un editor de ventanas `.dashui` con MUI de verdad;
-- extensiones: Git, el copiloto de [Inferencia](https://github.com/FreeMEM/inferencia), Sprites, Mapas y Demos.
+- extensiones: Git, el copiloto de [Inferencia](https://github.com/FreeMEM/inferencia), Sprites, Mapas, Demos y Taller3D.
 
 Es una versión de prueba. Funciona en el emulador, pero aún no se ha probado en un Amiga de verdad. Habla en
 castellano o en inglés, según el idioma de las Preferencias de Locale (el catálogo inglés va en `Catalogs/`).
@@ -250,6 +250,22 @@ vuelven a abrir la próxima vez con la sesión.
   - Amiga-Z y Amiga-R deshacen y rehacen; C copia las líneas de Dash que lo cargan y lo pintan.
 
   ![El editor de mapas con un nivel de 40 x 20](docs/img/mapas.png)
+
+### Taller 3D
+
+El editor 3D del juego Titan Force es otra extensión (`Extensiones/Taller3D`). Abre sus ficheros: el robot con su
+textura (`.tft`) o de colores (`.tfs`), sus animaciones (`.tfa`) y la escena (`.tfe`). Dibuja con el mismo motor por
+software del juego, y guarda (Amiga-S) en los ficheros que lee el juego. Las teclas 1, 2 y 3 cambian de modo:
+
+- **Modelo**: arrastrar gira la cámara y la rueda la acerca. Un clic en una articulación, o las flechas arriba y abajo,
+  eligen el hueso.
+- **Animación**: las poses clave de quieto, andar, golpe y disparo, en una línea de tiempo. Q/A, W/S y E/D giran el hueso
+  elegido (con Mayúsculas, de grado en grado). Espacio reproduce, la coma y el punto van de clave en clave, K pone una
+  clave, X la quita y Tab pasa a otra animación.
+- **Escena**: el barrio desde arriba. Un clic elige una casa o el robot y arrastrando se mueve. N pone una casa, X la
+  quita, R la gira y C cambia la cámara de partida.
+
+Los robots del ejemplo son modelos 3D de SantiDarkG.
 
 ### Demos
 

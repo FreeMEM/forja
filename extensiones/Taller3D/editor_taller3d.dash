@@ -1,0 +1,1212 @@
+# Taller3D: el editor 3D de Forja para el juego Titan Force (~/Projects/titanforce). Una extension (docs/EXTENSIONES.md)
+# con una ventana MUI propia y una zona de dibujo, como Sprites:
+#   - Modelo (1): el robot (.tft con su textura o .tfs de colores) con el motor por software del juego; se gira
+#     arrastrando, se acerca con la rueda y un clic en una articulacion elige su hueso.
+#   - Animacion (2): las poses clave de quieto, andar, golpe y disparo (.tfa), con una linea de tiempo; el hueso
+#     elegido se gira con Q/A (x), W/S (y) y E/D (z); espacio la reproduce. En "andar" las piernas son las del juego.
+#   - Escena (3): el barrio desde arriba (.tfe): las casas, de donde sale el robot y la camara de partida.
+# Guarda (Amiga-S) en los ficheros que lee el juego, en el cajon del modelo.
+import "lib/forja.dash"
+import "motor3d.dash"
+import "anim3d.dash"
+import "escena3d.dash"
+
+const EV_LIENZO = 1
+const EV_ARRASTRE = 2
+const EV_TIC = 3
+const EV_VENTANA = 4
+const EV_ABRIR = 11
+const EV_GUARDAR = 12
+const EV_FORJA = 25
+const EV_SALIR_FORJA = 26
+const MODO_MODELO = 0
+const MODO_ANIM = 1
+const MODO_ESCENA = 2
+const ALTO_BARRA = 20
+const ALTO_TIEMPO = 52
+const MAX_ANCHO = 640
+const MAX_ALTO = 480
+
+var app: Int = 0
+var win: Int = 0
+var lienzo: Int = 0
+var abierta: Bool = false
+var modo: Int = 0
+var mensaje: String = ""
+
+# el robot
+var est: Esqueleto = nil
+var malla: Malla = nil
+var texs: Texturas = nil
+var vi: Vista = nil
+var mundo: [[Float]] = []
+var pal: Int = 0
+var lut: Int = 0
+var pant: Int = 0
+var pant_tam: Int = 0
+var modelo_ruta: String = ""
+var cajon: String = ""
+
+# la camara del editor (gira alrededor del robot)
+var giro: Float = 200.0
+var altura: Float = 12.0
+var distancia: Float = 48.0
+var mira_y: Float = 10.0
+
+# el esqueleto en la pantalla
+var hueso_sel: Int = 2
+var art_x: [Int] = []
+var art_y: [Int] = []
+var vista_x: Int = 0
+var vista_y: Int = 0
+var vista_an: Int = 0
+var vista_al: Int = 0
+var orbitando: Bool = false
+var ultimo_x: Int = 0
+var ultimo_y: Int = 0
+
+# las animaciones
+var anims: [Animacion] = []
+var anim_cambiada: [Bool] = []
+var anim_i: Int = 2
+var clave_i: Int = 0
+var tiempo: Int = 0
+var reproduciendo: Bool = false
+var tic_armado: Bool = false
+var reloj: Int = 0
+
+# la escena
+var escena: Escena = nil
+var escena_ruta: String = ""
+var escena_cambiada: Bool = false
+var casa_sel: Int = -1
+var robot_sel: Bool = false
+var esc_x: Float = 26.0
+var esc_z: Float = -26.0
+var esc_zoom: Float = 2.0
+var moviendo: Bool = false
+
+# botones de la barra y de la linea de tiempo: x1, y1, x2, y2 y su orden
+var bot_x1: [Int] = []
+var bot_y1: [Int] = []
+var bot_x2: [Int] = []
+var bot_y2: [Int] = []
+var bot_orden: [String] = []
+
+# lapices para lo que se dibuja encima (reservados en el Workbench con color_pen)
+var lapices: [Int] = []
+var cerrar_dicho: Bool = false
+var sin_guardar_dicho: String = "-"
+var editando_dicho: String = "-"
+
+const L_FONDO = 0
+const L_BARRA = 1
+const L_TEXTO = 2
+const L_ELEGIDO = 3
+const L_HUESO = 4
+const L_ART = 5
+const L_TIEMPO = 6
+const L_CLAVE = 7
+const L_CESPED = 8
+const L_CALLE = 9
+const L_CASA = 10
+const L_ROBOT = 11
+
+func preparar_lapices()
+    if lapices.length > 0
+        return
+    end
+    cols = [0x202428, 0x3A4048, 0xF0F0E8, 0xFFD23C, 0x9098A8, 0xFFFFFF, 0x14181C, 0xE05030, 0x5A8A4E, 0x5A5C66, 0xD8CCB0,
+            0xE04040]
+    for c in cols
+        lapices.push(color_pen((c >> 16) & 255, (c >> 8) & 255, c & 255))
+    end
+end
+
+func soltar_lapices()
+    for p in lapices
+        color_pen_free(p)
+    end
+    lapices.clear()
+end
+
+func lapiz(n: Int)
+    gfx_pen(lapices[n])
+end
+
+func cajon_de(ruta: String) -> String
+    i = ruta.length - 1
+    while i >= 0
+        c = ruta[i:i + 1]
+        if c == "/" or c == ":"
+            return ruta[0:i + 1]
+        end
+        i = i - 1
+    end
+    return ""
+end
+
+func termina(ruta: String, fin: String) -> Bool
+    r = str_lower(ruta)
+    return r.length >= fin.length and r[r.length - fin.length:] == fin
+end
+
+# --- El modelo, las animaciones y la escena ---
+
+func cargar_modelo(ruta: String) -> Bool
+    e = Esqueleto([], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [])
+    montar(e)
+    m = Malla([], [], [], [], [], [], [], [], [], [])
+    tx = Texturas(0, 0, 0, 0)
+    if pal == 0
+        pal = buffer_alloc(768)
+        lut = buffer_alloc(1024)
+    end
+    buffer_fill(pal, 0, 768, 0)
+    con_textura = termina(ruta, ".tft")
+    n = -1
+    if con_textura
+        n = cargar_tex(e, m, tx, ruta, pal)
+    else
+        n = cargar(e, m, ruta, pal)
+    end
+    if n < 0
+        mensaje = "No se pudo leer " + ruta
+        return false
+    end
+    colores_fondo(pal)
+    tabla_rgb(pal, lut)
+    est = e
+    malla = m
+    texs = tx
+    vi = vista_nueva(m, tx, con_textura)
+    mundo.clear()
+    for i in (0..HUESOS - 1)
+        mundo.push(m_tras(0.0, 0.0, 0.0))
+    end
+    modelo_ruta = ruta
+    cajon = cajon_de(ruta)
+    mensaje = "Modelo: " + ruta + " (#{m.ta.length} triangulos)"
+    return true
+end
+
+# El robot del cajon, si no hay ninguno abierto: el de textura del robot A, el B o el de colores
+func buscar_modelo(c: String) -> Bool
+    for nombre in ["robot_A_tex.tft", "robot_B_tex.tft", "robot_A_1200.tfs", "robot_B_1200.tfs"]
+        if file_exists(c + nombre)
+            return cargar_modelo(c + nombre)
+        end
+    end
+    mensaje = "No hay ningun robot (.tft o .tfs) en " + c
+    return false
+end
+
+func nombres_anim() -> [String]
+    return ["quieto", "andar", "golpe", "disparo"]
+end
+
+func cargar_anims()
+    anims.clear()
+    anim_cambiada.clear()
+    for nombre in nombres_anim()
+        r = cajon + nombre + ".tfa"
+        if file_exists(r)
+            a = anim_leer(r)
+            if a.nombre == ""
+                a.nombre = nombre
+            end
+            anims.push(a)
+        else
+            anims.push(anim_por_defecto(nombre))
+        end
+        anim_cambiada.push(false)
+    end
+    clave_i = 0
+    tiempo = 0
+end
+
+func cargar_escena()
+    escena_ruta = cajon + "escena.tfe"
+    if file_exists(escena_ruta)
+        escena = escena_leer(escena_ruta)
+    else
+        escena = escena_por_defecto()
+    end
+    escena_cambiada = false
+    esc_x = escena.robot_x
+    esc_z = escena.robot_z
+end
+
+func anim() -> Animacion
+    return anims[anim_i]
+end
+
+# La pose de ahora en el esqueleto: en Modelo, de pie; en Animacion, la del tiempo (o la de la clave elegida)
+func posar() -> Float
+    reposo(est)
+    if modo != MODO_ANIM or anims.length == 0
+        return 0.0
+    end
+    a = anim()
+    t = tiempo
+    baja = 0.0
+    if a.nombre == "andar"
+        # las piernas como en el juego (el paso que no patina) y el resto de la animacion
+        pierna = 0.0 - (est.jy[12] + est.jy[13])
+        zancada = 2.0 * pierna * Float(sin(22.0 * 0.0174533))
+        baja = pose(est, Float(t) / 1000.0, Float(t) / Float(a.duracion), zancada, pierna, 1.0, -1.0)
+        e2 = Esqueleto([], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [])
+        montar(e2)
+        anim_pose(a, t, e2)
+        for h in (1..10)
+            est.ax[h] = e2.ax[h]
+            est.ay[h] = e2.ay[h]
+            est.az[h] = e2.az[h]
+        end
+    else
+        anim_pose(a, t, est)
+    end
+    return baja
+end
+
+# --- Guardar ---
+
+func ruta_anim(i: Int) -> String
+    return cajon + anims[i].nombre + ".tfa"
+end
+
+func guardar_todo() -> Bool
+    bien = true
+    for i in (0..anims.length - 1)
+        if anim_cambiada[i]
+            r = ruta_anim(i)
+            if anim_escribir(anims[i], r)
+                anim_cambiada[i] = false
+                forja_guardado(r)
+            else
+                bien = false
+                mensaje = "No se pudo guardar " + r
+            end
+        end
+    end
+    if escena != nil and escena_cambiada
+        if escena_ruta == ""
+            escena_ruta = cajon + "escena.tfe"
+        end
+        if escena_escribir(escena, escena_ruta)
+            escena_cambiada = false
+            forja_guardado(escena_ruta)
+        else
+            bien = false
+            mensaje = "No se pudo guardar " + escena_ruta
+        end
+    end
+    if bien
+        mensaje = "Guardado"
+    end
+    return bien
+end
+
+func hay_cambios() -> Bool
+    for c in anim_cambiada
+        if c
+            return true
+        end
+    end
+    return escena_cambiada
+end
+
+func decir_sin_guardar()
+    var ns: [String] = []
+    for i in (0..anims.length - 1)
+        if anim_cambiada[i]
+            ns.push(anims[i].nombre + ".tfa")
+        end
+    end
+    if escena_cambiada
+        ns.push("escena.tfe")
+    end
+    t = str_join(ns, ",")
+    if t != sin_guardar_dicho
+        sin_guardar_dicho = t
+        forja_sin_guardar(ns)
+    end
+end
+
+func decir_abiertos()
+    var rs: [String] = []
+    if modelo_ruta != ""
+        rs.push(modelo_ruta)
+    end
+    t = str_join(rs, ",")
+    if t != editando_dicho
+        editando_dicho = t
+        forja_editando(rs)
+    end
+end
+
+# --- Dibujar ---
+
+func boton(x: Int, y: Int, texto: String, orden: String, activo: Bool) -> Int
+    an = gfx_text_len(texto) + 12
+    if activo
+        lapiz(L_ELEGIDO)
+    else
+        lapiz(L_BARRA)
+    end
+    gfx_rect(x, y, x + an - 1, y + 15)
+    if activo
+        lapiz(L_TIEMPO)
+    else
+        lapiz(L_TEXTO)
+    end
+    gfx_text_at(x + 6, y + 11, texto)
+    bot_x1.push(x)
+    bot_y1.push(y)
+    bot_x2.push(x + an - 1)
+    bot_y2.push(y + 15)
+    bot_orden.push(orden)
+    return x + an + 4
+end
+
+func dibujar(x: Int, y: Int, ancho: Int, alto: Int)
+    preparar_lapices()
+    gfx_mode(0)
+    bot_x1.clear()
+    bot_y1.clear()
+    bot_x2.clear()
+    bot_y2.clear()
+    bot_orden.clear()
+    # la barra de arriba: los modos
+    lapiz(L_FONDO)
+    gfx_rect(x, y, x + ancho - 1, y + ALTO_BARRA - 1)
+    bx = x + 4
+    bx = boton(bx, y + 2, "1 Modelo", "modo0", modo == MODO_MODELO)
+    bx = boton(bx, y + 2, "2 Animación", "modo1", modo == MODO_ANIM)
+    bx = boton(bx, y + 2, "3 Escena", "modo2", modo == MODO_ESCENA)
+    if hay_cambios()
+        lapiz(L_ELEGIDO)
+        gfx_text_at(bx + 6, y + 13, "sin guardar (Amiga-S)")
+    end
+    abajo = 0
+    if modo == MODO_ANIM
+        abajo = ALTO_TIEMPO
+    end
+    zy = y + ALTO_BARRA
+    za = alto - ALTO_BARRA - abajo - 14
+    if modo == MODO_ESCENA
+        dibujar_escena(x, zy, ancho, za)
+    else
+        dibujar_robot(x, zy, ancho, za)
+    end
+    if modo == MODO_ANIM
+        dibujar_tiempo(x, zy + za, ancho, ALTO_TIEMPO)
+    end
+    # la linea de ayuda y el mensaje
+    lapiz(L_FONDO)
+    gfx_rect(x, y + alto - 14, x + ancho - 1, y + alto - 1)
+    lapiz(L_TEXTO)
+    gfx_text_at(x + 4, y + alto - 4, ayuda())
+end
+
+func ayuda() -> String
+    if mensaje != ""
+        return mensaje
+    end
+    if modo == MODO_MODELO
+        return "Arrastra: girar · rueda: acercar · clic en una articulación: elegir hueso · flechas arriba/abajo: otro hueso"
+    end
+    if modo == MODO_ANIM
+        return "Q/A W/S E/D: girar el hueso (Mayús: 1°) · espacio: reproducir · ,/.: clave · K: nueva · X: quitar · Tab: otra"
+    end
+    return "Clic: elegir · arrastra: mover · N: casa nueva · X: quitar · R: girar · rueda: acercar · flechas: moverse"
+end
+
+func dibujar_robot(x: Int, y: Int, ancho: Int, alto: Int)
+    lapiz(L_TIEMPO)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    if est == nil
+        lapiz(L_TEXTO)
+        gfx_text_at(x + 10, y + 20, "Abre un robot (.tft o .tfs) del juego: Proyecto > Abrir...")
+        return
+    end
+    # la vista, como mucho de MAX_ANCHO x MAX_ALTO, centrada
+    an = ancho
+    if an > MAX_ANCHO
+        an = MAX_ANCHO
+    end
+    al = alto
+    if al > MAX_ALTO
+        al = MAX_ALTO
+    end
+    if an < 32 or al < 32
+        return
+    end
+    vista_x = x + (ancho - an) / 2
+    vista_y = y + (alto - al) / 2
+    vista_an = an
+    vista_al = al
+    if an * al > pant_tam
+        if pant != 0
+            buffer_free(pant)
+        end
+        pant = buffer_alloc(an * al)
+        pant_tam = an * al
+    end
+    baja = posar()
+    matrices(est, mundo, 0.0, baja, 0.0, 180.0)
+    g = giro * 0.0174533
+    ex = distancia * Float(sin(g))
+    ez = distancia * Float(cos(g))
+    c = camara(ex, altura, ez, 0.0, mira_y, 0.0, 50.0, an)
+    pintar_robot(vi, c, mundo, pant, an, al)
+    gfx_pens_draw_rgb(pant, an, al, vista_x, vista_y, lut)
+    # el esqueleto encima: lineas de cada hueso a su padre y las articulaciones
+    art_x.clear()
+    art_y.clear()
+    for h in (0..HUESOS - 1)
+        mm = mundo[h]
+        px = proyectar_x(c, mm[3], mm[7], mm[11], an)
+        py = proyectar_y(c, mm[3], mm[7], mm[11], al)
+        art_x.push(px)
+        art_y.push(py)
+    end
+    lapiz(L_HUESO)
+    for h in (1..HUESOS - 1)
+        p = est.padre[h]
+        if art_x[h] > -100000 and art_x[p] > -100000
+            gfx_line(vista_x + art_x[p], vista_y + art_y[p], vista_x + art_x[h], vista_y + art_y[h])
+        end
+    end
+    for h in (0..HUESOS - 1)
+        if art_x[h] > -100000
+            ax = vista_x + art_x[h]
+            ay = vista_y + art_y[h]
+            if ax >= vista_x and ay >= vista_y and ax < vista_x + an and ay < vista_y + al
+                if h == hueso_sel
+                    lapiz(L_ELEGIDO)
+                    gfx_rect(ax - 3, ay - 3, ax + 3, ay + 3)
+                else
+                    lapiz(L_ART)
+                    gfx_rect(ax - 1, ay - 1, ax + 1, ay + 1)
+                end
+            end
+        end
+    end
+    # el hueso elegido y sus angulos
+    t = nombre_hueso(hueso_sel)
+    if modo == MODO_ANIM
+        a = anim()
+        p = a.ang[clave_i]
+        t = t + "  x " + anim_grados(p[hueso_sel * 3]) + "°  y " + anim_grados(p[hueso_sel * 3 + 1]) + "°  z " + anim_grados(p[hueso_sel * 3 + 2]) + "°"
+    end
+    lapiz(L_TIEMPO)
+    gfx_rect(vista_x + 4, vista_y + 4, vista_x + 12 + gfx_text_len(t), vista_y + 18)
+    lapiz(L_ELEGIDO)
+    gfx_text_at(vista_x + 8, vista_y + 15, t)
+end
+
+# La linea de tiempo de la animacion: las claves, el tiempo de ahora y los botones
+func dibujar_tiempo(x: Int, y: Int, ancho: Int, alto: Int)
+    lapiz(L_FONDO)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    a = anim()
+    bx = x + 4
+    bx = boton(bx, y + 3, "< " + a.nombre + " >", "otra", false)
+    if reproduciendo
+        bx = boton(bx, y + 3, "Parar", "play", true)
+    else
+        bx = boton(bx, y + 3, "Reproducir", "play", false)
+    end
+    bx = boton(bx, y + 3, "+ Clave", "clave+", false)
+    bx = boton(bx, y + 3, "- Clave", "clave-", false)
+    lapiz(L_TEXTO)
+    gfx_text_at(bx + 6, y + 14, "#{tiempo} / #{a.duracion} ms  clave #{clave_i + 1}/#{a.tiempos.length}")
+    # la barra del tiempo
+    tx0 = x + 10
+    tx1 = x + ancho - 10
+    ty = y + 24
+    lapiz(L_BARRA)
+    gfx_rect(tx0, ty, tx1, ty + 20)
+    bot_x1.push(tx0)
+    bot_y1.push(ty)
+    bot_x2.push(tx1)
+    bot_y2.push(ty + 20)
+    bot_orden.push("tiempo")
+    for i in (0..a.tiempos.length - 1)
+        kx = tx0 + (tx1 - tx0) * a.tiempos[i] / a.duracion
+        if i == clave_i
+            lapiz(L_ELEGIDO)
+            gfx_rect(kx - 3, ty + 2, kx + 3, ty + 18)
+        else
+            lapiz(L_CLAVE)
+            gfx_rect(kx - 2, ty + 4, kx + 2, ty + 16)
+        end
+    end
+    px = tx0 + (tx1 - tx0) * tiempo / a.duracion
+    lapiz(L_ART)
+    gfx_line(px, ty - 2, px, ty + 22)
+end
+
+# La escena desde arriba: calles, casas y el robot
+func dibujar_escena(x: Int, y: Int, ancho: Int, alto: Int)
+    vista_x = x
+    vista_y = y
+    vista_an = ancho
+    vista_al = alto
+    lapiz(L_CESPED)
+    gfx_rect(x, y, x + ancho - 1, y + alto - 1)
+    if escena == nil
+        return
+    end
+    s = escena
+    mitad = Float(s.lados) * s.manzana + s.manzana / 2.0
+    lapiz(L_CALLE)
+    for k in (0 - s.lados..s.lados)
+        c = Float(k) * s.manzana + s.manzana / 2.0
+        rect_mundo(c - s.calle / 2.0, 0.0 - mitad, c + s.calle / 2.0, mitad)
+        rect_mundo(0.0 - mitad, c - s.calle / 2.0, mitad, c + s.calle / 2.0)
+    end
+    for i in (0..s.casa_x.length - 1)
+        w = 4.0
+        d = 3.5
+        if s.casa_giro[i] == 90 or s.casa_giro[i] == 270
+            w = 3.5
+            d = 4.0
+        end
+        if i == casa_sel
+            lapiz(L_ELEGIDO)
+        else
+            lapiz(L_CASA)
+        end
+        rect_mundo(s.casa_x[i] - w, s.casa_z[i] - d, s.casa_x[i] + w, s.casa_z[i] + d)
+        # el tejado hacia la fachada (lado de la calle): una raya roja
+        lapiz(L_CLAVE)
+        sxp = pant_x(s.casa_x[i])
+        szp = pant_y(s.casa_z[i])
+        fx = sxp + Int(Float(sin(Float(s.casa_giro[i]) * 0.0174533)) * w * esc_zoom)
+        fz = szp - Int(Float(cos(Float(s.casa_giro[i]) * 0.0174533)) * d * esc_zoom)
+        if dentro(sxp, szp) and dentro(fx, fz)
+            gfx_line(sxp, szp, fx, fz)
+        end
+    end
+    # el robot: un cuadro con una raya hacia donde mira
+    rx = pant_x(s.robot_x)
+    rz = pant_y(s.robot_z)
+    r = Int(4.0 * esc_zoom)
+    if robot_sel
+        lapiz(L_ELEGIDO)
+    else
+        lapiz(L_ROBOT)
+    end
+    g = s.robot_rumbo * 0.0174533
+    fx = rx + Int(Float(sin(g)) * Float(r) * 3.0)
+    fz = rz - Int(Float(cos(g)) * Float(r) * 3.0)
+    if dentro(rx - r, rz - r) and dentro(rx + r, rz + r) and dentro(fx, fz)
+        gfx_rect(rx - r, rz - r, rx + r, rz + r)
+        gfx_line(rx, rz, fx, fz)
+    end
+    lapiz(L_TIEMPO)
+    t = "#{s.casa_x.length} casas · robot en " + esc_num(s.robot_x) + ", " + esc_num(s.robot_z) + " mirando a " + esc_num(s.robot_rumbo) + "° · cámara #{s.camara}"
+    gfx_rect(x + 4, y + 4, x + 12 + gfx_text_len(t), y + 18)
+    lapiz(L_TEXTO)
+    gfx_text_at(x + 8, y + 15, t)
+end
+
+func dentro(px: Int, py: Int) -> Bool
+    return px >= vista_x and py >= vista_y and px < vista_x + vista_an and py < vista_y + vista_al
+end
+
+# De metros a la zona de la escena (z hacia arriba de la pantalla) y al reves
+func pant_x(mx: Float) -> Int
+    return vista_x + vista_an / 2 + Int((mx - esc_x) * esc_zoom)
+end
+
+func pant_y(mz: Float) -> Int
+    return vista_y + vista_al / 2 - Int((mz - esc_z) * esc_zoom)
+end
+
+func mundo_x(px: Int) -> Float
+    return esc_x + Float(px - vista_x - vista_an / 2) / esc_zoom
+end
+
+func mundo_z(py: Int) -> Float
+    return esc_z - Float(py - vista_y - vista_al / 2) / esc_zoom
+end
+
+func rect_mundo(x0: Float, z0: Float, x1: Float, z1: Float)
+    a = pant_x(x0)
+    b = pant_y(z1)
+    c = pant_x(x1)
+    d = pant_y(z0)
+    if a < vista_x
+        a = vista_x
+    end
+    if b < vista_y
+        b = vista_y
+    end
+    if c > vista_x + vista_an - 1
+        c = vista_x + vista_an - 1
+    end
+    if d > vista_y + vista_al - 1
+        d = vista_y + vista_al - 1
+    end
+    if c >= a and d >= b
+        gfx_rect(a, b, c, d)
+    end
+end
+
+func redibujar()
+    if abierta
+        mui_canvas_redraw(lienzo)
+    end
+end
+
+# --- Lo que hace el usuario ---
+
+func boton_en(mx: Int, my: Int) -> Int
+    for i in (0..bot_orden.length - 1)
+        if mx >= bot_x1[i] and mx <= bot_x2[i] and my >= bot_y1[i] and my <= bot_y2[i]
+            return i
+        end
+    end
+    return -1
+end
+
+func cambiar_anim(paso: Int)
+    anim_i = (anim_i + paso + anims.length) % anims.length
+    clave_i = 0
+    tiempo = 0
+    reproduciendo = false
+end
+
+func ir_clave(i: Int)
+    a = anim()
+    if i < 0 or i >= a.tiempos.length
+        return
+    end
+    clave_i = i
+    tiempo = a.tiempos[i]
+    reproduciendo = false
+end
+
+func orden(o: String, mx: Int)
+    mensaje = ""
+    if o == "modo0"
+        modo = MODO_MODELO
+    elif o == "modo1"
+        modo = MODO_ANIM
+    elif o == "modo2"
+        modo = MODO_ESCENA
+    elif o == "otra"
+        cambiar_anim(1)
+    elif o == "play"
+        reproduciendo = not reproduciendo
+        reloj = time_ms()
+    elif o == "clave+"
+        clave_i = anim_clave(anim(), tiempo)
+        anim_cambiada[anim_i] = true
+    elif o == "clave-"
+        if anim_quitar_clave(anim(), clave_i)
+            anim_cambiada[anim_i] = true
+            ir_clave(clave_i - 1)
+        end
+    elif o == "tiempo"
+        i = boton_en(mx, bot_y1[bot_orden.length - 1] + 1)
+        tx0 = bot_x1[i]
+        tx1 = bot_x2[i]
+        a = anim()
+        t = (mx - tx0) * a.duracion / (tx1 - tx0)
+        # una clave cerca (6 px): esa; si no, solo el tiempo
+        mejor = -1
+        for k in (0..a.tiempos.length - 1)
+            kx = tx0 + (tx1 - tx0) * a.tiempos[k] / a.duracion
+            if (kx - mx).abs() <= 6
+                mejor = k
+            end
+        end
+        if mejor >= 0
+            ir_clave(mejor)
+        else
+            tiempo = t
+            reproduciendo = false
+        end
+    end
+end
+
+# Un giro del hueso elegido en la clave elegida (eje 0 x, 1 y, 2 z)
+func girar(eje: Int, grados: Float)
+    if modo != MODO_ANIM
+        mensaje = "Para cambiar la pose, en Animación (tecla 2)"
+        return
+    end
+    a = anim()
+    # si el tiempo no esta en una clave, se hace una ahi
+    clave_i = anim_clave(a, tiempo)
+    v = a.ang[clave_i][hueso_sel * 3 + eje] + grados
+    anim_poner(a, clave_i, hueso_sel, eje, v)
+    anim_cambiada[anim_i] = true
+    reproduciendo = false
+end
+
+func tecla(k: Int, c: String, q: Int)
+    mensaje = ""
+    paso = 5.0
+    if (q & 1) != 0
+        paso = 1.0
+    end
+    l = str_lower(c)
+    if l == "1"
+        modo = MODO_MODELO
+    elif l == "2"
+        modo = MODO_ANIM
+    elif l == "3"
+        modo = MODO_ESCENA
+    elif modo == MODO_ESCENA
+        tecla_escena(k, l)
+    elif l == "q"
+        girar(0, paso)
+    elif l == "a"
+        girar(0, 0.0 - paso)
+    elif l == "w"
+        girar(1, paso)
+    elif l == "s"
+        girar(1, 0.0 - paso)
+    elif l == "e"
+        girar(2, paso)
+    elif l == "d"
+        girar(2, 0.0 - paso)
+    elif k == 0x4C
+        hueso_sel = (hueso_sel + HUESOS - 1) % HUESOS
+    elif k == 0x4D
+        hueso_sel = (hueso_sel + 1) % HUESOS
+    elif modo == MODO_ANIM
+        a = anim()
+        if l == " "
+            reproduciendo = not reproduciendo
+            reloj = time_ms()
+        elif l == ","
+            ir_clave(clave_i - 1)
+        elif l == "."
+            ir_clave(clave_i + 1)
+        elif l == "k"
+            clave_i = anim_clave(a, tiempo)
+            anim_cambiada[anim_i] = true
+        elif l == "x"
+            if anim_quitar_clave(a, clave_i)
+                anim_cambiada[anim_i] = true
+                ir_clave(clave_i - 1)
+            end
+        elif k == 0x42
+            cambiar_anim(1)
+        elif k == 0x4F or k == 0x4E
+            d = 50
+            if (q & 1) != 0
+                d = 10
+            end
+            if k == 0x4F
+                d = 0 - d
+            end
+            tiempo = tiempo + d
+            if tiempo < 0
+                tiempo = 0
+            end
+            if tiempo > a.duracion
+                tiempo = a.duracion
+            end
+            reproduciendo = false
+        end
+    end
+end
+
+func tecla_escena(k: Int, l: String)
+    s = escena
+    if s == nil
+        return
+    end
+    if l == "n"
+        # en el centro de la vista; si ahi esta el robot, 14 m mas arriba (que no quede debajo de el)
+        nx = Float(Int(esc_x))
+        nz = Float(Int(esc_z))
+        if (nx - s.robot_x) * (nx - s.robot_x) + (nz - s.robot_z) * (nz - s.robot_z) < 100.0
+            nz = nz + 14.0
+        end
+        s.casa_x.push(nx)
+        s.casa_z.push(nz)
+        s.casa_giro.push(0)
+        casa_sel = s.casa_x.length - 1
+        robot_sel = false
+        escena_cambiada = true
+    elif l == "x" and casa_sel >= 0
+        s.casa_x.remove(casa_sel)
+        s.casa_z.remove(casa_sel)
+        s.casa_giro.remove(casa_sel)
+        casa_sel = -1
+        escena_cambiada = true
+    elif l == "r" and casa_sel >= 0
+        s.casa_giro[casa_sel] = (s.casa_giro[casa_sel] + 90) % 360
+        escena_cambiada = true
+    elif l == "r" and robot_sel
+        s.robot_rumbo = Float((Int(s.robot_rumbo) + 45) % 360)
+        escena_cambiada = true
+    elif l == "c"
+        s.camara = (s.camara + 1) % 4
+        escena_cambiada = true
+    elif k == 0x4C
+        esc_z = esc_z + 20.0 / esc_zoom * 4.0
+    elif k == 0x4D
+        esc_z = esc_z - 20.0 / esc_zoom * 4.0
+    elif k == 0x4F
+        esc_x = esc_x - 20.0 / esc_zoom * 4.0
+    elif k == 0x4E
+        esc_x = esc_x + 20.0 / esc_zoom * 4.0
+    end
+end
+
+# Un clic en la zona de dibujo
+func clic(mx: Int, my: Int)
+    b = boton_en(mx, my)
+    if b >= 0
+        orden(bot_orden[b], mx)
+        return
+    end
+    ultimo_x = mx
+    ultimo_y = my
+    orbitando = false
+    moviendo = false
+    if modo == MODO_ESCENA
+        if escena == nil
+            return
+        end
+        wx = mundo_x(mx)
+        wz = mundo_z(my)
+        dx = wx - escena.robot_x
+        dz = wz - escena.robot_z
+        if dx * dx + dz * dz < 25.0
+            robot_sel = true
+            casa_sel = -1
+        else
+            robot_sel = false
+            casa_sel = escena_casa_en(escena, wx, wz)
+        end
+        moviendo = true
+        return
+    end
+    # el hueso de la articulacion mas cercana (10 px); si no, girar la camara
+    mejor = -1
+    md = 100
+    for h in (0..art_x.length - 1)
+        dx = vista_x + art_x[h] - mx
+        dy = vista_y + art_y[h] - my
+        d = dx * dx + dy * dy
+        if d < md
+            md = d
+            mejor = h
+        end
+    end
+    if mejor >= 0
+        hueso_sel = mejor
+        mensaje = ""
+    else
+        orbitando = true
+    end
+end
+
+func arrastrar(mx: Int, my: Int, soltado: Bool)
+    dx = mx - ultimo_x
+    dy = my - ultimo_y
+    ultimo_x = mx
+    ultimo_y = my
+    if modo == MODO_ESCENA and moviendo
+        if robot_sel
+            escena.robot_x = escena.robot_x + Float(dx) / esc_zoom
+            escena.robot_z = escena.robot_z - Float(dy) / esc_zoom
+            escena_cambiada = true
+        elif casa_sel >= 0
+            escena.casa_x[casa_sel] = escena.casa_x[casa_sel] + Float(dx) / esc_zoom
+            escena.casa_z[casa_sel] = escena.casa_z[casa_sel] - Float(dy) / esc_zoom
+            escena_cambiada = true
+        else
+            esc_x = esc_x - Float(dx) / esc_zoom
+            esc_z = esc_z + Float(dy) / esc_zoom
+        end
+        if soltado
+            # a metros enteros
+            if robot_sel
+                escena.robot_x = Float(Int(escena.robot_x))
+                escena.robot_z = Float(Int(escena.robot_z))
+            elif casa_sel >= 0
+                escena.casa_x[casa_sel] = Float(Int(escena.casa_x[casa_sel]))
+                escena.casa_z[casa_sel] = Float(Int(escena.casa_z[casa_sel]))
+            end
+            moviendo = false
+        end
+    elif orbitando
+        giro = giro - Float(dx) * 0.6
+        altura = altura + Float(dy) * 0.15
+        if altura < 0.5
+            altura = 0.5
+        end
+        if altura > 60.0
+            altura = 60.0
+        end
+        if soltado
+            orbitando = false
+        end
+    end
+end
+
+func rueda(w: Int)
+    if modo == MODO_ESCENA
+        if w < 0
+            esc_zoom = esc_zoom * 1.25
+        else
+            esc_zoom = esc_zoom / 1.25
+        end
+        if esc_zoom < 0.3
+            esc_zoom = 0.3
+        end
+        if esc_zoom > 12.0
+            esc_zoom = 12.0
+        end
+    else
+        if w < 0
+            distancia = distancia / 1.15
+        else
+            distancia = distancia * 1.15
+        end
+        if distancia < 6.0
+            distancia = 6.0
+        end
+        if distancia > 200.0
+            distancia = 200.0
+        end
+    end
+end
+
+# --- La ventana ---
+
+func hacer_ventana()
+    win = mui_window_begin("Taller 3D", 47)
+    mui_menu_begin("Proyecto")
+    mui_menu_item("Abrir...", "O", EV_ABRIR)
+    mui_menu_item("Guardar", "S", EV_GUARDAR)
+    mui_menu_separator()
+    mui_menu_item("Salir de Forja", "Q", EV_SALIR_FORJA)
+    mui_menu_end()
+    mui_menu_begin("Ventana")
+    mui_menu_item("Forja", "", EV_FORJA)
+    mui_menu_end()
+    lienzo = mui_canvas(480, 360)
+    mui_window_end()
+    mui_canvas_on_draw(lienzo, dibujar)
+    mui_canvas_on_input(lienzo, EV_LIENZO)
+    mui_canvas_on_drag(lienzo, EV_ARRASTRE)
+    mui_canvas_take_keys(lienzo, true)
+    mui_on_close(win, EV_VENTANA)
+    mui_window_size(win, 70, 80)
+end
+
+func abrir_ventana()
+    if not abierta
+        abierta = mui_window_open(win) != 0
+    end
+    mui_window_activate(win)
+    redibujar()
+end
+
+func editar(ruta: String)
+    mensaje = ""
+    if termina(ruta, ".tft") or termina(ruta, ".tfs")
+        if cargar_modelo(ruta)
+            cargar_anims()
+            cargar_escena()
+            modo = MODO_MODELO
+        end
+    elif termina(ruta, ".tfa")
+        c = cajon_de(ruta)
+        if est == nil or c != cajon
+            if buscar_modelo(c)
+                cargar_anims()
+                cargar_escena()
+            end
+        end
+        a = anim_leer(ruta)
+        for i in (0..anims.length - 1)
+            if anims[i].nombre == a.nombre
+                anim_i = i
+            end
+        end
+        modo = MODO_ANIM
+    elif termina(ruta, ".tfe")
+        c = cajon_de(ruta)
+        if est == nil or c != cajon
+            if buscar_modelo(c)
+                cargar_anims()
+            else
+                cajon = c
+            end
+        end
+        escena = escena_leer(ruta)
+        escena_ruta = ruta
+        escena_cambiada = false
+        esc_x = escena.robot_x
+        esc_z = escena.robot_z
+        modo = MODO_ESCENA
+    end
+    abrir_ventana()
+end
+
+# NUEVO: "escena" (la del barrio de partida) o "animaciones" (las cuatro de partida), en el cajon del proyecto
+func nuevo(que: String)
+    p = forja_proyecto()
+    c = ""
+    if p.length > 0
+        c = p[0]
+        if c != "" and not (termina(c, "/") or termina(c, ":"))
+            c = c + "/"
+        end
+    end
+    if est == nil
+        buscar_modelo(c)
+    end
+    cajon = c
+    if que == "escena"
+        escena = escena_por_defecto()
+        escena_ruta = c + "escena.tfe"
+        escena_cambiada = true
+        esc_x = escena.robot_x
+        esc_z = escena.robot_z
+        modo = MODO_ESCENA
+    else
+        anims.clear()
+        anim_cambiada.clear()
+        for nombre in nombres_anim()
+            anims.push(anim_por_defecto(nombre))
+            anim_cambiada.push(true)
+        end
+        modo = MODO_ANIM
+    end
+    abrir_ventana()
+end
+
+# Un evento de la ventana; true si se ha cerrado (y la extension acaba)
+func evento(ev: Int) -> Bool
+    if ev == EV_LIENZO
+        w = mui_canvas_wheel(lienzo)
+        mx = mui_canvas_mouse_x(lienzo)
+        my = mui_canvas_mouse_y(lienzo)
+        if w != 0
+            rueda(w)
+        elif mui_canvas_button(lienzo) == 1
+            clic(mx, my)
+        elif mui_canvas_key(lienzo) >= 0 and (mui_canvas_qualifiers(lienzo) & 8) == 0
+            tecla(mui_canvas_key(lienzo), mui_canvas_char(lienzo), mui_canvas_qualifiers(lienzo))
+        end
+        cerrar_dicho = false
+        redibujar()
+    elif ev == EV_ARRASTRE
+        arrastrar(mui_canvas_mouse_x(lienzo), mui_canvas_mouse_y(lienzo), mui_canvas_drag(lienzo) == 2)
+        redibujar()
+    elif ev == EV_TIC
+        tic_armado = false
+        if reproduciendo and anims.length > 0
+            ahora = time_ms()
+            a = anim()
+            tiempo = tiempo + (ahora - reloj)
+            reloj = ahora
+            if tiempo > a.duracion
+                if a.bucle
+                    tiempo = tiempo % a.duracion
+                else
+                    tiempo = a.duracion
+                    reproduciendo = false
+                end
+            end
+            redibujar()
+        end
+    elif ev == EV_ABRIR
+        if file_open_dialog("Abrir...", "#?.(tft|tfs|tfa|tfe)")
+            editar(file_fullpath())
+        end
+    elif ev == EV_GUARDAR
+        guardar_todo()
+        redibujar()
+    elif ev == EV_VENTANA
+        if hay_cambios() and not cerrar_dicho
+            cerrar_dicho = true
+            mensaje = "Hay cambios sin guardar: Amiga-S los guarda; cierra otra vez para dejarlos"
+            redibujar()
+        else
+            mui_window_close(win)
+            abierta = false
+            return true
+        end
+    elif ev == EV_SALIR_FORJA
+        forja_salir()
+    elif ev == EV_FORJA
+        forja_delante()
+    end
+    return false
+end
+
+# Lo que manda Forja; true si hay que acabar
+func suceso() -> Bool
+    if forja_tipo == "SALIR"
+        return true
+    elif forja_tipo == "EDITAR"
+        editar(forja_dato)
+    elif forja_tipo == "NUEVO"
+        nuevo(forja_dato)
+    elif forja_tipo == "GUARDAR"
+        guardar_todo()
+    end
+    return false
+end
+
+Main
+    if not forja_empezar("Taller3D")
+        Print "Taller3D es una extensión de Forja: la arranca Forja."
+    else
+        app = mui_app_begin("ForjaTaller3D", "FORJATALLER3D")
+        if app == 0
+            forja_aviso_tipo("Taller3D: no se puede abrir MUI.", 1)
+        else
+            hacer_ventana()
+            salir = false
+            ev = 0
+            while not salir
+                if ev != 0 and evento(ev)
+                    salir = true
+                end
+                s = forja_suceso(-1)
+                while s != "" and not salir
+                    if suceso()
+                        salir = true
+                    end
+                    s = forja_suceso(-1)
+                end
+                if salir
+                    break
+                end
+                if reproduciendo and not tic_armado
+                    tic_armado = true
+                    mui_timer(40, EV_TIC)
+                end
+                decir_sin_guardar()
+                decir_abiertos()
+                ev = mui_wait_event_signals(forja_senal())
+                if ev == -1
+                    ev = EV_VENTANA
+                end
+            end
+            decir_abiertos()
+            if abierta
+                mui_window_close(win)
+            end
+            soltar_lapices()
+            mui_app_end()
+        end
+        forja_acabar()
+    end
+end

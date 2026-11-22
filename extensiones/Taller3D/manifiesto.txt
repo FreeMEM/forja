@@ -1,0 +1,14 @@
+# Taller3D: el editor 3D de Forja para Titan Force (modelos, esqueleto, animaciones y escena)
+nombre = Taller3D
+version = 0.1
+autor = FreeMEM
+licencia = MIT
+descripcion = El editor 3D de Titan Force: ver y girar el robot con su textura, elegir y girar los huesos, las poses clave de las animaciones (quieto, andar, golpe, disparo) y la escena del barrio. Guarda en los ficheros que lee el juego.
+programa = Taller3D
+arranque = menu
+tipos = .tft .tfs .tfa .tfe
+nuevo = _Animaciones | animaciones | Las cuatro animaciones de partida del robot (quieto, andar, golpe y disparo), en ficheros .tfa.
+nuevo = _Escena | escena | La escena del barrio de partida: calles, casas, el robot y la cámara (escena.tfe).
+descripcion.english = The 3D editor of Titan Force: view and rotate the textured robot, pick and rotate bones, keyframe poses of the animations (idle, walk, punch, shoot) and the neighbourhood scene. Saves the files the game reads.
+nuevo.english = _Animations | animaciones | The robot's four starting animations (idle, walk, punch and shoot), as .tfa files.
+nuevo.english = _Scene | escena | The starting neighbourhood scene: streets, houses, the robot and the camera (escena.tfe).

@@ -1,0 +1,114 @@
+# escena3d.dash: la escena de Titan Force (ficheros .tfe), para el editor 3D de Forja y el juego.
+#
+# Formato .tfe (texto), una cosa por linea:
+#   TFE 1
+#   rejilla 52 12 4        (manzanas de 52 m, calles de 12 m, 4 manzanas a cada lado del centro)
+#   robot 26 -26 0         (de donde sale el robot: x, z en m y hacia donde mira, en grados)
+#   camara 2               (la camara de partida: 0 cabina, 1 calle, 2 persecucion, 3 retrato)
+#   casa -10 -10 0         (una casa: x, z del centro en m y su giro en grados: 0, 90, 180 o 270)
+# Las calles van en las lineas entre manzanas: x y z = manzana * k + manzana / 2.
+
+struct Escena
+    manzana: Float
+    calle: Float
+    lados: Int
+    robot_x: Float
+    robot_z: Float
+    robot_rumbo: Float
+    camara: Int
+    casa_x: [Float]
+    casa_z: [Float]
+    casa_giro: [Int]
+end
+
+# El barrio que el juego hacia solo: cuatro casas por manzana, sin la del centro
+func escena_por_defecto() -> Escena
+    s = Escena(52.0, 12.0, 4, 26.0, -26.0, 0.0, 2, [], [], [])
+    for a in (-4..4)
+        for b in (-4..4)
+            if not (a == 0 and b == 0)
+                for k in (0..3)
+                    sx = -10.0
+                    if k % 2 == 1
+                        sx = 10.0
+                    end
+                    sz = -10.0
+                    if k / 2 == 1
+                        sz = 10.0
+                    end
+                    s.casa_x.push(Float(a) * 52.0 + sx)
+                    s.casa_z.push(Float(b) * 52.0 + sz)
+                    s.casa_giro.push(0)
+                end
+            end
+        end
+    end
+    return s
+end
+
+func escena_leer(ruta: String) -> Escena
+    texto = file_read_text(ruta)
+    s = Escena(52.0, 12.0, 4, 26.0, -26.0, 0.0, 2, [], [], [])
+    if not str_starts(texto, "TFE")
+        return escena_por_defecto()
+    end
+    for l in str_split(texto, "\n")
+        c = str_split(str_trim(l), " ")
+        if c.length >= 4 and c[0] == "rejilla"
+            s.manzana = Float(str_to_double(c[1]))
+            s.calle = Float(str_to_double(c[2]))
+            s.lados = Int(c[3])
+        elif c.length >= 4 and c[0] == "robot"
+            s.robot_x = Float(str_to_double(c[1]))
+            s.robot_z = Float(str_to_double(c[2]))
+            s.robot_rumbo = Float(str_to_double(c[3]))
+        elif c.length >= 2 and c[0] == "camara"
+            s.camara = Int(c[1])
+        elif c.length >= 4 and c[0] == "casa"
+            s.casa_x.push(Float(str_to_double(c[1])))
+            s.casa_z.push(Float(str_to_double(c[2])))
+            s.casa_giro.push(Int(c[3]))
+        end
+    end
+    return s
+end
+
+func esc_num(v: Float) -> String
+    d = Int(v * 10.0 + 0.5)
+    if v < 0.0
+        d = Int(v * 10.0 - 0.5)
+    end
+    if d % 10 == 0
+        return "#{d / 10}"
+    end
+    s = ""
+    if d < 0
+        s = "-"
+        d = 0 - d
+    end
+    return s + "#{d / 10}.#{d % 10}"
+end
+
+func escena_escribir(s: Escena, ruta: String) -> Bool
+    t = "TFE 1\nrejilla " + esc_num(s.manzana) + " " + esc_num(s.calle) + " #{s.lados}\nrobot " + esc_num(s.robot_x) + " " + esc_num(s.robot_z) + " " + esc_num(s.robot_rumbo) + "\ncamara #{s.camara}\n"
+    for i in (0..s.casa_x.length - 1)
+        t = t + "casa " + esc_num(s.casa_x[i]) + " " + esc_num(s.casa_z[i]) + " #{s.casa_giro[i]}\n"
+    end
+    return file_write_text(ruta, t)
+end
+
+# La casa mas cercana a (x, z) a menos de 6 m, o -1
+func escena_casa_en(s: Escena, x: Float, z: Float) -> Int
+    mejor = -1
+    md = 36.0
+    for i in (0..s.casa_x.length - 1)
+        dx = s.casa_x[i] - x
+        dz = s.casa_z[i] - z
+        d = dx * dx + dz * dz
+        if d < md
+            md = d
+            mejor = i
+        end
+    end
+    return mejor
+end
