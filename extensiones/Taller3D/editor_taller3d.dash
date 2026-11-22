@@ -825,8 +825,14 @@ func tecla_escena(k: Int, l: String)
         return
     end
     if l == "n"
-        s.casa_x.push(Float(Int(esc_x)))
-        s.casa_z.push(Float(Int(esc_z)))
+        # en el centro de la vista; si ahi esta el robot, 14 m mas arriba (que no quede debajo de el)
+        nx = Float(Int(esc_x))
+        nz = Float(Int(esc_z))
+        if (nx - s.robot_x) * (nx - s.robot_x) + (nz - s.robot_z) * (nz - s.robot_z) < 100.0
+            nz = nz + 14.0
+        end
+        s.casa_x.push(nx)
+        s.casa_z.push(nz)
         s.casa_giro.push(0)
         casa_sel = s.casa_x.length - 1
         robot_sel = false
