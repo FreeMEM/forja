@@ -128,7 +128,7 @@ def hay_agente():
         return False
 
 
-PAQUETE = "dash-2.17.0-amiga.lha"
+PAQUETE = os.environ.get("VIDEO_PAQUETE", "dash-2.17.0-amiga.lha")
 
 
 def traspaso(lengua):

@@ -113,3 +113,6 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - 2026-11-22 T8: README (es/en) de Forja; CHANGELOG de la extensión y `docs/MUI_EDITOR.md` (es/en) de Dash, con
   Jose. La web ("Gracias") y las notas de la versión, al publicar (no se publica aquí).
 - 2026-11-22 T9: aviso a jefe-dash con commits, pruebas, avisos y el borrador para Jose. Siguiente: T10 (el vídeo).
+- 2026-11-22 T10: paquete Dash 2.20 con esta Forja (worktree de Dash), guion09 con el capítulo del diseñador, voces
+  nuevas en pegaso (comprobadas con Whisper), toma es09a entera (13,5 min, sin fallos), música Overload (la eligió el
+  usuario). Montando la versión en castellano.
