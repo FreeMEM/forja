@@ -11,7 +11,7 @@ Forja 0.7:
 - projects (a `.forja` file) and six templates;
 - the whole Dash help, with examples that run;
 - a `.dashui` window editor with real MUI;
-- extensions: Git, the [Inferencia](https://github.com/FreeMEM/inferencia) copilot, Sprites, Mapas and Demos.
+- extensions: Git, the [Inferencia](https://github.com/FreeMEM/inferencia) copilot, Sprites, Mapas, Demos and Taller3D.
 
 This is a test version: it works in the emulator, but it has not been tried on a real Amiga yet. It speaks
 English or Spanish, following the Locale preferences (the English catalog is in `Catalogs/`).
@@ -233,6 +233,22 @@ again next time with the session.
   - Amiga-Z and Amiga-R undo and redo; C copies the Dash lines that load and draw it.
 
   ![The map editor with a 40 x 20 level](docs/img/mapas.png)
+
+### 3D workshop
+
+The 3D editor of the game Titan Force is another extension (`Extensions/Taller3D`). It opens its files: the robot with
+its texture (`.tft`) or plain colours (`.tfs`), its animations (`.tfa`) and the scene (`.tfe`). It draws with the
+game's own software engine and saves (Amiga-S) the files the game reads. Keys 1, 2 and 3 change the mode:
+
+- **Model**: dragging turns the camera and the wheel zooms. A click on a joint, or the up and down arrows, picks the
+  bone.
+- **Animation**: the key poses of idle, walk, punch and shoot on a timeline. Q/A, W/S and E/D turn the chosen bone
+  (with Shift, one degree at a time). Space plays, comma and full stop go from key to key, K adds a key, X removes it
+  and Tab goes to another animation.
+- **Scene**: the neighbourhood from above. A click picks a house or the robot and dragging moves it. N adds a house, X
+  removes it, R turns it and C changes the starting camera.
+
+The example robots are 3D models by SantiDarkG.
 
 ### Demos
 
