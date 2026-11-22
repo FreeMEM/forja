@@ -1,4 +1,4 @@
-## version $VER: Forja.catalog 1.0 (17.11.2026)
+## version $VER: Forja.catalog 1.0 (22.11.2026)
 ## language english
 ## codeset 0
 ;
@@ -1268,3 +1268,45 @@ MSG_1024
 MSG_1025
 Change value...
 ; Cambiar valor...
+MSG_1100
+empty
+; vacío
+MSG_1101
+Button|Text|Label|Field|Checkbox|Cycle|Slider|Gauge|List|Canvas|Scrollbar|Image|Combo|Space|Balance|H group|V group|Frame|Columns|Tabs|Scroll
+; Botón|Texto|Etiqueta|Campo|Casilla|Ciclo|Deslizador|Medidor|Lista|Lienzo|Barra|Imagen|Combo|Espacio|Separador|Grupo H|Grupo V|Marco|Tabla|Pestañas|Desplazable
+MSG_1102
+Window
+; Ventana
+MSG_1103
+Tree
+; Árbol
+MSG_1104
+A click on the window puts there: %1 (Esc, nothing).
+; Un clic en la ventana pone ahí: %1 (Esc, nada).
+MSG_1105
+Drag to move. Double click: to its code.
+; Arrastra para mover. Doble clic: a su código.
+MSG_1107
+A %1 object gives no events.
+; Un objeto %1 no da eventos.
+MSG_1108
+This gives no events.
+; Esto no da eventos.
+MSG_1109
+option
+; opcion
+MSG_1110
+Save the .dashui first: its code goes in the .dash that imports it.
+; Guarda antes el .dashui: su código va en el .dash que lo importa.
+MSG_1111
+No .dash in %1 imports %2: put import \"%2\" in the program.
+; Ningún .dash de %1 importa %2: pon import \"%2\" en el programa.
+MSG_1112
+Event %1 (%2), in its code.
+; El evento %1 (%2), en su código.
+MSG_1113
+Constant %1 added: there is no mui_wait_event loop to put its code in.
+; Añadida la constante %1: no hay un bucle de mui_wait_event donde poner su código.
+MSG_1114
+Made the code of event %1 (%2).
+; Creado el código del evento %1 (%2).
