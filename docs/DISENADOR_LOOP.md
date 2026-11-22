@@ -71,7 +71,7 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 
 ## Tareas
 
-- [ ] T1. Disposición: calcular el tamaño y el sitio de cada objeto (función pura, con prueba en el PC con dash).
+- [x] T1. Disposición: calcular el tamaño y el sitio de cada objeto (función pura, con prueba en el PC con dash).
 - [ ] T2. Dibujo del lienzo con la ventana, la paleta arriba y Lienzo/Árbol; clic elige (sincroniza el árbol).
 - [ ] T3. Arrastrar objetos (mover) y desde la paleta (crear), con la marca de dónde cae.
 - [ ] T4. Doble clic: evento y nombre automáticos; buscar o crear el manejador en el `.dash` (abrirlo y saltar).
@@ -88,3 +88,5 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 ## Bitácora
 
 - 2026-11-22: plan escrito. Worktree creado; Forja compila con Dash main.
+- 2026-11-22 T1: `src/lienzo.dash` (disposición, dibujo, `lz_en`, `lz_destino`) y `tests/lienzo_base.dash` (22 bien, con
+  `tests/emu_prueba.sh`, unos 11 s). El dibujo aún sin probar en pantalla.

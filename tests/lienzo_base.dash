@@ -1,0 +1,73 @@
+# Prueba de src/lienzo.dash sin ventana (con una fuente fija de 8 x 8): dónde quedan los objetos de la ventana de
+# la plantilla MUI, qué hay en un punto y dónde cae lo arrastrado. tests/emu_prueba.sh la ejecuta.
+
+import "../src/lienzo.dash"
+
+var fallos: Int = 0
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        Print "bien: " + paso
+    else
+        Print "FALLO: " + paso + " [" + detalle + "]"
+        fallos = fallos + 1
+    end
+end
+
+func caja(c: Caja) -> String
+    return c.tipo + " #{c.x},#{c.y} #{c.w}x#{c.h}"
+end
+
+const PLANTILLA = "{\"dashui\": 1, \"windows\": [{\"name\": \"Principal\", \"title\": \"Hola\", \"close\": 99, \"root\": {\"type\": \"vgroup\", \"children\": [{\"type\": \"text\", \"name\": \"saludo\", \"text\": \"Escribe tu nombre y pulsa Saludar.\"}, {\"type\": \"hgroup\", \"children\": [{\"type\": \"label\", \"text\": \"Nombre:\"}, {\"type\": \"string\", \"name\": \"nombre\", \"text\": \"\", \"ack\": 1}]}, {\"type\": \"hgroup\", \"children\": [{\"type\": \"button\", \"name\": \"saludar\", \"label\": \"_Saludar\", \"event\": 1}, {\"type\": \"button\", \"name\": \"limpiar\", \"label\": \"_Limpiar\", \"event\": 2}]}, {\"type\": \"frame\", \"title\": \"Marco\", \"children\": []}]}}]}"
+
+Main
+    lz_letra = 8
+    lz_alto = 8
+    doc = json_parse(PLANTILLA)
+    v = json_at(json_get(doc, "windows"), 0)
+    lz_disponer(v, 640, 200)
+    ver("medida de la raíz", lz_raiz.mw == 276 and lz_raiz.ex and not lz_raiz.ey, "#{lz_raiz.mw}x#{lz_raiz.mh}")
+    ver("la raíz ocupa el 85 % a lo ancho", lz_raiz.w == 522, caja(lz_raiz))
+    for c in lz_cajas
+        Print "  " + caja(c)
+    end
+    texto = lz_cajas[1]
+    fila1 = lz_cajas[2]
+    etiqueta = lz_cajas[3]
+    campo = lz_cajas[4]
+    fila2 = lz_cajas[5]
+    b1 = lz_cajas[6]
+    b2 = lz_cajas[7]
+    marco = lz_cajas[8]
+    ver("orden de las cajas", texto.tipo == "text" and campo.tipo == "string" and b2.tipo == "button" and marco.tipo == "frame", caja(b2))
+    ver("la etiqueta no crece", etiqueta.w == 60, caja(etiqueta))
+    ver("el campo se queda lo que sobra", campo.w == 522 - 60 - 4, caja(campo))
+    ver("los dos botones, la mitad cada uno", b1.w == 259 and b2.w == 259 and b2.x == b1.x + 263, caja(b1) + " " + caja(b2))
+    ver("los botones debajo del campo", b1.y == fila1.y + fila1.h + 4, caja(b1))
+    # qué hay en un punto
+    ver("en el botón Limpiar", lz_en(b2.x + 3, b2.y + 3) == b2, "")
+    ver("entre los botones: su fila", lz_en(b1.x + b1.w + 1, b1.y + 3) == fila2, "")
+    ver("en el título", lz_en_titulo(lz_vx + 30, lz_vy + 2), "")
+    ver("fuera de la ventana", lz_en(1, 1) == nil, "")
+    # dónde cae lo arrastrado
+    hijos2 = json_get(fila2.nodo, "children")
+    lz_destino(b2.x + 5, b2.y + 5, nil)
+    ver("nuevo en la mitad izquierda de Limpiar: delante de él", lz_dest_lista == hijos2 and lz_dest_indice == 1, "#{lz_dest_indice}")
+    lz_destino(b2.x + b2.w - 5, b2.y + 5, nil)
+    ver("en la mitad derecha: detrás", lz_dest_lista == hijos2 and lz_dest_indice == 2, "#{lz_dest_indice}")
+    ver("la raya, vertical, entre los botones y el borde", lz_dest_x2 - lz_dest_x1 == 1 and lz_dest_x1 > b2.x + b2.w - 2, "#{lz_dest_x1}")
+    lz_destino(b1.x + 5, b1.y + 5, b1.nodo)
+    ver("Saludar sobre sí mismo: en su sitio", lz_dest_lista == hijos2 and lz_dest_indice == 0, "#{lz_dest_indice}")
+    lz_destino(marco.x + marco.w / 2, marco.y + marco.h / 2, b1.nodo)
+    ver("dentro del marco vacío", lz_dest_lista == json_get(marco.nodo, "children") and lz_dest_indice == 0 and lz_dest_dentro, "")
+    lz_destino(marco.x + marco.w / 2, marco.y + 1, nil)
+    ver("en el borde del marco: delante de él (en la raíz)", lz_dest_lista == json_get(lz_raiz.nodo, "children") and lz_dest_indice == 3, "#{lz_dest_indice}")
+    lz_destino(texto.x + 5, texto.y + texto.h - 2, nil)
+    ver("debajo del texto: entre él y la primera fila", lz_dest_indice == 1 and lz_dest_y2 - lz_dest_y1 == 1, "#{lz_dest_indice}")
+    ver("textos sin códigos ni _", lz_texto("\33c_Hola") == "Hola", lz_texto("\33c_Hola"))
+    if fallos == 0
+        Print "TODO BIEN"
+    else
+        Print "#{fallos} FALLOS"
+    end
+end
