@@ -116,3 +116,7 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - 2026-11-22 T10: paquete Dash 2.20 con esta Forja (worktree de Dash), guion09 con el capítulo del diseñador, voces
   nuevas en pegaso (comprobadas con Whisper), toma es09a entera (13,5 min, sin fallos), música Overload (la eligió el
   usuario). Montando la versión en castellano.
+- 2026-11-22 T10: montado en castellano, ~/.cache/video-forja/salida09/forja-es.mp4 (12:32; acercamiento del
+  diseñador a 900x720; saludos del scroller con Overload, Jose y JaviTecH; OCR sin datos privados). Recorte del
+  capítulo mandado al usuario (el entero pasa del límite de 30 MB). Rodando y montando la versión inglesa (en09a).
+  Pendiente: el número de versión de los rótulos (0.9 provisional), que decide el usuario.

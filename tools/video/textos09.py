@@ -161,6 +161,8 @@ def _hacer():
                 creditos.append(("n", "Jose (the window designer) - JaviTecH" if lg == "en"
                                  else "Jose (el diseñador de ventanas) - JaviTecH"))
         t["creditos"] = creditos
+        t["saludos"] = t["saludos"].replace("CAPTAIN FOR SPACE DEBRIS", "MANTRONIX AND TIP FOR OVERLOAD *** JOSE FOR THE WINDOW DESIGNER IDEA *** JAVITECH").replace(
+            "CAPTAIN POR SPACE DEBRIS", "MANTRONIX Y TIP POR OVERLOAD *** JOSE POR LA IDEA DEL DISENADOR DE VENTANAS *** JAVITECH")
         r[lg] = t
     return r
 

@@ -893,7 +893,7 @@ try:
             t = lienzo("titulo"); li = lienzo("limpiar"); b = lienzo("button"); vi = lienzo("vista"); pr = lienzo("props")
             # cerca: la paleta, la ventana y las propiedades (a 1280x1024 se ven pequeñas), mientras se cuenta y se arrastra
             zx, zy = b[0] - 16, b[1] - 40
-            r.acercar(zx, zy, 1000, 800, DURA["ventanas_2"] + DURA["ventanas_3"] + 4.0)
+            r.acercar(zx, zy, 900, 720, DURA["ventanas_2"] + DURA["ventanas_3"] + 4.0)
             r.marcar("ventana", t[0] - 6, t[1] - 6, t[2] + 12, li[1] + li[3] - t[1] + 16, 2.2)
             time.sleep(2.2)
             r.marcar("paleta", b[0] - 4, b[1] - 3, vi[0] + vi[2] - b[0] + 8, b[3] + 6, 2.2)
