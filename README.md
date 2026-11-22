@@ -140,9 +140,14 @@ busque en `PROGDIR:` (su icono, sus catálogos) lo buscará en el cajón del eje
   Forja se pone delante: la ventana del programa se queda el teclado al abrirse. Si la línea de la parada ya se ve,
   el código no se mueve ni se repinta entero, ni salta al hacer clic en él o en las variables (lo contó David
   Martínez).
-- **Ventanas `.dashui`**: se abren en el editor de ventanas (Amiga-D cambia a texto). El árbol de objetos y sus
-  propiedades; "+" añade, Supr quita, Alt+flechas mueve. Amiga-P abre la vista previa con MUI de verdad. Se guarda
-  igual que la extensión de VS Code.
+- **Ventanas `.dashui`**: se abren en el diseñador de ventanas (Amiga-D cambia a texto), como en Visual Basic o
+  Delphi (lo pidió Jose). La ventana se ve dibujada como la pondría MUI, con una paleta de objetos encima y sus
+  propiedades al lado. Un clic elige un objeto; arrastrándolo se mueve delante, detrás o dentro de un grupo; un objeto
+  de la paleta se arrastra a su sitio, o se elige y se pone con un clic. **Doble clic** en un objeto (o Amiga-J) lleva
+  a su código en el `.dash` que importa el `.dashui`: si no tiene número de evento ni nombre, se le ponen, y si el
+  programa no trata el evento, se crea su constante y su `if` tras `mui_wait_event`. El doble clic en el título de la
+  ventana va al código de cerrarla. Tab cambia al árbol de objetos: "+" añade, Supr quita, Alt+flechas mueve.
+  Amiga-P abre la vista previa con MUI de verdad. Se guarda igual que la extensión de VS Code, que hace lo mismo.
 - **Versiones nuevas de Dash**: Proyecto > Buscar versión nueva de Dash la busca en GitHub y, si la hay, pregunta si
   la baja e instala en el cajón de Dash (`DASH:`): la orden dash, Forja, Inferencia, `lib/` y los ejemplos. Antes de
   cambiar nada lo comprueba todo; si algo llega mal, Dash se queda como estaba. Al empezar mira una vez al día y solo
