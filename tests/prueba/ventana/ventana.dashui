@@ -1,0 +1,41 @@
+{
+  "dashui": 1,
+  "windows": [
+    {
+      "name": "Principal",
+      "title": "Saludo",
+      "id": 1,
+      "close": 99,
+      "menus": [
+        {
+          "title": "Proyecto",
+          "items": [
+            { "label": "Acerca de...", "key": "A", "event": 10 },
+            { "separator": true },
+            { "label": "Salir", "key": "Q", "event": 99 }
+          ]
+        }
+      ],
+      "root": {
+        "type": "vgroup",
+        "children": [
+          { "type": "text", "name": "saludo", "text": "\u001bcEscribe tu nombre y pulsa Saludar." },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "label", "text": "Nombre:" },
+              { "type": "string", "name": "nombre", "text": "", "max": 40, "ack": 1 }
+            ]
+          },
+          {
+            "type": "hgroup",
+            "children": [
+              { "type": "button", "name": "saludar", "label": "_Saludar", "event": 1 },
+              { "type": "button", "name": "limpiar", "label": "_Limpiar", "event": 2 }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

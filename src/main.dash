@@ -214,6 +214,7 @@ var vq: PropProyecto = nil
 var app: Int = 0
 var errores_ultimos: String = ""    # las líneas de error de la última compilación (para ARexx)
 var sonda: Bool = false
+var sonda_lienzo: String = ""
 var sonda_editor: String = ""
 var barra_total: Int = -1
 var barra_visibles: Int = -1
@@ -3036,6 +3037,11 @@ func alternar_punto(d: Documento, n: Int)
     redibujar()
 end
 
+# Doble clic en un objeto del editor de ventanas: a su manejador en el .dash que importa el .dashui
+func ir_evento_diseno(d: Documento)
+    avisar(tr(1106, "Todavía no va al código del evento."), 1)
+end
+
 # Si la vista previa está abierta, se rehace con lo cambiado
 func rehacer_vista()
     if dv_vista != 0 and dv_error_carga == ""
@@ -3132,6 +3138,9 @@ func en_editor() -> Int
         # la rueda sobre las pestañas las mueve (si no caben)
         ed_pestanas_mover(-rueda)
         redibujar()
+    elif rueda != 0 and d.diseno
+        dv_rueda(rueda)
+        redibujar()
     elif rueda != 0
         d.primera = ed_filas_desde(d, d.primera, -rueda * 3)
         maximo = d.lineas.length - ed_visibles
@@ -3158,8 +3167,15 @@ func en_editor() -> Int
         activo = ed_pestana_en(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
         redibujar()
     elif mui_canvas_button(lienzo_teclas) == 1 and d.diseno
-        dv_clic(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
+        r = dv_clic(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
+        if r == 1
+            ed_aplicar_diseno(d)
+            rehacer_vista()
+        end
         redibujar()
+        if r == 2
+            ir_evento_diseno(d)
+        end
     elif mui_canvas_button(lienzo_teclas) == 1 and ed_ancho_marca > 0 and mui_canvas_mouse_x(lienzo_teclas) >= ed_x_marca(0) - 2 and mui_canvas_mouse_x(lienzo_teclas) < ed_margen - 4 and mui_canvas_mouse_y(lienzo_teclas) >= ALTO_PESTANAS and ext_clic_marca(d, ed_linea_en(d, mui_canvas_mouse_y(lienzo_teclas)))
         # un clic en la marca de una extensión: MARCA a la suya
         return 0
@@ -3286,6 +3302,14 @@ func en_editor() -> Int
 end
 
 func publicar_sonda()
+    dl = ed_actual()
+    if dl != nil and dl.diseno
+        l = dv_sonda()
+        if l != sonda_lienzo
+            sonda_lienzo = l
+            env_set("FORJA_LIENZO", l, false)
+        end
+    end
     e = "#{ed_zona_x} #{ed_zona_y} #{ed_zona_ancho} #{ed_zona_alto}"
     if e != sonda_editor
         sonda_editor = e
@@ -6569,7 +6593,15 @@ func atender(ev: Int)
     elif ev >= EV_CORTAR and ev <= EV_VISTA
         edicion(ev)
     elif ev == EV_ARRASTRE
-        if mui_canvas_drag(v.editor) == 1
+        d = ed_actual()
+        if d != nil and d.diseno
+            # en el editor de ventanas: un objeto o uno nuevo de la paleta
+            if dv_arrastre(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas), mui_canvas_drag(v.editor))
+                ed_aplicar_diseno(d)
+                rehacer_vista()
+            end
+            redibujar()
+        elif mui_canvas_drag(v.editor) == 1
             ed_arrastrar(mui_canvas_mouse_x(lienzo_teclas), mui_canvas_mouse_y(lienzo_teclas))
             redibujar()
         end
@@ -6706,6 +6738,16 @@ Main
             if ev == 0
                 mirar_depuracion()
                 teclas_mirar()
+            end
+            # en el editor de ventanas, el nombre del icono de la paleta que tiene el puntero encima
+            if ev == EV_EDITOR_MOVER
+                dm = ed_actual()
+                if dm != nil and dm.diseno
+                    if dv_mover(mui_canvas_pointer_x(v.editor), mui_canvas_pointer_y(v.editor))
+                        redibujar()
+                    end
+                    continue
+                end
             end
             # el puntero sobre el editor solo importa parado en el depurador (el valor bajo el ratón): sin nada más
             if ev == EV_EDITOR_MOVER and ed_valor_texto == "" and (tarea != DEPURANDO or dbg_state() != 3)

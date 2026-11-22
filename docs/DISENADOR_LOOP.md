@@ -72,8 +72,8 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 ## Tareas
 
 - [x] T1. Disposición: calcular el tamaño y el sitio de cada objeto (función pura, con prueba en el PC con dash).
-- [ ] T2. Dibujo del lienzo con la ventana, la paleta arriba y Lienzo/Árbol; clic elige (sincroniza el árbol).
-- [ ] T3. Arrastrar objetos (mover) y desde la paleta (crear), con la marca de dónde cae.
+- [x] T2. Dibujo del lienzo con la ventana, la paleta arriba y Lienzo/Árbol; clic elige (sincroniza el árbol).
+- [x] T3. Arrastrar objetos (mover) y desde la paleta (crear), con la marca de dónde cae.
 - [ ] T4. Doble clic: evento y nombre automáticos; buscar o crear el manejador en el `.dash` (abrirlo y saltar).
 - [ ] T5. Prueba con usuario simulado en FS-UAE (`tests/disenador.sh`), capturas al usuario.
 - [ ] T6. Lo que falte a Dash (si falta algo), en los dos caminos (`./dash` y `./dash --gcc`).
@@ -90,3 +90,8 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - 2026-11-22: plan escrito. Worktree creado; Forja compila con Dash main.
 - 2026-11-22 T1: `src/lienzo.dash` (disposición, dibujo, `lz_en`, `lz_destino`) y `tests/lienzo_base.dash` (22 bien, con
   `tests/emu_prueba.sh`, unos 11 s). El dibujo aún sin probar en pantalla.
+- 2026-11-22 T2-T3: lienzo en `src/diseno.dash`: paleta de iconos en una fila (el nombre al pasar el puntero),
+  ventana a la izquierda, propiedades a la derecha, Tab o el botón "Árbol" cambian al árbol. Clic elige, arrastrar
+  mueve, paleta + arrastre o paleta + clic crean; rueda sube y baja la ventana, lo elegido se sigue. Prueba
+  `RTG=1 tests/disenador.sh` (TODO BIEN). En 640x256 (sin RTG) la zona del editor mide unos 85 px: la ventana no cabe
+  y la prueba falla los clics; se baja con la rueda. ESPERA=300 para las capturas (cada paso para 6 s).

@@ -1,0 +1,45 @@
+# Saludo: una aplicación MUI (MUI 3.8 o 5).
+#
+# La ventana está en ventana.dashui: ábrelo en Forja para cambiarla con el editor de ventanas (Amiga-D pasa a
+# texto; Amiga-P, la vista previa). Cada objeto con "name" es un campo de Principal (v.nombre, v.saludo...), y cada
+# "event" llega como un número a mui_wait_event.
+
+@version "Saludo 0.1"
+
+import "ventana.dashui"
+
+const EV_SALUDAR = 1
+const EV_LIMPIAR = 2
+const EV_ACERCA = 10
+const EV_SALIR = 99
+
+Main
+    if mui_app_begin("Saludo", "Saludo") == 0
+        Print "Saludo necesita MUI."
+        program_exit(20)
+    end
+    v = Principal_create()
+    mui_window_open(v.window)
+    mui_set_active(v.window, v.nombre)
+    veces = 0
+    while true
+        ev = mui_wait_event()
+        if ev == -1 or ev == EV_SALIR
+            break
+        elif ev == EV_SALUDAR
+            nombre = str_trim(mui_get_text(v.nombre))
+            if nombre == ""
+                nombre = "Amiga"
+            end
+            veces = veces + 1
+            mui_set_text(v.saludo, "\33cHola, " + nombre + " (#{veces})")
+        elif ev == EV_LIMPIAR
+            veces = 0
+            mui_set_text(v.nombre, "")
+            mui_set_text(v.saludo, "\33cEscribe tu nombre y pulsa Saludar.")
+        elif ev == EV_ACERCA
+            mui_request(v.window, "Saludo", "Saludo 0.1\nHecho con Dash y Forja.", "_Vale")
+        end
+    end
+    mui_app_end()
+end
