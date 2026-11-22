@@ -27,7 +27,8 @@ CAP = {
         "sprites": ("Sprites and maps", "Two extensions, in short"),
         "demos": ("Demos", "Sync tracks, MOD viewer, copper, raster, parts"),
         "tresd": ("3D with MiniGL", "A cube from the 3D template"),
-        "ventanas": ("The window designer", "Palette, drag and drop, double click to the code"),
+        "ventanas": ("The window designer", "A task list: palette, drag and drop, events"),
+        "taller3d": ("The 3D Workshop", "Models, bones, poses and scene for Titan Force"),
         "cierre": ("Extensions", "Free, on GitHub"),
     },
     "es": {
@@ -43,7 +44,8 @@ CAP = {
         "sprites": ("Sprites y mapas", "Dos extensiones, en breve"),
         "demos": ("Demos", "Pistas de sincronía, visor de MOD, copper, raster y partes"),
         "tresd": ("3D con MiniGL", "Un cubo de la plantilla 3D"),
-        "ventanas": ("El diseñador de ventanas", "Paleta, arrastrar y doble clic al código"),
+        "ventanas": ("El diseñador de ventanas", "Una lista de tareas: paleta, arrastrar y eventos"),
+        "taller3d": ("El Taller 3D", "Modelos, huesos, poses y escena para Titan Force"),
         "cierre": ("Extensiones", "Libre, en GitHub"),
     },
 }
@@ -66,7 +68,10 @@ RAS = {
         "copper": "Copper editor", "raster": "Raster meter", "partes": "Parts timeline", "cubo": "MiniGL cube",
         "gestor": "Extension manager", "libre": "Free & open source",
         "disenador": "Window designer (asked by Jose)", "paleta": "Window, palette, properties",
-        "arrastrar": "Drag from the palette", "doblec": "Double click: its code", "ejecutar_ui": "The new button works",
+        "arrastrar": "Drag from the palette", "mover": "Move with the mouse", "propiedades": "Texts in the properties",
+        "doblec": "Double click: its code", "eventos": "One event for two objects", "ejecutar_ui": "The task list, running",
+        "taller": "3D Workshop (robot by SantiDarkG)", "robot": "The textured robot", "pose": "Key poses",
+        "escena": "The neighbourhood scene", "guardar3d": "Files the game reads",
     },
     "es": {
         "coffin": "CoffinOS R65, RTG", "paquete": "Paquete de Dash 2.20", "instalador": "Instalador clásico",
@@ -87,7 +92,10 @@ RAS = {
         "raster": "Medidor de raster", "partes": "Línea de tiempo de partes", "cubo": "Un cubo con MiniGL",
         "gestor": "Gestor de extensiones", "libre": "Libre y de código abierto",
         "disenador": "Diseñador de ventanas (lo pidió Jose)", "paleta": "Ventana, paleta y propiedades",
-        "arrastrar": "Arrastrar desde la paleta", "doblec": "Doble clic: su código", "ejecutar_ui": "El botón nuevo funciona",
+        "arrastrar": "Arrastrar desde la paleta", "mover": "Mover con el ratón", "propiedades": "Textos en las propiedades",
+        "doblec": "Doble clic: su código", "eventos": "Un evento para dos objetos", "ejecutar_ui": "La lista de tareas, en marcha",
+        "taller": "Taller 3D (robot de SantiDarkG)", "robot": "El robot con su textura", "pose": "Poses clave",
+        "escena": "La escena del barrio", "guardar3d": "Ficheros que lee el juego",
     },
 }
 SCROLL = {
@@ -105,6 +113,7 @@ SCROLL = {
         "raster": "HOW MANY RASTER LINES EACH FRAME USES: GREEN, YELLOW, RED...",
         "cubo": "A SPINNING CUBE WITH GL_ CALLS, ON MINIGL...",
         "doblec": "LIKE VISUAL BASIC OR DELPHI: DOUBLE CLICK A BUTTON AND WRITE WHAT IT DOES... THANKS, JOSE!",
+        "taller": "3D MODELS: SANTIDARKG *** TITAN FORCE, A 3D GAME WRITTEN IN DASH...",
         "libre": "FREE AND OPEN SOURCE: GITHUB.COM/FREEMEM/FORJA *** FORJA.FREEMEM.SPACE",
     },
     "es": {
@@ -121,6 +130,7 @@ SCROLL = {
         "raster": "CUANTAS LINEAS DE RASTER GASTA CADA IMAGEN: VERDE, AMARILLO, ROJO...",
         "cubo": "UN CUBO QUE GIRA CON LLAMADAS GL_, SOBRE MINIGL...",
         "doblec": "COMO EN VISUAL BASIC O DELPHI: DOBLE CLIC EN UN BOTON Y ESCRIBES LO QUE HACE... GRACIAS, JOSE!",
+        "taller": "MODELOS 3D: SANTIDARKG *** TITAN FORCE, UN JUEGO EN 3D ESCRITO EN DASH...",
         "libre": "LIBRE Y DE CODIGO ABIERTO: GITHUB.COM/FREEMEM/FORJA *** FORJA.FREEMEM.SPACE",
     },
 }
@@ -136,7 +146,7 @@ def _hacer():
         t["scroll"] = SCROLL[lg]
         if lg == "en":
             t["titulo"] = "Forja {ver}: the whole Dash IDE for the Amiga"
-            t["portada"] = ["The whole Dash IDE", "Editor, help, debugger, git, AI copilot, demos, 3D and window designer",
+            t["portada"] = ["The whole Dash IDE", "Editor, help, debugger, git, AI copilot, demos, windows and 3D",
                             "AmigaOS 3.x  -  written in Dash"]
             t["scroll_portada"] = "*** FORJA {ver} *** THE WHOLE DASH IDE FOR THE AMIGA *** WITH DASH 2.20 ON COFFINOS R65 ***"
             t["creditos"] = [(k, "The whole Dash IDE" if v == "The Dash IDE, on the Amiga itself" else v)
@@ -156,6 +166,9 @@ def _hacer():
         }
         creditos = []
         for (k, v) in t["creditos"]:
+            if v in ("BUILT WITH", "HECHO CON"):
+                # los modelos del Taller 3D (el usuario dijo que sí, 22/11)
+                creditos += [("t", "3D MODELS" if lg == "en" else "MODELOS 3D"), ("n", "SantiDarkG"), ("s", "")]
             creditos.append((k, cambios.get(v, v)))
             if v in ("Captain - Stefan Stuntz and the MUI team", "Captain - Stefan Stuntz y el equipo de MUI"):
                 creditos.append(("n", "Jose (the window designer) - JaviTecH" if lg == "en"

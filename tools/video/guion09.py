@@ -55,7 +55,7 @@ NAVE = PROY + "/Nave/main.dash"
 
 r = Rodaje(CARPETA, L, VERSION)
 CAPITULOS = ["intro", "instalar", "proyecto", "editor", "ayuda", "errores", "depurar", "git", "inferencia",
-             "sprites", "demos", "tresd", "ventanas", "cierre"]
+             "sprites", "demos", "tresd", "ventanas", "taller3d", "cierre"]
 DESDE = os.environ.get("DESDE", CAPITULOS[0])
 
 
@@ -877,73 +877,173 @@ try:
             traceback.print_exc()
             print("FALLO en el capítulo, sigo con el siguiente", flush=True)
 
-    # --- 13. El diseñador de ventanas (lo pidió Jose) -----------------------------------------------------------------
+    # --- 13. El diseñador de ventanas (lo pidió Jose): una lista de tareas desde la plantilla MUI, con sus eventos ---
     if hacer("ventanas"):
         try:
             r.capitulo("ventanas")
             cerrar_extensiones()
-            agente.lanzar(f"C:Delete {PROY}/Saludo ALL QUIET")
+            NOMBRE = tt("Tareas", "Tasks")
+            LISTA = tt("lista", "list")
+            agente.lanzar(f"C:Delete {PROY}/{NOMBRE} ALL QUIET")
             time.sleep(1.0)
             fin = voz("ventanas_1"); r.rasgo("disenador")
-            rx(f"NUEVOPROYECTO 'mui' '{PROY}' 'Saludo'", pausa=4.0)
-            rx(f"ABRIR '{PROY}/Saludo/ventana.dashui' 1", pausa=2.5)
+            rx(f"NUEVOPROYECTO 'mui' '{PROY}' '{NOMBRE}'", pausa=4.0)
+            UI = f"{PROY}/{NOMBRE}/ventana.dashui"
+            MAIN = f"{PROY}/{NOMBRE}/main.dash"
+            rx(f"ABRIR '{UI}' 1", pausa=2.5)
             raton_en_forja(200, 600)
             r.hasta(fin)
+
+            def centro(c):
+                return (c[0] + c[2] // 2, c[1] + c[3] // 2)
+
+            def prop(fila, texto, borrar=12):
+                """Cambia la propiedad de esa fila (desde 0) del elegido: clic, borrar lo que tiene y escribir."""
+                pr = lienzo("props")
+                ps.uno(pr[0] + pr[2] // 2, pr[1] + fila * pr[3] + pr[3] // 2, 0.6)
+                time.sleep(0.4)
+                teclas_n("bs", borrar, 0, 0.05)
+                escribir(texto, 0.06, 2)
+                k("ret")
+                time.sleep(0.6)
+
+            def debajo():
+                """Un punto de la ventana debajo de todo: lo que se suelte o se ponga ahí va al final."""
+                raiz = lienzo("_vgroup1")
+                return (raiz[0] + raiz[2] // 2, raiz[1] + raiz[3] + 2)
+
+            def poner(tipo):
+                """Uno nuevo de la paleta: un clic en su icono y otro debajo de todo."""
+                c = lienzo(tipo)
+                ps.uno(*centro(c), 0.6)
+                time.sleep(0.4)
+                ps.uno(*debajo(), 0.7)
+                time.sleep(1.0)
+
+            def doble(nombre):
+                p.mover_a(*centro(lienzo(nombre)), 0.7)
+                time.sleep(0.3)
+                p.clic(2)
+                time.sleep(3.0)
+
+            def codigo(comentario, *lineas):
+                """En el if que acaba de crear el doble clic: su comentario fuera y las líneas escritas."""
+                teclas_n("del", len(comentario), 0, 0.06)
+                for i, l in enumerate(lineas):
+                    if i:
+                        k("ret")
+                    escribir(l, 0.05, 3)
+                    time.sleep(0.3)
+                time.sleep(0.6)
+
+            def a_ventana():
+                rx(f"ABRIR '{UI}' 1", pausa=2.0)
+
+            # la ventana, la paleta, las propiedades; fuera la fila de botones de la plantilla
             fin = voz("ventanas_2"); r.rasgo("paleta")
-            t = lienzo("titulo"); li = lienzo("limpiar"); b = lienzo("button"); vi = lienzo("vista"); pr = lienzo("props")
-            # cerca: la paleta, la ventana y las propiedades (a 1280x1024 se ven pequeñas), mientras se cuenta y se arrastra
-            zx, zy = b[0] - 16, b[1] - 40
-            r.acercar(zx, zy, 900, 720, DURA["ventanas_2"] + DURA["ventanas_3"] + 4.0)
+            t = lienzo("titulo"); b = lienzo("button"); vi = lienzo("vista"); pr = lienzo("props"); li = lienzo("limpiar")
+            r.acercar(b[0] - 16, b[1] - 40, 900, 720, 60.0)
             r.marcar("ventana", t[0] - 6, t[1] - 6, t[2] + 12, li[1] + li[3] - t[1] + 16, 2.2)
             time.sleep(2.2)
             r.marcar("paleta", b[0] - 4, b[1] - 3, vi[0] + vi[2] - b[0] + 8, b[3] + 6, 2.2)
-            p.mover_a(b[0] + b[2] // 2, b[1] + b[3] // 2, 1.0)        # el nombre del icono sale al pasar por encima
-            time.sleep(1.2)
-            r.marcar("props", pr[0] - 2, pr[1] - 2, pr[2] + 4, pr[3] * 7 + 4, 2.0)
-            r.hasta(fin)
-            fin = voz("ventanas_3"); r.rasgo("arrastrar")
-            b = lienzo("button"); li = lienzo("limpiar")
-            ps.arrastrar((b[0] + b[2] // 2, b[1] + b[3] // 2), (li[0] + li[2] - 8, li[1] + li[3] // 2), dur=1.6)
+            p.mover_a(*centro(b), 1.0)                                  # el nombre del icono, al pasar por encima
             time.sleep(1.5)
-            pr = lienzo("props")                                       # el botón nuevo, elegido: su label, la primera
-            ps.uno(pr[0] + pr[2] // 2, pr[1] + pr[3] // 2, 0.7)
-            time.sleep(0.6)
-            teclas_n("bs", 8)
-            escribir("_Hasta luego", 0.08, 2)
-            k("ret")
+            r.marcar("props", pr[0] - 2, pr[1] - 2, pr[2] + 4, pr[3] * 7 + 4, 2.0)
+            time.sleep(1.5)
+            ps.uno(*centro(lienzo("saludar")), 0.7)                     # Saludar, y arriba en el árbol: su fila
+            k("up")
+            k("del")
             time.sleep(1.0)
             r.hasta(fin)
-            fin = voz("ventanas_4"); r.rasgo("doblec")
-            li = lienzo("limpiar"); t = lienzo("titulo")
-            nx, ny = (li[0] + li[2] + t[0] + t[2]) // 2, li[1] + li[3] // 2   # el botón nuevo, a la derecha de limpiar
-            p.mover_a(nx, ny, 0.8)
-            time.sleep(0.4)
-            p.clic(2)
-            time.sleep(3.0)
+
+            # un botón junto al campo (arrastrado), y una lista y otro botón debajo (paleta y clic)
+            fin = voz("ventanas_3"); r.rasgo("arrastrar")
+            n = lienzo("nombre")
+            ps.arrastrar(centro(lienzo("button")), (n[0] + n[2] - 8, n[1] + n[3] // 2), dur=1.6)
+            time.sleep(1.2)
+            poner("list")
+            poner("button")
+            r.hasta(fin)
+
+            # el texto de arriba, al final: la línea de estado
+            fin = voz("ventanas_4"); r.rasgo("mover")
+            ps.arrastrar(centro(lienzo("saludo")), debajo(), dur=1.6)
+            time.sleep(1.2)
+            r.hasta(fin)
+
+            # los textos, en las propiedades
+            fin = voz("ventanas_5"); r.rasgo("propiedades")
+            with deprisa(fin, 2):
+                ps.uno(*centro(lienzo("_label1")), 0.6); prop(0, tt("Tarea:", "Task:"))
+                ps.uno(*centro(lienzo("_button1")), 0.6); prop(0, tt("_Agregar", "_Add"))
+                ps.uno(*centro(lienzo("_button2")), 0.6); prop(0, tt("_Borrar", "_Delete"))   # (el texto no le da nombre)
+                ps.uno(*centro(lienzo("saludo")), 0.6); prop(0, tt("Sin tareas", "No tasks"), 45)
+                # la lista, con nombre ya (si no, el código de Agregar la nombra antes de que exista: errores en rojo)
+                ps.uno(*centro(lienzo("_list1")), 0.6); prop(2, LISTA, 2)
+            r.hasta(fin)
+
+            # los eventos: Agregar
+            fin = voz("ventanas_6"); r.rasgo("doblec")
+            AGREGAR = tt("agregar", "add")
+            doble("_button1")                                            # el primero sin nombre: Agregar
             _, editor, _ = zona_forja()
             r.marcar("codigo", *editor, 2.5)
+            codigo("# " + AGREGAR, f"mui_list_add(v.{LISTA}, mui_get_text(v.nombre))", 'mui_set_text(v.nombre, "")')
             r.hasta(fin)
-            fin = voz("ventanas_5"); r.rasgo("ejecutar_ui")
-            teclas_n("del", len("# hasta_luego"), 0, 0.1)            # el comentario del if nuevo, por su código
-            escribir('mui_set_text(v.saludo, "Hasta luego")', 0.06, 3)
-            time.sleep(0.8)
+
+            # el campo con el mismo evento, la lista y Borrar
+            fin = voz("ventanas_7"); r.rasgo("eventos")
+            with deprisa(fin, 2):
+                a_ventana()
+                ps.uno(*centro(lienzo("nombre")), 0.6)
+                prop(2, "3", 4)                                          # ack: el número de Agregar (el 3)
+                doble(LISTA)
+                codigo("# " + LISTA, f"mui_set_text(v.saludo, mui_list_get(v.{LISTA}, mui_get_value(v.{LISTA})))")
+                a_ventana()
+                doble("_button1")                                        # el que queda sin nombre: Borrar
+                codigo("# " + tt("borrar", "delete"), f"mui_list_remove(v.{LISTA}, mui_get_value(v.{LISTA}))")
+                # dónde está cada cosa (para usar el programa): la ventana dibujada, en proporción
+                a_ventana()
+                cajas = {c: lienzo(c) for c in ("_vgroup1", "nombre", AGREGAR, LISTA, tt("borrar", "delete"), "saludo")}
+                rx(f"ABRIR '{MAIN}' 1", pausa=1.5)
+            r.hasta(fin)
+
+            # ejecutarlo y usarlo
+            fin = voz("ventanas_8"); r.rasgo("ejecutar_ui")
+            r.acercar(0, 0, 1280, 1024, 0.1)
             agente.tecla(raw("e"), AM)                                 # Amiga-E: guarda, compila y ejecuta
             t0 = time.time()
-            while not amiga.ventana("Saludo") and time.time() - t0 < 40:
+            while not amiga.ventana(NOMBRE) and time.time() - t0 < 40:
                 time.sleep(0.4)
             time.sleep(1.5)
-            v = amiga.ventana("Saludo")
+            v = amiga.ventana(NOMBRE)
             if v:
-                r.marcar("programa", v[2] - 4, v[3] - 4, v[4] + 8, v[5] + 8, 3.0)
-                r.acercar(v[2] + v[4] // 2 - 250, v[3] + v[5] // 2 - 200, 500, 400, 5.0)
-                p.mover_a(v[2] + v[4] * 5 // 6, v[3] + v[5] - 14, 1.0)   # el tercer botón de la fila de abajo
-                time.sleep(0.4)
-                p.clic()
-                time.sleep(2.5)
+                raiz = cajas["_vgroup1"]
+
+                def en_programa(c, dx=0.5, dy=0.5):
+                    """El punto del programa que corresponde a esa caja de la ventana dibujada (en proporción)."""
+                    fx = (c[0] + c[2] * dx - raiz[0]) / raiz[2]
+                    fy = (c[1] + c[3] * dy - raiz[1]) / raiz[3]
+                    return (int(v[2] + 6 + fx * (v[4] - 12)), int(v[3] + 18 + fy * (v[5] - 24)))
+
+                r.acercar(v[2] + v[4] // 2 - 300, v[3] + v[5] // 2 - 240, 600, 480, 30.0)
+                r.marcar("programa", v[2] - 4, v[3] - 4, v[4] + 8, v[5] + 8, 2.0)
+                ps.uno(*en_programa(cajas["nombre"]), 0.7)
+                escribir(tt("Comprar disquetes", "Buy floppy disks"), 0.06, 2)
+                ps.uno(*en_programa(cajas[AGREGAR]), 0.7)
+                time.sleep(1.0)
+                ps.uno(*en_programa(cajas["nombre"]), 0.6)
+                escribir(tt("Arreglar el A1200", "Fix the A1200"), 0.06, 2)
+                k("ret")
+                time.sleep(1.0)
+                ps.uno(*en_programa(cajas[LISTA], 0.3, 0.08), 0.7)     # la primera línea de la lista
+                time.sleep(1.5)
+                ps.uno(*en_programa(cajas[tt("borrar", "delete")]), 0.7)
+                time.sleep(2.0)
             r.hasta(fin)
             time.sleep(1.0)
-            if amiga.ventana("Saludo"):
-                p.cerrar("Saludo")
+            if amiga.ventana(NOMBRE):
+                p.cerrar(NOMBRE)
             esperar_estado("libre", 15)
             forja_delante()
         except Exception:
@@ -951,7 +1051,64 @@ try:
             traceback.print_exc()
             print("FALLO en el capítulo, sigo con el siguiente", flush=True)
 
-    # --- 14. Extensiones ---------------------------------------------------------------------------------------------
+    # --- 14. El Taller 3D (la extensión de Titan Force; el robot es de SantiDarkG) -----------------------------------
+    if hacer("taller3d"):
+        try:
+            r.capitulo("taller3d")
+            cerrar_extensiones()
+            TITAN = f"{PROY}/Titan"
+            for c in (f"C:MakeDir {TITAN}", f"C:Copy Traspaso:robot_A_tex.tft {TITAN}/ QUIET",
+                      f"C:Copy Traspaso:Titan.forja {TITAN}/ QUIET"):
+                agente.lanzar(c)
+                time.sleep(0.6)
+            rx(f"ABRIR '{TITAN}/Titan.forja'", pausa=2.5)                          # el proyecto: sus ficheros a la izquierda
+            fin = voz("taller_1"); r.rasgo("taller")
+            rx(f"ABRIR '{TITAN}/robot_A_tex.tft'", pausa=2.0)
+            t0 = time.time()
+            while not amiga.ventana("Taller 3D") and time.time() - t0 < 40:
+                time.sleep(0.5)
+            time.sleep(3.0)
+            v = amiga.ventana("Taller 3D")
+            r.hasta(fin)
+            cx, cy = v[2] + v[4] // 2, v[3] + (24 + 30 + v[5] - 18) // 2      # el centro de la vista (entre la barra y la ayuda)
+            fin = voz("taller_2"); r.rasgo("robot")
+            r.marcar("taller", v[2] - 4, v[3] - 4, v[4] + 8, v[5] + 8, 2.0)
+            ps.arrastrar((cx - 120, cy), (cx + 120, cy), dur=3.0)               # la cámara gira alrededor del robot
+            time.sleep(1.0)
+            ps.arrastrar((cx + 120, cy + 20), (cx - 40, cy - 20), dur=2.5)
+            r.hasta(fin)
+            fin = voz("taller_3"); r.rasgo("pose")
+            p.mover_a(cx, v[3] + v[5] - 8, 0.5)                                  # el ratón fuera del robot
+            k("2"); time.sleep(1.5)                                              # Animación: empieza en "golpe"
+            teclas_n("down", 6, 0, 0.35)                                         # de la cabeza al brazo derecho
+            time.sleep(0.8)
+            teclas_n("q", 12, 0, 0.3)                                            # 12 x 5 grados
+            time.sleep(1.0)
+            k("space"); time.sleep(3.5)                                          # el golpe entero
+            r.hasta(fin)
+            fin = voz("taller_4"); r.rasgo("escena")
+            k("3"); time.sleep(2.5)
+            k("n"); time.sleep(1.5)                                              # la casa, 28 px encima del robot
+            ps.arrastrar((cx, cy - 28), (cx - 52, cy - 52), dur=1.6)
+            time.sleep(1.5)
+            r.hasta(fin)
+            fin = voz("taller_5"); r.rasgo("guardar3d")
+            agente.tecla(raw("s"), AM)
+            time.sleep(2.5)
+            p.cerrar("Taller 3D")
+            time.sleep(1.5)
+            forja_delante()
+            a_forja()
+            ficheros, _, _ = zona_forja()
+            r.marcar("ficheros3d", *ficheros[:2], ficheros[2], 160, 2.5)
+            r.hasta(fin)
+            time.sleep(1.0)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            print("FALLO en el capítulo, sigo con el siguiente", flush=True)
+
+    # --- 15. Extensiones ---------------------------------------------------------------------------------------------
     if hacer("cierre"):
         try:
             r.capitulo("cierre")

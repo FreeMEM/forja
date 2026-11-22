@@ -534,7 +534,8 @@ func lz_disponer(ventana: Json, ancho: Int, alto: Int)
             w = _lz_max(w, (ancho - 16) * 85 / 100 - LZ_BORDE * 2)
         end
         if lz_raiz.ey
-            h = _lz_max(h, (alto - 16) * 85 / 100 - LZ_BORDE * 2 - lz_titulo_alto)
+            # (a lo alto, menos: MUI abre la ventana más baja que la pantalla)
+            h = _lz_max(h, (alto - 16) * 50 / 100 - LZ_BORDE * 2 - lz_titulo_alto)
         end
     end
     lz_vw = w + LZ_BORDE * 2 + 4
