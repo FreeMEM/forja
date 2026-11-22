@@ -74,6 +74,71 @@ func anim_poner(a: Animacion, clave: Int, h: Int, eje: Int, grados: Float)
 end
 
 # La pose en t (milisegundos) en el esqueleto: suave entre la clave de antes y la de despues
+# El tiempo de la clave k (ms); en bucle, las de fuera del ciclo dan la vuelta (k < 0, k >= n)
+func _anim_t(a: Animacion, k: Int) -> Float
+    n = a.tiempos.length
+    if not a.bucle
+        if k < 0
+            k = 0
+        end
+        if k >= n
+            k = n - 1
+        end
+        return Float(a.tiempos[k])
+    end
+    vueltas = 0
+    while k < 0
+        k = k + n
+        vueltas = vueltas - 1
+    end
+    while k >= n
+        k = k - n
+        vueltas = vueltas + 1
+    end
+    return Float(a.tiempos[k] + vueltas * a.duracion)
+end
+
+# El valor c (hueso * 3 + eje) de la clave k, con la misma vuelta que _anim_t
+func _anim_v(a: Animacion, k: Int, c: Int) -> Float
+    n = a.tiempos.length
+    if not a.bucle
+        if k < 0
+            k = 0
+        end
+        if k >= n
+            k = n - 1
+        end
+        return a.ang[k][c]
+    end
+    while k < 0
+        k = k + n
+    end
+    return a.ang[k % n][c]
+end
+
+# La pendiente (grados por ms) en la clave k: la de una curva monotona (Fritsch y Butland). Sin vaiven: es 0 donde
+# el movimiento cambia de sentido o se para (dos claves iguales), y en la primera y la ultima clave sin bucle
+func _anim_m(a: Animacion, k: Int, c: Int) -> Float
+    n = a.tiempos.length
+    if not a.bucle and (k <= 0 or k >= n - 1)
+        return 0.0
+    end
+    h0 = _anim_t(a, k) - _anim_t(a, k - 1)
+    h1 = _anim_t(a, k + 1) - _anim_t(a, k)
+    if h0 <= 0.0 or h1 <= 0.0
+        return 0.0
+    end
+    d0 = (_anim_v(a, k, c) - _anim_v(a, k - 1, c)) / h0
+    d1 = (_anim_v(a, k + 1, c) - _anim_v(a, k, c)) / h1
+    if d0 * d1 <= 0.0
+        return 0.0
+    end
+    return 3.0 * (h0 + h1) / ((2.0 * h1 + h0) / d0 + (h1 + 2.0 * h0) / d1)
+end
+
+# La pose en t (ms) en los angulos del esqueleto. Entre dos claves, una curva que pasa por todas sin pararse en cada
+# una (la velocidad sigue de un tramo al siguiente): un golpe acelera hasta la clave del impacto; dos claves iguales
+# lo dejan quieto.
 func anim_pose(a: Animacion, t: Int, e: Esqueleto)
     n = a.tiempos.length
     if a.bucle and a.duracion > 0
@@ -86,25 +151,44 @@ func anim_pose(a: Animacion, t: Int, e: Esqueleto)
     while i + 1 < n and a.tiempos[i + 1] <= t
         i = i + 1
     end
-    p0 = a.ang[i]
-    p1 = p0
-    t0 = a.tiempos[i]
-    t1 = t0
-    if i + 1 < n
-        p1 = a.ang[i + 1]
-        t1 = a.tiempos[i + 1]
-    elif a.bucle and n > 1
-        p1 = a.ang[0]
-        t1 = a.duracion + a.tiempos[0]
+    if t < a.tiempos[0]
+        if a.bucle
+            i = -1
+        else
+            i = 0
+            t = a.tiempos[0]
+        end
     end
+    t0 = _anim_t(a, i)
+    t1 = _anim_t(a, i + 1)
+    h = t1 - t0
     u = 0.0
-    if t1 > t0 and t > t0
-        u = Float(t - t0) / Float(t1 - t0)
+    if h > 0.0 and (a.bucle or i + 1 < n)
+        u = (Float(t) - t0) / h
+        if u > 1.0
+            u = 1.0
+        end
     end
-    for h in (0..HUESOS - 1)
-        e.ax[h] = mezcla(p0[h * 3], p1[h * 3], u)
-        e.ay[h] = mezcla(p0[h * 3 + 1], p1[h * 3 + 1], u)
-        e.az[h] = mezcla(p0[h * 3 + 2], p1[h * 3 + 2], u)
+    u2 = u * u
+    u3 = u2 * u
+    b00 = 2.0 * u3 - 3.0 * u2 + 1.0
+    b10 = u3 - 2.0 * u2 + u
+    b01 = 3.0 * u2 - 2.0 * u3
+    b11 = u3 - u2
+    for c in (0..HUESOS * 3 - 1)
+        v = _anim_v(a, i, c)
+        if u > 0.0
+            v = b00 * v + b10 * h * _anim_m(a, i, c) + b01 * _anim_v(a, i + 1, c) + b11 * h * _anim_m(a, i + 1, c)
+        end
+        hh = c / 3
+        eje = c % 3
+        if eje == 0
+            e.ax[hh] = v
+        elif eje == 1
+            e.ay[hh] = v
+        else
+            e.az[hh] = v
+        end
     end
 end
 
@@ -214,13 +298,48 @@ func anim_por_defecto(nombre: String) -> Animacion
         return a
     end
     if nombre == "golpe"
-        # carga girando el torso, golpea, aguanta y vuelve
-        a = anim_nueva("golpe", 2100, false)
-        _clave(a, 0, [9, 4, 5], [-15.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
-        _clave(a, 700, [1, 8, 9, 4, 5], [0.0, -22.0, 0.0, 35.0, 0.0, 0.0, -95.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
-        _clave(a, 950, [1, 8, 9, 4, 5], [0.0, 26.0, 0.0, -82.0, 0.0, 0.0, -4.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
-        _clave(a, 1300, [1, 8, 9, 4, 5], [0.0, 26.0, 0.0, -82.0, 0.0, 0.0, -4.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
-        _clave(a, 2100, [9, 4, 5], [-15.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
+        # Un punetazo de derecha de un robot de 20 m, despacio: los tiempos de un golpe humano por 3,4 (la raiz de
+        # cuantas veces es mas grande: un movimiento con la misma gravedad). Levanta el codo hacia atras, gira el
+        # torso (el hombro derecho atras), se echa un poco atras y dobla un poco las rodillas hasta dejar el puno
+        # junto a la cabeza (1,3 s), aguanta un momento, lanza el puno al frente acelerando hasta el impacto (1 s;
+        # unos 12 m) con el giro del torso, echando el cuerpo adelante (16 grados) y bajando sobre las rodillas (22
+        # grados) para proyectar el peso, como una persona: la energia crece con el recorrido. La cabeza se levanta
+        # para seguir mirando al frente. Sigue un poco por el peso del brazo, aguanta y vuelve despacio (1,9 s). El
+        # brazo izquierdo hace de guardia y se recoge al golpear. Huesos: 1 torso (ax > 0 adelante, ay > 0 lleva el
+        # hombro derecho atras), 2 cabeza, 7 el hombro derecho (az > 0 abre el brazo), 8 el brazo (ax < 0 al
+        # frente), 9 el antebrazo (ax < 0 dobla el codo); 3, 4, 5 el izquierdo; 12 y 15 las rodillas (el juego pone
+        # la cadera y el tobillo para que el pie no se mueva).
+        a = anim_nueva("golpe", 5000, false)
+        _clave(a, 0, [9, 5], [-12.0, 0.0, 0.0, -12.0, 0.0, 0.0])
+        _clave(a, 700, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [-3.0, 14.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -8.0, -25.0, 0.0,
+                                                          0.0, -70.0, 0.0, 0.0, 0.0, 0.0, 30.0, 20.0, 0.0, 0.0,
+                                                          -70.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0])
+        _clave(a, 1300, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [-5.0, 28.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, -10.0, -35.0,
+                                                           0.0, 0.0, -85.0, 0.0, 0.0, 0.0, 0.0, 55.0, 15.0, 0.0, 0.0,
+                                                           -130.0, 0.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.0, 0.0])
+        _clave(a, 1550, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [-5.0, 30.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, -10.0, -35.0,
+                                                           0.0, 0.0, -85.0, 0.0, 0.0, 0.0, 0.0, 57.0, 14.0, 0.0, 0.0,
+                                                           -131.0, 0.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.0, 0.0])
+        # el lanzamiento: a la mitad del tiempo lleva un cuarto del recorrido y a tres cuartos, algo mas de la mitad
+        # (acelera como empujado con fuerza constante)
+        _clave(a, 2050, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [0.2, 14.5, 0.0, -0.2, 0.0, 0.0, 0.0, 0.0, -10.0, -27.5,
+                                                           0.0, 0.0, -87.5, 0.0, 0.0, 0.0, 0.0, 41.8, -15.0, 0.0,
+                                                           0.0, -99.0, 0.0, 0.0, 13.0, 0.0, 0.0, 13.0, 0.0, 0.0])
+        _clave(a, 2300, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [6.8, -4.9, 0.0, -4.3, 0.0, 0.0, 0.0, 0.0, -10.0, -18.1,
+                                                           0.0, 0.0, -90.6, 0.0, 0.0, 0.0, 0.0, 22.7, -51.2, 0.0,
+                                                           0.0, -59.0, 0.0, 0.0, 16.8, 0.0, 0.0, 16.8, 0.0, 0.0])
+        _clave(a, 2550, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [16.0, -32.0, 0.0, -10.0, 0.0, 0.0, 0.0, 0.0, -10.0, -5.0,
+                                                           0.0, 0.0, -95.0, 0.0, 0.0, 0.0, 0.0, -4.0, -102.0, 0.0,
+                                                           0.0, -3.0, 0.0, 0.0, 22.0, 0.0, 0.0, 22.0, 0.0, 0.0])
+        # sigue un poco (el brazo pesa) y aguanta
+        _clave(a, 2750, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [18.0, -35.0, 0.0, -11.0, 0.0, 0.0, 0.0, 0.0, -10.0, -3.0,
+                                                           0.0, 0.0, -96.0, 0.0, 0.0, 0.0, 0.0, -6.0, -104.0, 0.0,
+                                                           0.0, -1.0, 0.0, 0.0, 24.0, 0.0, 0.0, 24.0, 0.0, 0.0])
+        _clave(a, 3100, [1, 2, 3, 4, 5, 7, 8, 9, 12, 15], [18.0, -35.0, 0.0, -11.0, 0.0, 0.0, 0.0, 0.0, -10.0, -3.0,
+                                                           0.0, 0.0, -96.0, 0.0, 0.0, 0.0, 0.0, -6.0, -104.0, 0.0,
+                                                           0.0, -1.0, 0.0, 0.0, 24.0, 0.0, 0.0, 24.0, 0.0, 0.0])
+        # vuelve despacio a la postura de partida
+        _clave(a, 5000, [9, 5], [-12.0, 0.0, 0.0, -12.0, 0.0, 0.0])
         return a
     end
     # disparo: el brazo derecho al frente y el culatazo
