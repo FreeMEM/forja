@@ -75,8 +75,8 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
 - [x] T2. Dibujo del lienzo con la ventana, la paleta arriba y Lienzo/Árbol; clic elige (sincroniza el árbol).
 - [x] T3. Arrastrar objetos (mover) y desde la paleta (crear), con la marca de dónde cae.
 - [x] T4. Doble clic: evento y nombre automáticos; buscar o crear el manejador en el `.dash` (abrirlo y saltar).
-- [ ] T5. Prueba con usuario simulado en FS-UAE (`tests/disenador.sh`), capturas al usuario.
-- [ ] T6. Lo que falte a Dash (si falta algo), en los dos caminos (`./dash` y `./dash --gcc`).
+- [x] T5. Prueba con usuario simulado en FS-UAE (`tests/disenador.sh`), capturas al usuario.
+- [x] T6. Lo que falte a Dash (si falta algo), en los dos caminos (`./dash` y `./dash --gcc`).
 - [ ] T7. VS Code: doble clic en la vista y en el árbol (número y nombre automáticos, `gotoEvent` sin preguntar);
   pruebas de la extensión; captura.
 - [ ] T8. Documentación (ayuda de Forja, README, CHANGELOG, `docs/MUI_EDITOR.md` de Dash) con "(lo pidió Jose)".
@@ -101,3 +101,6 @@ Commits con "(lo pidió Jose)". Nada hacia fuera: ni push a main de Forja, ni re
   (`dv_evento`). Pruebas: `tests/eventos_base.dash` (14 bien) y `RTG=1 tests/disenador.sh` (11 bien, TODO BIEN).
   Al escribir en una propiedad solo se redibuja su fila. `tests/diseno.sh` (la vieja) falla 3 pasos (cambiar label,
   vista previa, rehacer y guardar) igual en main fd952d0: no es de esta rama.
+- 2026-11-22 T5: capturas (RTG, ESPERA=300) mandadas al usuario: casilla arrastrada, paleta + botón, árbol y el
+  código creado con doble clic.
+- 2026-11-22 T6: a Dash no le falta nada para esto. Forja compila con `./dash` y con `./dash --gcc` (22 s).
