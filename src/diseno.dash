@@ -845,7 +845,8 @@ func dv_arrastre(x: Int, y: Int, estado: Int) -> Bool
 end
 
 # Para las pruebas: dónde se ve cada cosa, desde la esquina de la ventana de Forja ("tipo:x,y,ancho,alto" de cada
-# botón de la paleta y "nombre:x,y,ancho,alto" de cada objeto con nombre de la ventana, separados por espacios)
+# botón de la paleta, "nombre:x,y,ancho,alto" de cada objeto con nombre de la ventana, "titulo:..." de su barra y
+# "props:..." de la primera fila de las propiedades, separados por espacios)
 func dv_sonda() -> String
     r = ""
     tipos = str_split(TIPOS, "|")
@@ -865,8 +866,10 @@ func dv_sonda() -> String
                 r = r + "#{nombre}:#{_dv_vx0 + c.x},#{_dv_vy0 + c.y},#{c.w},#{c.h} "
             end
         end
-        r = r + "titulo:#{_dv_vx0 + lz_vx},#{_dv_vy0 + lz_vy},#{lz_vw},#{lz_titulo_alto}"
+        r = r + "titulo:#{_dv_vx0 + lz_vx},#{_dv_vy0 + lz_vy},#{lz_vw},#{lz_titulo_alto} "
     end
+    # la primera fila de las propiedades (las demás van debajo, de dv_fila_alto en dv_fila_alto)
+    r = r + "props:#{_dv_props_px},#{_dv_props_y},#{_dv_props_derecha - _dv_props_px},#{dv_fila_alto}"
     return r
 end
 
