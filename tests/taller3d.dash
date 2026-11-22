@@ -1,0 +1,89 @@
+# Hace de usuario del Taller 3D (la extension de Titan Force): con el robot abierto (FORJA_PRUEBA), mira el modelo,
+# pasa a Animacion, elige el brazo derecho y lo gira en el golpe, lo reproduce, pasa a la Escena, pone una casa y
+# guarda con Amiga-S. Comprueba que estan golpe.tfa y escena.tfe y lo que llevan. Lo arranca tests/taller3d.sh; anota
+# en DH0:Prueba/taller3d.txt, con los segundos desde que empezo cada paso (para casar las capturas).
+
+const AMIGA = 8
+
+var fallos: Int = 0
+var registro: String = ""
+var t0: Int = 0
+
+func anotar(texto: String)
+    registro = registro + "#{(time_ms() - t0) / 1000} s: " + texto + "\n"
+    file_write_text("DH0:Prueba/taller3d.txt", registro)
+end
+
+func ver(paso: String, cierto: Bool, detalle: String)
+    if cierto
+        anotar("bien: " + paso)
+    else
+        anotar("FALLO: " + paso + ": [" + detalle + "]")
+        fallos = fallos + 1
+    end
+end
+
+func activar() -> Bool
+    if not str_starts(input_active_title(), "Taller 3D")
+        w = window_find("Taller 3D")
+        if w != 0
+            window_found_activate(w)
+            time_delay(10)
+        end
+    end
+    return str_starts(input_active_title(), "Taller 3D")
+end
+
+func teclas(t: String)
+    activar()
+    for i in (0..t.length - 1)
+        input_text(t[i:i + 1])
+        time_delay(15)
+    end
+end
+
+Main
+    t0 = time_ms()
+    n = 0
+    while n < 600 and window_find("Taller 3D") == 0
+        time_delay(10)
+        n = n + 1
+    end
+    ver("la ventana del Taller 3D aparece", n < 600, "")
+    if n < 600
+        activar()
+        anotar("modelo")
+        time_delay(50 * 25)
+        teclas("2")
+        # del hueso 2 (cabeza) al 8 (brazo derecho)
+        for i in (0..5)
+            input_key(0x4D, 0)
+            time_delay(10)
+        end
+        # (la animacion de partida es la 3: golpe)
+        teclas("qqqqqq")
+        anotar("animacion: brazo girado")
+        time_delay(50 * 25)
+        teclas(" ")
+        anotar("reproduciendo")
+        time_delay(50 * 20)
+        teclas("3")
+        teclas("n")
+        anotar("escena: casa nueva")
+        time_delay(50 * 25)
+        activar()
+        input_key(0x21, AMIGA)
+        time_delay(50 * 5)
+        g = file_read_text("DH0:Prueba/titan/golpe.tfa")
+        ver("golpe.tfa guardado", g != nil and str_starts(g, "TFA 1") and str_contains(g, "nombre golpe"), "#{g}")
+        e = file_read_text("DH0:Prueba/titan/escena.tfe")
+        ver("escena.tfe guardada", e != nil and str_starts(e, "TFE 1"), "")
+        if e != nil
+            ver("con la casa nueva (320 + 1)", str_split(e, "casa ").length - 1 == 321, "#{str_split(e, "casa ").length - 1}")
+        end
+        anotar("golpe.tfa:\n#{g}")
+    end
+    if fallos == 0
+        anotar("TODO BIEN")
+    end
+end

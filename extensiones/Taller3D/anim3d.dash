@@ -1,0 +1,232 @@
+# anim3d.dash: las animaciones de Titan Force por poses clave (ficheros .tfa), para el editor 3D de Forja y el juego.
+#
+# Formato .tfa (texto, Latin-1), una cosa por linea:
+#   TFA 1
+#   nombre golpe
+#   duracion 2100          (milisegundos)
+#   bucle 0                (1: al acabar vuelve a empezar, pasando suave de la ultima pose a la primera)
+#   clave 0                (una pose clave, en milisegundos desde el principio; en orden)
+#   h 8 35 0 0             (hueso, giro en x, en y, en z, en grados; solo los huesos que no estan a 0)
+#   clave 700
+#   ...
+# Huesos: los 17 de montar (0 pelvis, 1 torso, 2 cabeza, 3-6 brazo izquierdo, 7-10 el derecho, 11-13 pierna
+# izquierda, 14-16 la derecha). En "andar" el juego pone las piernas el mismo (el paso no patina) y toma de la
+# animacion el resto del cuerpo.
+
+struct Animacion
+    nombre: String
+    duracion: Int
+    bucle: Bool
+    tiempos: [Int]
+    ang: [[Float]]
+end
+
+func pose_vacia() -> [Float]
+    var p: [Float] = []
+    for i in (0..HUESOS * 3 - 1)
+        p.push(0.0)
+    end
+    return p
+end
+
+func anim_nueva(nombre: String, duracion: Int, bucle: Bool) -> Animacion
+    a = Animacion(nombre, duracion, bucle, [], [])
+    a.tiempos.push(0)
+    a.ang.push(pose_vacia())
+    return a
+end
+
+# Una pose clave en t (o la que ya hay ahi); devuelve su numero
+func anim_clave(a: Animacion, t: Int) -> Int
+    i = 0
+    while i < a.tiempos.length and a.tiempos[i] < t
+        i = i + 1
+    end
+    if i < a.tiempos.length and a.tiempos[i] == t
+        return i
+    end
+    # la nueva, con la pose que habia en ese momento
+    var p: [Float] = []
+    e = Esqueleto([], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [])
+    montar(e)
+    anim_pose(a, t, e)
+    for h in (0..HUESOS - 1)
+        p.push(e.ax[h])
+        p.push(e.ay[h])
+        p.push(e.az[h])
+    end
+    a.tiempos.insert(i, t)
+    a.ang.insert(i, p)
+    return i
+end
+
+func anim_quitar_clave(a: Animacion, i: Int) -> Bool
+    if a.tiempos.length <= 1 or i < 0 or i >= a.tiempos.length
+        return false
+    end
+    a.tiempos.remove(i)
+    a.ang.remove(i)
+    return true
+end
+
+func anim_poner(a: Animacion, clave: Int, h: Int, eje: Int, grados: Float)
+    a.ang[clave][h * 3 + eje] = grados
+end
+
+# La pose en t (milisegundos) en el esqueleto: suave entre la clave de antes y la de despues
+func anim_pose(a: Animacion, t: Int, e: Esqueleto)
+    n = a.tiempos.length
+    if a.bucle and a.duracion > 0
+        t = t % a.duracion
+        if t < 0
+            t = t + a.duracion
+        end
+    end
+    i = 0
+    while i + 1 < n and a.tiempos[i + 1] <= t
+        i = i + 1
+    end
+    p0 = a.ang[i]
+    p1 = p0
+    t0 = a.tiempos[i]
+    t1 = t0
+    if i + 1 < n
+        p1 = a.ang[i + 1]
+        t1 = a.tiempos[i + 1]
+    elif a.bucle and n > 1
+        p1 = a.ang[0]
+        t1 = a.duracion + a.tiempos[0]
+    end
+    u = 0.0
+    if t1 > t0 and t > t0
+        u = Float(t - t0) / Float(t1 - t0)
+    end
+    for h in (0..HUESOS - 1)
+        e.ax[h] = mezcla(p0[h * 3], p1[h * 3], u)
+        e.ay[h] = mezcla(p0[h * 3 + 1], p1[h * 3 + 1], u)
+        e.az[h] = mezcla(p0[h * 3 + 2], p1[h * 3 + 2], u)
+    end
+end
+
+func _numero_decimal(t: String) -> Float
+    return Float(str_to_double(t))
+end
+
+func anim_leer(ruta: String) -> Animacion
+    texto = file_read_text(ruta)
+    a = Animacion("", 1000, false, [], [])
+    if not str_starts(texto, "TFA")
+        return a
+    end
+    for l in str_split(texto, "\n")
+        c = str_split(str_trim(l), " ")
+        if c.length >= 2 and c[0] == "nombre"
+            a.nombre = c[1]
+        elif c.length >= 2 and c[0] == "duracion"
+            a.duracion = Int(c[1])
+        elif c.length >= 2 and c[0] == "bucle"
+            a.bucle = c[1] == "1"
+        elif c.length >= 2 and c[0] == "clave"
+            a.tiempos.push(Int(c[1]))
+            a.ang.push(pose_vacia())
+        elif c.length >= 5 and c[0] == "h" and a.ang.length > 0
+            h = Int(c[1])
+            if h >= 0 and h < HUESOS
+                p = a.ang[a.ang.length - 1]
+                p[h * 3] = _numero_decimal(c[2])
+                p[h * 3 + 1] = _numero_decimal(c[3])
+                p[h * 3 + 2] = _numero_decimal(c[4])
+            end
+        end
+    end
+    if a.tiempos.length == 0
+        a.tiempos.push(0)
+        a.ang.push(pose_vacia())
+    end
+    return a
+end
+
+# Un angulo con un decimal como mucho, sin ceros de mas
+func anim_grados(g: Float) -> String
+    d = Int(g * 10.0 + 0.5)
+    if g < 0.0
+        d = Int(g * 10.0 - 0.5)
+    end
+    if d % 10 == 0
+        return "#{d / 10}"
+    end
+    s = ""
+    if d < 0
+        s = "-"
+        d = 0 - d
+    end
+    return s + "#{d / 10}.#{d % 10}"
+end
+
+func anim_escribir(a: Animacion, ruta: String) -> Bool
+    b = "bucle 0"
+    if a.bucle
+        b = "bucle 1"
+    end
+    t = "TFA 1\nnombre " + a.nombre + "\nduracion #{a.duracion}\n" + b + "\n"
+    for i in (0..a.tiempos.length - 1)
+        t = t + "clave #{a.tiempos[i]}\n"
+        p = a.ang[i]
+        for h in (0..HUESOS - 1)
+            if p[h * 3] != 0.0 or p[h * 3 + 1] != 0.0 or p[h * 3 + 2] != 0.0
+                t = t + "h #{h} " + anim_grados(p[h * 3]) + " " + anim_grados(p[h * 3 + 1]) + " " + anim_grados(p[h * 3 + 2]) + "\n"
+            end
+        end
+    end
+    return file_write_text(ruta, t)
+end
+
+# --- Las cuatro de partida: las mismas que el juego llevaba en el codigo ---
+
+func _clave(a: Animacion, t: Int, huesos: [Int], valores: [Float])
+    i = anim_clave(a, t)
+    # lo que no se dice, en reposo (no lo de la clave de antes)
+    for k in (0..HUESOS * 3 - 1)
+        a.ang[i][k] = 0.0
+    end
+    for k in (0..huesos.length - 1)
+        h = huesos[k]
+        a.ang[i][h * 3] = valores[k * 3]
+        a.ang[i][h * 3 + 1] = valores[k * 3 + 1]
+        a.ang[i][h * 3 + 2] = valores[k * 3 + 2]
+    end
+end
+
+func anim_por_defecto(nombre: String) -> Animacion
+    if nombre == "quieto"
+        # respira: el torso adelante y atras, los brazos un poco abiertos y doblados
+        a = anim_nueva("quieto", 4800, true)
+        _clave(a, 0, [1, 2, 3, 7, 5, 9], [1.5, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -4.0, 0.0, 0.0, 4.0, -12.0, 0.0, 0.0, -12.0, 0.0, 0.0])
+        _clave(a, 2400, [1, 2, 3, 7, 5, 9], [-1.5, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -4.0, 0.0, 0.0, 4.0, -12.0, 0.0, 0.0, -12.0, 0.0, 0.0])
+        return a
+    end
+    if nombre == "andar"
+        # el cuerpo de arriba (las piernas las pone el juego con el paso): brazos al contrario que las piernas
+        a = anim_nueva("andar", 2400, true)
+        _clave(a, 0, [1, 4, 8, 5, 9, 3, 7], [4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -18.0, 0.0, 0.0, -18.0, 0.0, 0.0, 0.0, 0.0, -4.0, 0.0, 0.0, 4.0])
+        _clave(a, 600, [1, 4, 8, 5, 9, 3, 7], [4.0, 6.0, 0.0, 14.0, 0.0, 0.0, -14.0, 0.0, 0.0, -18.0, 0.0, 0.0, -18.0, 0.0, 0.0, 0.0, 0.0, -4.0, 0.0, 0.0, 4.0])
+        _clave(a, 1800, [1, 4, 8, 5, 9, 3, 7], [4.0, -6.0, 0.0, -14.0, 0.0, 0.0, 14.0, 0.0, 0.0, -18.0, 0.0, 0.0, -18.0, 0.0, 0.0, 0.0, 0.0, -4.0, 0.0, 0.0, 4.0])
+        return a
+    end
+    if nombre == "golpe"
+        # carga girando el torso, golpea, aguanta y vuelve
+        a = anim_nueva("golpe", 2100, false)
+        _clave(a, 0, [9, 4, 5], [-15.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
+        _clave(a, 700, [1, 8, 9, 4, 5], [0.0, -22.0, 0.0, 35.0, 0.0, 0.0, -95.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
+        _clave(a, 950, [1, 8, 9, 4, 5], [0.0, 26.0, 0.0, -82.0, 0.0, 0.0, -4.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
+        _clave(a, 1300, [1, 8, 9, 4, 5], [0.0, 26.0, 0.0, -82.0, 0.0, 0.0, -4.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
+        _clave(a, 2100, [9, 4, 5], [-15.0, 0.0, 0.0, 10.0, 0.0, 0.0, -60.0, 0.0, 0.0])
+        return a
+    end
+    # disparo: el brazo derecho al frente y el culatazo
+    a = anim_nueva("disparo", 1600, true)
+    _clave(a, 0, [1, 8, 9, 7, 4, 5], [-2.0, -10.0, 0.0, -88.0, 0.0, 0.0, -4.0, 0.0, 0.0, 0.0, 8.0, 0.0, -20.0, 0.0, 0.0, -70.0, 0.0, 0.0])
+    _clave(a, 150, [1, 8, 9, 7, 4, 5], [-4.8, -10.0, 0.0, -74.0, 0.0, 0.0, -11.0, 0.0, 0.0, 0.0, 8.0, 0.0, -20.0, 0.0, 0.0, -70.0, 0.0, 0.0])
+    _clave(a, 750, [1, 8, 9, 7, 4, 5], [-2.0, -10.0, 0.0, -88.0, 0.0, 0.0, -4.0, 0.0, 0.0, 0.0, 8.0, 0.0, -20.0, 0.0, 0.0, -70.0, 0.0, 0.0])
+    return a
+end
